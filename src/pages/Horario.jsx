@@ -71,7 +71,7 @@ import { modificarRecurrencia } from "@/functions/modificarRecurrencia";
 import { isEqual } from 'lodash';
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
-import * as base44 from '@/lib/base44';
+import { base44 } from "@/api/base44Client"; // ✅ Importación corregida
 
 const parseISOAsUTC = (isoString) => {
     if (!isoString) return null;
