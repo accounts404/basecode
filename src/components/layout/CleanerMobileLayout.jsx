@@ -9,7 +9,8 @@ import {
   Trophy,
   UserCog,
   LogOut,
-  Home
+  Home,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,6 +35,12 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       url: createPageUrl("ServicioActivo"),
       icon: Home,
       showWhen: hasActiveService
+    },
+    {
+      title: "Registrar Trabajo",
+      url: createPageUrl("RegistrarTrabajo"),
+      icon: Plus,
+      showAlways: true
     },
     {
       title: "Mis Horas",
@@ -64,6 +71,9 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   const visibleItems = navigationItems.filter(item => 
     item.showAlways || item.showWhen
   );
+
+  // Priorizar los primeros 5 items más importantes
+  const bottomNavItems = visibleItems.slice(0, 5);
 
   return (
     <div className="flex flex-col h-screen bg-slate-50">
@@ -100,8 +110,8 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
 
       {/* Bottom Navigation */}
       <nav className="bg-white border-t border-slate-200 flex-shrink-0 safe-area-bottom">
-        <div className="grid grid-cols-4 gap-1 p-2">
-          {visibleItems.slice(0, 4).map((item) => {
+        <div className={`grid gap-1 p-2 ${bottomNavItems.length <= 4 ? 'grid-cols-4' : 'grid-cols-5'}`}>
+          {bottomNavItems.map((item) => {
             const isActive = location.pathname === item.url;
             const Icon = item.icon;
             
@@ -115,12 +125,12 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
                     : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                <Icon className={`w-6 h-6 mb-1 ${
+                <Icon className={`w-5 h-5 mb-1 ${
                   item.title === "Servicio Activo" && hasActiveService 
                     ? 'animate-pulse text-green-600' 
                     : ''
                 }`} />
-                <span className="text-xs font-medium truncate w-full text-center">
+                <span className="text-[10px] font-medium truncate w-full text-center leading-tight">
                   {item.title}
                 </span>
               </Link>
