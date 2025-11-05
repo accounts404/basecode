@@ -1,154 +1,178 @@
-import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import {
-  CalendarClock,
+  Calendar,
   Clock,
-  FileText,
-  Trophy,
-  UserCog,
+  User,
   LogOut,
-  Home
+  Activity,
+  Trophy,
+  FileText,
+  DollarSign
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 
 export default function CleanerMobileLayout({ children, user, hasActiveService, isScoringParticipant }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
-    localStorage.clear();
-    await base44.auth.logout();
+    if (isLoggingOut) return;
+    
+    setIsLoggingOut(true);
+    console.log('[CleanerMobileLayout] 🚪 Iniciando cierre de sesión...');
+    
+    try {
+      // Paso 1: Limpiar TODO el localStorage
+      console.log('[CleanerMobileLayout] 🧹 Limpiando localStorage...');
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        console.log(`[CleanerMobileLayout] 🗑️ Eliminando: ${key}`);
+        localStorage.removeItem(key);
+      });
+      
+      // Paso 2: Limpiar sessionStorage también
+      console.log('[CleanerMobileLayout] 🧹 Limpiando sessionStorage...');
+      sessionStorage.clear();
+      
+      // Paso 3: Llamar al logout del SDK (esto debería limpiar cookies/tokens)
+      console.log('[CleanerMobileLayout] 📤 Llamando a base44.auth.logout()...');
+      await base44.auth.logout();
+      
+      console.log('[CleanerMobileLayout] ✅ Logout exitoso');
+      
+      // Paso 4: Esperar un momento para asegurar que todo se limpió
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+    } catch (error) {
+      console.error('[CleanerMobileLayout] ❌ Error al cerrar sesión:', error);
+    } finally {
+      // Paso 5: Forzar recarga completa de la página
+      console.log('[CleanerMobileLayout] 🔄 Forzando recarga completa...');
+      
+      // Usar replace para evitar que el usuario pueda volver atrás
+      window.location.replace(window.location.origin);
+    }
   };
 
+  // Determinar qué elementos de navegación mostrar
   const navigationItems = [
     {
       title: "Horario",
       url: createPageUrl("Horario"),
-      icon: CalendarClock,
-      showAlways: true
+      icon: Calendar,
+      show: true
     },
     {
       title: "Servicio Activo",
       url: createPageUrl("ServicioActivo"),
-      icon: Home,
-      showWhen: hasActiveService
+      icon: Activity,
+      show: hasActiveService,
+      isActive: true
     },
     {
       title: "Mis Horas",
       url: createPageUrl("MisHoras"),
       icon: Clock,
-      showAlways: true
+      show: true
     },
     {
       title: "Mis Pagos",
       url: createPageUrl("MisFacturas"),
-      icon: FileText,
-      showAlways: true
+      icon: DollarSign,
+      show: user?.active !== false
     },
     {
-      title: "Mi Puntuación",
+      title: "Registrar",
+      url: createPageUrl("RegistrarTrabajo"),
+      icon: FileText,
+      show: user?.active !== false
+    },
+    {
+      title: "Puntuación",
       url: createPageUrl("MiPuntuacion"),
       icon: Trophy,
-      showWhen: isScoringParticipant
+      show: isScoringParticipant
     },
     {
-      title: "Mi Perfil",
+      title: "Perfil",
       url: createPageUrl("MiPerfil"),
-      icon: UserCog,
-      showAlways: true
+      icon: User,
+      show: true
     }
-  ];
+  ].filter(item => item.show);
 
-  const visibleItems = navigationItems.filter(item => 
-    item.showAlways || item.showWhen
-  );
+  const isCurrentPage = (url) => location.pathname === url;
 
   return (
     <div className="flex flex-col h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-4 py-3 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 flex items-center justify-center">
-              <img
-                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png"
-                alt="RedOak"
-                className="max-w-full max-h-full object-contain"
-              />
-            </div>
-            <div>
-              <h2 className="font-bold text-slate-900 text-sm">RedOak Cleaning</h2>
-              <p className="text-xs text-slate-500">Panel de Limpiador</p>
-            </div>
+      {/* Header móvil simple */}
+      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 flex items-center justify-center">
+            <img
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png"
+              alt="RedOak"
+              className="max-w-full max-h-full object-contain"
+            />
           </div>
-          
-          <Avatar className="w-10 h-10">
-            <AvatarImage src={user?.profile_photo_url} alt={user?.full_name} />
-            <AvatarFallback className="bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold text-sm">
-              {user?.full_name?.charAt(0)?.toUpperCase() || 'U'}
-            </AvatarFallback>
-          </Avatar>
+          <div>
+            <h1 className="text-sm font-bold text-slate-900">RedOak</h1>
+            <p className="text-xs text-slate-600">{user?.full_name}</p>
+          </div>
         </div>
+        
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className={`p-2 rounded-lg transition-colors ${
+            isLoggingOut 
+              ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+              : 'text-slate-600 hover:bg-red-50 hover:text-red-600'
+          }`}
+        >
+          {isLoggingOut ? (
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-600" />
+          ) : (
+            <LogOut className="w-5 h-5" />
+          )}
+        </button>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      {/* Contenido principal con scroll */}
+      <main className="flex-1 overflow-auto pb-20">
         {children}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="bg-white border-t border-slate-200 flex-shrink-0 safe-area-bottom">
-        <div className="grid grid-cols-4 gap-1 p-2">
-          {visibleItems.slice(0, 4).map((item) => {
-            const isActive = location.pathname === item.url;
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 safe-area-inset-bottom z-50">
+        <div className="flex items-center justify-around max-w-lg mx-auto">
+          {navigationItems.map((item) => {
             const Icon = item.icon;
+            const isCurrent = isCurrentPage(item.url);
+            const isActiveService = item.isActive;
             
             return (
               <Link
                 key={item.title}
                 to={item.url}
-                className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-colors ${
-                  isActive 
+                className={`flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg transition-colors ${
+                  isCurrent 
                     ? 'bg-blue-50 text-blue-600' 
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
+                    : isActiveService
+                    ? 'text-green-600'
+                    : 'text-slate-600'
+                } ${isActiveService ? 'animate-pulse' : ''}`}
               >
-                <Icon className={`w-6 h-6 mb-1 ${
-                  item.title === "Servicio Activo" && hasActiveService 
-                    ? 'animate-pulse text-green-600' 
-                    : ''
-                }`} />
-                <span className="text-xs font-medium truncate w-full text-center">
-                  {item.title}
-                </span>
+                <Icon className={`w-6 h-6 mb-1 ${isActiveService ? 'text-green-600' : ''}`} />
+                <span className="text-xs font-medium">{item.title}</span>
               </Link>
             );
           })}
-        </div>
-        
-        {/* User Info & Logout */}
-        <div className="border-t border-slate-100 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900 truncate">
-                {user?.full_name}
-              </p>
-              <p className="text-xs text-slate-500 truncate">
-                {user?.email}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="ml-2 flex-shrink-0"
-            >
-              <LogOut className="w-4 h-4 mr-1" />
-              <span className="text-xs">Salir</span>
-            </Button>
-          </div>
         </div>
       </nav>
     </div>
