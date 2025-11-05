@@ -315,26 +315,17 @@ export default function HorarioPage() {
             ]);
 
             console.log(`[Horario] ✅ Servicios cargados: ${cleanerSchedules?.length || 0}`);
-            console.log('[Horario] 📡 Assignments Response:', assignmentsResponse);
 
             const currentCleanerSchedules = Array.isArray(cleanerSchedules) ? cleanerSchedules : [];
             setSchedules(currentCleanerSchedules);
             saveToCache(CACHE_KEYS.SCHEDULES, currentCleanerSchedules);
 
             if (assignmentsResponse.data && assignmentsResponse.data.assignments && Array.isArray(assignmentsResponse.data.assignments)) {
-                console.log('[Horario] 📋 Assignments encontrados:', assignmentsResponse.data.assignments.length);
-                
                 const currentAssignment = assignmentsResponse.data.assignments.find(a =>
                     a.team_member_ids && Array.isArray(a.team_member_ids) && a.team_member_ids.includes(user.id)
                 );
 
-                console.log('[Horario] 🎯 Assignment actual para el usuario:', currentAssignment);
-
                 if (currentAssignment) {
-                    console.log('[Horario] 🚗 Vehículo:', currentAssignment.vehicle_info);
-                    console.log('[Horario] 👤 Conductor:', currentAssignment.main_driver_name);
-                    console.log('[Horario] 👥 Equipo:', currentAssignment.team_members_info);
-                    
                     setAssignedVehicle(currentAssignment.vehicle_info || null);
                     setMainDriverName(currentAssignment.main_driver_name || null);
                     saveToCache(CACHE_KEYS.VEHICLE, {
@@ -346,14 +337,11 @@ export default function HorarioPage() {
                         const teammates = currentAssignment.team_members_info.filter(member => member.id !== user.id);
                         setTeamMembers(teammates);
                         saveToCache(CACHE_KEYS.TEAM, teammates);
-                        console.log('[Horario] ✅ Compañeros de equipo actualizados:', teammates.length);
                     } else {
                         setTeamMembers([]);
                         saveToCache(CACHE_KEYS.TEAM, []);
-                        console.log('[Horario] ℹ️ Sin compañeros de equipo');
                     }
                 } else {
-                    console.log('[Horario] ℹ️ Sin assignment para este usuario hoy');
                     setAssignedVehicle(null);
                     setMainDriverName(null);
                     setTeamMembers([]);
@@ -361,7 +349,6 @@ export default function HorarioPage() {
                     saveToCache(CACHE_KEYS.TEAM, []);
                 }
             } else {
-                console.log('[Horario] ⚠️ Respuesta de assignments vacía o inválida');
                 setAssignedVehicle(null);
                 setMainDriverName(null);
                 setTeamMembers([]);
