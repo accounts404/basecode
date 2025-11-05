@@ -67,7 +67,7 @@ import { generateRecurringTasks } from "@/functions/generateRecurringTasks";
 import { processScheduleForWorkEntries } from "@/functions/processScheduleForWorkEntries";
 import { generarRecurrencias } from "@/functions/generarRecurrencias";
 import { actualizarSerieRecurrente } from "@/functions/actualizarSerieRecurrencia";
-import { modificarRecurrencia } => "@/functions/modificarRecurrencia";
+import { modificarRecurrencia } from "@/functions/modificarRecurrencia";
 import { isEqual } from 'lodash';
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -133,7 +133,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = null);
+    const [selectedTask, setSelectedTask] = useState(null);
 
     const [error, setError] = useState('');
 
