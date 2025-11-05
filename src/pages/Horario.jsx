@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from '@/utils';
@@ -53,7 +54,7 @@ import { es } from "date-fns/locale";
 
 import { Schedule } from "@/entities/Schedule";
 import { Client } from "@/entities/Client";
-import { User } from "@/entities/User";
+import { User } => User;
 import { DailyTeamAssignment } from "@/entities/DailyTeamAssignment";
 import { WorkEntry } from "@/entities/WorkEntry";
 import { Vehicle } from "@/entities/Vehicle";
@@ -164,6 +165,21 @@ export default function HorarioPage() {
             clockInProcessingRef.current = false;
         };
     }, []);
+
+    // NUEVO: Mostrar mensaje de Clock Out exitoso si viene del state
+    useEffect(() => {
+        if (location.state?.clockOutSuccess && location.state?.message) {
+            console.log('[Horario] 🎉 Mostrando mensaje de Clock Out exitoso');
+            toast({
+                title: "✅ Clock Out Exitoso",
+                description: location.state.message,
+                duration: 5000,
+                className: "bg-green-50 border-green-200"
+            });
+            // Limpiar el state después de mostrar el mensaje
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location.state, navigate, toast, location.pathname]);
 
     useEffect(() => {
         if (location.state?.selectedService && location.state?.openModal) {
@@ -567,12 +583,8 @@ export default function HorarioPage() {
 
                     registerClockOut();
 
-                    toast({
-                        title: "✅ Clock Out Registrado",
-                        description: "Servicio finalizado exitosamente. ¡Buen trabajo!",
-                        duration: 3000,
-                        className: "bg-blue-50 border-blue-200"
-                    });
+                    // The toast message for clock out is now handled by the new useEffect block via navigation state.
+                    // This allows the message to persist across the navigation to the Horario page.
                 }
 
                 const updatedSchedules = [...schedulesArray];
@@ -593,6 +605,15 @@ export default function HorarioPage() {
                     
                     setTimeout(() => {
                         navigate(createPageUrl('ServicioActivo'));
+                    }, 300);
+                } else if (action === 'clock_out' && isCleanerView) {
+                    navigationInProgressRef.current = true;
+                    console.log('[Horario] 🚀 Clock Out confirmado, navegando a Horario con mensaje...');
+                    setTimeout(() => {
+                        navigate(createPageUrl('Horario'), { 
+                            replace: true, 
+                            state: { clockOutSuccess: true, message: "Servicio finalizado exitosamente. ¡Buen trabajo!" } 
+                        });
                     }, 300);
                 }
             }
@@ -885,7 +906,7 @@ export default function HorarioPage() {
                         });
 
                         if (!recurrenceResult.success) {
-                            setError(`Error: ${recurrenceResult.error}`);
+                            setError(`Error: ${recururrenceResult.error}`);
                         }
                     } catch (recurrenceError) {
                         console.error('[Horario] ❌ Error en actualizarSerieRecurrente:', recurrenceError);
