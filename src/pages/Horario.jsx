@@ -54,7 +54,7 @@ import { es } from "date-fns/locale";
 
 import { Schedule } from "@/entities/Schedule";
 import { Client } from "@/entities/Client";
-import { User } => User;
+import { User } from "@/entities/User";
 import { DailyTeamAssignment } from "@/entities/DailyTeamAssignment";
 import { WorkEntry } from "@/entities/WorkEntry";
 import { Vehicle } from "@/entities/Vehicle";
@@ -134,7 +134,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = useState(null);
+    const [selectedTask, setSelectedTask] = null);
 
     const [error, setError] = useState('');
 
@@ -906,7 +906,7 @@ export default function HorarioPage() {
                         });
 
                         if (!recurrenceResult.success) {
-                            setError(`Error: ${recururrenceResult.error}`);
+                            setError(`Error: ${recurrenceResult.error}`);
                         }
                     } catch (recurrenceError) {
                         console.error('[Horario] ❌ Error en actualizarSerieRecurrente:', recurrenceError);
