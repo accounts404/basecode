@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
+import { registerClockOut } from "@/components/utils/activeServiceManager";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,7 +73,7 @@ export default function ServicioActivoPage() {
 
     // Polling automático cada 20 segundos para actualizar el estado del servicio
     useEffect(() => {
-        if (!loading && activeService && user) {
+        if (!loading && activeService && user && !clockingOut) {
             console.log('[ServicioActivo] 🔄 Iniciando polling automático cada 20 segundos');
             
             pollingRef.current = setInterval(async () => {
@@ -121,7 +122,7 @@ export default function ServicioActivoPage() {
                 }
             };
         }
-    }, [loading, activeService, user, clientInfo, navigate]);
+    }, [loading, activeService, user, clientInfo, navigate, clockingOut]);
 
     const loadUserAndActiveService = async () => {
         try {
@@ -208,66 +209,108 @@ export default function ServicioActivoPage() {
     const handleClockOut = async () => {
         if (!activeService || !user) return;
 
+        console.log('[ServicioActivo] 🕐 Iniciando Clock Out...');
         setClockingOut(true);
         setError("");
 
+        // 🛑 DETENER POLLING INMEDIATAMENTE
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+            console.log('[ServicioActivo] 🛑 Polling detenido para Clock Out');
+        }
+
+        // 🛑 DETENER TIMER
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+            console.log('[ServicioActivo] 🛑 Timer detenido para Clock Out');
+        }
+
         try {
-            const updatedClockInData = [...(activeService.clock_in_data || [])];
-            const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
-            const currentTime = new Date().toISOString();
+            // 1️⃣ Registrar Clock Out en cola offline INMEDIATAMENTE
+            console.log('[ServicioActivo] 💾 Registrando Clock Out en cola offline...');
+            const result = await registerClockOut(activeService.id, user.id);
+            console.log('[ServicioActivo] ✅ Clock Out registrado en cola:', result);
 
-            if (existingIndex >= 0) {
-                let userLocation = null;
-                if ('geolocation' in navigator) {
-                    try {
-                        const position = await new Promise((resolve, reject) => {
-                            navigator.geolocation.getCurrentPosition(resolve, reject, {
-                                timeout: 10000,
-                                enableHighAccuracy: true
-                            });
-                        });
-                        userLocation = `${position.coords.latitude},${position.coords.longitude}`;
-                    } catch (error) {
-                        console.warn('No se pudo obtener la ubicación GPS:', error);
-                    }
+            // 2️⃣ Redirigir INMEDIATAMENTE al Horario con mensaje de éxito
+            console.log('[ServicioActivo] 🚀 Redirigiendo a Horario...');
+            navigate(createPageUrl("Horario"), { 
+                replace: true,
+                state: { 
+                    clockOutSuccess: true,
+                    message: '¡Clock Out registrado exitosamente! Se sincronizará automáticamente.'
                 }
-
-                updatedClockInData[existingIndex] = {
-                    ...updatedClockInData[existingIndex],
-                    clock_out_time: currentTime,
-                    clock_out_location: userLocation
-                };
-            }
-
-            const allClockedOut = updatedClockInData.every(c => c.clock_out_time);
-            const newStatus = allClockedOut ? 'completed' : activeService.status;
-
-            await base44.entities.Schedule.update(activeService.id, {
-                clock_in_data: updatedClockInData,
-                status: newStatus
             });
 
-            if (newStatus === 'completed') {
+            // 3️⃣ Intentar actualización en backend en segundo plano (sin bloquear)
+            // El sistema offline-first se encargará de esto automáticamente
+            (async () => {
                 try {
-                    await base44.functions.invoke('processScheduleForWorkEntries', {
-                        scheduleId: activeService.id,
-                        mode: 'create'
-                    });
-                } catch (workEntryError) {
-                    console.warn('[ServicioActivo] Error procesando WorkEntries:', workEntryError);
-                }
-            }
+                    const updatedClockInData = [...(activeService.clock_in_data || [])];
+                    const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
+                    const currentTime = new Date().toISOString();
 
-            setSuccess("¡Clock Out registrado exitosamente!");
-            setTimeout(() => {
-                navigate(createPageUrl("Horario"), { replace: true });
-            }, 2000);
+                    if (existingIndex >= 0) {
+                        let userLocation = null;
+                        if ('geolocation' in navigator) {
+                            try {
+                                const position = await new Promise((resolve, reject) => {
+                                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                        timeout: 5000,
+                                        enableHighAccuracy: true
+                                    });
+                                });
+                                userLocation = `${position.coords.latitude},${position.coords.longitude}`;
+                            } catch (error) {
+                                console.warn('[ServicioActivo] No se pudo obtener ubicación GPS:', error);
+                            }
+                        }
+
+                        updatedClockInData[existingIndex] = {
+                            ...updatedClockInData[existingIndex],
+                            clock_out_time: currentTime,
+                            clock_out_location: userLocation
+                        };
+                    }
+
+                    const allClockedOut = updatedClockInData.every(c => c.clock_out_time);
+                    const newStatus = allClockedOut ? 'completed' : activeService.status;
+
+                    await base44.entities.Schedule.update(activeService.id, {
+                        clock_in_data: updatedClockInData,
+                        status: newStatus
+                    });
+
+                    console.log('[ServicioActivo] ✅ Backend actualizado exitosamente en segundo plano');
+
+                    if (newStatus === 'completed') {
+                        try {
+                            await base44.functions.invoke('processScheduleForWorkEntries', {
+                                scheduleId: activeService.id,
+                                mode: 'create'
+                            });
+                            console.log('[ServicioActivo] ✅ WorkEntries procesadas');
+                        } catch (workEntryError) {
+                            console.warn('[ServicioActivo] ⚠️ Error procesando WorkEntries:', workEntryError);
+                        }
+                    }
+                } catch (error) {
+                    console.error('[ServicioActivo] ❌ Error actualizando backend (pero Clock Out ya está en cola):', error);
+                    // No mostramos error al usuario porque el Clock Out ya está guardado localmente
+                }
+            })();
 
         } catch (error) {
-            console.error('[ServicioActivo] Error en Clock Out:', error);
+            console.error('[ServicioActivo] ❌ Error en Clock Out:', error);
             setError("Error al registrar Clock Out. Por favor, inténtalo de nuevo.");
-        } finally {
             setClockingOut(false);
+            
+            // Reiniciar polling si hubo error
+            if (!pollingRef.current) {
+                console.warn('[ServicioActivo] Attempting to restart polling due to Clock Out error.');
+                loadUserAndActiveService(); 
+            }
         }
     };
 
@@ -881,6 +924,7 @@ export default function ServicioActivoPage() {
                     <Button
                         onClick={() => setShowReportDialog(true)}
                         variant="outline"
+                        disabled={clockingOut}
                         className="w-full h-14 text-base font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50"
                     >
                         <AlertTriangle className="w-5 h-5 mr-2" />
@@ -890,12 +934,12 @@ export default function ServicioActivoPage() {
                     <Button
                         onClick={handleClockOut}
                         disabled={clockingOut}
-                        className="w-full h-14 text-base font-semibold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg"
+                        className="w-full h-14 text-base font-semibold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {clockingOut ? (
                             <>
                                 <Clock className="w-5 h-5 mr-2 animate-spin" />
-                                Finalizando...
+                                Finalizando Servicio...
                             </>
                         ) : (
                             <>
