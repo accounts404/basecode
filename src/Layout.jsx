@@ -49,7 +49,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
-import CleanerMobileLayout from '../components/layout/CleanerMobileLayout'; // Import the new mobile layout
+import CleanerMobileLayout from '@/components/layout/CleanerMobileLayout';
 
 const adminMenuItems = [
   { name: 'Dashboard', path: 'Dashboard', icon: BarChart },
