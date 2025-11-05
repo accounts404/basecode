@@ -132,7 +132,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = null);
+    const [selectedTask, setSelectedTask] = useState(null);
 
     const [error, setError] = useState('');
 
