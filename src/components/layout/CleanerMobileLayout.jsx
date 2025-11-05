@@ -9,8 +9,7 @@ import {
   Trophy,
   UserCog,
   LogOut,
-  Home,
-  PlusCircle
+  Home
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,12 +34,6 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       url: createPageUrl("ServicioActivo"),
       icon: Home,
       showWhen: hasActiveService
-    },
-    {
-      title: "Registrar Trabajo",
-      url: createPageUrl("RegistrarTrabajo"),
-      icon: PlusCircle,
-      showAlways: true
     },
     {
       title: "Mis Horas",
@@ -71,9 +64,6 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   const visibleItems = navigationItems.filter(item => 
     item.showAlways || item.showWhen
   );
-
-  // Tomar los primeros 5 items para la navegación inferior (máximo recomendado para móvil)
-  const bottomNavItems = visibleItems.slice(0, 5);
 
   return (
     <div className="flex flex-col h-screen bg-slate-50">
@@ -110,8 +100,8 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
 
       {/* Bottom Navigation */}
       <nav className="bg-white border-t border-slate-200 flex-shrink-0 safe-area-bottom">
-        <div className="grid grid-cols-5 gap-1 p-2">
-          {bottomNavItems.map((item) => {
+        <div className="grid grid-cols-4 gap-1 p-2">
+          {visibleItems.slice(0, 4).map((item) => {
             const isActive = location.pathname === item.url;
             const Icon = item.icon;
             
