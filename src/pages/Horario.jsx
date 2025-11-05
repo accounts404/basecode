@@ -71,7 +71,7 @@ import { modificarRecurrencia } from "@/functions/modificarRecurrencia";
 import { isEqual } from 'lodash';
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
-import { base44 } from "@/api/base44Client";
+import { base44 } from "@/api/base44Client"; // ✅ Importación corregida
 
 const parseISOAsUTC = (isoString) => {
     if (!isoString) return null;
@@ -434,10 +434,10 @@ export default function HorarioPage() {
                 ]);
                 setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
                 setTasks(Array.isArray(allTasks) ? allTasks : []);
-                console.log(`[Horario] Admin - ${isSilentUpdate ? 'Actualización silenciosa' : 'Carga'} completa.`);
+                console.log(`[Horario] Admin - ${isSilentUpdate ? 'Actualización silenciosa' : 'Carga'} completada.`);
             } else {
                 await loadCleanerSpecificData(date, isSilentUpdate);
-                console.log(`[Horario] Limpiador - ${isSilentUpdate ? 'Actualización silenciosa' : 'Carga'} completa.`);
+                console.log(`[Horario] Limpiador - ${isSilentUpdate ? 'Actualización silenciosa' : 'Carga'} completada.`);
             }
         } catch (error) {
             console.error('[Horario] ❌ Error cargando horarios:', error);
