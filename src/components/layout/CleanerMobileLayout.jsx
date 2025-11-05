@@ -9,7 +9,8 @@ import {
   Trophy,
   UserCog,
   LogOut,
-  Home
+  Home,
+  ClipboardList
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,6 +35,12 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       url: createPageUrl("ServicioActivo"),
       icon: Home,
       showWhen: hasActiveService
+    },
+    {
+      title: "Registrar Trabajo",
+      url: createPageUrl("RegistrarTrabajo"),
+      icon: ClipboardList,
+      showAlways: true
     },
     {
       title: "Mis Horas",
