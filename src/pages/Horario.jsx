@@ -71,7 +71,6 @@ import { modificarRecurrencia } from "@/functions/modificarRecurrencia";
 import { isEqual } from 'lodash';
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
-import { base44 } from "@/api/base44Client"; // ✅ Importación corregida
 
 const parseISOAsUTC = (isoString) => {
     if (!isoString) return null;
@@ -140,10 +139,6 @@ export default function HorarioPage() {
     const [clockInProcessing, setClockInProcessing] = useState(false);
     const [clockOutProcessing, setClockOutProcessing] = useState(false);
 
-    // New states for optimizations
-    const [hasActiveService, setHasActiveService] = useState(false); // To track if cleaner has ANY active service
-    const [currentTime, setCurrentTime] = useState(new Date()); // For clock display, if needed, updated less frequently
-
     const intervalRef = useRef(null);
     const pollingRef = useRef(null);
     const calendarRef = useRef(null);
@@ -161,7 +156,6 @@ export default function HorarioPage() {
         currentViewRef.current = view;
     }, [view]);
 
-    // Cleanup interval and polling on unmount
     useEffect(() => {
         loadInitialData();
         return () => {
@@ -171,7 +165,6 @@ export default function HorarioPage() {
         };
     }, []);
 
-    // Effect for handling deep links from dashboard
     useEffect(() => {
         if (location.state?.selectedService && location.state?.openModal) {
             console.log('[Horario] 🎯 Abriendo modal para servicio desde dashboard:', location.state.selectedService);
@@ -181,7 +174,6 @@ export default function HorarioPage() {
         }
     }, [location.state, navigate, location.pathname]);
 
-    // Effect for focusing on a specific schedule from URL
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const focusScheduleId = urlParams.get('focus');
@@ -195,49 +187,6 @@ export default function HorarioPage() {
             }
         }
     }, [schedules]);
-
-    // ✅ OPTIMIZADO: Reducir frecuencia de verificación y usar backend function
-    const checkForActiveService = useCallback(async (userId) => {
-        try {
-            // Usar la función backend que es más eficiente
-            const { data } = await base44.functions.invoke('checkActiveService', { userId }); // Pass userId to backend
-            const hasActive = data?.hasActive || false;
-            setHasActiveService(hasActive);
-            localStorage.setItem(`active_service_${userId}`, hasActive ? 'true' : 'false');
-            console.log(`[Horario] Verificación de servicio activo para ${userId}: ${hasActive}`);
-        } catch (error) {
-            console.error('[Horario] Error verificando servicio activo:', error);
-            // No mostrar error al usuario, solo log
-        }
-    }, []);
-
-    useEffect(() => {
-        if (user && user.role !== 'admin') {
-            // Primera verificación inmediata
-            checkForActiveService(user.id);
-
-            // Luego verificar cada 30 segundos
-            const interval = setInterval(() => {
-                checkForActiveService(user.id);
-            }, 30000);
-
-            return () => clearInterval(interval);
-        }
-    }, [user, checkForActiveService]); // Added checkForActiveService to dependencies as it's a useCallback
-
-    // ✅ OPTIMIZADO: Reducir la frecuencia de actualización del reloj
-    useEffect(() => {
-        if (!isCleanerView) return; // Only update clock for cleaner view if relevant for display
-
-        const updateClock = () => {
-            setCurrentTime(new Date());
-        };
-
-        updateClock(); // Ejecutar inmediatamente
-        const interval = setInterval(updateClock, 60000); // Cada 1 minuto en lugar de cada segundo
-
-        return () => clearInterval(interval);
-    }, [isCleanerView]); // Re-run if isCleanerView changes
 
     const loadRequiredKeysForDate = useCallback(async (currentSchedules, forDate) => {
         if (!user || user.role === 'admin') {
@@ -411,7 +360,6 @@ export default function HorarioPage() {
 
         } catch (error) {
             console.error('[Horario] ❌ Error cargando datos:', error);
-            throw error; // Re-throw to be caught by loadSchedules
         } finally {
             if (!isSilentUpdate) {
                 setLoadingCleanerData(false);
@@ -419,32 +367,6 @@ export default function HorarioPage() {
             loadingRef.current = false;
         }
     }, [user, loadRequiredKeysForDate, clockInProcessing, clockOutProcessing]);
-
-    // Unified function to load schedules for both admin and cleaner
-    const loadSchedules = useCallback(async (isSilentUpdate = false) => {
-        if (!user) return; // Ensure user is loaded before proceeding
-
-        setError(''); // Clear error before attempting to load
-
-        try {
-            if (user.role === 'admin') {
-                const [allSchedules, allTasks] = await Promise.all([
-                    Schedule.list(),
-                    Task.list()
-                ]);
-                setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
-                setTasks(Array.isArray(allTasks) ? allTasks : []);
-                console.log(`[Horario] Admin - ${isSilentUpdate ? 'Actualización silenciosa' : 'Carga'} completada.`);
-            } else {
-                await loadCleanerSpecificData(date, isSilentUpdate);
-                console.log(`[Horario] Limpiador - ${isSilentUpdate ? 'Actualización silenciosa' : 'Carga'} completada.`);
-            }
-        } catch (error) {
-            console.error('[Horario] ❌ Error cargando horarios:', error);
-            setError(`Error al cargar horarios: ${error.message || 'Error desconocido'}`);
-            throw error; // Re-throw to be caught by handleRefresh or polling
-        }
-    }, [user, date, loadCleanerSpecificData]); // Dependencies for useCallback
 
     const loadInitialData = async () => {
         try {
@@ -454,11 +376,17 @@ export default function HorarioPage() {
             console.log('[Horario] Usuario cargado:', currentUser.id, 'Rol:', currentUser.role);
 
             if (currentUser.role === 'admin') {
-                await loadSchedules(); // Use the new unified loadSchedules
-                setUsers(Array.isArray(await User.list()) ? await User.list() : []); // Fetch all users for admin view
+                const [allUsers, allSchedules, allTasks] = await Promise.all([
+                    User.list(),
+                    Schedule.list(),
+                    Task.list()
+                ]);
+                setUsers(Array.isArray(allUsers) ? allUsers : []);
+                setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
+                setTasks(Array.isArray(allTasks) ? allTasks : []);
                 setLoading(false);
                 setInitialLoadComplete(true);
-                console.log('[Horario] Admin - Carga inicial completa.');
+                console.log('[Horario] Admin - Cargados:', allUsers?.length || 0, 'usuarios,', allSchedules?.length || 0, 'servicios');
             } else {
                 console.log('[Horario] 📦 Limpiador detectado, cargando desde caché...');
                 const cachedSchedules = loadFromCache(CACHE_KEYS.SCHEDULES);
@@ -477,14 +405,14 @@ export default function HorarioPage() {
                 if (cachedTeam) setTeamMembers(cachedTeam);
                 if (cachedKeys) setRequiredKeys(cachedKeys);
 
-                setUsers([currentUser]); // Cleaner only needs their own user object for user list
+                setUsers([currentUser]);
                 setIsCleanerView(true);
                 setLoading(false);
                 setInitialLoadComplete(true);
 
                 console.log('[Horario] 🔄 Iniciando actualización en background...');
                 setTimeout(() => {
-                    loadSchedules(true); // Use the new unified loadSchedules for silent update
+                    loadCleanerSpecificData(new Date(), true);
                 }, 100);
             }
 
@@ -503,9 +431,9 @@ export default function HorarioPage() {
     useEffect(() => {
         if (user && user.role !== 'admin' && initialLoadComplete && !loadingRef.current && !navigationInProgressRef.current && !clockInProcessing && !clockOutProcessing) {
             console.log('[Horario] 📅 Fecha cambiada, actualizando datos...');
-            loadSchedules(false); // Call with isSilentUpdate = false as it's a date change
+            loadCleanerSpecificData(date, false);
         }
-    }, [date, user, initialLoadComplete, loadSchedules, clockInProcessing, clockOutProcessing]);
+    }, [date, user, initialLoadComplete, loadCleanerSpecificData, clockInProcessing, clockOutProcessing]);
 
     const startServiceTimer = useCallback(() => {
         if (intervalRef.current) clearInterval(intervalRef.current);
@@ -541,23 +469,32 @@ export default function HorarioPage() {
         }
     }, [isCleanerView, user, startServiceTimer]);
 
-    // ✅ OPTIMIZADO: handleRefresh ahora usa loadSchedules
-    const handleRefresh = useCallback(async () => {
-        if (!user) return; // Ensure user is loaded before allowing refresh
-
+    const handleRefresh = async () => {
+        if (!user) return;
+        
         setRefreshing(true);
         setError('');
 
         try {
-            await loadSchedules(); // Call the unified loadSchedules
+            if (user.role === 'admin') {
+                const [allSchedules, allTasks] = await Promise.all([
+                    Schedule.list(),
+                    Task.list()
+                ]);
+                setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
+                setTasks(Array.isArray(allTasks) ? allTasks : []);
+                console.log('[Horario] ✅ Datos admin actualizados');
+            } else {
+                await loadCleanerSpecificData(date, false);
+                console.log('[Horario] ✅ Datos limpiador actualizados');
+            }
         } catch (error) {
             console.error('[Horario] ❌ Error en handleRefresh:', error);
-            // Error already set by loadSchedules if it threw, no need to re-set here
+            setError(`Error al refrescar: ${error.message || 'Error desconocido'}`);
         } finally {
             setRefreshing(false);
         }
-    }, [user, loadSchedules]);
-
+    };
 
     const handleServiceDeleted = async () => {
         console.log("[Horario] Servicio eliminado, recargando...");
@@ -573,7 +510,7 @@ export default function HorarioPage() {
             console.log('[Horario] ⏳ Clock In ya en progreso...');
             return;
         }
-
+        
         if (action === 'clock_out' && clockOutProcessing) {
             console.log('[Horario] ⏳ Clock Out ya en progreso...');
             return;
@@ -597,7 +534,7 @@ export default function HorarioPage() {
                     });
 
                     const schedulesArray = Array.isArray(schedules) ? schedules : [];
-                    const updatedSchedules = schedulesArray.map(s =>
+                    const updatedSchedules = schedulesArray.map(s => 
                         s.id === scheduleId ? result.schedule : s
                     );
                     setSchedules(updatedSchedules);
@@ -605,7 +542,6 @@ export default function HorarioPage() {
 
                     setShowForm(false);
                     setSelectedEvent(null);
-                    checkForActiveService(user.id); // Update active service status after clock in
 
                     if (isCleanerView) {
                         navigationInProgressRef.current = true;
@@ -641,7 +577,7 @@ export default function HorarioPage() {
                     });
 
                     const schedulesArray = Array.isArray(schedules) ? schedules : [];
-                    const updatedSchedules = schedulesArray.map(s =>
+                    const updatedSchedules = schedulesArray.map(s => 
                         s.id === scheduleId ? result.schedule : s
                     );
                     setSchedules(updatedSchedules);
@@ -649,10 +585,9 @@ export default function HorarioPage() {
 
                     setShowForm(false);
                     setSelectedEvent(null);
-                    checkForActiveService(user.id); // Update active service status after clock out
 
                     if (isCleanerView) {
-                        await loadSchedules(true); // Use unified loadSchedules for silent update
+                        await loadCleanerSpecificData(currentDateRef.current, true);
                     }
                 } else {
                     toast({
@@ -667,7 +602,7 @@ export default function HorarioPage() {
 
         } catch (error) {
             console.error('[Horario] ❌ Error en clock in/out:', error);
-
+            
             toast({
                 title: "❌ Error",
                 description: `Error inesperado: ${error.message || 'Error desconocido'}`,
@@ -675,13 +610,13 @@ export default function HorarioPage() {
                 variant: "destructive"
             });
             setError(error.message || 'Error desconocido');
-
+            
         } finally {
             if (action === 'clock_in') {
                 setClockInProcessing(false);
             } else if (action === 'clock_out') {
                 setClockOutProcessing(false);
-                navigationInProgressRef.current = false;
+                navigationInProgressRef.current = false; 
             }
         }
     };
@@ -1158,7 +1093,16 @@ export default function HorarioPage() {
             }
 
             try {
-                await loadSchedules(true); // Use unified loadSchedules for silent update
+                if (user?.role === 'admin') {
+                    const [allSchedules, allTasks] = await Promise.all([
+                        Schedule.list(),
+                        Task.list()
+                    ]);
+                    setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
+                    setTasks(Array.isArray(allTasks) ? allTasks : []);
+                } else {
+                    await loadCleanerSpecificData(currentDateRef.current, true);
+                }
             } catch (error) {
                 console.error('[Horario] ❌ Error en polling:', error);
             }
@@ -1170,7 +1114,7 @@ export default function HorarioPage() {
                 pollingRef.current = null;
             }
         };
-    }, [user, initialLoadComplete, loadSchedules, clockInProcessing, clockOutProcessing]);
+    }, [user, initialLoadComplete, loadCleanerSpecificData, clockInProcessing, clockOutProcessing]);
 
     if (loading) {
         return (
@@ -1198,7 +1142,7 @@ export default function HorarioPage() {
                                 )}
                             </h1>
                         </div>
-
+                        
                         <Button
                             variant="outline"
                             onClick={handleRefresh}

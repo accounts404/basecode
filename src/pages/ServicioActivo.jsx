@@ -124,28 +124,31 @@ export default function ServicioActivoPage() {
     }, [loading, activeService, user, clientInfo, navigate]);
 
     const loadUserAndActiveService = async () => {
-        setLoading(true);
-        setError(""); 
-        
         try {
             const userData = await base44.auth.me();
             setUser(userData);
 
-            // Usar la función de verificación de servicio activo
-            const { hasActive, service } = await base44.asServiceRole.functions.invoke('checkActiveService', {});
+            const schedules = await base44.entities.Schedule.list();
+            const schedulesArray = Array.isArray(schedules) ? schedules : [];
+            
+            const active = schedulesArray.find(schedule => {
+                if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userData.id)) return false;
+                const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userData.id);
+                return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+            });
 
-            if (!hasActive || !service) {
+            if (!active) {
                 console.log('[ServicioActivo] No hay servicio activo, redirigiendo a Horario');
                 navigate(createPageUrl("Horario"), { replace: true });
                 return;
             }
 
-            setActiveService(service);
+            setActiveService(active);
 
             // Cargar información del cliente
-            if (service.client_id) {
+            if (active.client_id) {
                 try {
-                    const client = await base44.entities.Client.get(service.client_id);
+                    const client = await base44.entities.Client.get(active.client_id);
                     setClientInfo(client);
                     console.log('[ServicioActivo] Cliente cargado:', client.name);
                     console.log('[ServicioActivo] Notas estructuradas del cliente:', client.structured_service_notes);
@@ -157,7 +160,7 @@ export default function ServicioActivoPage() {
 
             // Calcular duración programada para este limpiador específico
             let duration = 0;
-            const cleanerSchedule = service.cleaner_schedules?.find(cs => cs.cleaner_id === userData.id);
+            const cleanerSchedule = active.cleaner_schedules?.find(cs => cs.cleaner_id === userData.id);
             
             if (cleanerSchedule && cleanerSchedule.start_time && cleanerSchedule.end_time) {
                 const schedStart = parseISOAsUTC(cleanerSchedule.start_time);
@@ -165,18 +168,18 @@ export default function ServicioActivoPage() {
                 duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
                 console.log('[ServicioActivo] Duración individual del limpiador:', duration, 'segundos (', formatElapsedTime(duration), ')');
             } else {
-                const schedStart = parseISOAsUTC(service.start_time);
-                const schedEnd = parseISOAsUTC(service.end_time);
+                const schedStart = parseISOAsUTC(active.start_time);
+                const schedEnd = parseISOAsUTC(active.end_time);
                 duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
                 console.log('[ServicioActivo] Duración general del servicio:', duration, 'segundos (', formatElapsedTime(duration), ')');
             }
             
             setScheduledDuration(duration);
-            startTimer(service, userData.id, duration);
+            startTimer(active, userData.id, duration);
 
         } catch (error) {
             console.error('[ServicioActivo] Error cargando datos:', error);
-            setError("Error al verificar servicios activos. Por favor, intenta de nuevo.");
+            setError("Error al cargar el servicio activo");
         } finally {
             setLoading(false);
         }
