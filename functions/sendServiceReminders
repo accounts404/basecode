@@ -1,0 +1,243 @@
+
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.0';
+import Twilio from 'npm:twilio@5.2.0';
+import { DateTime } from 'npm:luxon@3.4.4';
+
+// Función para formatear números de teléfono
+const formatAustralianPhoneNumber = (phoneNumber) => {
+    if (!phoneNumber) return null;
+    let cleanNumber = phoneNumber.replace(/[\s\-()]/g, '');
+    if (cleanNumber.startsWith('+61')) return cleanNumber;
+    if (cleanNumber.startsWith('61')) return '+' + cleanNumber;
+    if (cleanNumber.startsWith('0')) return '+61' + cleanNumber.substring(1);
+    if (cleanNumber.length === 9) return '+61' + cleanNumber;
+    return null;
+};
+
+// Esta función se puede ejecutar como cron job O llamar manualmente desde la aplicación
+Deno.serve(async (req) => {
+    const base44 = createClientFromRequest(req);
+    const log = (message) => console.log(`[sendServiceReminders] ${message}`);
+
+    // --- INICIO: CHEQUEO DE SEGURIDAD ---
+    try {
+        // Verificar si es una llamada de cron job (con API key) o de usuario autenticado
+        const providedApiKey = req.headers.get('api_key');
+        const expectedApiKey = Deno.env.get('CRON_API_KEY');
+        
+        let isAuthorized = false;
+        let executionType = '';
+
+        // Opción 1: Llamada de cron job con API key
+        if (providedApiKey && expectedApiKey && providedApiKey === expectedApiKey) {
+            isAuthorized = true;
+            executionType = 'cron_job';
+            log('Cron job execution authorized successfully.');
+        }
+        // Opción 2: Llamada desde aplicación con usuario autenticado
+        else {
+            try {
+                const user = await base44.auth.me();
+                if (user && user.role === 'admin') {
+                    isAuthorized = true;
+                    executionType = 'admin_manual';
+                    log('Manual admin execution authorized successfully.');
+                }
+            } catch (authError) {
+                log(`Authentication failed: ${authError.message}`);
+            }
+        }
+
+        if (!isAuthorized) {
+            log('Unauthorized attempt: Invalid API key and no valid admin user found.');
+            return new Response(JSON.stringify({ error: 'Unauthorized: Invalid API Key or insufficient permissions' }), { 
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        log(`Authorized execution type: ${executionType}`);
+
+    } catch (e) {
+        log(`Authorization error: ${e.message}`);
+        return new Response(JSON.stringify({ error: 'Authorization error' }), { 
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+    // --- FIN: CHEQUEO DE SEGURIDAD ---
+
+    try {
+        log('Starting reminder check...');
+
+        // 1. Obtener la configuración del administrador (usando rol de servicio)
+        const admins = await base44.asServiceRole.entities.User.filter({ role: 'admin' });
+        if (!admins || admins.length === 0) {
+            log('No admin user found. Skipping.');
+            return new Response(JSON.stringify({ message: 'No admin user found.' }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        const adminUser = admins[0];
+        const config = adminUser.reminder_config;
+
+        // 2. Verificar si la función está habilitada
+        if (!config || !config.enabled) {
+            log('Reminders are disabled in configuration. Skipping.');
+            return new Response(JSON.stringify({ message: 'Reminders disabled.' }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 3. Verificar si es la hora correcta para enviar, usando la zona horaria de Melbourne
+        const melbourneNow = DateTime.now().setZone('Australia/Melbourne');
+        const melbourneCurrentHour = melbourneNow.hour.toString().padStart(2, '0');
+        const configuredHour = config.time_of_day.split(':')[0];
+
+        if (melbourneCurrentHour !== configuredHour) {
+            log(`Current Melbourne hour (${melbourneCurrentHour}) does not match configured hour (${configuredHour}). Skipping.`);
+            return new Response(JSON.stringify({ message: 'Not the configured time to send.' }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        
+        log(`It's sending time in Melbourne! (Hour: ${melbourneCurrentHour})`);
+
+        // 4. Calcular la fecha objetivo para los recordatorios
+        const targetDateTime = melbourneNow.plus({ days: config.days_before || 1 });
+        const targetDateString = targetDateTime.toISODate();
+        log(`Looking for services scheduled on: ${targetDateString}`);
+
+        // 5. Obtener todos los servicios programados
+        const allSchedules = await base44.asServiceRole.entities.Schedule.list();
+        
+        // 6. Filtrar servicios para la fecha objetivo
+        const scheduledForTargetDate = allSchedules.filter(s => {
+            if (!s.start_time || s.status !== 'scheduled' || s.reminder_sent_at) {
+                return false;
+            }
+            try {
+                const serviceDateTime = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
+                const serviceDateString = serviceDateTime.toISODate();
+                return serviceDateString === targetDateString;
+            } catch (error) {
+                log(`Error parsing date for schedule ${s.id}: ${error.message}`);
+                return false;
+            }
+        });
+
+        if (scheduledForTargetDate.length === 0) {
+            log('No services found for the target date that need a reminder. All done.');
+            return new Response(JSON.stringify({ message: 'No services to remind today.' }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        log(`Found ${scheduledForTargetDate.length} services to remind.`);
+
+        // 7. Obtener clientes y credenciales de Twilio
+        const allClients = await base44.asServiceRole.entities.Client.list();
+        const clientMap = new Map(allClients.map(c => [c.id, c]));
+        
+        const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+        const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+        const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
+
+        if (!accountSid || !authToken || !twilioPhone) {
+            log('ERROR: Twilio credentials are not set.');
+            throw new Error('Twilio service is not configured.');
+        }
+
+        const twilioClient = new Twilio(accountSid, authToken);
+        const defaultTemplate = `Hola {client_name}, te recordamos tu servicio de limpieza de RedOak programado para el {service_date} a las {service_time}. ¡Gracias!`;
+        const messageTemplate = adminUser.sms_templates?.service_reminder || defaultTemplate;
+
+        // 8. Iterar y enviar los SMS
+        let sentCount = 0;
+        for (const schedule of scheduledForTargetDate) {
+            const client = clientMap.get(schedule.client_id);
+            if (!client || !client.mobile_number) {
+                log(`Skipping schedule ${schedule.id}: client or phone number not found.`);
+                continue;
+            }
+
+            // Formatear ambos números
+            const phoneNumber = formatAustralianPhoneNumber(client.mobile_number);
+            const secondaryPhoneNumber = client.secondary_mobile_number 
+                ? formatAustralianPhoneNumber(client.secondary_mobile_number) 
+                : null;
+
+            if (!phoneNumber) {
+                log(`Skipping schedule ${schedule.id}: invalid primary phone number format for ${client.mobile_number}.`);
+                continue;
+            }
+
+            // Usar sms_name si existe, sino usar name como respaldo
+            const clientNameForSMS = client.sms_name || client.name;
+            const serviceMelbourneTime = DateTime.fromISO(schedule.start_time).setZone('Australia/Melbourne');
+            const messageBody = messageTemplate
+                .replace(/\{client_name\}/g, clientNameForSMS)
+                .replace(/\{service_date\}/g, serviceMelbourneTime.toFormat('dd/MM/yy'))
+                .replace(/\{service_time\}/g, serviceMelbourneTime.toFormat('h:mm a'));
+
+            let sentToAtLeastOne = false;
+
+            // Enviar al número principal
+            try {
+                await twilioClient.messages.create({
+                    body: messageBody,
+                    from: twilioPhone,
+                    to: phoneNumber
+                });
+                
+                log(`Successfully sent reminder to primary number for schedule ${schedule.id} to ${client.name}.`);
+                sentToAtLeastOne = true;
+
+            } catch (error) {
+                log(`ERROR sending SMS to primary number for schedule ${schedule.id}: ${error.message}`);
+            }
+
+            // Enviar al número secundario si existe
+            if (secondaryPhoneNumber) {
+                try {
+                    await twilioClient.messages.create({
+                        body: messageBody,
+                        from: twilioPhone,
+                        to: secondaryPhoneNumber
+                    });
+                    
+                    log(`Successfully sent reminder to secondary number for schedule ${schedule.id} to ${client.name}.`);
+                    sentToAtLeastOne = true;
+
+                } catch (error) {
+                    log(`ERROR sending SMS to secondary number for schedule ${schedule.id}: ${error.message}`);
+                }
+            }
+
+            // Marcar como enviado si al menos se envió a un número
+            if (sentToAtLeastOne) {
+                await base44.asServiceRole.entities.Schedule.update(schedule.id, {
+                    reminder_sent_at: new Date().toISOString()
+                });
+                sentCount++;
+            }
+        }
+
+        log(`Process finished. Sent ${sentCount} reminders.`);
+        return new Response(JSON.stringify({ success: true, reminders_sent: sentCount }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+    } catch (error) {
+        log(`FATAL ERROR: ${error.message}`);
+        return new Response(JSON.stringify({ error: error.message }), { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+});

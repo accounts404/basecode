@@ -1,0 +1,100 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+
+Deno.serve(async (req) => {
+    try {
+        const base44 = createClientFromRequest(req);
+        
+        const user = await base44.auth.me();
+        if (!user) {
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Obtener la fecha del body de la request (en formato YYYY-MM-DD)
+        const body = await req.json().catch(() => ({}));
+        const targetDate = body.date; // Formato: 'YYYY-MM-DD'
+
+        // Usar service role para obtener todas las asignaciones, vehículos y usuarios
+        const [assignments, vehicles, users] = await Promise.all([
+            base44.asServiceRole.entities.DailyTeamAssignment.list(),
+            base44.asServiceRole.entities.Vehicle.list(),
+            base44.asServiceRole.entities.User.list()
+        ]);
+        
+        // Si se proporciona una fecha, filtrar por esa fecha
+        let filteredAssignments = assignments;
+        if (targetDate) {
+            filteredAssignments = assignments.filter(a => a.date === targetDate);
+        }
+        
+        // Crear mapas para búsqueda rápida
+        const vehicleMap = new Map(vehicles.map(v => [v.id, v]));
+        const userMap = new Map(users.map(u => [u.id, u]));
+
+        // Enriquecer las asignaciones con los detalles del vehículo, conductor principal y compañeros
+        const enrichedAssignments = filteredAssignments.map(assignment => {
+            const enrichedAssignment = { ...assignment };
+
+            // Añadir detalles del vehículo si existe
+            if (assignment.vehicle_id) {
+                const vehicle = vehicleMap.get(assignment.vehicle_id);
+                if (vehicle) {
+                    enrichedAssignment.vehicle_details = {
+                        make: vehicle.make,
+                        model: vehicle.model,
+                        license_plate: vehicle.license_plate,
+                        photos: vehicle.photos || []
+                    };
+                    // Información legible del vehículo
+                    enrichedAssignment.vehicle_info = `${vehicle.make} ${vehicle.model} - ${vehicle.license_plate}`;
+                }
+            }
+
+            // Añadir información del conductor principal
+            if (assignment.main_driver_id) {
+                const mainDriver = userMap.get(assignment.main_driver_id);
+                if (mainDriver) {
+                    enrichedAssignment.main_driver_name = mainDriver.display_name || mainDriver.invoice_name || mainDriver.full_name;
+                }
+            }
+
+            // Mantener compatibilidad hacia atrás con driver_name
+            if (assignment.driver_id && !enrichedAssignment.driver_name) {
+                const driver = userMap.get(assignment.driver_id);
+                if (driver) {
+                    enrichedAssignment.driver_name = driver.invoice_name || driver.full_name;
+                }
+            }
+
+            // NUEVO: Añadir nombres de todos los compañeros de equipo
+            if (assignment.team_member_ids && Array.isArray(assignment.team_member_ids)) {
+                enrichedAssignment.team_members_info = assignment.team_member_ids
+                    .map(memberId => {
+                        const member = userMap.get(memberId);
+                        if (member) {
+                            return {
+                                id: memberId,
+                                name: member.display_name || member.invoice_name || member.full_name,
+                                is_main_driver: memberId === assignment.main_driver_id
+                            };
+                        }
+                        return null;
+                    })
+                    .filter(Boolean);
+            }
+
+            return enrichedAssignment;
+        });
+        
+        return Response.json({ 
+            success: true,
+            assignments: enrichedAssignments 
+        });
+
+    } catch (error) {
+        console.error('Error getting daily team assignments:', error);
+        return Response.json({ 
+            error: 'Error obteniendo asignaciones de equipos',
+            details: error.message 
+        }, { status: 500 });
+    }
+});
