@@ -7,7 +7,13 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth, eachWeekOfInterval, isToday, isSameDay, addDays, isSameMonth, parseISO, addMinutes, roundToNearestMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CleanerDayListView from './CleanerDayListView';
-import { performClockOut } from '../utils/clockService'; // NUEVO: Importar servicio centralizado
+
+// Assuming base44 is an imported API client, if not, adjust import path or prop definition
+// For demonstration, a placeholder import:
+// import { base44 } from '@/lib/base44'; 
+// If base44 is not directly imported but passed as a prop, ensure it's in the component signature.
+// For this implementation, I will assume `base44` is passed as a prop, as it's a critical dependency
+// for the new `handleClockOut` function and the user provided it in the outline for that function.
 
 
 // NUEVA FUNCIÓN HELPER para parsear fechas de forma consistente y en UTC
@@ -51,8 +57,10 @@ export default function HorarioCalendario({
     isReadOnly = false, 
     assignedVehicle = null, 
     requiredKeys = [],
-    currentUser, 
-    onRefresh // NUEVO: Prop para refrescar datos después de clock-out
+    currentUser, // New prop for handleClockOut
+    base44,      // New prop for handleClockOut (assuming it's passed down)
+    setNotification, // New prop for handleClockOut
+    loadEvents   // New prop for handleClockOut
 }) {
     const [selectedDate, setSelectedDate] = useState(date);
     const [draggedEvent, setDraggedEvent] = useState(null);
@@ -67,7 +75,6 @@ export default function HorarioCalendario({
 
     // NUEVO: Estado para rastrear servicios que ya están siendo procesados (para Clock Out)
     const [processingSchedules, setProcessingSchedules] = useState(new Set());
-    const [clockOutProcessing, setClockOutProcessing] = useState(false); // NUEVO: Estado de procesamiento
 
     // Update selectedDate when date prop changes
     useEffect(() => {
@@ -505,55 +512,102 @@ export default function HorarioCalendario({
         });
     };
 
-    // REFACTORIZADO: Usar el servicio centralizado para Clock Out
     const handleClockOut = async (event) => {
-        if (!currentUser) {
-            console.error('[HorarioCalendario] No hay usuario actual para Clock Out');
-            return;
-        }
+        if (!currentUser) return;
     
         // Prevenir múltiples ejecuciones simultáneas para el mismo servicio
-        if (processingSchedules.has(event.id) || clockOutProcessing) {
-            console.log('[HorarioCalendario] ⏳ Clock Out ya en progreso para este servicio...');
-            return;
+        if (processingSchedules.has(event.id)) {
+          console.log('⚠️ Este servicio ya está siendo procesado, esperando...');
+          return;
         }
     
         try {
-            setProcessingSchedules(prev => new Set([...prev, event.id]));
-            setClockOutProcessing(true);
+          setProcessingSchedules(prev => new Set([...prev, event.id]));
     
-            console.log('[HorarioCalendario] 🔴 Iniciando Clock Out usando clockService...');
+          const now = new Date().toISOString();
+          const updatedClockInData = event.clock_in_data ? [...event.clock_in_data] : [];
+          const existingClockIn = updatedClockInData.find(c => c.cleaner_id === currentUser.id);
     
-            // USAR EL SERVICIO CENTRALIZADO
-            const result = await performClockOut(event.id, currentUser.id, (progress) => {
-                console.log('[HorarioCalendario] Progreso:', progress.message);
+          if (!existingClockIn || existingClockIn.clock_out_time) {
+            setNotification({
+                type: "error",
+                message: "No tienes un Clock In activo o ya hiciste Clock Out."
             });
+            return;
+          }
     
-            if (result.success) {
-                console.log('[HorarioCalendario] ✅ Clock Out exitoso');
-                
-                // Refrescar datos si hay callback
-                if (onRefresh) {
-                    await onRefresh();
-                }
-            } else {
-                console.error('[HorarioCalendario] ❌ Error en Clock Out:', result.message);
-                alert(`Error: ${result.message}`);
+          let userLat = null;
+          let userLng = null;
+          try {
+            const position = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            });
+            userLat = position.coords.latitude;
+            userLng = position.coords.longitude;
+          } catch (geoError) {
+            console.warn("No se pudo obtener la ubicación:", geoError);
+          }
+    
+          existingClockIn.clock_out_time = now;
+          if (userLat && userLng) {
+            existingClockIn.clock_out_location = `${userLat},${userLng}`;
+          }
+    
+          const allClockedOut = updatedClockInData.every(c => c.clock_out_time);
+          // Store the original status before modification for the WorkEntries check
+          const originalEventStatus = event.status; 
+          const newStatus = allClockedOut ? 'completed' : event.status;
+    
+          const { id, created_date, updated_date, created_by, ...updateData } = event;
+          updateData.clock_in_data = updatedClockInData;
+          updateData.status = newStatus;
+    
+          await base44.entities.Schedule.update(event.id, updateData);
+    
+          // MEJORA: Solo llamar a processScheduleForWorkEntries si el servicio cambió a 'completed'
+          // y no se había procesado antes
+          if (newStatus === 'completed' && originalEventStatus !== 'completed') {
+            console.log('✓ Servicio completado por primera vez, invocando processScheduleForWorkEntries');
+            try {
+              const response = await base44.functions.invoke('processScheduleForWorkEntries', {
+                scheduleId: event.id,
+                mode: 'create'
+              });
+              
+              if (response.data && response.data.success) {
+                console.log('✓ WorkEntries procesadas:', response.data.message);
+              } else {
+                console.warn('⚠️ Respuesta inesperada al procesar WorkEntries:', response.data);
+              }
+            } catch (processError) {
+              console.error('Error al procesar WorkEntries:', processError);
+              // No bloqueamos el Clock Out si falla el procesamiento
             }
+          } else if (newStatus === 'completed') {
+            console.log('ℹ️ Servicio ya estaba completado, no se vuelve a procesar WorkEntries');
+          }
     
+          setNotification({
+            type: "success",
+            message: `Clock Out registrado exitosamente${allClockedOut ? '. Servicio completado.' : ''}`
+          });
+          
+          await loadEvents();
         } catch (error) {
-            console.error('[HorarioCalendario] ❌ Error inesperado en Clock Out:', error);
-            alert(`Error inesperado: ${error.message || 'Error desconocido'}`);
+          console.error("Error en Clock Out:", error);
+          setNotification({
+            type: "error",
+            message: "Error al registrar Clock Out. Por favor, inténtalo de nuevo."
+          });
         } finally {
-            setClockOutProcessing(false);
-            // Limpiar el registro de procesamiento después de un breve delay
-            setTimeout(() => {
-                setProcessingSchedules(prev => {
-                    const newSet = new Set(prev);
-                    newSet.delete(event.id);
-                    return newSet;
-                });
-            }, 2000);
+          // Limpiar el registro de procesamiento después de un breve delay
+          setTimeout(() => {
+            setProcessingSchedules(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(event.id);
+              return newSet;
+            });
+          }, 2000);
         }
     };
     
@@ -907,9 +961,9 @@ export default function HorarioCalendario({
                                         size="xs" 
                                         className="mt-2 text-xs font-semibold"
                                         onClick={(e) => { e.stopPropagation(); handleClockOut(event); }} // Stop propagation to prevent event card click
-                                        disabled={processingSchedules.has(event.id) || clockOutProcessing} // Disable if already processing
+                                        disabled={processingSchedules.has(event.id)} // Disable if already processing
                                     >
-                                        {(processingSchedules.has(event.id) || clockOutProcessing) ? 'Cerrando...' : 'Cerrar Servicio'}
+                                        {processingSchedules.has(event.id) ? 'Cerrando...' : 'Cerrar Servicio'}
                                     </Button>
                                 )}
                             </div>
@@ -1282,7 +1336,6 @@ export default function HorarioCalendario({
                         processingSchedules={processingSchedules} // Pass new prop
                         handleClockOut={handleClockOut} // Pass new prop
                         currentUser={currentUser} // Pass new prop
-                        isProcessing={clockOutProcessing} // NUEVO: Pasar estado de procesamiento
                     />
                 ) : isCleanerView && view === 'week' ? (
                     renderWeekView()

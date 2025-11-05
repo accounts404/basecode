@@ -3,9 +3,12 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from '@/utils';
 import {
-    syncActiveService
+    // registerClockIn, // Removed, functionality replaced by performClockIn
+    // registerClockOut, // Removed, functionality replaced by performClockOut
+    // canUserClockIn, // Removed, functionality replaced by performClockIn
+    syncActiveService // Kept, as it's not directly replaced by the new clockService
 } from '@/components/utils/activeServiceManager';
-import { performClockIn, performClockOut } from '../components/utils/clockService';
+import { performClockIn, performClockOut } from '../components/utils/clockService'; // New import
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -136,14 +139,15 @@ export default function HorarioPage() {
 
     const [error, setError] = useState('');
 
-    const [clockInProcessing, setClockInProcessing] = useState(false);
-    const [clockOutProcessing, setClockOutProcessing] = useState(false);
+    const [clockInProcessing, setClockInProcessing] = useState(false); // New state
+    const [clockOutProcessing, setClockOutProcessing] = useState(false); // New state
 
     const intervalRef = useRef(null);
     const pollingRef = useRef(null);
     const calendarRef = useRef(null);
     const loadingRef = useRef(false);
     const navigationInProgressRef = useRef(false);
+    // const clockInProcessingRef = useRef(false); // Removed, replaced by state variable
 
     const currentDateRef = useRef(date);
     const currentViewRef = useRef(view);
@@ -162,6 +166,7 @@ export default function HorarioPage() {
             if (intervalRef.current) clearInterval(intervalRef.current);
             if (pollingRef.current) clearInterval(pollingRef.current);
             navigationInProgressRef.current = false;
+            // clockInProcessingRef.current = false; // Removed, replaced by state variable
         };
     }, []);
 
@@ -250,7 +255,7 @@ export default function HorarioPage() {
             return;
         }
 
-        if (navigationInProgressRef.current || clockInProcessing || clockOutProcessing) {
+        if (navigationInProgressRef.current || clockInProcessing || clockOutProcessing) { // Updated condition
             console.log('[Horario] 🚫 Operación en progreso, saltando carga...');
             return;
         }
@@ -366,7 +371,7 @@ export default function HorarioPage() {
             }
             loadingRef.current = false;
         }
-    }, [user, loadRequiredKeysForDate, clockInProcessing, clockOutProcessing]);
+    }, [user, loadRequiredKeysForDate, clockInProcessing, clockOutProcessing]); // Added new state to dependency array
 
     const loadInitialData = async () => {
         try {
@@ -429,11 +434,11 @@ export default function HorarioPage() {
     };
 
     useEffect(() => {
-        if (user && user.role !== 'admin' && initialLoadComplete && !loadingRef.current && !navigationInProgressRef.current && !clockInProcessing && !clockOutProcessing) {
+        if (user && user.role !== 'admin' && initialLoadComplete && !loadingRef.current && !navigationInProgressRef.current && !clockInProcessing && !clockOutProcessing) { // Updated condition
             console.log('[Horario] 📅 Fecha cambiada, actualizando datos...');
             loadCleanerSpecificData(date, false);
         }
-    }, [date, user, initialLoadComplete, loadCleanerSpecificData, clockInProcessing, clockOutProcessing]);
+    }, [date, user, initialLoadComplete, loadCleanerSpecificData, clockInProcessing, clockOutProcessing]); // Added new state to dependency array
 
     const startServiceTimer = useCallback(() => {
         if (intervalRef.current) clearInterval(intervalRef.current);
@@ -506,6 +511,7 @@ export default function HorarioPage() {
     const handleClockInOut = async (scheduleId, action) => {
         console.log(`[Horario] 🎬 Iniciando ${action === 'clock_in' ? 'Clock In' : 'Clock Out'}...`);
 
+        // Prevenir múltiples ejecuciones simultáneas
         if (action === 'clock_in' && clockInProcessing) {
             console.log('[Horario] ⏳ Clock In ya en progreso...');
             return;
@@ -519,13 +525,15 @@ export default function HorarioPage() {
         try {
             if (action === 'clock_in') {
                 setClockInProcessing(true);
-                setError('');
+                setError(''); // Clear previous error
 
+                // Usar el servicio centralizado para Clock In
                 const result = await performClockIn(scheduleId, user.id, (progress) => {
                     console.log('[Horario] Progreso Clock In:', progress.message);
                 });
 
                 if (result.success) {
+                    // Mostrar toast de éxito
                     toast({
                         title: "✅ Clock In Registrado",
                         description: result.message + (result.locationCaptured ? '' : ' (Sin ubicación GPS)'),
@@ -533,6 +541,7 @@ export default function HorarioPage() {
                         className: "bg-green-50 border-green-200"
                     });
 
+                    // Actualizar estado local con datos del backend
                     const schedulesArray = Array.isArray(schedules) ? schedules : [];
                     const updatedSchedules = schedulesArray.map(s => 
                         s.id === scheduleId ? result.schedule : s
@@ -540,17 +549,20 @@ export default function HorarioPage() {
                     setSchedules(updatedSchedules);
                     saveToCache(CACHE_KEYS.SCHEDULES, updatedSchedules);
 
+                    // Cerrar el formulario
                     setShowForm(false);
                     setSelectedEvent(null);
 
+                    // Navegar a ServicioActivo para limpiadores
                     if (isCleanerView) {
-                        navigationInProgressRef.current = true;
+                        navigationInProgressRef.current = true; // Set navigation in progress flag
                         console.log('[Horario] 🚀 Navegando a ServicioActivo...');
                         setTimeout(() => {
                             navigate(createPageUrl('ServicioActivo'));
                         }, 300);
                     }
                 } else {
+                    // Mostrar error
                     toast({
                         title: "❌ Error en Clock In",
                         description: result.message,
@@ -562,13 +574,15 @@ export default function HorarioPage() {
 
             } else if (action === 'clock_out') {
                 setClockOutProcessing(true);
-                setError('');
+                setError(''); // Clear previous error
 
+                // Usar el servicio centralizado para Clock Out
                 const result = await performClockOut(scheduleId, user.id, (progress) => {
                     console.log('[Horario] Progreso Clock Out:', progress.message);
                 });
 
                 if (result.success) {
+                    // Mostrar toast de éxito
                     toast({
                         title: "✅ Clock Out Registrado",
                         description: result.message + (result.locationCaptured ? '' : ' (Sin ubicación GPS)'),
@@ -576,6 +590,7 @@ export default function HorarioPage() {
                         className: "bg-blue-50 border-blue-200"
                     });
 
+                    // Actualizar estado local con datos del backend
                     const schedulesArray = Array.isArray(schedules) ? schedules : [];
                     const updatedSchedules = schedulesArray.map(s => 
                         s.id === scheduleId ? result.schedule : s
@@ -583,13 +598,16 @@ export default function HorarioPage() {
                     setSchedules(updatedSchedules);
                     saveToCache(CACHE_KEYS.SCHEDULES, updatedSchedules);
 
+                    // Cerrar el formulario
                     setShowForm(false);
                     setSelectedEvent(null);
 
+                    // Recargar datos del limpiador en silencio
                     if (isCleanerView) {
                         await loadCleanerSpecificData(currentDateRef.current, true);
                     }
                 } else {
+                    // Mostrar error
                     toast({
                         title: "❌ Error en Clock Out",
                         description: result.message,
@@ -616,6 +634,8 @@ export default function HorarioPage() {
                 setClockInProcessing(false);
             } else if (action === 'clock_out') {
                 setClockOutProcessing(false);
+                // Ensure navigationInProgressRef is reset if it was set for a clock-in that failed before navigation
+                // or if it's the end of a clock-out flow.
                 navigationInProgressRef.current = false; 
             }
         }
@@ -1087,7 +1107,7 @@ export default function HorarioPage() {
         console.log(`[Horario] 🔄 Polling cada ${pollingInterval/1000}s`);
 
         pollingRef.current = setInterval(async () => {
-            if (navigationInProgressRef.current || clockInProcessing || clockOutProcessing) {
+            if (navigationInProgressRef.current || clockInProcessing || clockOutProcessing) { // Updated condition
                 console.log('[Horario] 🚫 Operación en progreso, saltando polling...');
                 return;
             }
@@ -1114,7 +1134,7 @@ export default function HorarioPage() {
                 pollingRef.current = null;
             }
         };
-    }, [user, initialLoadComplete, loadCleanerSpecificData, clockInProcessing, clockOutProcessing]);
+    }, [user, initialLoadComplete, loadCleanerSpecificData, clockInProcessing, clockOutProcessing]); // Added new state to dependency array
 
     if (loading) {
         return (
@@ -1351,8 +1371,6 @@ export default function HorarioPage() {
                             isReadOnly={isCleanerView}
                             onMoveEvent={user?.role === 'admin' ? handleMoveEvent : null}
                             onResizeEvent={user?.role === 'admin' ? handleResizeEvent : null}
-                            currentUser={user}
-                            onRefresh={handleRefresh}
                         />
                     </div>
                 </div>
@@ -1382,7 +1400,7 @@ export default function HorarioPage() {
                         onClockInOut={isCleanerView ? handleClockInOut : null}
                         openInMaps={openInMaps}
                         currentServiceElapsedTime={currentServiceElapsedTime}
-                        isProcessing={clockInProcessing || clockOutProcessing}
+                        isProcessing={clockInProcessing || clockOutProcessing} // New prop
                     />
                 </DialogContent>
             </Dialog>

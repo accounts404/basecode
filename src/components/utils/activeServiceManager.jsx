@@ -1,179 +1,172 @@
-/**
- * GESTOR DE SERVICIO ACTIVO
- * 
- * Este archivo maneja el estado del servicio activo del limpiador usando localStorage.
- * 
- * ⚠️ IMPORTANTE: Las funciones de Clock-In/Clock-Out han sido movidas a clockService.js
- * Este archivo solo mantiene funciones de verificación y sincronización de caché.
- */
-
+// Gestor de estado del servicio activo con persistencia local y sincronización con backend
 import { base44 } from '@/api/base44Client';
-import { Schedule } from '@/entities/Schedule';
 
 const ACTIVE_SERVICE_KEY = 'redoak_active_service';
-const CACHE_TTL = 30000; // 30 segundos
+const LAST_SYNC_KEY = 'redoak_last_sync';
+const SYNC_THRESHOLD = 30000; // 30 segundos
 
 /**
- * Obtener servicio activo del caché local
+ * Obtiene el estado del servicio activo desde el caché local
  */
 export const getLocalActiveService = () => {
     try {
-        const cached = localStorage.getItem(ACTIVE_SERVICE_KEY);
-        if (!cached) return null;
-
-        const data = JSON.parse(cached);
-        const now = Date.now();
-
-        // Validar TTL
-        if (data.timestamp && (now - data.timestamp > CACHE_TTL)) {
-            console.log('[ActiveServiceManager] ⏰ Caché expirado');
-            clearLocalActiveService();
-            return null;
-        }
-
-        return data;
+        const stored = localStorage.getItem(ACTIVE_SERVICE_KEY);
+        return stored ? JSON.parse(stored) : null;
     } catch (error) {
-        console.error('[ActiveServiceManager] Error leyendo caché:', error);
+        console.error('[ActiveServiceManager] Error leyendo caché local:', error);
         return null;
     }
 };
 
 /**
- * Guardar servicio activo en caché local
+ * Guarda el estado del servicio activo en caché local
  */
 export const setLocalActiveService = (serviceData) => {
     try {
-        const data = {
-            ...serviceData,
-            timestamp: Date.now()
-        };
-        localStorage.setItem(ACTIVE_SERVICE_KEY, JSON.stringify(data));
-        console.log('[ActiveServiceManager] ✅ Caché actualizado');
+        if (serviceData) {
+            localStorage.setItem(ACTIVE_SERVICE_KEY, JSON.stringify(serviceData));
+            localStorage.setItem(LAST_SYNC_KEY, Date.now().toString());
+        } else {
+            localStorage.removeItem(ACTIVE_SERVICE_KEY);
+            localStorage.removeItem(LAST_SYNC_KEY);
+        }
     } catch (error) {
-        console.error('[ActiveServiceManager] Error guardando caché:', error);
+        console.error('[ActiveServiceManager] Error guardando caché local:', error);
     }
 };
 
 /**
- * Limpiar servicio activo del caché local
+ * Limpia el estado del servicio activo
  */
 export const clearLocalActiveService = () => {
-    try {
-        localStorage.removeItem(ACTIVE_SERVICE_KEY);
-        console.log('[ActiveServiceManager] 🗑️ Caché limpiado');
-    } catch (error) {
-        console.error('[ActiveServiceManager] Error limpiando caché:', error);
-    }
+    setLocalActiveService(null);
 };
 
 /**
- * Verificar si hay un servicio activo en el backend (fuente de verdad)
- * 
- * @param {string} userId - ID del usuario limpiador
- * @returns {Promise<{hasActive: boolean, service: object|null}>}
+ * Verifica si necesitamos sincronizar con el backend
+ */
+const needsSync = () => {
+    const lastSync = localStorage.getItem(LAST_SYNC_KEY);
+    if (!lastSync) return true;
+    return (Date.now() - parseInt(lastSync)) > SYNC_THRESHOLD;
+};
+
+/**
+ * Verifica en el backend si el usuario tiene un servicio activo
+ * Retorna: { hasActive: boolean, service: object|null }
  */
 export const checkActiveServiceInBackend = async (userId) => {
-    console.log('[ActiveServiceManager] 🔍 Verificando servicio activo en backend...');
-    
     try {
-        // Opción 1: Usar función backend dedicada (más eficiente)
-        try {
-            const { data } = await base44.functions.invoke('checkActiveService', {});
-            
-            if (data && data.hasActive) {
-                console.log('[ActiveServiceManager] ✅ Servicio activo encontrado:', data.service.id);
-                return {
-                    hasActive: true,
-                    service: data.service
-                };
-            }
-            
-            console.log('[ActiveServiceManager] ℹ️ No hay servicio activo');
-            return { hasActive: false, service: null };
-            
-        } catch (fnError) {
-            console.warn('[ActiveServiceManager] ⚠️ Función backend no disponible, usando filtro directo');
-            
-            // Opción 2: Fallback a consulta directa
-            const schedules = await Schedule.filter({
-                cleaner_ids: { $contains: userId },
-                status: { $in: ['scheduled', 'in_progress'] }
-            });
+        console.log('[ActiveServiceManager] Consultando backend para servicio activo...');
+        const schedules = await base44.entities.Schedule.list();
+        
+        const activeService = schedules.find(schedule => {
+            if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userId)) return false;
+            const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userId);
+            return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+        });
 
-            const activeService = schedules.find(schedule => {
-                if (!schedule.clock_in_data) return false;
-                const cleanerClockData = schedule.clock_in_data.find(c => c.cleaner_id === userId);
-                return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
-            });
-
-            if (activeService) {
-                console.log('[ActiveServiceManager] ✅ Servicio activo encontrado:', activeService.id);
-                return { hasActive: true, service: activeService };
-            }
-
+        if (activeService) {
+            console.log('[ActiveServiceManager] ✅ Servicio activo encontrado:', activeService.id);
+            return { hasActive: true, service: activeService };
+        } else {
             console.log('[ActiveServiceManager] ℹ️ No hay servicio activo');
             return { hasActive: false, service: null };
         }
-        
     } catch (error) {
-        console.error('[ActiveServiceManager] ❌ Error verificando servicio activo:', error);
+        console.error('[ActiveServiceManager] ❌ Error consultando backend:', error);
         throw error;
     }
 };
 
 /**
- * Sincronizar caché local con backend
- * Útil para asegurar que el caché local esté actualizado
- * 
- * @param {string} userId - ID del usuario limpiador
+ * Sincroniza el estado local con el backend
+ * Retorna: { hasActive: boolean, service: object|null, source: 'cache'|'backend' }
  */
-export const syncActiveService = async (userId) => {
-    console.log('[ActiveServiceManager] 🔄 Sincronizando caché con backend...');
+export const syncActiveService = async (userId, forceSync = false) => {
+    // 1. Primero revisar caché local
+    const localService = getLocalActiveService();
     
+    // 2. Si no necesitamos sincronizar y tenemos datos locales, usarlos
+    if (!forceSync && !needsSync() && localService) {
+        console.log('[ActiveServiceManager] 📦 Usando caché local (reciente)');
+        return { hasActive: true, service: localService, source: 'cache' };
+    }
+
+    // 3. Sincronizar con backend
     try {
-        const { hasActive, service } = await checkActiveServiceInBackend(userId);
+        const backendResult = await checkActiveServiceInBackend(userId);
         
-        if (hasActive) {
-            const clockInData = service.clock_in_data?.find(c => c.cleaner_id === userId);
-            
-            setLocalActiveService({
-                scheduleId: service.id,
-                userId: userId,
-                clockInTime: clockInData?.clock_in_time,
-                clientName: service.client_name,
-                clientAddress: service.client_address
-            });
-            
-            console.log('[ActiveServiceManager] ✅ Sincronización completada - Servicio activo');
-            return { hasActive: true, service };
+        // 4. Actualizar caché local con resultado del backend
+        if (backendResult.hasActive) {
+            setLocalActiveService(backendResult.service);
         } else {
             clearLocalActiveService();
-            console.log('[ActiveServiceManager] ✅ Sincronización completada - Sin servicio activo');
-            return { hasActive: false, service: null };
+        }
+
+        return { ...backendResult, source: 'backend' };
+    } catch (error) {
+        // 5. Si falla el backend pero tenemos caché local, usarlo como fallback
+        if (localService) {
+            console.warn('[ActiveServiceManager] ⚠️ Backend falló, usando caché local como fallback');
+            return { hasActive: true, service: localService, source: 'cache' };
         }
         
-    } catch (error) {
-        console.error('[ActiveServiceManager] ❌ Error en sincronización:', error);
+        // 6. Si no hay caché local, propagar el error
         throw error;
     }
 };
 
-// =====================================================================
-// FUNCIONES OBSOLETAS - Movidas a clockService.js
-// =====================================================================
-// Las siguientes funciones han sido deprecadas y movidas a clockService.js:
-// - registerClockIn() → usar performClockIn() desde clockService.js
-// - registerClockOut() → usar performClockOut() desde clockService.js  
-// - canUserClockIn() → usar canUserClockIn() desde clockService.js
-//
-// Estas funciones se mantienen aquí solo para referencia temporal.
-// Serán eliminadas en una futura versión.
-// =====================================================================
+/**
+ * Registra el inicio de un servicio (Clock In)
+ */
+export const registerClockIn = async (scheduleId, service) => {
+    console.log('[ActiveServiceManager] 📝 Registrando Clock In:', scheduleId);
+    setLocalActiveService({
+        id: scheduleId,
+        client_name: service.client_name,
+        client_address: service.client_address,
+        start_time: service.start_time,
+        clockedInAt: new Date().toISOString()
+    });
+};
 
-export default {
-    getLocalActiveService,
-    setLocalActiveService,
-    clearLocalActiveService,
-    checkActiveServiceInBackend,
-    syncActiveService
+/**
+ * Registra el fin de un servicio (Clock Out)
+ */
+export const registerClockOut = () => {
+    console.log('[ActiveServiceManager] 📝 Registrando Clock Out');
+    clearLocalActiveService();
+};
+
+/**
+ * Verifica si el usuario puede hacer Clock In
+ * Retorna: { canClockIn: boolean, reason: string|null, activeService: object|null }
+ */
+export const canUserClockIn = async (userId) => {
+    try {
+        const result = await syncActiveService(userId, true); // Forzar sync para esta verificación crítica
+        
+        if (result.hasActive) {
+            return {
+                canClockIn: false,
+                reason: 'Ya tienes un servicio activo en progreso',
+                activeService: result.service
+            };
+        }
+        
+        return {
+            canClockIn: true,
+            reason: null,
+            activeService: null
+        };
+    } catch (error) {
+        console.error('[ActiveServiceManager] Error verificando si puede hacer Clock In:', error);
+        // En caso de error, permitir Clock In para no bloquear al usuario
+        return {
+            canClockIn: true,
+            reason: null,
+            activeService: null
+        };
+    }
 };
