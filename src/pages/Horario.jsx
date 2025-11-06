@@ -134,7 +134,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = null;
+    const [selectedTask, setSelectedTask] = useState(null); // CORREGIDO: usar useState
 
     const [error, setError] = useState('');
 
@@ -1641,4 +1641,3 @@ export default function HorarioPage() {
         </div>
     );
 }
-
