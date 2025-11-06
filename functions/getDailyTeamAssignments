@@ -3,98 +3,158 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        
         const user = await base44.auth.me();
+
         if (!user) {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Obtener la fecha del body de la request (en formato YYYY-MM-DD)
-        const body = await req.json().catch(() => ({}));
-        const targetDate = body.date; // Formato: 'YYYY-MM-DD'
+        const { date: targetDate } = await req.json();
 
-        // Usar service role para obtener todas las asignaciones, vehículos y usuarios
-        const [assignments, vehicles, users] = await Promise.all([
-            base44.asServiceRole.entities.DailyTeamAssignment.list(),
-            base44.asServiceRole.entities.Vehicle.list(),
-            base44.asServiceRole.entities.User.list()
-        ]);
+        console.log(`[getDailyTeamAssignments] 📅 Buscando assignments para fecha: ${targetDate}`);
+
+        const allAssignments = await base44.asServiceRole.entities.DailyTeamAssignment.list();
         
-        // Si se proporciona una fecha, filtrar por esa fecha
-        let filteredAssignments = assignments;
-        if (targetDate) {
-            filteredAssignments = assignments.filter(a => a.date === targetDate);
-        }
-        
-        // Crear mapas para búsqueda rápida
-        const vehicleMap = new Map(vehicles.map(v => [v.id, v]));
-        const userMap = new Map(users.map(u => [u.id, u]));
+        console.log(`[getDailyTeamAssignments] 📋 Total assignments en BD: ${allAssignments.length}`);
 
-        // Enriquecer las asignaciones con los detalles del vehículo, conductor principal y compañeros
-        const enrichedAssignments = filteredAssignments.map(assignment => {
-            const enrichedAssignment = { ...assignment };
-
-            // Añadir detalles del vehículo si existe
-            if (assignment.vehicle_id) {
-                const vehicle = vehicleMap.get(assignment.vehicle_id);
-                if (vehicle) {
-                    enrichedAssignment.vehicle_details = {
-                        make: vehicle.make,
-                        model: vehicle.model,
-                        license_plate: vehicle.license_plate,
-                        photos: vehicle.photos || []
-                    };
-                    // Información legible del vehículo
-                    enrichedAssignment.vehicle_info = `${vehicle.make} ${vehicle.model} - ${vehicle.license_plate}`;
+        // CORREGIDO: Normalizar la fecha antes de comparar, igual que en loadRequiredKeysForDate
+        const filteredAssignments = allAssignments.filter(a => {
+            if (!a.date) return false;
+            
+            // Extraer YYYY-MM-DD del campo date, sin importar el formato
+            // Si es ISO string completo: "2025-11-06T00:00:00.000Z" -> "2025-11-06"
+            // Si es solo fecha: "2025-11-06" -> "2025-11-06"
+            // Si es otro formato, intentar parsearlo
+            let assignmentDateStr;
+            
+            if (typeof a.date === 'string') {
+                // Si es un ISO string o similar, tomar los primeros 10 caracteres
+                if (a.date.includes('T') || a.date.includes('-')) {
+                    assignmentDateStr = a.date.slice(0, 10);
+                } else {
+                    // Si es otro formato, intentar convertir a Date y luego a YYYY-MM-DD
+                    try {
+                        const parsedDate = new Date(a.date);
+                        const year = parsedDate.getFullYear();
+                        const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(parsedDate.getDate()).padStart(2, '0');
+                        assignmentDateStr = `${year}-${month}-${day}`;
+                    } catch (e) {
+                        console.warn(`[getDailyTeamAssignments] ⚠️ No se pudo parsear fecha: ${a.date}`);
+                        return false;
+                    }
                 }
+            } else {
+                return false;
             }
-
-            // Añadir información del conductor principal
-            if (assignment.main_driver_id) {
-                const mainDriver = userMap.get(assignment.main_driver_id);
-                if (mainDriver) {
-                    enrichedAssignment.main_driver_name = mainDriver.display_name || mainDriver.invoice_name || mainDriver.full_name;
-                }
+            
+            const isMatch = assignmentDateStr === targetDate;
+            
+            if (isMatch) {
+                console.log(`[getDailyTeamAssignments] ✅ Assignment encontrado:`, {
+                    id: a.id,
+                    date: a.date,
+                    normalized: assignmentDateStr,
+                    vehicle_id: a.vehicle_id,
+                    main_driver_id: a.main_driver_id,
+                    team_member_ids: a.team_member_ids
+                });
             }
-
-            // Mantener compatibilidad hacia atrás con driver_name
-            if (assignment.driver_id && !enrichedAssignment.driver_name) {
-                const driver = userMap.get(assignment.driver_id);
-                if (driver) {
-                    enrichedAssignment.driver_name = driver.invoice_name || driver.full_name;
-                }
-            }
-
-            // NUEVO: Añadir nombres de todos los compañeros de equipo
-            if (assignment.team_member_ids && Array.isArray(assignment.team_member_ids)) {
-                enrichedAssignment.team_members_info = assignment.team_member_ids
-                    .map(memberId => {
-                        const member = userMap.get(memberId);
-                        if (member) {
-                            return {
-                                id: memberId,
-                                name: member.display_name || member.invoice_name || member.full_name,
-                                is_main_driver: memberId === assignment.main_driver_id
-                            };
-                        }
-                        return null;
-                    })
-                    .filter(Boolean);
-            }
-
-            return enrichedAssignment;
+            
+            return isMatch;
         });
-        
-        return Response.json({ 
+
+        console.log(`[getDailyTeamAssignments] 🎯 Assignments filtrados: ${filteredAssignments.length}`);
+
+        if (filteredAssignments.length === 0) {
+            console.log(`[getDailyTeamAssignments] ⚠️ No se encontraron assignments para ${targetDate}`);
+            return Response.json({
+                success: true,
+                assignments: []
+            });
+        }
+
+        // Enriquecer con información de vehículos y usuarios
+        const enrichedAssignments = await Promise.all(
+            filteredAssignments.map(async (assignment) => {
+                const enriched = { ...assignment };
+
+                // Obtener información del vehículo
+                if (assignment.vehicle_id) {
+                    try {
+                        const vehicle = await base44.asServiceRole.entities.Vehicle.get(assignment.vehicle_id);
+                        enriched.vehicle_info = `${vehicle.make || ''} ${vehicle.model || ''} (${vehicle.license_plate || ''})`.trim();
+                        console.log(`[getDailyTeamAssignments] 🚗 Vehículo cargado:`, enriched.vehicle_info);
+                    } catch (vehicleError) {
+                        console.warn('[getDailyTeamAssignments] Error cargando vehículo:', vehicleError);
+                        enriched.vehicle_info = null;
+                    }
+                } else {
+                    enriched.vehicle_info = null;
+                }
+
+                // Obtener información del conductor principal
+                if (assignment.main_driver_id) {
+                    try {
+                        const mainDriver = await base44.asServiceRole.entities.User.get(assignment.main_driver_id);
+                        enriched.main_driver_name = mainDriver.display_name || mainDriver.invoice_name || mainDriver.full_name;
+                        console.log(`[getDailyTeamAssignments] 👤 Conductor principal:`, enriched.main_driver_name);
+                    } catch (driverError) {
+                        console.warn('[getDailyTeamAssignments] Error cargando conductor:', driverError);
+                        enriched.main_driver_name = null;
+                    }
+                } else {
+                    enriched.main_driver_name = null;
+                }
+
+                // Obtener información de todos los miembros del equipo
+                if (assignment.team_member_ids && Array.isArray(assignment.team_member_ids)) {
+                    try {
+                        const teamMembers = await Promise.all(
+                            assignment.team_member_ids.map(async (memberId) => {
+                                try {
+                                    const member = await base44.asServiceRole.entities.User.get(memberId);
+                                    return {
+                                        id: member.id,
+                                        name: member.display_name || member.invoice_name || member.full_name,
+                                        is_main_driver: memberId === assignment.main_driver_id
+                                    };
+                                } catch (memberError) {
+                                    console.warn(`[getDailyTeamAssignments] Error cargando miembro ${memberId}:`, memberError);
+                                    return null;
+                                }
+                            })
+                        );
+                        enriched.team_members_info = teamMembers.filter(Boolean);
+                        console.log(`[getDailyTeamAssignments] 👥 Miembros del equipo:`, enriched.team_members_info.length);
+                    } catch (teamError) {
+                        console.warn('[getDailyTeamAssignments] Error cargando equipo:', teamError);
+                        enriched.team_members_info = [];
+                    }
+                } else {
+                    enriched.team_members_info = [];
+                }
+
+                return enriched;
+            })
+        );
+
+        console.log(`[getDailyTeamAssignments] ✅ Retornando ${enrichedAssignments.length} assignments enriquecidos`);
+
+        return Response.json({
             success: true,
-            assignments: enrichedAssignments 
+            assignments: enrichedAssignments
         });
 
     } catch (error) {
-        console.error('Error getting daily team assignments:', error);
-        return Response.json({ 
-            error: 'Error obteniendo asignaciones de equipos',
-            details: error.message 
-        }, { status: 500 });
+        console.error('[getDailyTeamAssignments] Error:', error);
+        return Response.json(
+            { 
+                success: false, 
+                error: error.message,
+                assignments: [] 
+            }, 
+            { status: 500 }
+        );
     }
 });
