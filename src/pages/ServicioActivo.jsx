@@ -62,74 +62,111 @@ export default function ServicioActivoPage() {
     const [showReportDialog, setShowReportDialog] = useState(false);
     const intervalRef = useRef(null);
     const pollingRef = useRef(null);
+    const isUnmountingRef = useRef(false); // NUEVO: Flag para prevenir actualizaciones después de unmount
 
     useEffect(() => {
         loadUserAndActiveService();
         return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            if (pollingRef.current) clearInterval(pollingRef.current);
+            // LIMPIEZA TOTAL al desmontar el componente
+            isUnmountingRef.current = true;
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
         };
     }, []);
 
     // Polling automático cada 20 segundos para actualizar el estado del servicio
     useEffect(() => {
-        if (!loading && activeService && user && !clockingOut) {
-            console.log('[ServicioActivo] 🔄 Iniciando polling automático cada 20 segundos');
-            
-            pollingRef.current = setInterval(async () => {
-                try {
-                    console.log('[ServicioActivo] 🔄 Actualización automática silenciosa...');
-                    
-                    const schedules = await base44.entities.Schedule.list();
-                    const schedulesArray = Array.isArray(schedules) ? schedules : [];
-                    
-                    const active = schedulesArray.find(schedule => {
-                        if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(user.id)) return false;
-                        const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === user.id);
-                        return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
-                    });
+        // CRÍTICO: No iniciar polling si estamos en proceso de Clock Out o desmontando
+        if (loading || !activeService || !user || clockingOut || isUnmountingRef.current) {
+            return;
+        }
 
-                    if (!active) {
-                        console.log('[ServicioActivo] ⚠️ No hay servicio activo, redirigiendo a Horario');
-                        navigate(createPageUrl("Horario"), { replace: true });
-                        return;
-                    }
-
-                    // Actualizar el servicio activo silenciosamente
-                    setActiveService(active);
-                    
-                    // Recargar información del cliente si cambió o no existe
-                    if (active.client_id && (!clientInfo || clientInfo.id !== active.client_id)) {
-                        try {
-                            const client = await base44.entities.Client.get(active.client_id);
-                            setClientInfo(client);
-                            console.log('[ServicioActivo] Cliente actualizado por polling:', client.name);
-                        } catch (clientError) {
-                            console.warn('[ServicioActivo] Error actualizando cliente en polling:', clientError);
-                        }
-                    }
-
-                    console.log('[ServicioActivo] ✅ Actualización automática completada');
-                } catch (error) {
-                    console.error('[ServicioActivo] ❌ Error en polling automático:', error);
-                }
-            }, 20000); // 20 segundos
-
-            return () => {
+        console.log('[ServicioActivo] 🔄 Iniciando polling automático cada 20 segundos');
+        
+        pollingRef.current = setInterval(async () => {
+            // CRÍTICO: Verificar antes de cada actualización si estamos desmontando o haciendo Clock Out
+            if (isUnmountingRef.current || clockingOut) {
+                console.log('[ServicioActivo] 🛑 Polling cancelado: componente desmontando o Clock Out en progreso');
                 if (pollingRef.current) {
                     clearInterval(pollingRef.current);
-                    console.log('[ServicioActivo] 🛑 Polling automático detenido');
+                    pollingRef.current = null;
                 }
-            };
-        }
+                return;
+            }
+
+            try {
+                console.log('[ServicioActivo] 🔄 Actualización automática silenciosa...');
+                
+                const schedules = await base44.entities.Schedule.list();
+                const schedulesArray = Array.isArray(schedules) ? schedules : [];
+                
+                const active = schedulesArray.find(schedule => {
+                    if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(user.id)) return false;
+                    const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === user.id);
+                    return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+                });
+
+                // CRÍTICO: Verificar nuevamente antes de actualizar estado
+                if (isUnmountingRef.current || clockingOut) {
+                    console.log('[ServicioActivo] 🛑 Actualización cancelada: componente desmontando o Clock Out en progreso');
+                    return;
+                }
+
+                if (!active) {
+                    console.log('[ServicioActivo] ⚠️ No hay servicio activo, redirigiendo a Horario');
+                    navigate(createPageUrl("Horario"), { replace: true });
+                    return;
+                }
+
+                // Actualizar el servicio activo silenciosamente
+                setActiveService(active);
+                
+                // Recargar información del cliente si cambió o no existe
+                if (active.client_id && (!clientInfo || clientInfo.id !== active.client_id)) {
+                    try {
+                        const client = await base44.entities.Client.get(active.client_id);
+                        if (!isUnmountingRef.current && !clockingOut) {
+                            setClientInfo(client);
+                            console.log('[ServicioActivo] Cliente actualizado por polling:', client.name);
+                        }
+                    } catch (clientError) {
+                        console.warn('[ServicioActivo] Error actualizando cliente en polling:', clientError);
+                    }
+                }
+
+                console.log('[ServicioActivo] ✅ Actualización automática completada');
+            } catch (error) {
+                console.error('[ServicioActivo] ❌ Error en polling automático:', error);
+            }
+        }, 20000); // 20 segundos
+
+        return () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+                console.log('[ServicioActivo] 🛑 Polling automático detenido');
+            }
+        };
     }, [loading, activeService, user, clientInfo, navigate, clockingOut]);
 
     const loadUserAndActiveService = async () => {
+        // CRÍTICO: No cargar si estamos desmontando
+        if (isUnmountingRef.current) return;
+
         try {
             const userData = await base44.auth.me();
+            if (isUnmountingRef.current) return;
             setUser(userData);
 
             const schedules = await base44.entities.Schedule.list();
+            if (isUnmountingRef.current) return;
+
             const schedulesArray = Array.isArray(schedules) ? schedules : [];
             
             const active = schedulesArray.find(schedule => {
@@ -144,16 +181,19 @@ export default function ServicioActivoPage() {
                 return;
             }
 
+            if (isUnmountingRef.current) return;
             setActiveService(active);
 
             // Cargar información del cliente
             if (active.client_id) {
                 try {
                     const client = await base44.entities.Client.get(active.client_id);
-                    setClientInfo(client);
-                    console.log('[ServicioActivo] Cliente cargado:', client.name);
-                    console.log('[ServicioActivo] Notas estructuradas del cliente:', client.structured_service_notes);
-                    console.log('[ServicioActivo] Notas por defecto del cliente:', client.default_service_notes);
+                    if (!isUnmountingRef.current) {
+                        setClientInfo(client);
+                        console.log('[ServicioActivo] Cliente cargado:', client.name);
+                        console.log('[ServicioActivo] Notas estructuradas del cliente:', client.structured_service_notes);
+                        console.log('[ServicioActivo] Notas por defecto del cliente:', client.default_service_notes);
+                    }
                 } catch (clientError) {
                     console.warn('[ServicioActivo] Error cargando cliente:', clientError);
                 }
@@ -175,14 +215,19 @@ export default function ServicioActivoPage() {
                 console.log('[ServicioActivo] Duración general del servicio:', duration, 'segundos (', formatElapsedTime(duration), ')');
             }
             
+            if (isUnmountingRef.current) return;
             setScheduledDuration(duration);
             startTimer(active, userData.id, duration);
 
         } catch (error) {
             console.error('[ServicioActivo] Error cargando datos:', error);
-            setError("Error al cargar el servicio activo");
+            if (!isUnmountingRef.current) {
+                setError("Error al cargar el servicio activo");
+            }
         } finally {
-            setLoading(false);
+            if (!isUnmountingRef.current) {
+                setLoading(false);
+            }
         }
     };
 
@@ -190,6 +235,9 @@ export default function ServicioActivoPage() {
         if (intervalRef.current) clearInterval(intervalRef.current);
 
         const updateTimer = () => {
+            // CRÍTICO: No actualizar si estamos desmontando
+            if (isUnmountingRef.current) return;
+
             const cleanerClockData = service.clock_in_data?.find(c => c.cleaner_id === userId);
             if (!cleanerClockData?.clock_in_time) return;
 
@@ -210,17 +258,18 @@ export default function ServicioActivoPage() {
         if (!activeService || !user) return;
 
         console.log('[ServicioActivo] 🕐 Iniciando Clock Out...');
+        
+        // 🛑 PASO 1: MARCAR INMEDIATAMENTE QUE ESTAMOS HACIENDO CLOCK OUT
         setClockingOut(true);
         setError("");
 
-        // 🛑 DETENER POLLING INMEDIATAMENTE
+        // 🛑 PASO 2: DETENER POLLING Y TIMER INMEDIATAMENTE
         if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
             console.log('[ServicioActivo] 🛑 Polling detenido para Clock Out');
         }
 
-        // 🛑 DETENER TIMER
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
@@ -228,12 +277,17 @@ export default function ServicioActivoPage() {
         }
 
         try {
-            // 1️⃣ Registrar Clock Out en cola offline INMEDIATAMENTE
+            // 🚀 PASO 3: REGISTRAR CLOCK OUT Y REDIRIGIR INMEDIATAMENTE
             console.log('[ServicioActivo] 💾 Registrando Clock Out en cola offline...');
             const result = await registerClockOut(activeService.id, user.id);
             console.log('[ServicioActivo] ✅ Clock Out registrado en cola:', result);
 
-            // 2️⃣ Redirigir INMEDIATAMENTE al Horario con mensaje de éxito
+            // Después de registrar exitosamente y antes de navegar, marcamos como unmounting
+            // para prevenir cualquier actualización de estado en este componente que pueda ocurrir
+            // antes de que React lo desmonte completamente.
+            isUnmountingRef.current = true; 
+
+            // 🚀 PASO 4: REDIRIGIR INMEDIATAMENTE SIN ESPERAR NADA MÁS
             console.log('[ServicioActivo] 🚀 Redirigiendo a Horario...');
             navigate(createPageUrl("Horario"), { 
                 replace: true,
@@ -243,7 +297,7 @@ export default function ServicioActivoPage() {
                 }
             });
 
-            // 3️⃣ Intentar actualización en backend en segundo plano (sin bloquear)
+            // 📡 PASO 5: SINCRONIZACIÓN EN BACKGROUND (NO BLOQUEA LA REDIRECCIÓN)
             // El sistema offline-first se encargará de esto automáticamente
             (async () => {
                 try {
@@ -297,20 +351,19 @@ export default function ServicioActivoPage() {
                     }
                 } catch (error) {
                     console.error('[ServicioActivo] ❌ Error actualizando backend (pero Clock Out ya está en cola):', error);
-                    // No mostramos error al usuario porque el Clock Out ya está guardado localmente
                 }
             })();
 
         } catch (error) {
             console.error('[ServicioActivo] ❌ Error en Clock Out:', error);
+            // Si hubo un error ANTES de navegar, restaurar el estado para permitir reintentar
+            isUnmountingRef.current = false; 
             setError("Error al registrar Clock Out. Por favor, inténtalo de nuevo.");
             setClockingOut(false);
             
-            // Reiniciar polling si hubo error
-            if (!pollingRef.current) {
-                console.warn('[ServicioActivo] Attempting to restart polling due to Clock Out error.');
-                loadUserAndActiveService(); 
-            }
+            // Reiniciar polling y timer si hubo error para que el usuario pueda interactuar de nuevo
+            console.warn('[ServicioActivo] Reintentando reiniciar polling y timer debido a error en Clock Out.');
+            loadUserAndActiveService(); 
         }
     };
 
