@@ -134,7 +134,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = useState(null);
+    const [selectedTask, setSelectedTask] = null);
 
     const [error, setError] = useState('');
 
@@ -211,12 +211,35 @@ export default function HorarioPage() {
         }
 
         const schedulesArray = Array.isArray(currentSchedules) ? currentSchedules : [];
+        
+        // CORREGIDO: Usar solo la parte de fecha sin considerar la hora
         const selectedDateStr = format(forDate, 'yyyy-MM-dd');
+        console.log('[Horario] 🔑 Buscando llaves requeridas para la fecha:', selectedDateStr);
+        
         const todaySchedules = schedulesArray.filter(s => {
             if (!s.start_time || !s.cleaner_ids) return false;
-            const scheduleDate = format(parseISOAsUTC(s.start_time), 'yyyy-MM-dd');
-            return scheduleDate === selectedDateStr && Array.isArray(s.cleaner_ids) && s.cleaner_ids.includes(user.id);
+            
+            // Parsear la fecha y extraer solo YYYY-MM-DD
+            const scheduleDate = parseISO(s.start_time);
+            const scheduleDateStr = format(scheduleDate, 'yyyy-MM-dd');
+            
+            const matches = scheduleDateStr === selectedDateStr && 
+                           Array.isArray(s.cleaner_ids) && 
+                           s.cleaner_ids.includes(user.id);
+            
+            if (matches) {
+                console.log('[Horario] 🔑 Servicio encontrado para llaves:', {
+                    client: s.client_name,
+                    start_time: s.start_time,
+                    schedule_date: scheduleDateStr,
+                    selected_date: selectedDateStr
+                });
+            }
+            
+            return matches;
         });
+
+        console.log('[Horario] 🔑 Total de servicios del limpiador para esta fecha:', todaySchedules.length);
 
         if (todaySchedules.length > 0) {
             try {
@@ -246,6 +269,7 @@ export default function HorarioPage() {
                     }
                 }
 
+                console.log('[Horario] 🔑 Llaves encontradas:', keys.length);
                 setRequiredKeys(keys);
                 saveToCache(CACHE_KEYS.KEYS, keys);
             } catch (clientError) {
@@ -253,6 +277,7 @@ export default function HorarioPage() {
                 setRequiredKeys([]);
             }
         } else {
+            console.log('[Horario] 🔑 No hay servicios para este día, limpiando llaves');
             setRequiredKeys([]);
             saveToCache(CACHE_KEYS.KEYS, []);
         }
@@ -278,6 +303,7 @@ export default function HorarioPage() {
         }
 
         try {
+            // CORREGIDO: Calcular el rango de fechas correctamente
             const dayBefore = subDays(forDate, 2);
             const dayAfter = addDays(forDate, 2);
 
@@ -292,6 +318,7 @@ export default function HorarioPage() {
             const endDateStr = formatLocalDate(dayAfter) + 'T23:59:59.999Z';
 
             console.log(`[Horario] 🔍 ${isSilentUpdate ? 'Actualización silenciosa' : 'Cargando servicios'}...`);
+            console.log('[Horario] 📅 Rango de fechas:', { start: startDateStr, end: endDateStr });
 
             const [cleanerSchedules, assignmentsResponse] = await Promise.all([
                 Schedule.filter({
@@ -321,8 +348,11 @@ export default function HorarioPage() {
                 (async () => {
                     try {
                         const selectedDateStr = formatLocalDate(forDate);
+                        console.log('[Horario] 🚗 Solicitando asignaciones de equipo para:', selectedDateStr);
                         const { getDailyTeamAssignments: getAssignmentsFunc } = await import('@/functions/getDailyTeamAssignments');
-                        return await getAssignmentsFunc({ date: selectedDateStr });
+                        const response = await getAssignmentsFunc({ date: selectedDateStr });
+                        console.log('[Horario] 🚗 Respuesta de asignaciones:', response.data);
+                        return response;
                     } catch (error) {
                         console.error('[Horario] ❌ Error cargando assignments:', error);
                         return { data: { assignments: [] } };
@@ -336,12 +366,21 @@ export default function HorarioPage() {
             setSchedules(currentCleanerSchedules);
             saveToCache(CACHE_KEYS.SCHEDULES, currentCleanerSchedules);
 
+            // MEJORADO: Mejor manejo de asignaciones de equipo
             if (assignmentsResponse.data && assignmentsResponse.data.assignments && Array.isArray(assignmentsResponse.data.assignments)) {
+                console.log('[Horario] 🚗 Total de asignaciones recibidas:', assignmentsResponse.data.assignments.length);
+                
                 const currentAssignment = assignmentsResponse.data.assignments.find(a =>
                     a.team_member_ids && Array.isArray(a.team_member_ids) && a.team_member_ids.includes(user.id)
                 );
 
                 if (currentAssignment) {
+                    console.log('[Horario] ✅ Asignación encontrada para el usuario:', {
+                        vehicle: currentAssignment.vehicle_info,
+                        driver: currentAssignment.main_driver_name,
+                        team_size: currentAssignment.team_members_info?.length
+                    });
+                    
                     setAssignedVehicle(currentAssignment.vehicle_info || null);
                     setMainDriverName(currentAssignment.main_driver_name || null);
                     saveToCache(CACHE_KEYS.VEHICLE, {
@@ -351,13 +390,16 @@ export default function HorarioPage() {
 
                     if (currentAssignment.team_members_info && Array.isArray(currentAssignment.team_members_info)) {
                         const teammates = currentAssignment.team_members_info.filter(member => member.id !== user.id);
+                        console.log('[Horario] 👥 Compañeros de equipo:', teammates.length);
                         setTeamMembers(teammates);
                         saveToCache(CACHE_KEYS.TEAM, teammates);
                     } else {
+                        console.log('[Horario] ⚠️ No hay información de compañeros de equipo');
                         setTeamMembers([]);
                         saveToCache(CACHE_KEYS.TEAM, []);
                     }
                 } else {
+                    console.log('[Horario] ⚠️ No se encontró asignación para el usuario');
                     setAssignedVehicle(null);
                     setMainDriverName(null);
                     setTeamMembers([]);
@@ -365,6 +407,7 @@ export default function HorarioPage() {
                     saveToCache(CACHE_KEYS.TEAM, []);
                 }
             } else {
+                console.log('[Horario] ⚠️ Respuesta de asignaciones vacía o inválida');
                 setAssignedVehicle(null);
                 setMainDriverName(null);
                 setTeamMembers([]);
