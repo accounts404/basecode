@@ -134,7 +134,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = useState(null);
+    const [selectedTask, setSelectedTask] = null;
 
     const [error, setError] = useState('');
 
@@ -276,6 +276,7 @@ export default function HorarioPage() {
         }
     }, [user]);
 
+    // MODIFICADO: Usar directamente los nombres del equipo sin buscar por ID
     const loadVehicleAndTeamForDate = useCallback(async (forDate) => {
         if (!user || user.role === 'admin') {
             setAssignedVehicle(null);
@@ -313,7 +314,8 @@ export default function HorarioPage() {
                         id: assignment.id,
                         date: assignment.date,
                         normalized: assignmentDateStr,
-                        team_member_ids: assignment.team_member_ids
+                        team_member_ids: assignment.team_member_ids,
+                        team_members_names: assignment.team_members_names
                     });
                 }
 
@@ -331,59 +333,32 @@ export default function HorarioPage() {
             if (myAssignment) {
                 console.log('[Horario] ✅ Assignment encontrado para este limpiador:', {
                     id: myAssignment.id,
-                    vehicle_id: myAssignment.vehicle_id,
-                    main_driver_id: myAssignment.main_driver_id,
-                    team_size: myAssignment.team_member_ids?.length
+                    vehicle_info: myAssignment.vehicle_info,
+                    driver_name: myAssignment.driver_name,
+                    team_members_names: myAssignment.team_members_names
                 });
 
-                let vehicleInfo = null;
-                if (myAssignment.vehicle_id) {
-                    try {
-                        const vehicle = await Vehicle.get(myAssignment.vehicle_id);
-                        vehicleInfo = `${vehicle.make || ''} ${vehicle.model || ''} (${vehicle.license_plate || ''})`.trim();
-                        console.log('[Horario] 🚗 Vehículo cargado:', vehicleInfo);
-                    } catch (error) {
-                        console.warn('[Horario] ⚠️ Error cargando vehículo:', error);
-                    }
-                }
+                // Usar directamente vehicle_info del assignment (ya formateado en GestionFlota)
+                const vehicleInfo = myAssignment.vehicle_info || null;
+                console.log('[Horario] 🚗 Vehículo:', vehicleInfo);
 
-                let driverName = null;
-                if (myAssignment.main_driver_id) {
-                    try {
-                        const driver = await User.get(myAssignment.main_driver_id);
-                        driverName = driver.display_name || driver.invoice_name || driver.full_name;
-                        console.log('[Horario] 👤 Conductor principal:', driverName);
-                    } catch (error) {
-                        console.warn('[Horario] ⚠️ Error cargando conductor:', error);
-                    }
-                }
+                // Usar directamente driver_name del assignment
+                const driverName = myAssignment.driver_name || null;
+                console.log('[Horario] 👤 Conductor principal:', driverName);
 
-                const teammates = [];
-                if (myAssignment.team_member_ids && Array.isArray(myAssignment.team_member_ids)) {
-                    for (const memberId of myAssignment.team_member_ids) {
-                        if (memberId === user.id) continue;
-                        
-                        try {
-                            const member = await User.get(memberId);
-                            teammates.push({
-                                id: member.id,
-                                name: member.display_name || member.invoice_name || member.full_name,
-                                is_main_driver: memberId === myAssignment.main_driver_id
-                            });
-                        } catch (error) {
-                            console.warn('[Horario] ⚠️ Error cargando miembro:', memberId, error);
-                        }
-                    }
-                }
+                // SIMPLIFICADO: Usar directamente team_members_names del assignment
+                // Esto ya incluye todos los nombres formateados desde GestionFlota
+                const teamMembersNames = myAssignment.team_members_names || [];
+                console.log('[Horario] 👥 Equipo completo:', teamMembersNames);
 
-                console.log('[Horario] 👥 Compañeros de equipo:', teammates.length);
-
+                // Actualizar estado
                 setAssignedVehicle(vehicleInfo);
                 setMainDriverName(driverName);
-                setTeamMembers(teammates);
+                setTeamMembers(teamMembersNames); // Ahora es un array de strings, no objetos
 
+                // Guardar en caché
                 saveToCache(CACHE_KEYS.VEHICLE, { vehicle: vehicleInfo, driver: driverName });
-                saveToCache(CACHE_KEYS.TEAM, teammates);
+                saveToCache(CACHE_KEYS.TEAM, teamMembersNames);
 
             } else {
                 console.log('[Horario] ⚠️ No se encontró assignment para este limpiador');
@@ -1489,22 +1464,21 @@ export default function HorarioPage() {
                                 <div className="p-2 md:p-3 bg-white rounded-lg shadow-sm flex items-center gap-2 md:gap-3">
                                     <Users className="w-5 md:w-6 h-5 md:h-6 text-purple-600 flex-shrink-0" />
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-xs text-slate-500 font-semibold">Compañeros</p>
+                                        <p className="text-xs text-slate-500 font-semibold">Equipo del Día</p>
                                         {teamMembers.length > 0 ? (
-                                            <div className="flex flex-wrap gap-1">
-                                                {teamMembers.map(member => (
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {teamMembers.map((memberName, index) => (
                                                     <Badge
-                                                        key={member.id}
-                                                        variant={member.is_main_driver ? "default" : "secondary"}
+                                                        key={index}
+                                                        variant="secondary"
                                                         className="text-xs"
                                                     >
-                                                        {member.is_main_driver && '👑 '}
-                                                        {member.name}
+                                                        {memberName}
                                                     </Badge>
                                                 ))}
                                             </div>
                                         ) : (
-                                            <p className="text-sm text-slate-400 italic">Sin compañeros</p>
+                                            <p className="text-sm text-slate-400 italic">Sin equipo asignado</p>
                                         )}
                                     </div>
                                 </div>
