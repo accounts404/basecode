@@ -166,7 +166,6 @@ export default function HorarioPage() {
         };
     }, []);
 
-    // NUEVO: Mostrar mensaje de Clock Out exitoso si viene del state
     useEffect(() => {
         if (location.state?.clockOutSuccess && location.state?.message) {
             console.log('[Horario] 🎉 Mostrando mensaje de Clock Out exitoso');
@@ -176,7 +175,6 @@ export default function HorarioPage() {
                 duration: 5000,
                 className: "bg-green-50 border-green-200"
             });
-            // Limpiar el state después de mostrar el mensaje
             navigate(location.pathname, { replace: true, state: {} });
         }
     }, [location.state, navigate, toast, location.pathname]);
@@ -211,12 +209,33 @@ export default function HorarioPage() {
         }
 
         const schedulesArray = Array.isArray(currentSchedules) ? currentSchedules : [];
-        const selectedDateStr = format(forDate, 'yyyy-MM-dd');
+        
+        // CORREGIDO: Usar el mismo formato que en GestionFlota - solo la parte de fecha sin conversión
+        const year = forDate.getFullYear();
+        const month = String(forDate.getMonth() + 1).padStart(2, '0');
+        const day = String(forDate.getDate()).padStart(2, '0');
+        const selectedDateStr = `${year}-${month}-${day}`;
+        
+        console.log('[Horario] 🔑 Filtrando llaves para la fecha:', selectedDateStr);
+        
         const todaySchedules = schedulesArray.filter(s => {
             if (!s.start_time || !s.cleaner_ids) return false;
-            const scheduleDate = format(parseISOAsUTC(s.start_time), 'yyyy-MM-dd');
-            return scheduleDate === selectedDateStr && Array.isArray(s.cleaner_ids) && s.cleaner_ids.includes(user.id);
+            
+            // CORREGIDO: Extraer YYYY-MM-DD directamente del ISO string sin conversión
+            const scheduleStartDateStr = s.start_time.slice(0, 10);
+            
+            const isMatch = scheduleStartDateStr === selectedDateStr && 
+                           Array.isArray(s.cleaner_ids) && 
+                           s.cleaner_ids.includes(user.id);
+            
+            if (isMatch) {
+                console.log('[Horario] ✅ Servicio coincide:', s.client_name, 'Hora:', s.start_time.slice(11, 16));
+            }
+            
+            return isMatch;
         });
+
+        console.log('[Horario] 📋 Total de servicios del día para llaves:', todaySchedules.length);
 
         if (todaySchedules.length > 0) {
             try {
@@ -246,6 +265,7 @@ export default function HorarioPage() {
                     }
                 }
 
+                console.log('[Horario] 🔑 Llaves necesarias encontradas:', keys.length);
                 setRequiredKeys(keys);
                 saveToCache(CACHE_KEYS.KEYS, keys);
             } catch (clientError) {
