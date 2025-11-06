@@ -134,7 +134,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = useState(null);
+    const [selectedTask, setSelectedTask] = null;
 
     const [error, setError] = useState('');
 
@@ -333,6 +333,7 @@ export default function HorarioPage() {
                     id: myAssignment.id,
                     vehicle_id: myAssignment.vehicle_id,
                     main_driver_id: myAssignment.main_driver_id,
+                    team_member_ids: myAssignment.team_member_ids,
                     team_size: myAssignment.team_member_ids?.length
                 });
 
@@ -359,28 +360,50 @@ export default function HorarioPage() {
                 }
 
                 const teammates = [];
+                console.log('[Horario] 👥 Procesando miembros del equipo...');
+                console.log('[Horario] 📋 Total de miembros en team_member_ids:', myAssignment.team_member_ids?.length);
+                
                 if (myAssignment.team_member_ids && Array.isArray(myAssignment.team_member_ids)) {
                     for (const memberId of myAssignment.team_member_ids) {
-                        if (memberId === user.id) continue;
+                        console.log('[Horario] 🔍 Procesando miembro:', memberId);
+                        
+                        if (memberId === user.id) {
+                            console.log('[Horario] ⏭️ Saltando usuario actual');
+                            continue;
+                        }
                         
                         try {
+                            console.log('[Horario] 📥 Cargando datos del usuario:', memberId);
                             const member = await User.get(memberId);
-                            teammates.push({
+                            console.log('[Horario] ✅ Usuario cargado:', {
+                                id: member.id,
+                                full_name: member.full_name,
+                                display_name: member.display_name,
+                                invoice_name: member.invoice_name
+                            });
+                            
+                            const memberData = {
                                 id: member.id,
                                 name: member.display_name || member.invoice_name || member.full_name,
                                 is_main_driver: memberId === myAssignment.main_driver_id
-                            });
+                            };
+                            
+                            console.log('[Horario] ➕ Agregando compañero:', memberData);
+                            teammates.push(memberData);
                         } catch (error) {
-                            console.warn('[Horario] ⚠️ Error cargando miembro:', memberId, error);
+                            console.error('[Horario] ❌ Error cargando miembro:', memberId, error);
                         }
                     }
                 }
 
-                console.log('[Horario] 👥 Compañeros de equipo:', teammates.length);
+                console.log('[Horario] 👥 Total de compañeros encontrados:', teammates.length);
+                console.log('[Horario] 📋 Lista de compañeros:', teammates);
 
                 setAssignedVehicle(vehicleInfo);
                 setMainDriverName(driverName);
                 setTeamMembers(teammates);
+
+                console.log('[Horario] 💾 Guardando en estado - teammates:', teammates.length);
 
                 saveToCache(CACHE_KEYS.VEHICLE, { vehicle: vehicleInfo, driver: driverName });
                 saveToCache(CACHE_KEYS.TEAM, teammates);
@@ -1618,3 +1641,4 @@ export default function HorarioPage() {
         </div>
     );
 }
+
