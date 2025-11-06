@@ -14,10 +14,25 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Car, Users, Plus, Edit, Trash2, Calendar, AlertTriangle, Loader2, KeySquare } from 'lucide-react';
-import { format, addDays, subDays, parseISO, startOfDay, endOfDay } from 'date-fns';
+import { format, addDays, subDays, parseISO, startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import PhotoUploader from '../components/horario/PhotoUploader';
+
+// Función para parsear fechas ISO como UTC (igual que en CleanerDayListView)
+const parseISOAsUTC = (isoString) => {
+    if (!isoString) return null;
+    const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
+    return new Date(correctedIsoString);
+};
+
+// Función para formatear hora en UTC (igual que en CleanerDayListView)
+const formatTimeUTC = (date) => {
+    if (!date) return '';
+    const hours = date.getUTCHours().toString().padStart(2, '0');
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+};
 
 export default function GestionFlotaPage() {
     // --- State General ---
@@ -479,11 +494,18 @@ export default function GestionFlotaPage() {
                                                     Servicios del Día ({team.services.length})
                                                 </h4>
                                                 <ul className="text-xs text-slate-600 list-disc list-inside max-h-24 overflow-y-auto">
-                                                    {team.services.sort((a,b) => new Date(a.start_time) - new Date(b.start_time)).map((service, index) => (
-                                                        <li key={index}>
-                                                            <span className="font-mono">{format(new Date(service.start_time), 'HH:mm')}</span> - {service.client_name}
-                                                        </li>
-                                                    ))}
+                                                    {team.services.sort((a,b) => {
+                                                        const dateA = parseISOAsUTC(a.start_time);
+                                                        const dateB = parseISOAsUTC(b.start_time);
+                                                        return dateA.getTime() - dateB.getTime();
+                                                    }).map((service, index) => {
+                                                        const startTime = parseISOAsUTC(service.start_time);
+                                                        return (
+                                                            <li key={index}>
+                                                                <span className="font-mono">{formatTimeUTC(startTime)}</span> - {service.client_name}
+                                                            </li>
+                                                        );
+                                                    })}
                                                 </ul>
                                             </div>
                                             
