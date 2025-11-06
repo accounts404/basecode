@@ -290,8 +290,10 @@ export default function HorarioPage() {
             const day = String(forDate.getDate()).padStart(2, '0');
             const selectedDateStr = `${year}-${month}-${day}`;
             
-            console.log('[Horario] 🚗 Buscando vehículo y equipo para:', selectedDateStr);
+            console.log('[Horario] 🚗👥 === CARGANDO VEHÍCULO Y EQUIPO ===');
+            console.log('[Horario] 📅 Fecha:', selectedDateStr);
             console.log('[Horario] 👤 ID del limpiador:', user.id);
+            console.log('[Horario] 👤 Nombre del limpiador:', user.full_name);
 
             const allAssignments = await DailyTeamAssignment.list();
             console.log('[Horario] 📋 Total assignments en BD:', allAssignments.length);
@@ -309,11 +311,15 @@ export default function HorarioPage() {
                 const dateMatch = assignmentDateStr === selectedDateStr;
                 
                 if (dateMatch) {
-                    console.log('[Horario] 📅 Assignment con fecha coincidente:', {
+                    console.log('[Horario] 📅 Assignment del día encontrado:', {
                         id: assignment.id,
                         date: assignment.date,
                         normalized: assignmentDateStr,
-                        team_member_ids: assignment.team_member_ids
+                        vehicle_id: assignment.vehicle_id,
+                        vehicle_info: assignment.vehicle_info,
+                        main_driver_id: assignment.main_driver_id,
+                        team_member_ids: assignment.team_member_ids,
+                        team_member_ids_count: assignment.team_member_ids?.length || 0
                     });
                 }
 
@@ -329,64 +335,108 @@ export default function HorarioPage() {
             );
 
             if (myAssignment) {
-                console.log('[Horario] ✅ Assignment encontrado para este limpiador:', {
+                console.log('[Horario] ✅ ¡MI ASSIGNMENT ENCONTRADO!');
+                console.log('[Horario] 📋 Detalles completos del assignment:', {
                     id: myAssignment.id,
                     vehicle_id: myAssignment.vehicle_id,
+                    vehicle_info: myAssignment.vehicle_info,
                     main_driver_id: myAssignment.main_driver_id,
-                    team_size: myAssignment.team_member_ids?.length
+                    team_member_ids: myAssignment.team_member_ids,
+                    team_size: myAssignment.team_member_ids?.length || 0,
+                    driver_name: myAssignment.driver_name,
+                    team_members_names: myAssignment.team_members_names
                 });
 
-                let vehicleInfo = null;
-                if (myAssignment.vehicle_id) {
+                // Cargar información del vehículo
+                let vehicleInfo = myAssignment.vehicle_info || null;
+                if (!vehicleInfo && myAssignment.vehicle_id) {
                     try {
                         const vehicle = await Vehicle.get(myAssignment.vehicle_id);
                         vehicleInfo = `${vehicle.make || ''} ${vehicle.model || ''} (${vehicle.license_plate || ''})`.trim();
-                        console.log('[Horario] 🚗 Vehículo cargado:', vehicleInfo);
+                        console.log('[Horario] 🚗 Vehículo cargado desde BD:', vehicleInfo);
                     } catch (error) {
-                        console.warn('[Horario] ⚠️ Error cargando vehículo:', error);
+                        console.warn('[Horario] ⚠️ Error cargando vehículo desde BD:', error);
                     }
+                } else {
+                    console.log('[Horario] 🚗 Vehículo desde assignment.vehicle_info:', vehicleInfo);
                 }
 
-                let driverName = null;
-                if (myAssignment.main_driver_id) {
+                // Cargar información del conductor principal
+                let driverName = myAssignment.driver_name || null;
+                if (!driverName && myAssignment.main_driver_id) {
                     try {
                         const driver = await User.get(myAssignment.main_driver_id);
                         driverName = driver.display_name || driver.invoice_name || driver.full_name;
-                        console.log('[Horario] 👤 Conductor principal:', driverName);
+                        console.log('[Horario] 👤 Conductor principal cargado desde BD:', driverName);
                     } catch (error) {
-                        console.warn('[Horario] ⚠️ Error cargando conductor:', error);
+                        console.warn('[Horario] ⚠️ Error cargando conductor desde BD:', error);
                     }
+                } else {
+                    console.log('[Horario] 👤 Conductor desde assignment.driver_name:', driverName);
                 }
 
+                // Cargar información de todos los miembros del equipo
+                console.log('[Horario] 👥 === PROCESANDO MIEMBROS DEL EQUIPO ===');
+                console.log('[Horario] 👥 team_member_ids:', myAssignment.team_member_ids);
+                
                 const teammates = [];
                 if (myAssignment.team_member_ids && Array.isArray(myAssignment.team_member_ids)) {
+                    console.log('[Horario] 👥 Total miembros en team_member_ids:', myAssignment.team_member_ids.length);
+                    
                     for (const memberId of myAssignment.team_member_ids) {
-                        if (memberId === user.id) continue;
+                        console.log('[Horario] 👥 Procesando miembro:', memberId);
+                        
+                        if (memberId === user.id) {
+                            console.log('[Horario] 👥 ⏭️  Saltando usuario actual:', memberId);
+                            continue;
+                        }
                         
                         try {
                             const member = await User.get(memberId);
+                            const memberName = member.display_name || member.invoice_name || member.full_name;
+                            const isMainDriver = memberId === myAssignment.main_driver_id;
+                            
                             teammates.push({
                                 id: member.id,
-                                name: member.display_name || member.invoice_name || member.full_name,
-                                is_main_driver: memberId === myAssignment.main_driver_id
+                                name: memberName,
+                                is_main_driver: isMainDriver
+                            });
+                            
+                            console.log('[Horario] 👥 ✅ Compañero agregado:', {
+                                id: member.id,
+                                name: memberName,
+                                is_main_driver: isMainDriver
                             });
                         } catch (error) {
-                            console.warn('[Horario] ⚠️ Error cargando miembro:', memberId, error);
+                            console.warn('[Horario] 👥 ⚠️ Error cargando miembro:', memberId, error);
                         }
                     }
+                    
+                    console.log('[Horario] 👥 === RESULTADO FINAL ===');
+                    console.log('[Horario] 👥 Total compañeros (excluyendo usuario actual):', teammates.length);
+                    console.log('[Horario] 👥 Lista de compañeros:', teammates);
+                } else {
+                    console.log('[Horario] 👥 ⚠️ team_member_ids no es un array válido:', myAssignment.team_member_ids);
                 }
 
-                console.log('[Horario] 👥 Compañeros de equipo:', teammates.length);
-
+                // Actualizar estado
+                console.log('[Horario] 💾 Actualizando estado...');
                 setAssignedVehicle(vehicleInfo);
                 setMainDriverName(driverName);
                 setTeamMembers(teammates);
 
+                // Guardar en caché
                 saveToCache(CACHE_KEYS.VEHICLE, { vehicle: vehicleInfo, driver: driverName });
                 saveToCache(CACHE_KEYS.TEAM, teammates);
+                
+                console.log('[Horario] ✅ Estado actualizado - Vehículo:', vehicleInfo, '| Conductor:', driverName, '| Compañeros:', teammates.length);
 
             } else {
                 console.log('[Horario] ⚠️ No se encontró assignment para este limpiador');
+                console.log('[Horario] 📋 Assignments disponibles:', matchingAssignments.map(a => ({
+                    id: a.id,
+                    team_member_ids: a.team_member_ids
+                })));
                 setAssignedVehicle(null);
                 setMainDriverName(null);
                 setTeamMembers([]);
