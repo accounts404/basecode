@@ -2,7 +2,7 @@ import React, { useMemo, useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, MapPin, Square } from "lucide-react";
+import { Clock, Square } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Client } from "@/entities/Client";
@@ -104,19 +104,19 @@ export default function CleanerDayListView({
         if (event.cleaner_ids && event.cleaner_ids.includes(selectedCleanerId)) {
             if (cleanerClockData) {
                 if (cleanerClockData.clock_out_time) {
-                    return { type: 'completed', label: 'Completado', color: 'bg-slate-100 text-slate-700', icon: '✓' };
+                    return { type: 'completed', label: 'Completado', color: 'bg-slate-100 text-slate-700 border-slate-300', icon: '✓' };
                 } else if (cleanerClockData.clock_in_time) {
-                    return { type: 'in_progress', label: 'En Progreso', color: 'bg-green-100 text-green-700', icon: '●' };
+                    return { type: 'in_progress', label: 'En Progreso', color: 'bg-green-100 text-green-800 border-green-300', icon: '●' };
                 } else {
-                    return { type: 'scheduled', label: 'Programado', color: 'bg-blue-100 text-blue-700', icon: '○' };
+                    return { type: 'scheduled', label: 'Programado', color: 'bg-blue-100 text-blue-700 border-blue-300', icon: '○' };
                 }
             } else {
                 if (event.status === 'completed') {
-                    return { type: 'completed', label: 'Completado', color: 'bg-slate-100 text-slate-700', icon: '✓' };
+                    return { type: 'completed', label: 'Completado', color: 'bg-slate-100 text-slate-700 border-slate-300', icon: '✓' };
                 } else if (event.status === 'in_progress') {
-                    return { type: 'in_progress', label: 'En Progreso', color: 'bg-green-100 text-green-700', icon: '●' };
+                    return { type: 'in_progress', label: 'En Progreso', color: 'bg-green-100 text-green-800 border-green-300', icon: '●' };
                 } else {
-                    return { type: 'scheduled', label: 'Programado', color: 'bg-blue-100 text-blue-700', icon: '○' };
+                    return { type: 'scheduled', label: 'Programado', color: 'bg-blue-100 text-blue-700 border-blue-300', icon: '○' };
                 }
             }
         }
@@ -158,9 +158,6 @@ export default function CleanerDayListView({
                 const endTime = parseISOAsUTC(event.end_time);
                 const status = getCleanerStatus(event);
                 const isCancelled = event.status === 'cancelled';
-                
-                const currentClient = clientsMap.get(event.client_id);
-                const displayAddress = currentClient?.address || event.client_address || 'Dirección no disponible';
 
                 return (
                     <Card 
@@ -173,51 +170,41 @@ export default function CleanerDayListView({
                         } : {}}
                     >
                         <CardContent className="p-2.5">
-                            {/* Header con nombre y hora - MUY COMPACTO */}
-                            <div className="flex items-start justify-between mb-1.5">
-                                <div className="flex-1 min-w-0">
-                                    <h3 className={`text-sm font-bold leading-tight truncate ${
-                                        isCancelled ? 'line-through text-slate-500' : 'text-slate-900'
-                                    }`}>
-                                        {event.client_name}
-                                    </h3>
-                                    <div className="flex items-center gap-1 text-slate-600 mt-0.5">
-                                        <Clock className="w-3 h-3 flex-shrink-0" />
-                                        <span className="text-xs font-medium">
-                                            {formatTimeUTC(startTime)} - {formatTimeUTC(endTime)}
-                                        </span>
-                                    </div>
+                            {/* Nombre del cliente */}
+                            <div className="mb-1.5">
+                                <h3 className={`text-sm font-bold leading-tight ${
+                                    isCancelled ? 'line-through text-slate-500' : 'text-slate-900'
+                                }`}>
+                                    {event.client_name}
+                                </h3>
+                            </div>
+
+                            {/* Hora y Estado en una fila */}
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-1 text-slate-600">
+                                    <Clock className="w-3 h-3 flex-shrink-0" />
+                                    <span className="text-xs font-medium">
+                                        {formatTimeUTC(startTime)} - {formatTimeUTC(endTime)}
+                                    </span>
                                 </div>
 
-                                {/* Badge de estado más pequeño */}
+                                {/* Badge de estado más prominente */}
                                 {status && !isCancelled && (
                                     <Badge 
-                                        className={`${status.color} text-[10px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 flex-shrink-0 ml-1 ${
+                                        className={`${status.color} text-xs font-bold px-2 py-1 rounded border flex items-center gap-1 ${
                                             status.type === 'in_progress' ? 'animate-pulse' : ''
                                         }`}
                                     >
-                                        <span className="text-xs">{status.icon}</span>
-                                        <span className="hidden xs:inline">{status.label}</span>
+                                        <span className="text-sm">{status.icon}</span>
+                                        <span>{status.label}</span>
                                     </Badge>
                                 )}
 
                                 {isCancelled && (
-                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 ml-1 flex-shrink-0">
+                                    <Badge variant="destructive" className="text-xs px-2 py-1 font-bold">
                                         CANCELADO
                                     </Badge>
                                 )}
-                            </div>
-
-                            {/* Dirección ultra compacta */}
-                            <div className="flex items-start gap-1 text-slate-700 mb-2 bg-slate-50 p-1.5 rounded">
-                                <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-600" />
-                                <span className="text-[11px] leading-tight line-clamp-2">
-                                    {loadingClients ? (
-                                        <span className="text-slate-400 italic">Cargando...</span>
-                                    ) : (
-                                        displayAddress
-                                    )}
-                                </span>
                             </div>
 
                             {/* Botones compactos en una sola fila */}
