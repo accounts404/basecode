@@ -134,7 +134,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = useState(null);
+    const [selectedTask, setSelectedTask] = null;
 
     const [error, setError] = useState('');
 
@@ -341,8 +341,15 @@ export default function HorarioPage() {
                 (async () => {
                     try {
                         const selectedDateStr = formatLocalDate(forDate);
+                        console.log('[Horario] 📅 Solicitando assignments para:', selectedDateStr);
+                        console.log('[Horario] 👤 ID del limpiador actual:', user.id);
+                        
                         const { getDailyTeamAssignments: getAssignmentsFunc } = await import('@/functions/getDailyTeamAssignments');
-                        return await getAssignmentsFunc({ date: selectedDateStr });
+                        const response = await getAssignmentsFunc({ date: selectedDateStr });
+                        
+                        console.log('[Horario] 📦 Respuesta de assignments:', response.data);
+                        
+                        return response;
                     } catch (error) {
                         console.error('[Horario] ❌ Error cargando assignments:', error);
                         return { data: { assignments: [] } };
@@ -357,11 +364,32 @@ export default function HorarioPage() {
             saveToCache(CACHE_KEYS.SCHEDULES, currentCleanerSchedules);
 
             if (assignmentsResponse.data && assignmentsResponse.data.assignments && Array.isArray(assignmentsResponse.data.assignments)) {
+                console.log('[Horario] 🔍 Buscando assignment para user.id:', user.id);
+                console.log('[Horario] 📋 Assignments disponibles:', assignmentsResponse.data.assignments.length);
+                
+                assignmentsResponse.data.assignments.forEach((a, idx) => {
+                    console.log(`[Horario] Assignment ${idx + 1}:`, {
+                        id: a.id,
+                        date: a.date,
+                        team_member_ids: a.team_member_ids,
+                        vehicle_info: a.vehicle_info,
+                        main_driver_name: a.main_driver_name
+                    });
+                });
+                
                 const currentAssignment = assignmentsResponse.data.assignments.find(a =>
                     a.team_member_ids && Array.isArray(a.team_member_ids) && a.team_member_ids.includes(user.id)
                 );
 
+                console.log('[Horario] 🎯 Assignment encontrado:', currentAssignment ? 'SÍ' : 'NO');
+                
                 if (currentAssignment) {
+                    console.log('[Horario] ✅ Detalles del assignment:', {
+                        vehicle_info: currentAssignment.vehicle_info,
+                        main_driver_name: currentAssignment.main_driver_name,
+                        team_members_count: currentAssignment.team_members_info?.length || 0
+                    });
+                    
                     setAssignedVehicle(currentAssignment.vehicle_info || null);
                     setMainDriverName(currentAssignment.main_driver_name || null);
                     saveToCache(CACHE_KEYS.VEHICLE, {
@@ -371,13 +399,16 @@ export default function HorarioPage() {
 
                     if (currentAssignment.team_members_info && Array.isArray(currentAssignment.team_members_info)) {
                         const teammates = currentAssignment.team_members_info.filter(member => member.id !== user.id);
+                        console.log('[Horario] 👥 Compañeros de equipo:', teammates.length);
                         setTeamMembers(teammates);
                         saveToCache(CACHE_KEYS.TEAM, teammates);
                     } else {
+                        console.log('[Horario] ⚠️ No hay team_members_info en el assignment');
                         setTeamMembers([]);
                         saveToCache(CACHE_KEYS.TEAM, []);
                     }
                 } else {
+                    console.log('[Horario] ⚠️ No se encontró assignment para este limpiador');
                     setAssignedVehicle(null);
                     setMainDriverName(null);
                     setTeamMembers([]);
@@ -385,6 +416,7 @@ export default function HorarioPage() {
                     saveToCache(CACHE_KEYS.TEAM, []);
                 }
             } else {
+                console.log('[Horario] ⚠️ Respuesta de assignments vacía o inválida');
                 setAssignedVehicle(null);
                 setMainDriverName(null);
                 setTeamMembers([]);
