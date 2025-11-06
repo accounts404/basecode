@@ -130,11 +130,11 @@ export default function HorarioPage() {
     const [mainDriverName, setMainDriverName] = useState(null);
     const [requiredKeys, setRequiredKeys] = useState([]);
     const [loadingCleanerData, setLoadingCleanerData] = useState(false);
-    const [teamMembers, setTeamMembers] = useState([]);
+    const [teamMembers, setTeamMembers] = useState([]); // CORREGIDO: Siempre inicializar como array
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = null;
+    const [selectedTask, setSelectedTask] = useState(null);
 
     const [error, setError] = useState('');
 
@@ -281,7 +281,7 @@ export default function HorarioPage() {
         if (!user || user.role === 'admin') {
             setAssignedVehicle(null);
             setMainDriverName(null);
-            setTeamMembers([]);
+            setTeamMembers([]); // CORREGIDO: Siempre usar array vacío
             return;
         }
 
@@ -348,7 +348,14 @@ export default function HorarioPage() {
 
                 // SIMPLIFICADO: Usar directamente team_members_names del assignment
                 // Esto ya incluye todos los nombres formateados desde GestionFlota
-                const teamMembersNames = myAssignment.team_members_names || [];
+                let teamMembersNames = [];
+                if (myAssignment.team_members_names) {
+                    if (Array.isArray(myAssignment.team_members_names)) {
+                        teamMembersNames = myAssignment.team_members_names.filter(name => name); // Filtrar valores nulos/undefined
+                    } else {
+                        console.warn('[Horario] ⚠️ team_members_names no es un array:', typeof myAssignment.team_members_names);
+                    }
+                }
                 console.log('[Horario] 👥 Equipo completo:', teamMembersNames);
 
                 // Actualizar estado
@@ -364,7 +371,7 @@ export default function HorarioPage() {
                 console.log('[Horario] ⚠️ No se encontró assignment para este limpiador');
                 setAssignedVehicle(null);
                 setMainDriverName(null);
-                setTeamMembers([]);
+                setTeamMembers([]); // CORREGIDO: Siempre usar array vacío
                 saveToCache(CACHE_KEYS.VEHICLE, { vehicle: null, driver: null });
                 saveToCache(CACHE_KEYS.TEAM, []);
             }
@@ -373,7 +380,7 @@ export default function HorarioPage() {
             console.error('[Horario] ❌ Error cargando vehículo y equipo:', error);
             setAssignedVehicle(null);
             setMainDriverName(null);
-            setTeamMembers([]);
+            setTeamMembers([]); // CORREGIDO: Siempre usar array vacío
         }
     }, [user]);
 
@@ -1465,7 +1472,7 @@ export default function HorarioPage() {
                                     <Users className="w-5 md:w-6 h-5 md:h-6 text-purple-600 flex-shrink-0" />
                                     <div className="min-w-0 flex-1">
                                         <p className="text-xs text-slate-500 font-semibold">Equipo del Día</p>
-                                        {teamMembers.length > 0 ? (
+                                        {Array.isArray(teamMembers) && teamMembers.length > 0 ? (
                                             <div className="flex flex-wrap gap-1 mt-1">
                                                 {teamMembers.map((memberName, index) => (
                                                     <Badge
