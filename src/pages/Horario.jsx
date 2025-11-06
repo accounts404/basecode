@@ -134,7 +134,7 @@ export default function HorarioPage() {
 
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [selectedTask, setSelectedTask] = null;
+    const [selectedTask, setSelectedTask] = useState(null);
 
     const [error, setError] = useState('');
 
@@ -210,7 +210,6 @@ export default function HorarioPage() {
 
         const schedulesArray = Array.isArray(currentSchedules) ? currentSchedules : [];
         
-        // CORREGIDO: Usar el mismo formato que en GestionFlota - solo la parte de fecha sin conversión
         const year = forDate.getFullYear();
         const month = String(forDate.getMonth() + 1).padStart(2, '0');
         const day = String(forDate.getDate()).padStart(2, '0');
@@ -221,7 +220,6 @@ export default function HorarioPage() {
         const todaySchedules = schedulesArray.filter(s => {
             if (!s.start_time || !s.cleaner_ids) return false;
             
-            // CORREGIDO: Extraer YYYY-MM-DD directamente del ISO string sin conversión
             const scheduleStartDateStr = s.start_time.slice(0, 10);
             
             const isMatch = scheduleStartDateStr === selectedDateStr && 
@@ -278,6 +276,132 @@ export default function HorarioPage() {
         }
     }, [user]);
 
+    const loadVehicleAndTeamForDate = useCallback(async (forDate) => {
+        if (!user || user.role === 'admin') {
+            setAssignedVehicle(null);
+            setMainDriverName(null);
+            setTeamMembers([]);
+            return;
+        }
+
+        try {
+            const year = forDate.getFullYear();
+            const month = String(forDate.getMonth() + 1).padStart(2, '0');
+            const day = String(forDate.getDate()).padStart(2, '0');
+            const selectedDateStr = `${year}-${month}-${day}`;
+            
+            console.log('[Horario] 🚗 Buscando vehículo y equipo para:', selectedDateStr);
+            console.log('[Horario] 👤 ID del limpiador:', user.id);
+
+            const allAssignments = await DailyTeamAssignment.list();
+            console.log('[Horario] 📋 Total assignments en BD:', allAssignments.length);
+
+            const matchingAssignments = allAssignments.filter(assignment => {
+                if (!assignment.date) return false;
+
+                let assignmentDateStr;
+                if (typeof assignment.date === 'string') {
+                    assignmentDateStr = assignment.date.slice(0, 10);
+                } else {
+                    return false;
+                }
+
+                const dateMatch = assignmentDateStr === selectedDateStr;
+                
+                if (dateMatch) {
+                    console.log('[Horario] 📅 Assignment con fecha coincidente:', {
+                        id: assignment.id,
+                        date: assignment.date,
+                        normalized: assignmentDateStr,
+                        team_member_ids: assignment.team_member_ids
+                    });
+                }
+
+                return dateMatch;
+            });
+
+            console.log('[Horario] 🎯 Assignments del día encontrados:', matchingAssignments.length);
+
+            const myAssignment = matchingAssignments.find(a =>
+                a.team_member_ids && 
+                Array.isArray(a.team_member_ids) && 
+                a.team_member_ids.includes(user.id)
+            );
+
+            if (myAssignment) {
+                console.log('[Horario] ✅ Assignment encontrado para este limpiador:', {
+                    id: myAssignment.id,
+                    vehicle_id: myAssignment.vehicle_id,
+                    main_driver_id: myAssignment.main_driver_id,
+                    team_size: myAssignment.team_member_ids?.length
+                });
+
+                let vehicleInfo = null;
+                if (myAssignment.vehicle_id) {
+                    try {
+                        const vehicle = await Vehicle.get(myAssignment.vehicle_id);
+                        vehicleInfo = `${vehicle.make || ''} ${vehicle.model || ''} (${vehicle.license_plate || ''})`.trim();
+                        console.log('[Horario] 🚗 Vehículo cargado:', vehicleInfo);
+                    } catch (error) {
+                        console.warn('[Horario] ⚠️ Error cargando vehículo:', error);
+                    }
+                }
+
+                let driverName = null;
+                if (myAssignment.main_driver_id) {
+                    try {
+                        const driver = await User.get(myAssignment.main_driver_id);
+                        driverName = driver.display_name || driver.invoice_name || driver.full_name;
+                        console.log('[Horario] 👤 Conductor principal:', driverName);
+                    } catch (error) {
+                        console.warn('[Horario] ⚠️ Error cargando conductor:', error);
+                    }
+                }
+
+                const teammates = [];
+                if (myAssignment.team_member_ids && Array.isArray(myAssignment.team_member_ids)) {
+                    for (const memberId of myAssignment.team_member_ids) {
+                        if (memberId === user.id) continue;
+                        
+                        try {
+                            const member = await User.get(memberId);
+                            teammates.push({
+                                id: member.id,
+                                name: member.display_name || member.invoice_name || member.full_name,
+                                is_main_driver: memberId === myAssignment.main_driver_id
+                            });
+                        } catch (error) {
+                            console.warn('[Horario] ⚠️ Error cargando miembro:', memberId, error);
+                        }
+                    }
+                }
+
+                console.log('[Horario] 👥 Compañeros de equipo:', teammates.length);
+
+                setAssignedVehicle(vehicleInfo);
+                setMainDriverName(driverName);
+                setTeamMembers(teammates);
+
+                saveToCache(CACHE_KEYS.VEHICLE, { vehicle: vehicleInfo, driver: driverName });
+                saveToCache(CACHE_KEYS.TEAM, teammates);
+
+            } else {
+                console.log('[Horario] ⚠️ No se encontró assignment para este limpiador');
+                setAssignedVehicle(null);
+                setMainDriverName(null);
+                setTeamMembers([]);
+                saveToCache(CACHE_KEYS.VEHICLE, { vehicle: null, driver: null });
+                saveToCache(CACHE_KEYS.TEAM, []);
+            }
+
+        } catch (error) {
+            console.error('[Horario] ❌ Error cargando vehículo y equipo:', error);
+            setAssignedVehicle(null);
+            setMainDriverName(null);
+            setTeamMembers([]);
+        }
+    }, [user]);
+
     const loadCleanerSpecificData = useCallback(async (forDate, isSilentUpdate = false) => {
         if (!user || user.role === 'admin') return;
 
@@ -313,49 +437,29 @@ export default function HorarioPage() {
 
             console.log(`[Horario] 🔍 ${isSilentUpdate ? 'Actualización silenciosa' : 'Cargando servicios'}...`);
 
-            const [cleanerSchedules, assignmentsResponse] = await Promise.all([
-                Schedule.filter({
-                    cleaner_ids: { $contains: user.id },
-                    status: { $ne: 'cancelled' },
+            const cleanerSchedules = await Schedule.filter({
+                cleaner_ids: { $contains: user.id },
+                status: { $ne: 'cancelled' },
+                start_time: {
+                    $gte: startDateStr,
+                    $lte: endDateStr
+                }
+            }).catch(filterError => {
+                console.warn('[Horario] ⚠️ Filtro optimizado falló:', filterError);
+                const monthStart = startOfMonth(forDate);
+                const monthEnd = endOfMonth(forDate);
+                return Schedule.filter({
                     start_time: {
-                        $gte: startDateStr,
-                        $lte: endDateStr
+                        $gte: formatLocalDate(monthStart) + 'T00:00:00.000Z',
+                        $lte: formatLocalDate(monthEnd) + 'T23:59:59.999Z'
                     }
-                }).catch(filterError => {
-                    console.warn('[Horario] ⚠️ Filtro optimizado falló:', filterError);
-                    const monthStart = startOfMonth(forDate);
-                    const monthEnd = endOfMonth(forDate);
-                    return Schedule.filter({
-                        start_time: {
-                            $gte: formatLocalDate(monthStart) + 'T00:00:00.000Z',
-                            $lte: formatLocalDate(monthEnd) + 'T23:59:59.999Z'
-                        }
-                    }).then(allSchedules => {
-                        const allSchedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
-                        return allSchedulesArray.filter(s =>
-                            s.cleaner_ids && Array.isArray(s.cleaner_ids) && s.cleaner_ids.includes(user.id) && s.status !== 'cancelled'
-                        );
-                    });
-                }),
-
-                (async () => {
-                    try {
-                        const selectedDateStr = formatLocalDate(forDate);
-                        console.log('[Horario] 📅 Solicitando assignments para:', selectedDateStr);
-                        console.log('[Horario] 👤 ID del limpiador actual:', user.id);
-                        
-                        const { getDailyTeamAssignments: getAssignmentsFunc } = await import('@/functions/getDailyTeamAssignments');
-                        const response = await getAssignmentsFunc({ date: selectedDateStr });
-                        
-                        console.log('[Horario] 📦 Respuesta de assignments:', response.data);
-                        
-                        return response;
-                    } catch (error) {
-                        console.error('[Horario] ❌ Error cargando assignments:', error);
-                        return { data: { assignments: [] } };
-                    }
-                })()
-            ]);
+                }).then(allSchedules => {
+                    const allSchedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
+                    return allSchedulesArray.filter(s =>
+                        s.cleaner_ids && Array.isArray(s.cleaner_ids) && s.cleaner_ids.includes(user.id) && s.status !== 'cancelled'
+                    );
+                });
+            });
 
             console.log(`[Horario] ✅ Servicios cargados: ${cleanerSchedules?.length || 0}`);
 
@@ -363,67 +467,7 @@ export default function HorarioPage() {
             setSchedules(currentCleanerSchedules);
             saveToCache(CACHE_KEYS.SCHEDULES, currentCleanerSchedules);
 
-            if (assignmentsResponse.data && assignmentsResponse.data.assignments && Array.isArray(assignmentsResponse.data.assignments)) {
-                console.log('[Horario] 🔍 Buscando assignment para user.id:', user.id);
-                console.log('[Horario] 📋 Assignments disponibles:', assignmentsResponse.data.assignments.length);
-                
-                assignmentsResponse.data.assignments.forEach((a, idx) => {
-                    console.log(`[Horario] Assignment ${idx + 1}:`, {
-                        id: a.id,
-                        date: a.date,
-                        team_member_ids: a.team_member_ids,
-                        vehicle_info: a.vehicle_info,
-                        main_driver_name: a.main_driver_name
-                    });
-                });
-                
-                const currentAssignment = assignmentsResponse.data.assignments.find(a =>
-                    a.team_member_ids && Array.isArray(a.team_member_ids) && a.team_member_ids.includes(user.id)
-                );
-
-                console.log('[Horario] 🎯 Assignment encontrado:', currentAssignment ? 'SÍ' : 'NO');
-                
-                if (currentAssignment) {
-                    console.log('[Horario] ✅ Detalles del assignment:', {
-                        vehicle_info: currentAssignment.vehicle_info,
-                        main_driver_name: currentAssignment.main_driver_name,
-                        team_members_count: currentAssignment.team_members_info?.length || 0
-                    });
-                    
-                    setAssignedVehicle(currentAssignment.vehicle_info || null);
-                    setMainDriverName(currentAssignment.main_driver_name || null);
-                    saveToCache(CACHE_KEYS.VEHICLE, {
-                        vehicle: currentAssignment.vehicle_info || null,
-                        driver: currentAssignment.main_driver_name || null
-                    });
-
-                    if (currentAssignment.team_members_info && Array.isArray(currentAssignment.team_members_info)) {
-                        const teammates = currentAssignment.team_members_info.filter(member => member.id !== user.id);
-                        console.log('[Horario] 👥 Compañeros de equipo:', teammates.length);
-                        setTeamMembers(teammates);
-                        saveToCache(CACHE_KEYS.TEAM, teammates);
-                    } else {
-                        console.log('[Horario] ⚠️ No hay team_members_info en el assignment');
-                        setTeamMembers([]);
-                        saveToCache(CACHE_KEYS.TEAM, []);
-                    }
-                } else {
-                    console.log('[Horario] ⚠️ No se encontró assignment para este limpiador');
-                    setAssignedVehicle(null);
-                    setMainDriverName(null);
-                    setTeamMembers([]);
-                    saveToCache(CACHE_KEYS.VEHICLE, { vehicle: null, driver: null });
-                    saveToCache(CACHE_KEYS.TEAM, []);
-                }
-            } else {
-                console.log('[Horario] ⚠️ Respuesta de assignments vacía o inválida');
-                setAssignedVehicle(null);
-                setMainDriverName(null);
-                setTeamMembers([]);
-                saveToCache(CACHE_KEYS.VEHICLE, { vehicle: null, driver: null });
-                saveToCache(CACHE_KEYS.TEAM, []);
-            }
-
+            await loadVehicleAndTeamForDate(forDate);
             await loadRequiredKeysForDate(currentCleanerSchedules, forDate);
 
         } catch (error) {
@@ -434,7 +478,7 @@ export default function HorarioPage() {
             }
             loadingRef.current = false;
         }
-    }, [user, loadRequiredKeysForDate]);
+    }, [user, loadRequiredKeysForDate, loadVehicleAndTeamForDate]);
 
     const loadInitialData = async () => {
         try {
@@ -810,7 +854,7 @@ export default function HorarioPage() {
 
             let hasChanges = false;
             const newSchedulesArray = Array.isArray(newCleanerSchedules) ? newCleanerSchedules : [];
-            const originalSchedulesArray = Array.isArray(originalCleanerSchedules) ? originalCleanerSchedules : [];
+            const originalSchedulesArray = Array.isArray(originalCleanerSchedules) ? originalSchedulesArray : [];
 
             if (newSchedulesArray.length !== originalSchedulesArray.length) {
                 hasChanges = true;
