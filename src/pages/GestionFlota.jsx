@@ -67,8 +67,8 @@ export default function GestionFlotaPage() {
 
         setLoadingTeams(true);
         try {
-            // CORREGIDO: Usar solo la parte de fecha (YYYY-MM-DD) para comparación
-            const selectedDateString = format(parseISO(selectedDate), 'yyyy-MM-dd');
+            // CORREGIDO: Usar la fecha seleccionada directamente
+            const selectedDateString = selectedDate; // Ya está en formato YYYY-MM-DD
             console.log('[GestionFlota] Filtrando servicios para la fecha:', selectedDateString);
 
             // 1. Obtener todas las asignaciones existentes para la fecha
@@ -82,15 +82,27 @@ export default function GestionFlotaPage() {
             ]);
             const clientMap = new Map(allClients.map(c => [c.id, c]));
 
-            // CORREGIDO: Filtrar usando solo la parte de fecha del ISO string
+            // CORREGIDO: Filtrar usando parseISO y comparar solo la parte de fecha
             const dailySchedules = allSchedules.filter(s => {
                 if (!s.start_time) return false;
                 
-                // Extraer YYYY-MM-DD del start_time ISO string
-                const scheduleStartDateString = s.start_time.slice(0, 10);
+                // Parsear el ISO string y extraer solo YYYY-MM-DD
+                const scheduleDate = parseISO(s.start_time);
+                const scheduleDateString = format(scheduleDate, 'yyyy-MM-dd');
                 
                 // Comparar directamente los strings de fecha
-                return scheduleStartDateString === selectedDateString;
+                const matches = scheduleDateString === selectedDateString;
+                
+                if (matches) {
+                    console.log('[GestionFlota] ✅ Servicio encontrado:', {
+                        client: s.client_name,
+                        start_time_original: s.start_time,
+                        parsed_date: scheduleDateString,
+                        selected_date: selectedDateString
+                    });
+                }
+                
+                return matches;
             });
 
             console.log('[GestionFlota] Servicios encontrados para', selectedDateString, ':', dailySchedules.length);
@@ -109,10 +121,12 @@ export default function GestionFlotaPage() {
                         });
                     }
                     
-                    // Añadir servicio
+                    // Añadir servicio con hora local formateada
+                    const serviceStartTime = parseISO(schedule.start_time);
                     teamsMap.get(sortedIds).services.push({
                         client_name: schedule.client_name,
-                        start_time: schedule.start_time
+                        start_time: schedule.start_time,
+                        formatted_time: format(serviceStartTime, 'HH:mm') // Para mostrar correctamente
                     });
 
                     // Añadir llave requerida si aplica
@@ -136,8 +150,7 @@ export default function GestionFlotaPage() {
 
             setDailyTeams(teamsWithKeys);
 
-            // 4. NUEVO: LIMPIEZA DE ASIGNACIONES HUÉRFANAS
-            // Identificar asignaciones que ya no corresponden a ningún equipo real
+            // 4. LIMPIEZA DE ASIGNACIONES HUÉRFANAS
             const validTeamIds = new Set(teamsWithKeys.map(t => t.id));
             const orphanedAssignments = existingAssignments.filter(assignment => {
                 if (!assignment.team_member_ids || !Array.isArray(assignment.team_member_ids)) return false;
@@ -481,7 +494,7 @@ export default function GestionFlotaPage() {
                                                 <ul className="text-xs text-slate-600 list-disc list-inside max-h-24 overflow-y-auto">
                                                     {team.services.sort((a,b) => new Date(a.start_time) - new Date(b.start_time)).map((service, index) => (
                                                         <li key={index}>
-                                                            <span className="font-mono">{format(new Date(service.start_time), 'HH:mm')}</span> - {service.client_name}
+                                                            <span className="font-mono">{service.formatted_time}</span> - {service.client_name}
                                                         </li>
                                                     ))}
                                                 </ul>
