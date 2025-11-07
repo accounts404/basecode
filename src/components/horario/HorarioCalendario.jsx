@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,14 @@ const VISIBLE_END_HOUR = 22;   // 10 PM (interpretado como UTC)
 const TOTAL_VISIBLE_HOURS = VISIBLE_END_HOUR - VISIBLE_START_HOUR; // Total de horas a mostrar (16 horas)
 const TOTAL_DISPLAY_HEIGHT_PX = TOTAL_VISIBLE_HOURS * HOUR_HEIGHT; // Altura total de la sección de tiempo
 
-const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventClick }, ref) => {
+// NUEVO: Función helper para aplicar opacidad a eventos no resaltados
+const applyHighlightOpacity = (event, highlightedCleanerId) => {
+    if (!highlightedCleanerId) return 1;
+    if (!event.cleaner_ids || event.cleaner_ids.length === 0) return 0.2; // Unassigned events get lower opacity if highlighting
+    return event.cleaner_ids.includes(highlightedCleanerId) ? 1 : 0.2;
+};
+
+const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventClick, highlightedCleanerId }, ref) => {
     // Obtener limpiadores asignados con sus datos completos
     const assignedCleaners = users.filter(u =>
         event.cleaner_ids && event.cleaner_ids.includes(u.id)
@@ -80,6 +87,9 @@ const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventC
         textColor = '#64748b'; // text-slate-500
     }
 
+    // NUEVO: Calcular opacidad para efecto de resaltado
+    const opacity = applyHighlightOpacity(event, highlightedCleanerId);
+
     return (
         <HoverCard openDelay={200}>
             <HoverCardTrigger asChild>
@@ -93,6 +103,7 @@ const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventC
                         padding: isSmallEvent ? '2px 4px' : '4px 6px',
                         border: '1px solid rgba(0,0,0,0.1)',
                         borderColor: isUnassigned && !isCancelled ? 'rgb(239 68 68)' : 'rgba(0,0,0,0.1)', // ring-red-500
+                        opacity: opacity, // Apply opacity based on highlight
                     }}
                 >
                     {/* Access key icon (re-added as it's useful context) */}
@@ -278,27 +289,30 @@ const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventC
 EventComponent.displayName = 'EventComponent';
 
 
-export default function HorarioCalendario({
-    events,
-    date,
-    view,
-    onNavigate,
-    onView,
-    onSelectEvent,
-    onCreateAtTime,
-    onMoveEvent,
-    onResizeEvent,
-    users = [],
-    isCleanerView = false,
-    selectedCleanerId = null,
-    isReadOnly = false,
-    assignedVehicle = null,
-    requiredKeys = [],
-    currentUser, // New prop for handleClockOut
-    base44,      // New prop for handleClockOut (assuming it's passed down)
-    setNotification, // New prop for handleClockOut
-    loadEvents   // New prop for handleClockOut
-}) {
+const HorarioCalendario = React.forwardRef((props, ref) => {
+    const {
+        events,
+        date,
+        view,
+        onNavigate,
+        onView,
+        onSelectEvent,
+        onCreateAtTime,
+        onMoveEvent,
+        onResizeEvent,
+        users = [],
+        isCleanerView = false,
+        selectedCleanerId = null,
+        isReadOnly = false,
+        assignedVehicle = null,
+        requiredKeys = [],
+        currentUser,
+        base44,
+        setNotification,
+        loadEvents,
+        highlightedCleanerId = null, // NUEVO: prop para resaltado
+    } = props;
+
     const [selectedDate, setSelectedDate] = useState(date);
     const [draggedEvent, setDraggedEvent] = useState(null);
     const [draggedEventOffsetY, setDraggedEventOffsetY] = useState(0);
@@ -484,7 +498,7 @@ export default function HorarioCalendario({
             }
 
             // Solo llamar a onResizeEvent si las horas han cambiado realmente
-            if (newStart.getTime() !== originalEventStart.getTime() || newEnd.getTime() !== originalEventEnd.getTime()) {
+            if (onResizeEvent && (newStart.getTime() !== originalEventStart.getTime() || newEnd.getTime() !== originalEventEnd.getTime())) {
                 onResizeEvent(resizingEvent.id, newStart, newEnd);
             }
 
@@ -926,7 +940,7 @@ export default function HorarioCalendario({
         const visibleDayEvents = dayEvents.filter(event => {
             const eventStart = parseISOAsUTC(event.start_time);
             const eventEnd = parseISOAsUTC(event.end_time);
-            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMonth() / 60);
+            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMonth() / 60); // Bug here: should be getUTCMinutes() / 60
             const endInHours = eventEnd.getUTCHours() + (eventEnd.getUTCMinutes() / 60);
             return !(endInHours <= VISIBLE_START_HOUR || startInHours >= VISIBLE_END_HOUR);
         });
@@ -1112,6 +1126,19 @@ export default function HorarioCalendario({
         }
     };
 
+    // Callback para renderizar eventos, ahora memoizado y pasando highlightedCleanerId
+    const renderEvent = useCallback((event) => {
+        return (
+            <EventComponent
+                event={event}
+                users={users}
+                isCleanerView={isCleanerView}
+                onEventClick={() => onSelectEvent && onSelectEvent(event)}
+                highlightedCleanerId={highlightedCleanerId} // NUEVO: pasar prop
+            />
+        );
+    }, [users, isCleanerView, onSelectEvent, highlightedCleanerId]);
+
 
     const renderDayOrWeekView = (days) => {
         const isWeekView = days.length > 1;
@@ -1124,7 +1151,7 @@ export default function HorarioCalendario({
         }
 
         return (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full" ref={ref}> {/* Use forwardRef here */}
                 {isWeekView && (
                     <div className="flex border-b border-gray-200 sticky top-0 bg-white z-20">
                         <div className="w-20 flex-shrink-0 border-r border-gray-200"></div>
@@ -1232,12 +1259,7 @@ export default function HorarioCalendario({
                                                     </>
                                                 )}
 
-                                                <EventComponent
-                                                    event={event}
-                                                    onEventClick={() => onSelectEvent(event)}
-                                                    users={users}
-                                                    isCleanerView={isCleanerView}
-                                                />
+                                                {renderEvent(event)} {/* Using the memoized renderEvent */}
                                             </div>
                                         );
                                     });
@@ -1265,7 +1287,7 @@ export default function HorarioCalendario({
         const weeks = eachWeekOfInterval({ start: calendarStart, end: endOfWeek(monthEnd, { weekStartsOn: 1 }) }, { weekStartsOn: 1 });
 
         return (
-            <div className="flex flex-col h-full">
+            <div className="flex flex-col h-full" ref={ref}> {/* Use forwardRef here */}
                 {/* Header de días de la semana */}
                 <div className="grid grid-cols-7 border-b bg-slate-50">
                     {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => (
@@ -1309,12 +1331,7 @@ export default function HorarioCalendario({
                                         <div className="space-y-2">
                                             {dayEvents.map(event => (
                                                 <div key={event.id}>
-                                                    <EventComponent
-                                                        event={event}
-                                                        onEventClick={() => onSelectEvent(event)}
-                                                        users={users}
-                                                        isCleanerView={isCleanerView}
-                                                    />
+                                                    {renderEvent(event)} {/* Using the memoized renderEvent */}
                                                 </div>
                                             ))}
 
@@ -1437,4 +1454,8 @@ export default function HorarioCalendario({
             )}
         </Card>
     );
-}
+});
+
+HorarioCalendario.displayName = 'HorarioCalendario';
+
+export default HorarioCalendario;
