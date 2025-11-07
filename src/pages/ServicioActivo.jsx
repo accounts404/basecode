@@ -262,7 +262,7 @@ export default function ServicioActivoPage() {
         // 🛑 PASO 1: MARCAR INMEDIATAMENTE QUE ESTAMOS HACIENDO CLOCK OUT
         setClockingOut(true);
         setError("");
-        isUnmountingRef.current = true; // Marcar ANTES para prevenir actualizaciones
+        isUnmountingRef.current = true;
 
         // 🛑 PASO 2: DETENER POLLING Y TIMER INMEDIATAMENTE
         if (pollingRef.current) {
@@ -284,11 +284,12 @@ export default function ServicioActivoPage() {
             localStorage.setItem(`clock_out_pending_${user.id}`, 'true');
             localStorage.setItem(`clock_out_time_${user.id}`, Date.now().toString());
             
-            // Actualizar el schedule en localStorage inmediatamente
+            // Actualizar el schedule en localStorage inmediatamente con el estado optimista
             const cachedSchedules = localStorage.getItem('redoak_cleaner_schedules');
             if (cachedSchedules) {
                 try {
                     const schedules = JSON.parse(cachedSchedules);
+                    const currentTime = new Date().toISOString();
                     const updatedSchedules = schedules.map(schedule => {
                         if (schedule.id === activeService.id) {
                             const updatedClockInData = [...(schedule.clock_in_data || [])];
@@ -296,7 +297,7 @@ export default function ServicioActivoPage() {
                             if (existingIndex >= 0) {
                                 updatedClockInData[existingIndex] = {
                                     ...updatedClockInData[existingIndex],
-                                    clock_out_time: new Date().toISOString()
+                                    clock_out_time: currentTime
                                 };
                             }
                             return {
@@ -308,49 +309,58 @@ export default function ServicioActivoPage() {
                         return schedule;
                     });
                     localStorage.setItem('redoak_cleaner_schedules', JSON.stringify(updatedSchedules));
+                    console.log('[ServicioActivo] ✅ Cache actualizado optimísticamente');
                 } catch (error) {
                     console.warn('[ServicioActivo] Error actualizando cache:', error);
                 }
             }
 
-            // 🚀 PASO 4: REGISTRAR CLOCK OUT Y REDIRIGIR INMEDIATAMENTE
+            // 🚀 PASO 4: REGISTRAR CLOCK OUT EN COLA OFFLINE (NO ESPERAR)
             console.log('[ServicioActivo] 💾 Registrando Clock Out en cola offline...');
-            const result = await registerClockOut(activeService.id, user.id);
-            console.log('[ServicioActivo] ✅ Clock Out registrado en cola:', result);
+            registerClockOut(activeService.id, user.id).catch(err => {
+                console.error('[ServicioActivo] Error en registerClockOut:', err);
+            });
 
-            // 🚀 PASO 5: REDIRIGIR INMEDIATAMENTE CON FLAG ESPECIAL
-            console.log('[ServicioActivo] 🚀 Redirigiendo a Horario...');
+            // 🚀 PASO 5: REDIRIGIR INMEDIATAMENTE SIN ESPERAR NADA
+            console.log('[ServicioActivo] 🚀 Redirigiendo a Horario INMEDIATAMENTE...');
             navigate(createPageUrl("Horario"), { 
                 replace: true,
                 state: { 
                     clockOutSuccess: true,
-                    skipActiveCheck: true, // NUEVO: Flag para evitar verificación de servicio activo
-                    message: '¡Clock Out registrado exitosamente! El servicio está completado.'
+                    skipActiveCheck: true,
+                    useCache: true, // NUEVO: Flag para usar cache y no recargar
+                    message: '¡Clock Out registrado exitosamente! El servicio está completado.',
+                    completedServiceId: activeService.id // Para actualizar solo este servicio
                 }
             });
 
-            // 📡 PASO 6: SINCRONIZACIÓN EN BACKGROUND (NO BLOQUEA LA REDIRECCIÓN)
+            // 📡 PASO 6: SINCRONIZACIÓN EN BACKGROUND (COMPLETAMENTE ASÍNCRONO)
+            // NO ESPERAMOS NADA, SE EJECUTA DESPUÉS DE LA NAVEGACIÓN
             (async () => {
                 try {
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo antes de sincronizar
-
+                    // NO HAY DELAY - sincronizamos inmediatamente pero sin bloquear
                     const updatedClockInData = [...(activeService.clock_in_data || [])];
                     const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
                     const currentTime = new Date().toISOString();
 
                     if (existingIndex >= 0) {
                         let userLocation = null;
+                        
+                        // Intentar GPS pero con timeout muy corto
                         if ('geolocation' in navigator) {
                             try {
-                                const position = await new Promise((resolve, reject) => {
-                                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                                        timeout: 5000,
-                                        enableHighAccuracy: true
-                                    });
-                                });
+                                const position = await Promise.race([
+                                    new Promise((resolve, reject) => {
+                                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                            timeout: 3000,
+                                            enableHighAccuracy: false
+                                        });
+                                    }),
+                                    new Promise((_, reject) => setTimeout(() => reject(new Error('GPS timeout')), 3000))
+                                ]);
                                 userLocation = `${position.coords.latitude},${position.coords.longitude}`;
                             } catch (error) {
-                                console.warn('[ServicioActivo] No se pudo obtener ubicación GPS:', error);
+                                console.warn('[ServicioActivo] GPS no disponible, continuando sin ubicación');
                             }
                         }
 
@@ -364,6 +374,7 @@ export default function ServicioActivoPage() {
                     const allClockedOut = updatedClockInData.every(c => c.clock_out_time);
                     const newStatus = allClockedOut ? 'completed' : activeService.status;
 
+                    // Actualizar en backend
                     await base44.entities.Schedule.update(activeService.id, {
                         clock_in_data: updatedClockInData,
                         status: newStatus
@@ -371,6 +382,7 @@ export default function ServicioActivoPage() {
 
                     console.log('[ServicioActivo] ✅ Backend actualizado exitosamente en segundo plano');
 
+                    // Procesar WorkEntries si corresponde
                     if (newStatus === 'completed') {
                         try {
                             await base44.functions.invoke('processScheduleForWorkEntries', {
@@ -386,14 +398,18 @@ export default function ServicioActivoPage() {
                     // Limpiar flags después de sincronización exitosa
                     localStorage.removeItem(`clock_out_pending_${user.id}`);
                     localStorage.removeItem(`clock_out_time_${user.id}`);
+                    
                 } catch (error) {
-                    console.error('[ServicioActivo] ❌ Error actualizando backend (pero Clock Out ya está en cola):', error);
+                    console.error('[ServicioActivo] ❌ Error actualizando backend:', error);
+                    // NO restaurar estado - la UI ya avanzó
+                    // El usuario verá el servicio completado en cache
+                    // En el próximo polling se sincronizará si es necesario
                 }
             })();
 
         } catch (error) {
-            console.error('[ServicioActivo] ❌ Error en Clock Out:', error);
-            // Si hubo un error ANTES de navegar, restaurar el estado
+            console.error('[ServicioActivo] ❌ Error CRÍTICO en Clock Out:', error);
+            // Solo si hay error ANTES de navegar, restaurar
             isUnmountingRef.current = false; 
             setError("Error al registrar Clock Out. Por favor, inténtalo de nuevo.");
             setClockingOut(false);
@@ -403,8 +419,7 @@ export default function ServicioActivoPage() {
             localStorage.removeItem(`clock_out_pending_${user.id}`);
             localStorage.removeItem(`clock_out_time_${user.id}`);
             
-            // Reiniciar polling y timer si hubo error
-            console.warn('[ServicioActivo] Reintentando reiniciar polling y timer debido a error en Clock Out.');
+            // Reiniciar polling y timer
             loadUserAndActiveService(); 
         }
     };
