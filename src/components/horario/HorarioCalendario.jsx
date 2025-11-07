@@ -49,7 +49,8 @@ const applyHighlightOpacity = (event, highlightedCleanerId) => {
     return event.cleaner_ids.includes(highlightedCleanerId) ? 1 : 0.2;
 };
 
-const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventClick, highlightedCleanerId }, ref) => {
+// EventComponent now properly defined
+function EventComponent({ event, users, isCleanerView, onEventClick, highlightedCleanerId }) {
     // Obtener limpiadores asignados con sus datos completos
     const assignedCleaners = users.filter(u =>
         event.cleaner_ids && event.cleaner_ids.includes(u.id)
@@ -94,7 +95,6 @@ const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventC
         <HoverCard openDelay={200}>
             <HoverCardTrigger asChild>
                 <div
-                    ref={ref}
                     onClick={onEventClick}
                     className="cursor-pointer h-full w-full overflow-hidden relative shadow-sm hover:shadow-md transition-all duration-200"
                     style={{
@@ -284,9 +284,7 @@ const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventC
             </HoverCardContent>
         </HoverCard>
     );
-});
-
-EventComponent.displayName = 'EventComponent';
+}
 
 
 const HorarioCalendario = React.forwardRef((props, ref) => {
@@ -940,7 +938,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         const visibleDayEvents = dayEvents.filter(event => {
             const eventStart = parseISOAsUTC(event.start_time);
             const eventEnd = parseISOAsUTC(event.end_time);
-            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMonth() / 60); // Bug here: should be getUTCMinutes() / 60
+            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMinutes() / 60);
             const endInHours = eventEnd.getUTCHours() + (eventEnd.getUTCMinutes() / 60);
             return !(endInHours <= VISIBLE_START_HOUR || startInHours >= VISIBLE_END_HOUR);
         });
