@@ -3,7 +3,6 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit, KeySquare, Navigation, Play, Square, CheckCircle, AlertTriangle, Car } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth, eachWeekOfInterval, isToday, isSameDay, addDays, isSameMonth, parseISO, addMinutes, roundToNearestMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -279,30 +278,6 @@ export default function HorarioCalendario({
             })
             .filter(Boolean)
             .join(', ');
-    };
-
-    // Función para obtener iniciales de limpiadores (NUEVA VERSIÓN MEJORADA)
-    const getCleanerInitials = (cleanerIds) => {
-        if (!cleanerIds || cleanerIds.length === 0) return [];
-        
-        return cleanerIds
-            .map(id => {
-                const user = users.find(u => u.id === id);
-                if (!user) return null;
-                
-                const name = user.display_name || user.invoice_name || user.full_name || '';
-                
-                // Obtener iniciales (primeras 2 letras del nombre)
-                const initials = name.substring(0, 2).toUpperCase();
-                
-                return {
-                    id: id,
-                    initials: initials,
-                    fullName: name,
-                    color: user.color || '#3b82f6'
-                };
-            })
-            .filter(Boolean);
     };
 
     // Corrected navigation functions as per outline (with preservation of month view for consistency)
@@ -902,14 +877,11 @@ export default function HorarioCalendario({
         }
     };
 
-    // Componente de Evento Refactorizado CON MEJORAS PARA ADMIN
-    const EventBlock = ({ event, onClick, showFullInfo = false, isWeekView = false }) => {
+    // Componente de Evento Refactorizado
+    const EventBlock = ({ event, onClick, showFullInfo = false }) => {
         const isCancelled = event.status === 'cancelled';
         const isUnassigned = !event.cleaner_ids || event.cleaner_ids.length === 0;
         const progress = getServiceProgress(event);
-        
-        // NUEVO: Obtener información de limpiadores con iniciales y colores
-        const cleanersInfo = getCleanerInitials(event.cleaner_ids);
         
         // ARREGLADO: Determinar estado del limpiador específico si es vista de limpiador
         let cleanerStatus = null;
@@ -952,11 +924,11 @@ export default function HorarioCalendario({
             ? "font-bold text-sm leading-tight line-through"
             : "font-bold text-sm leading-tight";
 
-        // NUEVO: Componente interno para mostrar con Tooltip (solo admin y vista semanal)
-        const EventCardContent = () => (
+        return (
             <Card 
+                onClick={onClick}
                 className={`${cardClass} rounded-lg overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md relative ${isUnassigned && !isCancelled ? 'border-4 border-red-500 ring-2 ring-red-200' : 'border-2 hover:border-white/50'}`}
-                style={{ backgroundColor: isCancelled ? '#e2e8f0' : (isUnassigned ? '#dc2626' : event.color || '#3b82f6') }}
+                style={{ backgroundColor: isCancelled ? '#e2e8f0' : (isUnassigned ? '#dc2626' : event.color || '#3b82f6') }} // Rojo si no está asignado
             >
                 {event.has_access && !isCancelled && (
                     <div className="absolute top-1 right-1 bg-white/20 backdrop-blur-sm p-1 rounded-full" title={`Acceso: ${event.access_identifier}`}>
@@ -1054,34 +1026,7 @@ export default function HorarioCalendario({
                             </div>
                         )}
                         
-                        {/* MEJORADO: Mostrar iniciales de limpiadores en vista semanal de admin */}
-                        {!isCleanerView && isWeekView && !isCancelled && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                                {isUnassigned ? (
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/30 px-2 py-1 rounded-full w-fit">
-                                        <AlertTriangle className="w-4 h-4" />
-                                        <span>SIN ASIGNAR</span>
-                                    </div>
-                                ) : (
-                                    cleanersInfo.map(cleaner => (
-                                        <span
-                                            key={cleaner.id}
-                                            className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-md shadow-sm border-2 border-white/40"
-                                            style={{ 
-                                                backgroundColor: cleaner.color,
-                                                color: '#ffffff'
-                                            }}
-                                            title={cleaner.fullName}
-                                        >
-                                            {cleaner.initials}
-                                        </span>
-                                    ))
-                                )}
-                            </div>
-                        )}
-                        
-                        {/* ORIGINAL: Para otras vistas de admin (día, mes) */}
-                        {!isCleanerView && !isWeekView && (
+                        {!isCleanerView && (
                             isUnassigned && !isCancelled ? (
                                 <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/30 px-2 py-1 rounded-full mt-2 w-fit">
                                     <AlertTriangle className="w-4 h-4" />
@@ -1110,113 +1055,6 @@ export default function HorarioCalendario({
                     </div>
                 </div>
             </Card>
-        );
-
-        // NUEVO: Si es vista semanal de admin, envolver con HoverCard para tooltip
-        if (!isCleanerView && isWeekView && !isCancelled) {
-            return (
-                <HoverCard openDelay={300}>
-                    <HoverCardTrigger asChild>
-                        <div onClick={onClick} className="cursor-pointer h-full">
-                            <EventCardContent />
-                        </div>
-                    </HoverCardTrigger>
-                    <HoverCardContent side="right" className="w-72 p-4 z-50" sideOffset={5}>
-                        <div className="space-y-3">
-                            {/* Nombre del cliente */}
-                            <div>
-                                <h4 className="font-bold text-base text-slate-900 mb-1">{event.client_name}</h4>
-                                {event.client_address && (
-                                    <div className="flex items-start gap-2 text-sm text-slate-600">
-                                        <Navigation className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                                        <span className="leading-snug">{event.client_address}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Horario */}
-                            <div className="flex items-center gap-2 text-sm text-slate-700">
-                                <Clock className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                <span className="font-medium">
-                                    {formatTimeUTC(parseISOAsUTC(event.start_time))} - {formatTimeUTC(parseISOAsUTC(event.end_time))}
-                                </span>
-                            </div>
-
-                            {/* Limpiadores asignados */}
-                            {cleanersInfo.length > 0 && (
-                                <div className="border-t pt-3">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase mb-2">
-                                        Limpiadores Asignados:
-                                    </p>
-                                    <div className="space-y-2">
-                                        {cleanersInfo.map(cleaner => (
-                                            <div key={cleaner.id} className="flex items-center gap-2">
-                                                <div 
-                                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm"
-                                                    style={{ backgroundColor: cleaner.color }}
-                                                >
-                                                    {cleaner.initials}
-                                                </div>
-                                                <span className="text-sm text-slate-700 font-medium">
-                                                    {cleaner.fullName}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Estado del servicio */}
-                            {progress && (
-                                <div className="border-t pt-3">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Estado:</p>
-                                    {progress.activeCleaners > 0 ? (
-                                        <div className="bg-green-50 border border-green-200 rounded-lg p-2">
-                                            <p className="text-sm font-bold text-green-800 flex items-center gap-2">
-                                                <Play className="w-4 h-4" />
-                                                En Progreso
-                                            </p>
-                                            <p className="text-xs text-green-700 mt-1">
-                                                {progress.activeCleaners} de {progress.assignedCleaners} limpiadores activos
-                                            </p>
-                                        </div>
-                                    ) : progress.personHoursCompleted > 0 ? (
-                                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2">
-                                            <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                                                <CheckCircle className="w-4 h-4" />
-                                                Completado
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                                            <p className="text-sm font-bold text-blue-800">Programado</p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Acceso */}
-                            {event.has_access && event.access_identifier && (
-                                <div className="border-t pt-3">
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <KeySquare className="w-4 h-4 text-orange-600" />
-                                        <span className="text-slate-700">
-                                            <span className="font-semibold">Acceso:</span> {event.access_identifier}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </HoverCardContent>
-                </HoverCard>
-            );
-        }
-
-        // Para otras vistas o limpiadores, usar el card normal sin tooltip
-        return (
-            <div onClick={onClick} className="cursor-pointer h-full">
-                <EventCardContent />
-            </div>
         );
     };
 
@@ -1343,7 +1181,6 @@ export default function HorarioCalendario({
                                                     event={event}
                                                     onClick={() => onSelectEvent(event)}
                                                     showFullInfo={!isWeekView} // Show full info only in day view
-                                                    isWeekView={isWeekView} // Pass the new prop
                                                 />
                                             </div>
                                         );
@@ -1420,7 +1257,6 @@ export default function HorarioCalendario({
                                                         event={event}
                                                         onClick={() => onSelectEvent(event)}
                                                         showFullInfo={true}
-                                                        isWeekView={false} // Month view is not considered WeekView for EventBlock purposes
                                                     />
                                                 </div>
                                             ))}
