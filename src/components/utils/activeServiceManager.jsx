@@ -451,7 +451,7 @@ export const syncActiveService = async (userId) => {
     console.log('[ActiveServiceManager] 🔄 Sincronizando servicio activo para usuario:', userId);
     
     try {
-        // NUEVO: Verificar si acabamos de hacer Clock Out
+        // OPTIMIZACIÓN 1: Verificar si acabamos de hacer Clock Out
         const clockOutPending = localStorage.getItem(`clock_out_pending_${userId}`);
         const clockOutTime = localStorage.getItem(`clock_out_time_${userId}`);
         
@@ -471,7 +471,7 @@ export const syncActiveService = async (userId) => {
             }
         }
         
-        // Verificar flag de skip_active_check
+        // OPTIMIZACIÓN 2: Verificar flag de skip_active_check
         const skipActiveCheck = localStorage.getItem(`skip_active_check_${userId}`);
         if (skipActiveCheck) {
             const skipTime = parseInt(skipActiveCheck);
@@ -488,34 +488,75 @@ export const syncActiveService = async (userId) => {
             }
         }
 
-        // 1. Primero revisar caché local
-        const localService = getLocalActiveService();
+        // OPTIMIZACIÓN 3: Verificar cache primero antes de consultar servidor
+        const cachedSchedules = localStorage.getItem('redoak_cleaner_schedules');
+        let activeFromCache = null;
         
-        // 2. Si no necesitamos sincronizar y tenemos datos locales, usarlos
-        // Note: 'forceSync' parameter removed, so only needsSync() is checked.
-        if (!needsSync() && localService) {
-            console.log('[ActiveServiceManager] 📦 Usando caché local (reciente)');
-            return { hasActive: true, service: localService, source: 'cache' };
+        if (cachedSchedules) {
+            try {
+                const schedules = JSON.parse(cachedSchedules);
+                activeFromCache = schedules.find(schedule => {
+                    if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userId)) return false;
+                    const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userId);
+                    return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+                });
+                
+                if (!activeFromCache) {
+                    console.log('[ActiveServiceManager] 📦 Cache indica no hay servicio activo');
+                    return {
+                        hasActive: false,
+                        service: null,
+                        source: 'cache'
+                    };
+                }
+            } catch (error) {
+                console.warn('[ActiveServiceManager] Error leyendo cache:', error);
+            }
         }
 
-        // 3. Sincronizar con backend
-        const backendResult = await checkActiveServiceInBackend(userId);
+        // Solo consultar servidor si el cache indica que HAY servicio activo
+        // o si no hay cache disponible
+        console.log('[ActiveServiceManager] 🌐 Consultando servidor...');
+        const schedules = await base44.entities.Schedule.list();
+        const schedulesArray = Array.isArray(schedules) ? schedules : [];
         
-        // 4. Actualizar caché local con resultado del backend
-        if (backendResult.hasActive) {
-            setLocalActiveService(backendResult.service);
+        // CRITICAL ADDITION: Update the cached schedules after a successful server fetch
+        localStorage.setItem('redoak_cleaner_schedules', JSON.stringify(schedulesArray));
+
+        const active = schedulesArray.find(schedule => {
+            if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userId)) return false;
+            const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userId);
+            const hasActive = cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+            
+            if (hasActive) {
+                console.log('[ActiveServiceManager] ✅ Servicio activo encontrado:', schedule.client_name);
+            }
+            
+            return hasActive;
+        });
+
+        if (active) {
+            localStorage.setItem(`active_service_${userId}`, 'true');
+            return {
+                hasActive: true,
+                service: active,
+                source: 'server'
+            };
         } else {
-            clearLocalActiveService();
+            localStorage.setItem(`active_service_${userId}`, 'false');
+            return {
+                hasActive: false,
+                service: null,
+                source: 'server'
+            };
         }
 
-        return { ...backendResult, source: 'backend' };
     } catch (error) {
         console.error('[ActiveServiceManager] ❌ Error sincronizando:', error);
         
         // Si hay error en la red pero tenemos una marca de Clock Out reciente, asumir que no hay servicio activo
         const clockOutPending = localStorage.getItem(`clock_out_pending_${userId}`);
         if (clockOutPending) {
-            console.warn('[ActiveServiceManager] ⚠️ Error de red con Clock Out pendiente, asumiendo no activo.');
             return {
                 hasActive: false,
                 service: null,
@@ -523,13 +564,30 @@ export const syncActiveService = async (userId) => {
             };
         }
         
-        // Si no hay clock out pendiente, y tenemos un local service, usamos el local
-        const localService = getLocalActiveService();
-        if (localService) {
-            console.warn('[ActiveServiceManager] ⚠️ Backend falló, usando caché local como fallback');
-            return { hasActive: true, service: localService, source: 'cache' };
+        // Intentar usar cache como fallback
+        const cachedSchedules = localStorage.getItem('redoak_cleaner_schedules');
+        if (cachedSchedules) {
+            try {
+                const schedules = JSON.parse(cachedSchedules);
+                const active = schedules.find(schedule => {
+                    if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userId)) return false;
+                    const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userId);
+                    return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+                });
+                
+                if (active) {
+                    console.log('[ActiveServiceManager] 📦 Usando cache como fallback por error de red');
+                    return {
+                        hasActive: true,
+                        service: active,
+                        source: 'cache_fallback'
+                    };
+                }
+            } catch (cacheError) {
+                console.warn('[ActiveServiceManager] Error leyendo cache en fallback:', cacheError);
+            }
         }
-
+        
         return {
             hasActive: false,
             service: null,
