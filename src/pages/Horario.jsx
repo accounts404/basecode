@@ -175,9 +175,17 @@ export default function HorarioPage() {
                 duration: 5000,
                 className: "bg-green-50 border-green-200"
             });
+            
+            // NUEVO: Si venimos de Clock Out, evitar verificación de servicio activo temporalmente
+            if (location.state?.skipActiveCheck && user) {
+                console.log('[Horario] 🚫 Verificación de servicio activo deshabilitada temporalmente');
+                // Mantener el flag por 5 segundos para evitar redirecciones inmediatas
+                localStorage.setItem(`skip_active_check_${user.id}`, Date.now().toString());
+            }
+            
             navigate(location.pathname, { replace: true, state: {} });
         }
-    }, [location.state, navigate, toast, location.pathname]);
+    }, [location.state, navigate, toast, location.pathname, user]);
 
     useEffect(() => {
         if (location.state?.selectedService && location.state?.openModal) {
@@ -395,6 +403,20 @@ export default function HorarioPage() {
         if (navigationInProgressRef.current || clockInProcessingRef.current) {
             console.log('[Horario] 🚫 Operación en progreso, saltando carga...');
             return;
+        }
+
+        // NUEVO: Verificar si acabamos de hacer Clock Out
+        const skipActiveCheckKey = `skip_active_check_${user.id}`;
+        const skipActiveCheck = localStorage.getItem(skipActiveCheckKey);
+        if (skipActiveCheck) {
+            const skipTime = parseInt(skipActiveCheck);
+            const now = Date.now();
+            if (now - skipTime < 5000) { // Solo por 5 segundos
+                console.log('[Horario] 🚫 Saltando carga por Clock Out reciente');
+                return;
+            } else {
+                localStorage.removeItem(skipActiveCheckKey);
+            }
         }
 
         loadingRef.current = true;
@@ -690,7 +712,7 @@ export default function HorarioPage() {
                     setTimeout(() => {
                         navigate(createPageUrl('Horario'), { 
                             replace: true, 
-                            state: { clockOutSuccess: true, message: "Servicio finalizado exitosamente. ¡Buen trabajo!" } 
+                            state: { clockOutSuccess: true, message: "Servicio finalizado exitosamente. ¡Buen trabajo!", skipActiveCheck: true } 
                         });
                     }, 300);
                 }
