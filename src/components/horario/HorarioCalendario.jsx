@@ -3,8 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit, KeySquare, Navigation, Play, Square, CheckCircle, AlertTriangle, Car, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit, KeySquare, Navigation, Play, Square, CheckCircle, AlertTriangle, Car } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth, eachWeekOfInterval, isToday, isSameDay, addDays, isSameMonth, parseISO, addMinutes, roundToNearestMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CleanerDayListView from './CleanerDayListView';
@@ -33,8 +32,8 @@ const formatTimeUTC = (date) => {
     return `${hours}:${minutes}`;
 };
 
-// CONSTANTES para el diseño y el rango de horas
-const HOUR_HEIGHT = 80; // AUMENTADO de 64 a 80 para bloques más grandes
+// Constantes para el diseño y el rango de horas
+const HOUR_HEIGHT = 64; // Altura en píxeles para un bloque de hora
 const SLOT_HEIGHT = HOUR_HEIGHT / 4; // Altura en píxeles para un slot de 15 minutos
 
 const VISIBLE_START_HOUR = 6;  // 6 AM (interpretado como UTC)
@@ -878,130 +877,6 @@ export default function HorarioCalendario({
         }
     };
 
-    // NUEVA FUNCIÓN: Obtener iniciales de nombre y apellido
-    const getCleanerInitials = (userId) => {
-        const user = users.find(u => u.id === userId);
-        if (!user) return '??';
-        
-        const name = user.display_name || user.invoice_name || user.full_name || '';
-        const parts = name.trim().split(' ').filter(Boolean);
-        
-        if (parts.length === 0) return '??';
-        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-        
-        // Tomar primera letra del primer nombre y primera letra del apellido
-        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-    };
-
-    // NUEVA FUNCIÓN: Obtener color del limpiador
-    const getCleanerColor = (userId) => {
-        const user = users.find(u => u.id === userId);
-        return user?.color || '#3b82f6';
-    };
-
-    // COMPONENTE DE TOOLTIP MEJORADO
-    const ServiceTooltip = ({ event, children }) => {
-        const progress = getServiceProgress(event);
-        const assignedCleaners = users.filter(u => event.cleaner_ids?.includes(u.id));
-        
-        return (
-            <HoverCard openDelay={200}>
-                <HoverCardTrigger asChild>
-                    {children}
-                </HoverCardTrigger>
-                <HoverCardContent 
-                    side="right" 
-                    className="w-80 p-4 z-[9999] shadow-2xl border-2 border-slate-200 bg-white"
-                    sideOffset={10}
-                >
-                    <div className="space-y-3">
-                        {/* Nombre del Cliente */}
-                        <div>
-                            <h4 className="font-bold text-lg text-slate-900 mb-1">{event.client_name}</h4>
-                            <div className="flex items-start gap-2 text-sm text-slate-600">
-                                <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-blue-600" />
-                                <span className="break-words">{event.client_address || 'Dirección no disponible'}</span>
-                            </div>
-                        </div>
-
-                        {/* Horario */}
-                        <div className="flex items-center gap-2 text-sm">
-                            <Clock className="w-4 h-4 text-green-600" />
-                            <span className="font-semibold">
-                                {formatTimeUTC(parseISOAsUTC(event.start_time))} - {formatTimeUTC(parseISOAsUTC(event.end_time))}
-                            </span>
-                        </div>
-
-                        {/* Limpiadores Asignados */}
-                        <div className="border-t pt-2">
-                            <p className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                Limpiadores Asignados:
-                            </p>
-                            {assignedCleaners.length > 0 ? (
-                                <div className="space-y-1.5">
-                                    {assignedCleaners.map(cleaner => (
-                                        <div key={cleaner.id} className="flex items-center gap-2">
-                                            <div 
-                                                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm"
-                                                style={{ backgroundColor: cleaner.color || '#3b82f6' }}
-                                            >
-                                                {getCleanerInitials(cleaner.id)}
-                                            </div>
-                                            <span className="text-sm text-slate-700">
-                                                {cleaner.display_name || cleaner.invoice_name || cleaner.full_name}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="text-sm text-red-600 font-semibold">⚠️ Sin asignar</p>
-                            )}
-                        </div>
-
-                        {/* Estado del Servicio */}
-                        {progress && progress.activeCleaners > 0 && (
-                            <div className="border-t pt-2">
-                                <p className="text-xs font-semibold text-slate-700 mb-2">Estado Actual:</p>
-                                <div className="bg-green-50 border border-green-200 rounded-lg p-2 space-y-1">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-slate-600">Progreso:</span>
-                                        <span className="font-bold text-green-700">
-                                            {formatTimeHMS(progress.personHoursCompleted)} / {formatTimeHMS(progress.totalWorkUnits)}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-slate-600">Activos:</span>
-                                        <span className="font-bold text-green-700">
-                                            {progress.activeCleaners} de {progress.assignedCleaners}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Acceso */}
-                        {event.has_access && event.access_identifier && (
-                            <div className="border-t pt-2">
-                                <div className="flex items-center gap-2 text-sm text-slate-600">
-                                    <KeySquare className="w-4 h-4 text-orange-600" />
-                                    <span className="font-semibold">Acceso: {event.access_identifier}</span>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Notas */}
-                        {event.notes_public && (
-                            <div className="border-t pt-2">
-                                <p className="text-xs text-slate-500 italic line-clamp-3">{event.notes_public}</p>
-                            </div>
-                        )}
-                    </div>
-                </HoverCardContent>
-            </HoverCard>
-        );
-    };
-
     // Componente de Evento Refactorizado
     const EventBlock = ({ event, onClick, showFullInfo = false }) => {
         const isCancelled = event.status === 'cancelled';
@@ -1049,13 +924,10 @@ export default function HorarioCalendario({
             ? "font-bold text-sm leading-tight line-through"
             : "font-bold text-sm leading-tight";
 
-        // Determinar si el bloque es pequeño (menos de 1 hora)
-        const isSmallBlock = originalDuration < 1;
-
         return (
             <Card 
                 onClick={onClick}
-                className={`${cardClass} rounded-lg overflow-hidden shadow-md transition-all duration-200 hover:shadow-xl hover:scale-[1.02] relative ${isUnassigned && !isCancelled ? 'border-4 border-red-500 ring-2 ring-red-200' : 'border-2 hover:border-white/70'}`}
+                className={`${cardClass} rounded-lg overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md relative ${isUnassigned && !isCancelled ? 'border-4 border-red-500 ring-2 ring-red-200' : 'border-2 hover:border-white/50'}`}
                 style={{ backgroundColor: isCancelled ? '#e2e8f0' : (isUnassigned ? '#dc2626' : event.color || '#3b82f6') }} // Rojo si no está asignado
             >
                 {event.has_access && !isCancelled && (
@@ -1064,55 +936,18 @@ export default function HorarioCalendario({
                     </div>
                 )}
 
-                <div className="p-2 flex flex-col h-full">
-                    <div className="flex-1 overflow-hidden space-y-1.5">
-                        {/* Nombre del Cliente */}
-                        <div className="flex items-center justify-between">
+                <div className="p-1.5 md:p-2 flex flex-col h-full">
+                    <div className="flex-1 overflow-hidden">
+                        <div className="flex items-center">
                             <p className={titleClass}>{event.client_name}</p>
                             {isCancelled && <Badge variant="destructive" className="ml-2 text-xs">CANCELADO</Badge>}
                         </div>
                         
-                        {/* Horario */}
                         <div className="text-xs opacity-90 font-medium">
                             {formatTimeUTC(parseISOAsUTC(event.start_time))} - {formatTimeUTC(parseISOAsUTC(event.end_time))}
                         </div>
                         
-                        {/* NUEVO: Iniciales de Limpiadores */}
-                        {!isCancelled && event.cleaner_ids && event.cleaner_ids.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                                {event.cleaner_ids.map(cleanerId => {
-                                    const initials = getCleanerInitials(cleanerId);
-                                    const color = getCleanerColor(cleanerId);
-                                    const cleanerName = users.find(u => u.id === cleanerId)?.display_name || 
-                                                       users.find(u => u.id === cleanerId)?.invoice_name || 
-                                                       users.find(u => u.id === cleanerId)?.full_name || 
-                                                       'Desconocido';
-                                    
-                                    return (
-                                        <div
-                                            key={cleanerId}
-                                            className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full shadow-sm border-2 border-white/30 bg-black/20 backdrop-blur-sm text-white"
-                                            title={cleanerName}
-                                            style={{
-                                                backgroundColor: `${color}dd`,
-                                                minWidth: '28px'
-                                            }}
-                                        >
-                                            {initials}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* Sin Asignar Warning */}
-                        {isUnassigned && !isCancelled && (
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/40 px-2 py-1 rounded-full mt-2 w-fit backdrop-blur-sm">
-                                <AlertTriangle className="w-4 h-4" />
-                                <span>SIN ASIGNAR</span>
-                            </div>
-                        )}
-                        
+                        {/* NUEVO: Mostrar estado del limpiador en vista de limpiador */}
                         {isCleanerView && cleanerStatus && (
                             <div className="mt-2 mb-1">
                                 <Badge className={`${cleanerStatus.color} text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 w-fit ${cleanerStatus.type === 'in_progress' ? 'animate-pulse' : ''}`}>
@@ -1191,8 +1026,27 @@ export default function HorarioCalendario({
                             </div>
                         )}
                         
-                        {/* Dirección (solo en vista de día y bloques grandes) */}
-                        {showFullInfo && !isSmallBlock && (
+                        {!isCleanerView && (
+                            isUnassigned && !isCancelled ? (
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/30 px-2 py-1 rounded-full mt-2 w-fit">
+                                    <AlertTriangle className="w-4 h-4" />
+                                    <span>SIN ASIGNAR</span>
+                                </div>
+                            ) : (
+                                <div className="text-xs opacity-90 mt-1 font-medium flex items-center gap-1 truncate">
+                                    <Users className="w-3 h-3 flex-shrink-0" />
+                                    <span className="truncate">
+                                        {originalDuration < 1 ? 
+                                            getCleanersDisplay(event.cleaner_ids, true) : 
+                                            getCleanersDisplay(event.cleaner_ids, false) 
+                                        }
+                                    </span>
+                                </div>
+                            )
+                        )}
+                        
+                        {/* Dirección no clickeable */}
+                        {showFullInfo && (
                             <div className="text-xs opacity-80 mt-1 truncate flex items-center gap-1">
                                 <Navigation className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{event.client_address || 'Dirección no disponible'}</span>
@@ -1276,7 +1130,7 @@ export default function HorarioCalendario({
                                     );
                                 })}
 
-                                {/* Eventos del día con Tooltip */}
+                                {/* Eventos del día */}
                                 {(() => {
                                     const dayEvents = getEventsForDay(day);
                                     const organizedEvents = organizeOverlappingEvents(dayEvents);
@@ -1290,46 +1144,45 @@ export default function HorarioCalendario({
                                         const leftPosition = event.columnIndex * columnWidth;
                                         
                                         const topPx = position.startPosition * HOUR_HEIGHT;
-                                        const heightPx = Math.max(position.duration * HOUR_HEIGHT, 48); // AUMENTADO altura mínima de 32 a 48px
+                                        const heightPx = Math.max(position.duration * HOUR_HEIGHT, 32); // Altura mínima de 32px
                                         
                                         return (
-                                            <ServiceTooltip key={event.id} event={event}>
-                                                <div
-                                                    draggable={!isCleanerView && !isReadOnly && event.status !== 'cancelled'}
-                                                    onDragStart={(e) => handleDragStart(e, event)}
-                                                    onDragEnd={handleDragEnd}
-                                                    className={`absolute p-0.5 z-10 hover:z-[100]`}
-                                                    style={{
-                                                        top: `${topPx}px`,
-                                                        height: `${heightPx}px`,
-                                                        left: `${leftPosition}%`,
-                                                        width: `${columnWidth}%`,
-                                                        cursor: (!isCleanerView && !isReadOnly && event.status !== 'cancelled') ? 'grab' : 'pointer',
-                                                    }}
-                                                >
-                                                    {/* NUEVO: Manejadores para redimensionar */}
-                                                    {!isReadOnly && !isCleanerView && event.status !== 'cancelled' && (
-                                                        <>
-                                                            <div
-                                                                onMouseDown={(e) => handleResizeStart(e, event, 'top')}
-                                                                className="absolute top-0 left-0 w-full h-2 cursor-ns-resize z-20"
-                                                                title="Arrastra para cambiar la hora de inicio"
-                                                            />
-                                                            <div
-                                                                onMouseDown={(e) => handleResizeStart(e, event, 'bottom')}
-                                                                className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize z-20"
-                                                                title="Arrastra para cambiar la hora de fin"
-                                                            />
-                                                        </>
-                                                    )}
+                                            <div
+                                                key={event.id}
+                                                draggable={!isCleanerView && !isReadOnly && event.status !== 'cancelled'}
+                                                onDragStart={(e) => handleDragStart(e, event)}
+                                                onDragEnd={handleDragEnd}
+                                                className={`absolute p-0.5 z-10`}
+                                                style={{
+                                                    top: `${topPx}px`,
+                                                    height: `${heightPx}px`,
+                                                    left: `${leftPosition}%`,
+                                                    width: `${columnWidth}%`,
+                                                    cursor: (!isCleanerView && !isReadOnly && event.status !== 'cancelled') ? 'grab' : 'pointer',
+                                                }}
+                                            >
+                                                {/* NUEVO: Manejadores para redimensionar */}
+                                                {!isReadOnly && !isCleanerView && event.status !== 'cancelled' && (
+                                                    <>
+                                                        <div
+                                                            onMouseDown={(e) => handleResizeStart(e, event, 'top')}
+                                                            className="absolute top-0 left-0 w-full h-2 cursor-ns-resize z-20"
+                                                            title="Arrastra para cambiar la hora de inicio"
+                                                        />
+                                                        <div
+                                                            onMouseDown={(e) => handleResizeStart(e, event, 'bottom')}
+                                                            className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize z-20"
+                                                            title="Arrastra para cambiar la hora de fin"
+                                                        />
+                                                    </>
+                                                )}
 
-                                                    <EventBlock 
-                                                        event={event}
-                                                        onClick={() => onSelectEvent(event)}
-                                                        showFullInfo={!isWeekView} // Show full info only in day view
-                                                    />
-                                                </div>
-                                            </ServiceTooltip>
+                                                <EventBlock 
+                                                    event={event}
+                                                    onClick={() => onSelectEvent(event)}
+                                                    showFullInfo={!isWeekView} // Show full info only in day view
+                                                />
+                                            </div>
                                         );
                                     });
                                 })()}
@@ -1396,18 +1249,16 @@ export default function HorarioCalendario({
                                             {format(day, 'd')}
                                         </div>
                                         
-                                        {/* Eventos del día con Tooltip */}
+                                        {/* Eventos del día */}
                                         <div className="space-y-2">
                                             {dayEvents.map(event => (
-                                                <ServiceTooltip key={event.id} event={event}>
-                                                    <div>
-                                                        <EventBlock
-                                                            event={event}
-                                                            onClick={() => onSelectEvent(event)}
-                                                            showFullInfo={true}
-                                                        />
-                                                    </div>
-                                                </ServiceTooltip>
+                                                <div key={event.id}>
+                                                    <EventBlock
+                                                        event={event}
+                                                        onClick={() => onSelectEvent(event)}
+                                                        showFullInfo={true}
+                                                    />
+                                                </div>
                                             ))}
                                             
                                             {/* Espacio vacío clickeable SOLO PARA ADMIN Y CUANDO onCreateAtTime ESTÁ DISPONIBLE */}
