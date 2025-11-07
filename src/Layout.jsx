@@ -133,21 +133,6 @@ export default function Layout({ children, currentPageName }) {
           setLoading(false);
           
           if (parsed.role !== 'admin') {
-            // OPTIMIZACIÓN: No verificar servicio activo si acabamos de hacer Clock Out
-            const locationState = location.state;
-            const fromClockOut = locationState?.fromClockOut;
-            
-            if (fromClockOut) {
-              console.log('[Layout] 🚫 Saltando verificación de servicio activo - venimos de Clock Out');
-              // Limpiar el state para futuras navegaciones
-              window.history.replaceState({}, document.title, location.pathname); // Clears state
-              // We should still navigate to Horario if we just clocked out and were on ServicioActivo
-              if (location.pathname === createPageUrl("ServicioActivo")) {
-                  navigate(createPageUrl("Horario"), { replace: true });
-              }
-              return;
-            }
-
             try {
               const result = await syncActiveService(parsed.id);
               
@@ -157,14 +142,14 @@ export default function Layout({ children, currentPageName }) {
                   navigate(createPageUrl("ServicioActivo"), { replace: true });
                 }
               } else {
-                console.log('[Layout] 📅 Sin servicio activo');
-                if (location.pathname === '/' || location.pathname === createPageUrl("Dashboard") || location.pathname === createPageUrl("ServicioActivo")) {
+                console.log('[Layout] 📅 Sin servicio activo, redirigiendo a Horario');
+                if (location.pathname === '/' || location.pathname === createPageUrl("Dashboard")) {
                   navigate(createPageUrl("Horario"), { replace: true });
                 }
               }
             } catch (error) {
               console.error('[Layout] Error verificando servicio activo:', error);
-              if (location.pathname === '/' || location.pathname === createPageUrl("Dashboard") || location.pathname === createPageUrl("ServicioActivo")) {
+              if (location.pathname === '/' || location.pathname === createPageUrl("Dashboard")) {
                 navigate(createPageUrl("Horario"), { replace: true });
               }
             }
@@ -201,7 +186,7 @@ export default function Layout({ children, currentPageName }) {
     };
 
     loadUser();
-  }, [location.pathname, location.state, navigate]);
+  }, [location.pathname, navigate]);
 
   const checkForActiveService = async (userId) => {
     try {

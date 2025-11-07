@@ -62,11 +62,12 @@ export default function ServicioActivoPage() {
     const [showReportDialog, setShowReportDialog] = useState(false);
     const intervalRef = useRef(null);
     const pollingRef = useRef(null);
-    const isUnmountingRef = useRef(false);
+    const isUnmountingRef = useRef(false); // NUEVO: Flag para prevenir actualizaciones después de unmount
 
     useEffect(() => {
         loadUserAndActiveService();
         return () => {
+            // LIMPIEZA TOTAL al desmontar el componente
             isUnmountingRef.current = true;
             if (intervalRef.current) {
                 clearInterval(intervalRef.current);
@@ -81,6 +82,7 @@ export default function ServicioActivoPage() {
 
     // Polling automático cada 20 segundos para actualizar el estado del servicio
     useEffect(() => {
+        // CRÍTICO: No iniciar polling si estamos en proceso de Clock Out o desmontando
         if (loading || !activeService || !user || clockingOut || isUnmountingRef.current) {
             return;
         }
@@ -88,6 +90,7 @@ export default function ServicioActivoPage() {
         console.log('[ServicioActivo] 🔄 Iniciando polling automático cada 20 segundos');
         
         pollingRef.current = setInterval(async () => {
+            // CRÍTICO: Verificar antes de cada actualización si estamos desmontando o haciendo Clock Out
             if (isUnmountingRef.current || clockingOut) {
                 console.log('[ServicioActivo] 🛑 Polling cancelado: componente desmontando o Clock Out en progreso');
                 if (pollingRef.current) {
@@ -109,6 +112,7 @@ export default function ServicioActivoPage() {
                     return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
                 });
 
+                // CRÍTICO: Verificar nuevamente antes de actualizar estado
                 if (isUnmountingRef.current || clockingOut) {
                     console.log('[ServicioActivo] 🛑 Actualización cancelada: componente desmontando o Clock Out en progreso');
                     return;
@@ -120,8 +124,10 @@ export default function ServicioActivoPage() {
                     return;
                 }
 
+                // Actualizar el servicio activo silenciosamente
                 setActiveService(active);
                 
+                // Recargar información del cliente si cambió o no existe
                 if (active.client_id && (!clientInfo || clientInfo.id !== active.client_id)) {
                     try {
                         const client = await base44.entities.Client.get(active.client_id);
@@ -138,7 +144,7 @@ export default function ServicioActivoPage() {
             } catch (error) {
                 console.error('[ServicioActivo] ❌ Error en polling automático:', error);
             }
-        }, 20000);
+        }, 20000); // 20 segundos
 
         return () => {
             if (pollingRef.current) {
@@ -150,6 +156,7 @@ export default function ServicioActivoPage() {
     }, [loading, activeService, user, clientInfo, navigate, clockingOut]);
 
     const loadUserAndActiveService = async () => {
+        // CRÍTICO: No cargar si estamos desmontando
         if (isUnmountingRef.current) return;
 
         try {
@@ -177,6 +184,7 @@ export default function ServicioActivoPage() {
             if (isUnmountingRef.current) return;
             setActiveService(active);
 
+            // Cargar información del cliente
             if (active.client_id) {
                 try {
                     const client = await base44.entities.Client.get(active.client_id);
@@ -191,6 +199,7 @@ export default function ServicioActivoPage() {
                 }
             }
 
+            // Calcular duración programada para este limpiador específico
             let duration = 0;
             const cleanerSchedule = active.cleaner_schedules?.find(cs => cs.cleaner_id === userData.id);
             
@@ -226,6 +235,7 @@ export default function ServicioActivoPage() {
         if (intervalRef.current) clearInterval(intervalRef.current);
 
         const updateTimer = () => {
+            // CRÍTICO: No actualizar si estamos desmontando
             if (isUnmountingRef.current) return;
 
             const cleanerClockData = service.clock_in_data?.find(c => c.cleaner_id === userId);
@@ -249,44 +259,46 @@ export default function ServicioActivoPage() {
 
         console.log('[ServicioActivo] 🕐 Iniciando Clock Out...');
         
-        // PASO 1: MARCAR INMEDIATAMENTE
+        // 🛑 PASO 1: MARCAR INMEDIATAMENTE QUE ESTAMOS HACIENDO CLOCK OUT
         setClockingOut(true);
-        isUnmountingRef.current = true;
         setError("");
 
-        // PASO 2: DETENER TODO INMEDIATAMENTE
+        // 🛑 PASO 2: DETENER POLLING Y TIMER INMEDIATAMENTE
         if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
+            console.log('[ServicioActivo] 🛑 Polling detenido para Clock Out');
         }
 
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
+            console.log('[ServicioActivo] 🛑 Timer detenido para Clock Out');
         }
 
         try {
-            // PASO 3: REGISTRAR CLOCK OUT EN COLA OFFLINE
+            // 🚀 PASO 3: REGISTRAR CLOCK OUT Y REDIRIGIR INMEDIATAMENTE
             console.log('[ServicioActivo] 💾 Registrando Clock Out en cola offline...');
             const result = await registerClockOut(activeService.id, user.id);
-            console.log('[ServicioActivo] ✅ Clock Out registrado:', result);
+            console.log('[ServicioActivo] ✅ Clock Out registrado en cola:', result);
 
-            // PASO 4: REDIRIGIR INMEDIATAMENTE
+            // Después de registrar exitosamente y antes de navegar, marcamos como unmounting
+            // para prevenir cualquier actualización de estado en este componente que pueda ocurrir
+            // antes de que React lo desmonte completamente.
+            isUnmountingRef.current = true; 
+
+            // 🚀 PASO 4: REDIRIGIR INMEDIATAMENTE SIN ESPERAR NADA MÁS
             console.log('[ServicioActivo] 🚀 Redirigiendo a Horario...');
-            
-            // OPTIMIZACIÓN: Usar un pequeño delay para asegurar que el estado se actualiza
-            setTimeout(() => {
-                navigate(createPageUrl("Horario"), { 
-                    replace: true,
-                    state: { 
-                        clockOutSuccess: true,
-                        fromClockOut: true, // NUEVO: flag para que Horario sepa que venimos de Clock Out
-                        message: '¡Clock Out registrado exitosamente!'
-                    }
-                });
-            }, 100);
+            navigate(createPageUrl("Horario"), { 
+                replace: true,
+                state: { 
+                    clockOutSuccess: true,
+                    message: '¡Clock Out registrado exitosamente! Se sincronizará automáticamente.'
+                }
+            });
 
-            // PASO 5: SINCRONIZACIÓN EN BACKGROUND
+            // 📡 PASO 5: SINCRONIZACIÓN EN BACKGROUND (NO BLOQUEA LA REDIRECCIÓN)
+            // El sistema offline-first se encargará de esto automáticamente
             (async () => {
                 try {
                     const updatedClockInData = [...(activeService.clock_in_data || [])];
@@ -324,7 +336,7 @@ export default function ServicioActivoPage() {
                         status: newStatus
                     });
 
-                    console.log('[ServicioActivo] ✅ Backend actualizado');
+                    console.log('[ServicioActivo] ✅ Backend actualizado exitosamente en segundo plano');
 
                     if (newStatus === 'completed') {
                         try {
@@ -338,16 +350,20 @@ export default function ServicioActivoPage() {
                         }
                     }
                 } catch (error) {
-                    console.error('[ServicioActivo] ❌ Error en background sync:', error);
+                    console.error('[ServicioActivo] ❌ Error actualizando backend (pero Clock Out ya está en cola):', error);
                 }
             })();
 
         } catch (error) {
             console.error('[ServicioActivo] ❌ Error en Clock Out:', error);
-            isUnmountingRef.current = false;
+            // Si hubo un error ANTES de navegar, restaurar el estado para permitir reintentar
+            isUnmountingRef.current = false; 
             setError("Error al registrar Clock Out. Por favor, inténtalo de nuevo.");
             setClockingOut(false);
-            loadUserAndActiveService();
+            
+            // Reiniciar polling y timer si hubo error para que el usuario pueda interactuar de nuevo
+            console.warn('[ServicioActivo] Reintentando reiniciar polling y timer debido a error en Clock Out.');
+            loadUserAndActiveService(); 
         }
     };
 
@@ -484,7 +500,7 @@ export default function ServicioActivoPage() {
                             <div className="flex-1">
                                 <h1 className="text-2xl font-bold text-slate-900 mb-2">
                                     {activeService.client_name}
-                                  </h1>
+                                </h1>
                                 <button
                                     onClick={() => openInMaps(activeService.client_address)}
                                     className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors group"
