@@ -1,11 +1,12 @@
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit, KeySquare, Navigation, Play, Square, CheckCircle, AlertTriangle, Car } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit, KeySquare, Navigation, Play, Square, CheckCircle, AlertTriangle, Car, MapPin, Phone } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth, eachWeekOfInterval, isToday, isSameDay, addDays, isSameMonth, parseISO, addMinutes, roundToNearestMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import CleanerDayListView from './CleanerDayListView';
 
 // Assuming base44 is an imported API client, if not, adjust import path or prop definition
@@ -30,6 +31,35 @@ const formatTimeUTC = (date) => {
     const hours = date.getUTCHours().toString().padStart(2, '0');
     const minutes = date.getUTCMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
+};
+
+// Enhanced format time helper for durations
+const formatTimeHMS = (hours) => {
+    if (hours <= 0) return "0m";
+    
+    const h = Math.floor(hours);
+    const m = Math.floor((hours % 1) * 60);
+    
+    if (h > 0) {
+        return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    } else {
+        return `${m}m`;
+    }
+};
+
+// Helper para obtener iniciales del limpiador
+const getCleanerInitials = (cleanerId, users) => {
+    const cleaner = users.find(u => u.id === cleanerId);
+    if (!cleaner) return '?';
+    
+    const name = cleaner.display_name || cleaner.full_name || 'Unknown';
+    const parts = name.trim().split(' ');
+    
+    if (parts.length >= 2) {
+      // Iniciales de nombre y apellido
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
 };
 
 // Constantes para el diseño y el rango de horas
@@ -57,10 +87,10 @@ export default function HorarioCalendario({
     isReadOnly = false, 
     assignedVehicle = null, 
     requiredKeys = [],
-    currentUser, // New prop for handleClockOut
-    base44,      // New prop for handleClockOut (assuming it's passed down)
-    setNotification, // New prop for handleClockOut
-    loadEvents   // New prop for handleClockOut
+    currentUser, 
+    base44,      
+    setNotification, 
+    loadEvents   
 }) {
     const [selectedDate, setSelectedDate] = useState(date);
     const [draggedEvent, setDraggedEvent] = useState(null);
@@ -261,7 +291,7 @@ export default function HorarioCalendario({
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [resizingEvent, onResizeEvent, currentTime]); // Added currentTime dependency for potential active cleaner calculation
+    }, [resizingEvent, onResizeEvent]); // Added currentTime dependency for potential active cleaner calculation
 
     const cleanerNameMap = useMemo(() => {
         if (!users || users.length === 0) return new Map();
@@ -269,16 +299,16 @@ export default function HorarioCalendario({
         return new Map(users.map(u => [u.id, (u.display_name || u.invoice_name || u.full_name)]));
     }, [users]);
     
-    const getCleanerNames = (cleanerIds) => {
+    const getCleanersDisplay = useCallback((cleanerIds, compact = false) => {
         if (!cleanerIds || cleanerIds.length === 0) return 'Sin asignar';
         return cleanerIds
             .map(id => {
                 const name = cleanerNameMap.get(id);
-                return name ? name.split(' ')[0] : null;
+                return name ? (compact ? name.split(' ')[0] : name) : null;
             })
             .filter(Boolean)
             .join(', ');
-    };
+    }, [cleanerNameMap]);
 
     // Corrected navigation functions as per outline (with preservation of month view for consistency)
     const handlePrevious = () => {
@@ -631,7 +661,7 @@ export default function HorarioCalendario({
         const day = String(dayDate.getDate()).padStart(2, '0');
         const columnDateString = `${year}-${month}-${day}`;
         
-        console.log(`[HorarioCalendario] Filtrando eventos para: ${columnDateString}`);
+        // console.log(`[HorarioCalendario] Filtrando eventos para: ${columnDateString}`); // Log solo para depuración
 
         const filtered = eventsToDisplay.filter(event => {
             if (!event.start_time) {
@@ -645,14 +675,12 @@ export default function HorarioCalendario({
             
             const matches = eventDateString === columnDateString;
             
-            if (matches) {
-                console.log(`[HorarioCalendario] ✓ Evento coincide: ${event.client_name} - ${event.start_time}`);
-            }
+            // if (matches) { console.log(`[HorarioCalendario] ✓ Evento coincide: ${event.client_name} - ${event.start_time}`); } // Log solo para depuración
             
             return matches;
         });
         
-        console.log(`[HorarioCalendario] Eventos encontrados para ${columnDateString}: ${filtered.length}`);
+        // console.log(`[HorarioCalendario] Eventos encontrados para ${columnDateString}: ${filtered.length}`); // Log solo para depuración
         return filtered;
     };
 
@@ -744,37 +772,8 @@ export default function HorarioCalendario({
         return eventsWithColumns;
     };
 
-    // Función para obtener nombres de limpiadores con diferentes niveles de detalle
-    const getCleanersDisplay = (cleanerIds, compact = false) => {
-        if (!cleanerIds || cleanerIds.length === 0) return 'Sin asignar';
-        
-        const cleanerNames = cleanerIds
-            .map(id => {
-                const name = cleanerNameMap.get(id);
-                if (!name) return null;
-                
-                if (compact) {
-                    // Para espacios muy pequeños, usar iniciales
-                    return name.split(' ')
-                        .map(word => word.charAt(0).toUpperCase())
-                        .join('');
-                } else {
-                    // Para espacios normales, usar solo el primer nombre
-                    return name.split(' ')[0];
-                }
-            })
-            .filter(Boolean);
-        
-        if (compact && cleanerNames.length > 3) {
-            // Si hay muchos limpiadores y poco espacio, mostrar solo los primeros + count
-            return `${cleanerNames.slice(0, 2).join(',')},+${cleanerNames.length - 2}`;
-        }
-        
-        return cleanerNames.join(', ');
-    };
-
     // Enhanced function to calculate service progress with person-hours logic
-    const getServiceProgress = (event) => {
+    const getServiceProgress = useCallback((event) => {
         if (isCleanerView) return null;
         
         // Check if there's any clock-in data
@@ -861,34 +860,70 @@ export default function HorarioCalendario({
             remainingTime: personHoursRemaining * 3600,
             scheduledDuration: totalWorkUnits * 3600
         };
-    };
+    }, [currentTime, isCleanerView]);
 
-    // Enhanced format time helper
-    const formatTimeHMS = (hours) => {
-        if (hours <= 0) return "0m";
-        
-        const h = Math.floor(hours);
-        const m = Math.floor((hours % 1) * 60);
-        
-        if (h > 0) {
-            return m > 0 ? `${h}h ${m}m` : `${h}h`;
-        } else {
-            return `${m}m`;
-        }
+
+    // Componente para mostrar contenido compactado (week/month view para admins, o month view para limpiadores)
+    const EventCompactContent = ({ event, users, isCleanerView, view }) => {
+        const assignedCleaners = users.filter(u => event.cleaner_ids?.includes(u.id));
+
+        return (
+            <div className="h-full flex flex-col justify-between p-1 overflow-hidden">
+                <div className="font-semibold text-xs truncate leading-tight">
+                    {event.client_name}
+                </div>
+                
+                {!isCleanerView && (view === 'week' || view === 'month') && event.cleaner_ids && event.cleaner_ids.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                    {event.cleaner_ids.slice(0, 3).map((cleanerId, index) => {
+                        const cleaner = users.find(u => u.id === cleanerId);
+                        const initials = getCleanerInitials(cleanerId, users);
+                        
+                        return (
+                        <span 
+                            key={index}
+                            className="inline-flex items-center justify-center px-1.5 py-0.5 text-[9px] font-bold rounded-sm text-white shadow-sm"
+                            style={{ 
+                            backgroundColor: cleaner?.color || 'rgba(0,0,0,0.3)',
+                            minWidth: '20px'
+                            }}
+                            title={cleaner?.display_name || cleaner?.full_name || 'Desconocido'}
+                        >
+                            {initials}
+                        </span>
+                        );
+                    })}
+                    {event.cleaner_ids.length > 3 && (
+                        <span className="inline-flex items-center justify-center px-1 text-[9px] font-bold text-white">
+                        +{event.cleaner_ids.length - 3}
+                        </span>
+                    )}
+                    </div>
+                )}
+                
+                <div className="text-[10px] opacity-80 mt-auto">
+                    {formatTimeUTC(parseISOAsUTC(event.start_time))}
+                </div>
+            </div>
+        );
     };
 
     // Componente de Evento Refactorizado
-    const EventBlock = ({ event, onClick, showFullInfo = false }) => {
+    const EventBlock = ({ 
+        event, onClick, users, isCleanerView, view, selectedCleanerId, isReadOnly, 
+        processingSchedules, handleClockOut, currentUser,
+        getServiceProgress, formatTimeHMS, getCleanersDisplay, handleResizeStart,
+        draggable, onDragStart, onDragEnd,
+        topPx, heightPx, leftPosition, columnWidth
+    }) => {
         const isCancelled = event.status === 'cancelled';
         const isUnassigned = !event.cleaner_ids || event.cleaner_ids.length === 0;
         const progress = getServiceProgress(event);
         
-        // ARREGLADO: Determinar estado del limpiador específico si es vista de limpiador
         let cleanerStatus = null;
         if (isCleanerView && selectedCleanerId) {
-            const cleanerClockData = event.clock_in_data?.find(c => c.cleaner_id === selectedCleanerId); // Corrected property to cleaner_id
+            const cleanerClockData = event.clock_in_data?.find(c => c.cleaner_id === selectedCleanerId);
             
-            // Solo establecer estado si el limpiador está asignado a este evento
             if (event.cleaner_ids && event.cleaner_ids.includes(selectedCleanerId)) {
                 if (cleanerClockData) {
                     if (cleanerClockData.clock_out_time) {
@@ -899,7 +934,6 @@ export default function HorarioCalendario({
                         cleanerStatus = { type: 'scheduled', label: 'Programado', color: 'bg-blue-100 text-blue-800', icon: '🔵' };
                     }
                 } else {
-                    // ARREGLADO: Usar el estado del servicio global como respaldo
                     if (event.status === 'completed') {
                         cleanerStatus = { type: 'completed', label: 'Completado', color: 'bg-slate-100 text-slate-800', icon: '⚪️' };
                     } else if (event.status === 'in_progress') {
@@ -911,150 +945,302 @@ export default function HorarioCalendario({
             }
         }
         
-        // Usamos una función de cálculo de posición temporal solo para obtener la duración
         const originalStartTime = parseISOAsUTC(event.start_time);
         const originalEndTime = parseISOAsUTC(event.end_time);
-        const originalDuration = (originalEndTime.getUTCHours() + originalEndTime.getUTCMinutes() / 60) - (originalStartTime.getUTCHours() + originalStartTime.getUTCMinutes() / 60);
+        const originalDurationHours = (originalEndTime.getTime() - originalStartTime.getTime()) / (1000 * 60 * 60);
         
-        const cardClass = isCancelled 
-            ? "h-full bg-slate-200 border-slate-300 text-slate-500"
-            : `h-full text-white`;
-        
-        const titleClass = isCancelled
-            ? "font-bold text-sm leading-tight line-through"
-            : "font-bold text-sm leading-tight";
+        const eventCardStyle = {
+            backgroundColor: isCancelled ? '#e2e8f0' : (isUnassigned ? '#dc2626' : event.color || '#3b82f6'),
+        };
+        const eventCardClassName = `h-full rounded-lg overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md relative ${isUnassigned && !isCancelled ? 'border-4 border-red-500 ring-2 ring-red-200' : 'border-2 hover:border-white/50'}`;
+
+        const handleActualClick = (e) => {
+            e.stopPropagation(); // Prevent trigger from propagating up
+            onClick(event); // Call the original onSelectEvent
+        };
+
+        const durationFormatted = originalDurationHours >= 1 
+            ? `${Math.floor(originalDurationHours)}h ${Math.round((originalDurationHours % 1) * 60)}m`
+            : `${Math.round(originalDurationHours * 60)}m`;
+
 
         return (
-            <Card 
-                onClick={onClick}
-                className={`${cardClass} rounded-lg overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md relative ${isUnassigned && !isCancelled ? 'border-4 border-red-500 ring-2 ring-red-200' : 'border-2 hover:border-white/50'}`}
-                style={{ backgroundColor: isCancelled ? '#e2e8f0' : (isUnassigned ? '#dc2626' : event.color || '#3b82f6') }} // Rojo si no está asignado
-            >
-                {event.has_access && !isCancelled && (
-                    <div className="absolute top-1 right-1 bg-white/20 backdrop-blur-sm p-1 rounded-full" title={`Acceso: ${event.access_identifier}`}>
-                        <KeySquare className="w-3 h-3 text-white" />
-                    </div>
-                )}
-
-                <div className="p-1.5 md:p-2 flex flex-col h-full">
-                    <div className="flex-1 overflow-hidden">
-                        <div className="flex items-center">
-                            <p className={titleClass}>{event.client_name}</p>
-                            {isCancelled && <Badge variant="destructive" className="ml-2 text-xs">CANCELADO</Badge>}
-                        </div>
-                        
-                        <div className="text-xs opacity-90 font-medium">
-                            {formatTimeUTC(parseISOAsUTC(event.start_time))} - {formatTimeUTC(parseISOAsUTC(event.end_time))}
-                        </div>
-                        
-                        {/* NUEVO: Mostrar estado del limpiador en vista de limpiador */}
-                        {isCleanerView && cleanerStatus && (
-                            <div className="mt-2 mb-1">
-                                <Badge className={`${cleanerStatus.color} text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 w-fit ${cleanerStatus.type === 'in_progress' ? 'animate-pulse' : ''}`}>
-                                    <span>{cleanerStatus.icon}</span>
-                                    <span>{cleanerStatus.label}</span>
-                                </Badge>
-                                {/* Added a conditional button for clock out */}
-                                {cleanerStatus.type === 'in_progress' && currentUser?.id === selectedCleanerId && (
-                                    <Button 
-                                        variant="secondary" 
-                                        size="xs" 
-                                        className="mt-2 text-xs font-semibold"
-                                        onClick={(e) => { e.stopPropagation(); handleClockOut(event); }} // Stop propagation to prevent event card click
-                                        disabled={processingSchedules.has(event.id)} // Disable if already processing
-                                    >
-                                        {processingSchedules.has(event.id) ? 'Cerrando...' : 'Cerrar Servicio'}
-                                    </Button>
-                                )}
-                            </div>
+            <HoverCard openDelay={200}>
+                <HoverCardTrigger asChild>
+                    <div
+                        draggable={draggable}
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
+                        className={`absolute p-0.5 z-10 ${eventCardClassName}`}
+                        style={{
+                            top: `${topPx}px`,
+                            height: `${heightPx}px`,
+                            left: `${leftPosition}%`,
+                            width: `${columnWidth}%`,
+                            cursor: draggable ? 'grab' : 'pointer',
+                            color: isCancelled ? '#64748b' : 'white', // Text color for the card
+                            ...eventCardStyle // Background color etc.
+                        }}
+                        onClick={handleActualClick}
+                    >
+                        {/* Resize handles */}
+                        {handleResizeStart && !isReadOnly && !isCleanerView && event.status !== 'cancelled' && (
+                            <>
+                                <div
+                                    onMouseDown={(e) => handleResizeStart(e, event, 'top')}
+                                    className="absolute top-0 left-0 w-full h-2 cursor-ns-resize z-20"
+                                    title="Arrastra para cambiar la hora de inicio"
+                                />
+                                <div
+                                    onMouseDown={(e) => handleResizeStart(e, event, 'bottom')}
+                                    className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize z-20"
+                                    title="Arrastra para cambiar la hora de fin"
+                                />
+                            </>
                         )}
+                        
+                        {/* Content inside the event block */}
+                        <div className="flex flex-col h-full">
+                            {event.has_access && !isCancelled && (
+                                <div className="absolute top-1 right-1 bg-white/20 backdrop-blur-sm p-1 rounded-full" title={`Acceso: ${event.access_identifier}`}>
+                                    <KeySquare className="w-3 h-3 text-white" />
+                                </div>
+                            )}
 
-                        {/* Enhanced Active Service Progress - ADMIN ONLY */}
-                        {!isCleanerView && progress && progress.activeCleaners > 0 && (
-                            <div className="mt-2 mb-1">
-                                {progress.isRunningLate ? (
-                                    <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-                                        <AlertTriangle className="w-3 h-3" />
-                                        TARDE: Fin {format(progress.projectedEndTime, 'HH:mm')} {/* projectedEndTime is local */}
-                                    </div>
-                                ) : progress.isOvertime ? (
-                                    <div className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-                                        <AlertTriangle className="w-3 h-3" />
-                                        OVERTIME: +{formatTimeHMS(progress.overtimeHours)}
-                                    </div>
-                                ) : (
-                                    <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-                                        <Play className="w-3 h-3" />
-                                        {formatTimeHMS(progress.timeRemainingPerPerson)} por persona
-                                    </div>
-                                )}
-                                
-                                <div className="text-xs text-white/90 mt-1 space-y-1">
-                                    <div className="flex justify-between">
-                                        <span>Progreso:</span>
-                                        <span>{formatTimeHMS(progress.personHoursCompleted)} / {formatTimeHMS(progress.totalWorkUnits)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span>Activos:</span>
-                                        <span>{progress.activeCleaners} de {progress.assignedCleaners}</span>
-                                    </div>
-                                    {progress.projectedEndTime && (
-                                        <div className="flex justify-between">
-                                            <span>Fin estimado:</span>
-                                            <span className="font-bold">{format(progress.projectedEndTime, 'HH:mm')}</span> {/* projectedEndTime is local */}
+                            {/* Conditional rendering for compact vs full content */}
+                            {view === 'day' || (view === 'week' && isCleanerView) ? ( // Full content for day view, and for cleaner week view
+                                <div className="p-1.5 md:p-2 flex flex-col h-full">
+                                    <div className="flex-1 overflow-hidden">
+                                        <div className="flex items-center">
+                                            <p className={isCancelled ? "font-bold text-sm leading-tight line-through" : "font-bold text-sm leading-tight"}>{event.client_name}</p>
+                                            {isCancelled && <Badge variant="destructive" className="ml-2 text-xs">CANCELADO</Badge>}
                                         </div>
-                                    )}
+                                        
+                                        <div className="text-xs opacity-90 font-medium">
+                                            {formatTimeUTC(originalStartTime)} - {formatTimeUTC(originalEndTime)}
+                                        </div>
+                                        
+                                        {isCleanerView && cleanerStatus && (
+                                            <div className="mt-2 mb-1">
+                                                <Badge className={`${cleanerStatus.color} text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 w-fit ${cleanerStatus.type === 'in_progress' ? 'animate-pulse' : ''}`}>
+                                                    <span>{cleanerStatus.icon}</span>
+                                                    <span>{cleanerStatus.label}</span>
+                                                </Badge>
+                                                {cleanerStatus.type === 'in_progress' && currentUser?.id === selectedCleanerId && (
+                                                    <Button 
+                                                        variant="secondary" 
+                                                        size="xs" 
+                                                        className="mt-2 text-xs font-semibold"
+                                                        onClick={(e) => { e.stopPropagation(); handleClockOut(event); }} 
+                                                        disabled={processingSchedules.has(event.id)} 
+                                                    >
+                                                        {processingSchedules.has(event.id) ? 'Cerrando...' : 'Cerrar Servicio'}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {!isCleanerView && progress && progress.activeCleaners > 0 && (
+                                            <div className="mt-2 mb-1">
+                                                {progress.isRunningLate ? (
+                                                    <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                                        <AlertTriangle className="w-3 h-3" />
+                                                        TARDE: Fin {format(progress.projectedEndTime, 'HH:mm')}
+                                                    </div>
+                                                ) : progress.isOvertime ? (
+                                                    <div className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                                        <AlertTriangle className="w-3 h-3" />
+                                                        OVERTIME: +{formatTimeHMS(progress.overtimeHours)}
+                                                    </div>
+                                                ) : (
+                                                    <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                                        <Play className="w-3 h-3" />
+                                                        {formatTimeHMS(progress.timeRemainingPerPerson)} por persona
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="text-xs text-white/90 mt-1 space-y-1">
+                                                    <div className="flex justify-between">
+                                                        <span>Progreso:</span>
+                                                        <span>{formatTimeHMS(progress.personHoursCompleted)} / {formatTimeHMS(progress.totalWorkUnits)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Activos:</span>
+                                                        <span>{progress.activeCleaners} de {progress.assignedCleaners}</span>
+                                                    </div>
+                                                    {progress.projectedEndTime && (
+                                                        <div className="flex justify-between">
+                                                            <span>Fin estimado:</span>
+                                                            <span className="font-bold">{format(progress.projectedEndTime, 'HH:mm')}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {!isCleanerView && progress && progress.activeCleaners === 0 && progress.personHoursCompleted > 0 && (
+                                            <div className="mt-2 mb-1">
+                                                <div className="bg-slate-100 text-slate-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                                    <CheckCircle className="w-3 h-3" />
+                                                    COMPLETADO
+                                                </div>
+                                                <div className="text-xs text-white/80 mt-1">
+                                                    Total: {formatTimeHMS(progress.personHoursCompleted)} horas-persona
+                                                    {progress.isOvertime && (
+                                                        <span className="text-red-200 block">
+                                                            (+{formatTimeHMS(progress.overtimeHours)} extra)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {!isCleanerView && (
+                                            isUnassigned && !isCancelled ? (
+                                                <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/30 px-2 py-1 rounded-full mt-2 w-fit">
+                                                    <AlertTriangle className="w-4 h-4" />
+                                                    <span>SIN ASIGNAR</span>
+                                                </div>
+                                            ) : (
+                                                <div className="text-xs opacity-90 mt-1 font-medium flex items-center gap-1 truncate">
+                                                    <Users className="w-3 h-3 flex-shrink-0" />
+                                                    <span className="truncate">
+                                                        {getCleanersDisplay(event.cleaner_ids, originalDurationHours < 1)}
+                                                    </span>
+                                                </div>
+                                            )
+                                        )}
+                                        
+                                        {view === 'day' && (
+                                            <div className="text-xs opacity-80 mt-1 truncate flex items-center gap-1">
+                                                <Navigation className="w-3 h-3 flex-shrink-0" />
+                                                <span className="truncate">{event.client_address || 'Dirección no disponible'}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                            ) : ( // Compact content for week/month view (admin), and month view (cleaner)
+                                <EventCompactContent 
+                                    event={event} 
+                                    users={users} 
+                                    isCleanerView={isCleanerView}
+                                    view={view}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </HoverCardTrigger>
+                
+                <HoverCardContent 
+                    side="right" 
+                    align="start"
+                    className="w-80 p-4 bg-white shadow-xl border-2 border-slate-200 z-[9999]"
+                    style={{ zIndex: 9999 }}
+                >
+                    <div className="space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <h4 className="font-bold text-base text-slate-900 leading-tight flex-1">
+                                {event.client_name}
+                            </h4>
+                            <Badge 
+                                variant={event.status === 'completed' ? 'default' : event.status === 'in_progress' ? 'secondary' : 'outline'}
+                                className="text-xs shrink-0"
+                                style={{ backgroundColor: event.status === 'completed' ? '#34d399' : (event.status === 'in_progress' ? '#fbbf24' : (event.status === 'cancelled' ? '#94a3b8' : '#60a5fa')) }}
+                            >
+                                {event.status === 'completed' ? 'Completado' : 
+                                event.status === 'in_progress' ? 'En Progreso' : 
+                                event.status === 'cancelled' ? 'Cancelado' : 'Programado'}
+                            </Badge>
+                        </div>
+
+                        {event.client_address && (
+                            <div className="flex items-start gap-2 text-sm">
+                                <MapPin className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+                                <span className="text-slate-700 leading-tight">{event.client_address}</span>
                             </div>
                         )}
 
-                        {/* Completed Service Summary */}
-                        {!isCleanerView && progress && progress.activeCleaners === 0 && progress.personHoursCompleted > 0 && (
-                            <div className="mt-2 mb-1">
-                                <div className="bg-slate-100 text-slate-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-                                    <CheckCircle className="w-3 h-3" />
-                                    COMPLETADO
-                                </div>
-                                <div className="text-xs text-white/80 mt-1">
-                                    Total: {formatTimeHMS(progress.personHoursCompleted)} horas-persona
-                                    {progress.isOvertime && (
-                                        <span className="text-red-200 block">
-                                            (+{formatTimeHMS(progress.overtimeHours)} extra)
-                                        </span>
-                                    )}
-                                </div>
+                        <div className="flex items-center gap-2 text-sm">
+                            <Clock className="w-4 h-4 text-slate-500 shrink-0" />
+                            <span className="text-slate-700">
+                                {format(originalStartTime, 'HH:mm')} - {format(originalEndTime, 'HH:mm')}
+                                <span className="text-slate-500 ml-2">({durationFormatted})</span>
+                            </span>
+                        </div>
+
+                        {event.contact_phone && (
+                            <div className="flex items-center gap-2 text-sm">
+                                <Phone className="w-4 h-4 text-slate-500 shrink-0" />
+                                <span className="text-slate-700">{event.contact_phone}</span>
                             </div>
                         )}
-                        
-                        {!isCleanerView && (
-                            isUnassigned && !isCancelled ? (
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/30 px-2 py-1 rounded-full mt-2 w-fit">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    <span>SIN ASIGNAR</span>
-                                </div>
-                            ) : (
-                                <div className="text-xs opacity-90 mt-1 font-medium flex items-center gap-1 truncate">
-                                    <Users className="w-3 h-3 flex-shrink-0" />
-                                    <span className="truncate">
-                                        {originalDuration < 1 ? 
-                                            getCleanersDisplay(event.cleaner_ids, true) : 
-                                            getCleanersDisplay(event.cleaner_ids, false) 
-                                        }
+
+                        {event.cleaner_ids && event.cleaner_ids.length > 0 && (
+                            <div className="border-t pt-3 mt-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Users className="w-4 h-4 text-slate-500 shrink-0" />
+                                    <span className="font-semibold text-sm text-slate-700">
+                                        Limpiadores Asignados:
                                     </span>
                                 </div>
-                            )
-                        )}
-                        
-                        {/* Dirección no clickeable */}
-                        {showFullInfo && (
-                            <div className="text-xs opacity-80 mt-1 truncate flex items-center gap-1">
-                                <Navigation className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{event.client_address || 'Dirección no disponible'}</span>
+                                <div className="space-y-1.5 pl-6">
+                                    {event.cleaner_ids.map(cleanerId => {
+                                        const cleaner = users.find(u => u.id === cleanerId);
+                                        return (
+                                            <div key={cleanerId} className="flex items-center gap-2">
+                                                <div 
+                                                    className="w-3 h-3 rounded-full shrink-0"
+                                                    style={{ backgroundColor: cleaner?.color || '#3b82f6' }}
+                                                />
+                                                <span className="text-sm text-slate-700">
+                                                    {cleaner?.display_name || cleaner?.full_name || 'Desconocido'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
+
+                        {event.notes_public && (
+                            <div className="border-t pt-3 mt-3">
+                                <p className="text-xs text-slate-600 italic line-clamp-2">
+                                    "{event.notes_public}"
+                                </p>
+                            </div>
+                        )}
+
+                        {event.clock_in_data && event.clock_in_data.length > 0 && (
+                            <div className="border-t pt-3 mt-3">
+                                <span className="text-xs font-semibold text-slate-700">Estado de Asistencia:</span>
+                                <div className="space-y-1 mt-1">
+                                    {event.clock_in_data.map((clockData, idx) => {
+                                        const cleaner = users.find(u => u.id === clockData.cleaner_id);
+                                        return (
+                                            <div key={idx} className="text-xs text-slate-600 flex items-center gap-2">
+                                                <span className="font-medium">{cleaner?.display_name || cleaner?.full_name || 'Desconocido'}:</span>
+                                                {clockData.clock_in_time && !clockData.clock_out_time && (
+                                                    <Badge variant="secondary" className="text-xs">En servicio</Badge>
+                                                )}
+                                                {clockData.clock_in_time && clockData.clock_out_time && (
+                                                    <Badge variant="default" className="text-xs bg-green-600">Completado</Badge>
+                                                )}
+                                                {!clockData.clock_in_time && (
+                                                    <Badge variant="outline" className="text-xs">Pendiente</Badge>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="text-xs text-slate-400 pt-2 border-t">
+                            Haz clic para ver detalles completos
+                        </div>
                     </div>
-                </div>
-            </Card>
+                </HoverCardContent>
+            </HoverCard>
         );
     };
 
@@ -1137,52 +1323,39 @@ export default function HorarioCalendario({
                                     
                                     return organizedEvents.map(event => {
                                         const position = calculateEventPosition(event);
-                                        // Si el evento no es visible (o solo una parte mínima), no lo renderizamos o ajustamos su posición.
                                         if (!position) return null;
 
                                         const columnWidth = 100 / event.totalColumns;
                                         const leftPosition = event.columnIndex * columnWidth;
                                         
                                         const topPx = position.startPosition * HOUR_HEIGHT;
-                                        const heightPx = Math.max(position.duration * HOUR_HEIGHT, 32); // Altura mínima de 32px
+                                        const heightPx = Math.max(position.duration * HOUR_HEIGHT, 32); 
                                         
                                         return (
-                                            <div
+                                            <EventBlock 
                                                 key={event.id}
+                                                event={event}
+                                                onClick={onSelectEvent}
+                                                users={users}
+                                                isCleanerView={isCleanerView}
+                                                view={view}
+                                                selectedCleanerId={selectedCleanerId}
+                                                isReadOnly={isReadOnly}
+                                                processingSchedules={processingSchedules}
+                                                handleClockOut={handleClockOut}
+                                                currentUser={currentUser}
+                                                getServiceProgress={getServiceProgress}
+                                                formatTimeHMS={formatTimeHMS}
+                                                getCleanersDisplay={getCleanersDisplay}
+                                                handleResizeStart={handleResizeStart}
                                                 draggable={!isCleanerView && !isReadOnly && event.status !== 'cancelled'}
-                                                onDragStart={(e) => handleDragStart(e, event)}
+                                                onDragStart={handleDragStart}
                                                 onDragEnd={handleDragEnd}
-                                                className={`absolute p-0.5 z-10`}
-                                                style={{
-                                                    top: `${topPx}px`,
-                                                    height: `${heightPx}px`,
-                                                    left: `${leftPosition}%`,
-                                                    width: `${columnWidth}%`,
-                                                    cursor: (!isCleanerView && !isReadOnly && event.status !== 'cancelled') ? 'grab' : 'pointer',
-                                                }}
-                                            >
-                                                {/* NUEVO: Manejadores para redimensionar */}
-                                                {!isReadOnly && !isCleanerView && event.status !== 'cancelled' && (
-                                                    <>
-                                                        <div
-                                                            onMouseDown={(e) => handleResizeStart(e, event, 'top')}
-                                                            className="absolute top-0 left-0 w-full h-2 cursor-ns-resize z-20"
-                                                            title="Arrastra para cambiar la hora de inicio"
-                                                        />
-                                                        <div
-                                                            onMouseDown={(e) => handleResizeStart(e, event, 'bottom')}
-                                                            className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize z-20"
-                                                            title="Arrastra para cambiar la hora de fin"
-                                                        />
-                                                    </>
-                                                )}
-
-                                                <EventBlock 
-                                                    event={event}
-                                                    onClick={() => onSelectEvent(event)}
-                                                    showFullInfo={!isWeekView} // Show full info only in day view
-                                                />
-                                            </div>
+                                                topPx={topPx}
+                                                heightPx={heightPx}
+                                                leftPosition={leftPosition}
+                                                columnWidth={columnWidth}
+                                            />
                                         );
                                     });
                                 })()}
@@ -1253,10 +1426,29 @@ export default function HorarioCalendario({
                                         <div className="space-y-2">
                                             {dayEvents.map(event => (
                                                 <div key={event.id}>
-                                                    <EventBlock
+                                                    <EventBlock 
                                                         event={event}
-                                                        onClick={() => onSelectEvent(event)}
-                                                        showFullInfo={true}
+                                                        onClick={onSelectEvent}
+                                                        users={users}
+                                                        isCleanerView={isCleanerView}
+                                                        view={view}
+                                                        selectedCleanerId={selectedCleanerId}
+                                                        isReadOnly={isReadOnly}
+                                                        processingSchedules={processingSchedules}
+                                                        handleClockOut={handleClockOut}
+                                                        currentUser={currentUser}
+                                                        getServiceProgress={getServiceProgress}
+                                                        formatTimeHMS={formatTimeHMS}
+                                                        getCleanersDisplay={getCleanersDisplay}
+                                                        // No drag/resize for month view events directly
+                                                        draggable={false} 
+                                                        onDragStart={() => {}}
+                                                        onDragEnd={() => {}}
+                                                        handleResizeStart={() => {}}
+                                                        topPx={0} // Not position absolute in month view
+                                                        heightPx={0}
+                                                        leftPosition={0}
+                                                        columnWidth={100}
                                                     />
                                                 </div>
                                             ))}
@@ -1333,9 +1525,9 @@ export default function HorarioCalendario({
                         selectedDate={selectedDate}
                         selectedCleanerId={selectedCleanerId}
                         onSelectEvent={onSelectEvent}
-                        processingSchedules={processingSchedules} // Pass new prop
-                        handleClockOut={handleClockOut} // Pass new prop
-                        currentUser={currentUser} // Pass new prop
+                        processingSchedules={processingSchedules} 
+                        handleClockOut={handleClockOut} 
+                        currentUser={currentUser} 
                     />
                 ) : isCleanerView && view === 'week' ? (
                     renderWeekView()
