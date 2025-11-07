@@ -1,3 +1,4 @@
+
 // Gestor de estado del servicio activo con persistencia local y sincronización con backend
 // Sistema OFFLINE-FIRST con cola de eventos persistente y reintentos automáticos
 import { base44 } from '@/api/base44Client';
@@ -446,18 +447,58 @@ export const checkActiveServiceInBackend = async (userId) => {
  * Sincroniza el estado local con el backend
  * Retorna: { hasActive: boolean, service: object|null, source: 'cache'|'backend' }
  */
-export const syncActiveService = async (userId, forceSync = false) => {
-    // 1. Primero revisar caché local
-    const localService = getLocalActiveService();
+export const syncActiveService = async (userId) => {
+    console.log('[ActiveServiceManager] 🔄 Sincronizando servicio activo para usuario:', userId);
     
-    // 2. Si no necesitamos sincronizar y tenemos datos locales, usarlos
-    if (!forceSync && !needsSync() && localService) {
-        console.log('[ActiveServiceManager] 📦 Usando caché local (reciente)');
-        return { hasActive: true, service: localService, source: 'cache' };
-    }
-
-    // 3. Sincronizar con backend
     try {
+        // NUEVO: Verificar si acabamos de hacer Clock Out
+        const clockOutPending = localStorage.getItem(`clock_out_pending_${userId}`);
+        const clockOutTime = localStorage.getItem(`clock_out_time_${userId}`);
+        
+        if (clockOutPending && clockOutTime) {
+            const timeSinceClockOut = Date.now() - parseInt(clockOutTime);
+            if (timeSinceClockOut < 10000) { // Durante 10 segundos después del Clock Out
+                console.log('[ActiveServiceManager] 🚫 Clock Out reciente detectado, no hay servicio activo');
+                return {
+                    hasActive: false,
+                    service: null,
+                    source: 'optimistic_update'
+                };
+            } else {
+                // Limpiar flags si ya pasaron 10 segundos
+                localStorage.removeItem(`clock_out_pending_${userId}`);
+                localStorage.removeItem(`clock_out_time_${userId}`);
+            }
+        }
+        
+        // Verificar flag de skip_active_check
+        const skipActiveCheck = localStorage.getItem(`skip_active_check_${userId}`);
+        if (skipActiveCheck) {
+            const skipTime = parseInt(skipActiveCheck);
+            const now = Date.now();
+            if (now - skipTime < 5000) { // Solo por 5 segundos
+                console.log('[ActiveServiceManager] 🚫 Verificación deshabilitada temporalmente');
+                return {
+                    hasActive: false,
+                    service: null,
+                    source: 'skip_check'
+                };
+            } else {
+                localStorage.removeItem(`skip_active_check_${userId}`);
+            }
+        }
+
+        // 1. Primero revisar caché local
+        const localService = getLocalActiveService();
+        
+        // 2. Si no necesitamos sincronizar y tenemos datos locales, usarlos
+        // Note: 'forceSync' parameter removed, so only needsSync() is checked.
+        if (!needsSync() && localService) {
+            console.log('[ActiveServiceManager] 📦 Usando caché local (reciente)');
+            return { hasActive: true, service: localService, source: 'cache' };
+        }
+
+        // 3. Sincronizar con backend
         const backendResult = await checkActiveServiceInBackend(userId);
         
         // 4. Actualizar caché local con resultado del backend
@@ -469,14 +510,31 @@ export const syncActiveService = async (userId, forceSync = false) => {
 
         return { ...backendResult, source: 'backend' };
     } catch (error) {
-        // 5. Si falla el backend pero tenemos caché local, usarlo como fallback
+        console.error('[ActiveServiceManager] ❌ Error sincronizando:', error);
+        
+        // Si hay error en la red pero tenemos una marca de Clock Out reciente, asumir que no hay servicio activo
+        const clockOutPending = localStorage.getItem(`clock_out_pending_${userId}`);
+        if (clockOutPending) {
+            console.warn('[ActiveServiceManager] ⚠️ Error de red con Clock Out pendiente, asumiendo no activo.');
+            return {
+                hasActive: false,
+                service: null,
+                source: 'error_with_pending_clock_out'
+            };
+        }
+        
+        // Si no hay clock out pendiente, y tenemos un local service, usamos el local
+        const localService = getLocalActiveService();
         if (localService) {
             console.warn('[ActiveServiceManager] ⚠️ Backend falló, usando caché local como fallback');
             return { hasActive: true, service: localService, source: 'cache' };
         }
-        
-        // 6. Si no hay caché local, propagar el error
-        throw error;
+
+        return {
+            hasActive: false,
+            service: null,
+            source: 'error'
+        };
     }
 };
 
@@ -498,6 +556,10 @@ export const registerClockIn = async (scheduleId, service, userId) => {
         clockedInAt: timestamp
     });
     console.log('[ClockIn] 💾 Estado local actualizado');
+
+    // Desactivar temporalmente la verificación activa para evitar carreras al actualizar el estado
+    localStorage.setItem(`skip_active_check_${userId}`, Date.now().toString());
+
 
     // 2. Obtener ubicación (en segundo plano, no bloquear)
     const location = await getCurrentLocation();
@@ -533,6 +595,11 @@ export const registerClockOut = async (scheduleId, userId) => {
     clearLocalActiveService();
     console.log('[ClockOut] 💾 Estado local limpiado');
 
+    // Set optimistic flags for a short period after clock out
+    localStorage.setItem(`clock_out_pending_${userId}`, 'true');
+    localStorage.setItem(`clock_out_time_${userId}`, Date.now().toString());
+
+
     // 2. Obtener ubicación (en segundo plano, no bloquear)
     const location = await getCurrentLocation();
 
@@ -560,7 +627,9 @@ export const registerClockOut = async (scheduleId, userId) => {
  */
 export const canUserClockIn = async (userId) => {
     try {
-        const result = await syncActiveService(userId, true); // Forzar sync para esta verificación crítica
+        // Call syncActiveService without forceSync parameter, as it's been removed
+        // The new internal logic of syncActiveService will handle temporary skips/optimistic updates.
+        const result = await syncActiveService(userId);
         
         if (result.hasActive) {
             return {
@@ -578,6 +647,8 @@ export const canUserClockIn = async (userId) => {
     } catch (error) {
         console.error('[ActiveServiceManager] Error verificando si puede hacer Clock In:', error);
         // En caso de error, permitir Clock In para no bloquear al usuario
+        // Note: The new syncActiveService error handling should ideally prevent this if clock_out_pending is set.
+        // If an actual network error occurs and no local fallbacks, it's safer to allow clock in.
         return {
             canClockIn: true,
             reason: null,
