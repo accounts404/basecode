@@ -17,13 +17,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {
     Calendar as CalendarIcon,
     Plus,
     RefreshCw,
@@ -142,10 +135,6 @@ export default function HorarioPage() {
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
-
-    // NUEVO: Estado para filtro/resaltado por limpiador
-    const [selectedCleanerFilter, setSelectedCleanerFilter] = useState(null);
-    const [highlightMode, setHighlightMode] = useState(false); // false = filtrar, true = resaltar
 
     const [error, setError] = useState('');
 
@@ -869,7 +858,7 @@ export default function HorarioPage() {
 
             let hasChanges = false;
             const newSchedulesArray = Array.isArray(newCleanerSchedules) ? newCleanerSchedules : [];
-            const originalSchedulesArray = Array.isArray(originalCleanerSchedules) ? originalCleanerSchedules : [];
+            const originalSchedulesArray = Array.isArray(originalCleanerSchedules) ? originalSchedulesArray : [];
 
             if (newSchedulesArray.length !== originalSchedulesArray.length) {
                 hasChanges = true;
@@ -1188,19 +1177,12 @@ export default function HorarioPage() {
         if (!Array.isArray(schedules)) return [];
 
         return schedules.filter(schedule => {
-            // Filtro para limpiadores (vista de limpiador)
             if (isCleanerView && user?.id && schedule.cleaner_ids) {
-                if (!schedule.cleaner_ids.includes(user.id)) return false;
+                return schedule.cleaner_ids.includes(user.id);
             }
-            
-            // NUEVO: Filtro por limpiador seleccionado (solo admins, modo filtrado)
-            if (!isCleanerView && selectedCleanerFilter && !highlightMode && schedule.cleaner_ids) {
-                if (!schedule.cleaner_ids.includes(selectedCleanerFilter)) return false;
-            }
-            
             return true;
         });
-    }, [schedules, isCleanerView, user?.id, selectedCleanerFilter, highlightMode]);
+    }, [schedules, isCleanerView, user?.id]);
 
     const servicesForSelectedDateCount = React.useMemo(() => {
         if (!isCleanerView) return 0;
@@ -1435,65 +1417,6 @@ export default function HorarioPage() {
                             <Button variant={view === 'month' ? 'default' : 'outline'} size="sm" onClick={() => setView('month')}>Mes</Button>
                         </div>
 
-                        {/* NUEVO: Filtro por limpiador (solo para admins) */}
-                        {user?.role === 'admin' && view === 'week' && (
-                            <>
-                                <div className="flex items-center gap-1 border-l pl-2">
-                                    <Select 
-                                        value={selectedCleanerFilter || 'all'} 
-                                        onValueChange={(value) => {
-                                            setSelectedCleanerFilter(value === 'all' ? null : value);
-                                            if (value === 'all') setHighlightMode(false);
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-36 h-9">
-                                            <SelectValue placeholder="Filtrar por..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">
-                                                <div className="flex items-center gap-2">
-                                                    <Users className="w-3 h-3" />
-                                                    Todos
-                                                </div>
-                                            </SelectItem>
-                                            {users
-                                                .filter(u => u.role !== 'admin' && u.active !== false)
-                                                .sort((a, b) => {
-                                                    const nameA = a.display_name || a.full_name || '';
-                                                    const nameB = b.display_name || b.full_name || '';
-                                                    return nameA.localeCompare(nameB);
-                                                })
-                                                .map(cleaner => (
-                                                    <SelectItem key={cleaner.id} value={cleaner.id}>
-                                                        <div className="flex items-center gap-2">
-                                                            <div 
-                                                                className="w-3 h-3 rounded-full border border-white shadow-sm"
-                                                                style={{ backgroundColor: cleaner.color || '#6b7280' }}
-                                                            />
-                                                            <span className="truncate">
-                                                                {cleaner.display_name || cleaner.full_name}
-                                                            </span>
-                                                        </div>
-                                                    </SelectItem>
-                                                ))}
-                                        </SelectContent>
-                                    </Select>
-
-                                    {selectedCleanerFilter && (
-                                        <Button
-                                            variant={highlightMode ? 'default' : 'outline'}
-                                            size="sm"
-                                            onClick={() => setHighlightMode(!highlightMode)}
-                                            className="h-9"
-                                            title={highlightMode ? 'Cambiar a modo filtrar' : 'Cambiar a modo resaltar'}
-                                        >
-                                            {highlightMode ? '👁️' : '🔍'}
-                                        </Button>
-                                    )}
-                                </div>
-                            </>
-                        )}
-
                         <Button
                             variant="outline"
                             onClick={handleRefresh}
@@ -1528,30 +1451,6 @@ export default function HorarioPage() {
                             </Button>
                         </div>
                     </div>
-
-                    {/* NUEVO: Leyenda de limpiadores cuando hay filtro/resaltado */}
-                    {user?.role === 'admin' && selectedCleanerFilter && (
-                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div className="flex items-center gap-2 text-sm">
-                                <Info className="w-4 h-4 text-blue-600" />
-                                <span className="font-medium text-blue-900">
-                                    {highlightMode ? 'Resaltando' : 'Filtrando'} servicios de:
-                                </span>
-                                <div className="flex items-center gap-2 ml-2 bg-white px-2 py-1 rounded">
-                                    <div 
-                                        className="w-3 h-3 rounded-full"
-                                        style={{ 
-                                            backgroundColor: users.find(u => u.id === selectedCleanerFilter)?.color || '#6b7280' 
-                                        }}
-                                    />
-                                    <span className="text-slate-700 font-medium">
-                                        {users.find(u => u.id === selectedCleanerFilter)?.display_name || 
-                                         users.find(u => u.id === selectedCleanerFilter)?.full_name}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </header>
             )}
 
@@ -1665,7 +1564,6 @@ export default function HorarioPage() {
                             isReadOnly={isCleanerView}
                             onMoveEvent={user?.role === 'admin' ? handleMoveEvent : null}
                             onResizeEvent={user?.role === 'admin' ? handleResizeEvent : null}
-                            highlightedCleanerId={highlightMode ? selectedCleanerFilter : null}
                         />
                     </div>
                 </div>

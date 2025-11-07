@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +7,6 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth, eachWeekOfInterval, isToday, isSameDay, addDays, isSameMonth, parseISO, addMinutes, roundToNearestMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CleanerDayListView from './CleanerDayListView';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 // Assuming base44 is an imported API client, if not, adjust import path or prop definition
 // For demonstration, a placeholder import:
@@ -42,277 +41,27 @@ const VISIBLE_END_HOUR = 22;   // 10 PM (interpretado como UTC)
 const TOTAL_VISIBLE_HOURS = VISIBLE_END_HOUR - VISIBLE_START_HOUR; // Total de horas a mostrar (16 horas)
 const TOTAL_DISPLAY_HEIGHT_PX = TOTAL_VISIBLE_HOURS * HOUR_HEIGHT; // Altura total de la sección de tiempo
 
-// NUEVO: Función helper para aplicar opacidad a eventos no resaltados
-const applyHighlightOpacity = (event, highlightedCleanerId) => {
-    if (!highlightedCleanerId) return 1;
-    if (!event.cleaner_ids || event.cleaner_ids.length === 0) return 0.2; // Unassigned events get lower opacity if highlighting
-    return event.cleaner_ids.includes(highlightedCleanerId) ? 1 : 0.2;
-};
-
-const EventComponent = React.forwardRef(({ event, users, isCleanerView, onEventClick, highlightedCleanerId }, ref) => {
-    // Obtener limpiadores asignados con sus datos completos
-    const assignedCleaners = users.filter(u =>
-        event.cleaner_ids && event.cleaner_ids.includes(u.id)
-    );
-
-    // Función para obtener iniciales de un usuario
-    const getInitials = (user) => {
-        if (!user) return '?';
-        const name = user.display_name || user.full_name || 'Unknown';
-        const nameParts = name.trim().split(' ');
-        if (nameParts.length >= 2) {
-            return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-
-    // Determinar si es un evento pequeño (menos de 1 hora de duración visual)
-    const eventStartUTC = parseISOAsUTC(event.start_time);
-    const eventEndUTC = parseISOAsUTC(event.end_time);
-    const eventDurationHours = (eventEndUTC.getTime() - eventStartUTC.getTime()) / (1000 * 60 * 60);
-    const isSmallEvent = eventDurationHours < 1;
-
-    const isCancelled = event.status === 'cancelled';
-    const isUnassigned = !event.cleaner_ids || event.cleaner_ids.length === 0;
-
-    let bgColor = event.color || '#3b82f6'; // Default blue
-    if (isCancelled) {
-        bgColor = '#e2e8f0'; // Light slate for cancelled
-    } else if (isUnassigned && !isCancelled) { // Only red if not cancelled and unassigned
-        bgColor = '#dc2626'; // Red for unassigned
-    }
-
-    let textColor = '#fff';
-    if (isCancelled) {
-        textColor = '#64748b'; // text-slate-500
-    }
-
-    // NUEVO: Calcular opacidad para efecto de resaltado
-    const opacity = applyHighlightOpacity(event, highlightedCleanerId);
-
-    return (
-        <HoverCard openDelay={200}>
-            <HoverCardTrigger asChild>
-                <div
-                    ref={ref}
-                    onClick={onEventClick}
-                    className="cursor-pointer h-full w-full overflow-hidden relative shadow-sm hover:shadow-md transition-all duration-200"
-                    style={{
-                        backgroundColor: bgColor,
-                        borderRadius: '4px',
-                        padding: isSmallEvent ? '2px 4px' : '4px 6px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        borderColor: isUnassigned && !isCancelled ? 'rgb(239 68 68)' : 'rgba(0,0,0,0.1)', // ring-red-500
-                        opacity: opacity, // Apply opacity based on highlight
-                    }}
-                >
-                    {/* Access key icon (re-added as it's useful context) */}
-                    {event.has_access && !isCancelled && (
-                        <div className="absolute top-0.5 right-0.5 bg-white/20 backdrop-blur-sm p-0.5 rounded-full" title={`Acceso: ${event.access_identifier}`}>
-                            <KeySquare className="w-2.5 h-2.5" style={{ color: textColor }} />
-                        </div>
-                    )}
-
-                    {/* Nombre del cliente */}
-                    <div
-                        className={`font-semibold truncate ${isCancelled ? 'line-through' : ''}`}
-                        style={{
-                            fontSize: isSmallEvent ? '10px' : '11px',
-                            lineHeight: isSmallEvent ? '12px' : '14px',
-                            color: textColor,
-                        }}
-                    >
-                        {event.client_name || 'Sin cliente'}
-                    </div>
-
-                    {/* Iniciales de limpiadores */}
-                    {!isCleanerView && assignedCleaners.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                            {assignedCleaners.map(cleaner => (
-                                <span
-                                    key={cleaner.id}
-                                    className="inline-flex items-center justify-center rounded font-bold"
-                                    style={{
-                                        backgroundColor: cleaner.color || 'rgba(255,255,255,0.3)',
-                                        color: '#fff',
-                                        fontSize: isSmallEvent ? '8px' : '9px',
-                                        padding: isSmallEvent ? '1px 3px' : '2px 4px',
-                                        minWidth: isSmallEvent ? '16px' : '18px',
-                                        height: isSmallEvent ? '14px' : '16px',
-                                        border: '1px solid rgba(255,255,255,0.4)',
-                                        textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                                    }}
-                                >
-                                    {getInitials(cleaner)}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Badge de SIN ASIGNAR */}
-                    {!isCleanerView && isUnassigned && !isCancelled && (
-                        <div className="flex items-center gap-0.5 text-xs font-bold text-white bg-black/30 px-1 py-0.5 rounded-full mt-1 w-fit">
-                            <AlertTriangle className="w-3 h-3" />
-                            <span>SIN ASIGNAR</span>
-                        </div>
-                    )}
-
-                    {/* Hora de inicio */}
-                    {!isSmallEvent && (
-                        <div
-                            className="truncate mt-1"
-                            style={{
-                                fontSize: '9px',
-                                lineHeight: '11px',
-                                color: isCancelled ? '#94a3b8' : 'rgba(255,255,255,0.85)', // text-slate-400 or white
-                            }}
-                        >
-                            {formatTimeUTC(eventStartUTC)} - {formatTimeUTC(eventEndUTC)}
-                        </div>
-                    )}
-
-                    {/* Badge de estado */}
-                    {event.status === 'completed' && (
-                        <div
-                            className="inline-block rounded px-1 mt-1"
-                            style={{
-                                backgroundColor: 'rgba(34, 197, 94, 0.9)',
-                                fontSize: '8px',
-                                color: '#fff',
-                            }}
-                        >
-                            ✓
-                        </div>
-                    )}
-                    {event.status === 'in_progress' && (
-                        <div
-                            className="inline-block rounded px-1 mt-1"
-                            style={{
-                                backgroundColor: 'rgba(59, 130, 246, 0.9)',
-                                fontSize: '8px',
-                                color: '#fff',
-                            }}
-                        >
-                            ▶
-                        </div>
-                    )}
-                </div>
-            </HoverCardTrigger>
-
-            {/* Tooltip con información detallada */}
-            <HoverCardContent side="right" className="w-72 p-3 z-50" sideOffset={5}>
-                <div className="space-y-3">
-                    {/* Header con nombre del cliente */}
-                    <div>
-                        <h4 className="font-semibold text-base text-slate-900 mb-1">
-                            {event.client_name}
-                        </h4>
-                        {event.client_address && (
-                            <p className="text-xs text-slate-600 leading-relaxed">
-                                {event.client_address}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Limpiadores asignados */}
-                    {assignedCleaners.length > 0 && (
-                        <div className="border-t pt-2">
-                            <p className="text-xs font-medium text-slate-700 mb-2 flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                Limpiadores Asignados:
-                            </p>
-                            <div className="space-y-1">
-                                {assignedCleaners.map(cleaner => (
-                                    <div key={cleaner.id} className="flex items-center gap-2">
-                                        <div
-                                            className="w-4 h-4 rounded-full flex-shrink-0 border border-white shadow-sm"
-                                            style={{ backgroundColor: cleaner.color || '#6b7280' }}
-                                        />
-                                        <span className="text-xs text-slate-700">
-                                            {cleaner.display_name || cleaner.full_name}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Horario */}
-                    <div className="border-t pt-2">
-                        <p className="text-xs text-slate-600">
-                            <span className="font-medium">Horario:</span>{' '}
-                            {format(eventStartUTC, 'HH:mm')} - {format(eventEndUTC, 'HH:mm')}
-                        </p>
-                        <p className="text-xs text-slate-600 mt-1">
-                            <span className="font-medium">Duración:</span>{' '}
-                            {Math.round(eventDurationHours * 10) / 10}h
-                        </p>
-                    </div>
-
-                    {/* Estado */}
-                    <div className="border-t pt-2">
-                        <Badge
-                            variant={
-                                event.status === 'completed' ? 'default' :
-                                    event.status === 'in_progress' ? 'secondary' :
-                                        event.status === 'cancelled' ? 'destructive' :
-                                            'outline'
-                            }
-                            className="text-xs"
-                        >
-                            {event.status === 'completed' && '✓ Completado'}
-                            {event.status === 'in_progress' && '▶ En Progreso'}
-                            {event.status === 'scheduled' && '📅 Programado'}
-                            {event.status === 'cancelled' && '✗ Cancelado'}
-                        </Badge>
-                    </div>
-
-                    {/* Notas públicas */}
-                    {event.notes_public && (
-                        <div className="border-t pt-2">
-                            <p className="text-xs font-medium text-slate-700 mb-1">Notas:</p>
-                            <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
-                                {event.notes_public}
-                            </p>
-                        </div>
-                    )}
-
-                    <p className="text-xs text-slate-400 italic border-t pt-2">
-                        Click para ver detalles completos
-                    </p>
-                </div>
-            </HoverCardContent>
-        </HoverCard>
-    );
-});
-
-EventComponent.displayName = 'EventComponent';
-
-
-const HorarioCalendario = React.forwardRef((props, ref) => {
-    const {
-        events,
-        date,
-        view,
-        onNavigate,
-        onView,
-        onSelectEvent,
-        onCreateAtTime,
-        onMoveEvent,
-        onResizeEvent,
-        users = [],
-        isCleanerView = false,
-        selectedCleanerId = null,
-        isReadOnly = false,
-        assignedVehicle = null,
-        requiredKeys = [],
-        currentUser,
-        base44,
-        setNotification,
-        loadEvents,
-        highlightedCleanerId = null, // NUEVO: prop para resaltado
-    } = props;
-
+export default function HorarioCalendario({ 
+    events, 
+    date, 
+    view, 
+    onNavigate, 
+    onView, 
+    onSelectEvent, 
+    onCreateAtTime, 
+    onMoveEvent, 
+    onResizeEvent, 
+    users = [], 
+    isCleanerView = false, 
+    selectedCleanerId = null, 
+    isReadOnly = false, 
+    assignedVehicle = null, 
+    requiredKeys = [],
+    currentUser, // New prop for handleClockOut
+    base44,      // New prop for handleClockOut (assuming it's passed down)
+    setNotification, // New prop for handleClockOut
+    loadEvents   // New prop for handleClockOut
+}) {
     const [selectedDate, setSelectedDate] = useState(date);
     const [draggedEvent, setDraggedEvent] = useState(null);
     const [draggedEventOffsetY, setDraggedEventOffsetY] = useState(0);
@@ -350,13 +99,13 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
 
             const gridRect = calendarGridRef.current.getBoundingClientRect();
             let yPositionInGrid = e.clientY - gridRect.top + calendarGridRef.current.scrollTop;
-
+            
             // Clampar yPositionInGrid al rango visible
             yPositionInGrid = Math.max(0, Math.min(TOTAL_DISPLAY_HEIGHT_PX, yPositionInGrid));
 
             // Calcular minutos totales desde el inicio de la cuadrícula visible (en UTC)
             let totalMinutesFromGridStart = (yPositionInGrid / HOUR_HEIGHT) * 60;
-
+            
             const originalEventStart = parseISOAsUTC(resizingEvent.originalStartTime);
             const originalEventEnd = parseISOAsUTC(resizingEvent.originalEndTime);
 
@@ -370,10 +119,10 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                     0
                 )
             );
-
+            
             // Sumar los minutos calculados a la fecha de referencia y luego redondear (en UTC)
             const snappedDateTime = roundToNearestMinutes(addMinutes(refDateForSnapping, totalMinutesFromGridStart), { nearestTo: 15 });
-
+            
             const snappedHour = snappedDateTime.getUTCHours();
             const snappedMinute = snappedDateTime.getUTCMinutes();
 
@@ -407,7 +156,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
 
             // NUEVO: Mostrar indicador visual con la nueva hora
             const indicatorTopInViewport = e.clientY - 30; // Posicionar un poco arriba del cursor
-
+            
             // Encontrar el elemento de la columna del día para obtener el ancho
             const dayColumn = e.target.closest('[data-day-column]') || e.target.closest('.relative');
             let indicatorWidth = 200; // ancho por defecto
@@ -442,13 +191,13 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
 
             const gridRect = calendarGridRef.current.getBoundingClientRect();
             let yPositionInGrid = e.clientY - gridRect.top + calendarGridRef.current.scrollTop;
-
+            
             // Clampar yPositionInGrid al rango visible
             yPositionInGrid = Math.max(0, Math.min(TOTAL_DISPLAY_HEIGHT_PX, yPositionInGrid));
 
             // Calcular minutos totales desde el inicio de la cuadrícula visible (e.g., 6 AM UTC)
             let totalMinutesFromGridStart = (yPositionInGrid / HOUR_HEIGHT) * 60;
-
+            
             const originalEventStart = parseISOAsUTC(resizingEvent.originalStartTime);
             const originalEventEnd = parseISOAsUTC(resizingEvent.originalEndTime);
 
@@ -462,10 +211,10 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                     0
                 )
             );
-
+            
             // Sumar los minutos calculados a la fecha de referencia y luego redondear al minuto más cercano (15) en UTC
             const snappedDateTime = roundToNearestMinutes(addMinutes(refDateForSnapping, totalMinutesFromGridStart), { nearestTo: 15 });
-
+            
             const snappedHour = snappedDateTime.getUTCHours();
             const snappedMinute = snappedDateTime.getUTCMinutes();
 
@@ -496,12 +245,12 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                     newStart = addMinutes(originalEventEnd, -15);
                 }
             }
-
+            
             // Solo llamar a onResizeEvent si las horas han cambiado realmente
-            if (onResizeEvent && (newStart.getTime() !== originalEventStart.getTime() || newEnd.getTime() !== originalEventEnd.getTime())) {
+            if (newStart.getTime() !== originalEventStart.getTime() || newEnd.getTime() !== originalEventEnd.getTime()) {
                 onResizeEvent(resizingEvent.id, newStart, newEnd);
             }
-
+            
             setResizingEvent(null);
         };
 
@@ -512,14 +261,14 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [resizingEvent, onResizeEvent, currentTime]);
+    }, [resizingEvent, onResizeEvent, currentTime]); // Added currentTime dependency for potential active cleaner calculation
 
     const cleanerNameMap = useMemo(() => {
         if (!users || users.length === 0) return new Map();
         // MODIFICADO: Priorizar display_name para el mapa de nombres
         return new Map(users.map(u => [u.id, (u.display_name || u.invoice_name || u.full_name)]));
     }, [users]);
-
+    
     const getCleanerNames = (cleanerIds) => {
         if (!cleanerIds || cleanerIds.length === 0) return 'Sin asignar';
         return cleanerIds
@@ -573,7 +322,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
             console.log('Creación de servicios deshabilitada para limpiadores o en modo de solo lectura.');
             return;
         }
-
+        
         // clickDate is a local date object, hour/minute should be interpreted as UTC for event creation
         const targetDate = new Date(
             Date.UTC(
@@ -584,7 +333,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                 minute !== null ? minute : 0
             )
         );
-
+        
         onCreateAtTime(targetDate);
     };
 
@@ -595,16 +344,16 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
             console.log('Drag and drop deshabilitado para limpiadores, en modo de solo lectura o evento cancelado.');
             return false;
         }
-
+        
         // NUEVO: Calcular y guardar el offset del ratón respecto al borde superior del evento
         const offsetY = e.clientY - e.currentTarget.getBoundingClientRect().top;
         setDraggedEventOffsetY(offsetY);
 
         setDraggedEvent(event);
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', event.id);
+        e.dataTransfer.setData('text/plain', event.id); 
         setIsDragging(true); // NUEVO: Activar estado de arrastre
-
+        
         // Hide the original element to improve UX during drag
         const currentElement = e.currentTarget;
         if (currentElement) {
@@ -617,7 +366,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
     const handleDragEnd = (e) => {
         const currentElement = e.currentTarget;
         if (currentElement) {
-            currentElement.style.visibility = 'visible';
+           currentElement.style.visibility = 'visible';
         }
         setDraggedEvent(null);
         setDraggedEventOffsetY(0); // Resetear offset
@@ -629,7 +378,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
     // MODIFICADO: La lógica ahora se basa en la posición del ratón y el offset, no en la ranura específica
     const handleGridDragOver = (e, dayDate) => {
         if (!draggedEvent || isReadOnly || isCleanerView) return;
-
+        
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
@@ -637,15 +386,15 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         if (!calendarGridRef.current) return;
 
         const gridRect = calendarGridRef.current.getBoundingClientRect();
-
+        
         // Calcular la posición Y del borde superior del evento dentro de la cuadrícula
         const yPositionInGrid = e.clientY - gridRect.top + calendarGridRef.current.scrollTop - draggedEventOffsetY;
-
+        
         // Convertir la posición Y a minutos y ajustarla a la ranura de 15 min más cercana (en UTC)
         const hoursFromGridTop = yPositionInGrid / HOUR_HEIGHT;
         const totalMinutesFromGridTop = Math.max(0, hoursFromGridTop * 60);
         const snappedTotalMinutes = Math.round(totalMinutesFromGridTop / 15) * 15;
-
+        
         const snappedHour = VISIBLE_START_HOUR + Math.floor(snappedTotalMinutes / 60);
         const snappedMinute = snappedTotalMinutes % 60;
 
@@ -667,14 +416,14 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
             )
         );
         const slotKey = `${dayDate.toISOString().split('T')[0]}-${snappedHour}-${snappedMinute}`;
-
+        
         if (slotKey !== lastHoveredSlotKey.current) {
             lastHoveredSlotKey.current = slotKey;
-
+            
             // Posición del indicador visual
             const indicatorTopInGrid = (snappedTotalMinutes / 60) * HOUR_HEIGHT;
             const indicatorTopInViewport = indicatorTopInGrid - calendarGridRef.current.scrollTop + gridRect.top;
-
+            
             // Usar la columna del día actual como referencia para la posición horizontal
             const dayColumnElement = e.currentTarget;
             const dayColumnRect = dayColumnElement.getBoundingClientRect();
@@ -688,7 +437,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
             });
         }
     };
-
+    
     // Keeping handleGridDragLeave for correct drag indicator behavior
     const handleGridDragLeave = (e) => {
         if (isReadOnly || isCleanerView) return;
@@ -703,19 +452,19 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
     const handleGridDrop = (e, dayDate) => {
         e.preventDefault();
         e.stopPropagation();
-
+        
         if (!draggedEvent || !onMoveEvent || isReadOnly || isCleanerView || !calendarGridRef.current) {
             console.error('Drop failed: No dragged event in state, onMoveEvent handler, or calendar is read-only or cleaner view.');
             return;
         }
-
+        
         const gridRect = calendarGridRef.current.getBoundingClientRect();
         const yPositionInGrid = e.clientY - gridRect.top + calendarGridRef.current.scrollTop - draggedEventOffsetY;
-
+        
         const hoursFromGridTop = yPositionInGrid / HOUR_HEIGHT;
         const totalMinutesFromGridTop = Math.max(0, hoursFromGridTop * 60);
         const snappedTotalMinutes = Math.round(totalMinutesFromGridTop / 15) * 15;
-
+        
         let snappedHour = VISIBLE_START_HOUR + Math.floor(snappedTotalMinutes / 60);
         let snappedMinute = snappedTotalMinutes % 60;
 
@@ -729,7 +478,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
             snappedHour = VISIBLE_END_HOUR - 1;
             snappedMinute = 45; // Last 15-min slot
         }
-
+        
         // dayDate es un objeto Date local, crear un objeto Date UTC para el nuevo inicio
         const newStartTime = new Date(
             Date.UTC(
@@ -740,12 +489,12 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                 snappedMinute
             )
         );
-
+        
         const originalDurationMs = parseISOAsUTC(draggedEvent.end_time).getTime() - parseISOAsUTC(draggedEvent.start_time).getTime();
         const newEndTime = new Date(newStartTime.getTime() + originalDurationMs);
-
+        
         onMoveEvent(draggedEvent.id, newStartTime, newEndTime);
-
+        
         // Limpieza de estado manejada por handleDragEnd, que se dispara automáticamente después
     };
 
@@ -754,7 +503,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         if (isReadOnly || isCleanerView || event.status === 'cancelled') return;
         e.preventDefault();
         e.stopPropagation(); // Evita que se dispare el drag del evento completo
-
+        
         setResizingEvent({
             id: event.id,
             direction: direction, // 'top' or 'bottom'
@@ -765,108 +514,108 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
 
     const handleClockOut = async (event) => {
         if (!currentUser) return;
-
+    
         // Prevenir múltiples ejecuciones simultáneas para el mismo servicio
         if (processingSchedules.has(event.id)) {
-            console.log('⚠️ Este servicio ya está siendo procesado, esperando...');
-            return;
+          console.log('⚠️ Este servicio ya está siendo procesado, esperando...');
+          return;
         }
-
+    
         try {
-            setProcessingSchedules(prev => new Set([...prev, event.id]));
-
-            const now = new Date().toISOString();
-            const updatedClockInData = event.clock_in_data ? [...event.clock_in_data] : [];
-            const existingClockIn = updatedClockInData.find(c => c.cleaner_id === currentUser.id);
-
-            if (!existingClockIn || existingClockIn.clock_out_time) {
-                setNotification({
-                    type: "error",
-                    message: "No tienes un Clock In activo o ya hiciste Clock Out."
-                });
-                return;
-            }
-
-            let userLat = null;
-            let userLng = null;
-            try {
-                const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
-                });
-                userLat = position.coords.latitude;
-                userLng = position.coords.longitude;
-            } catch (geoError) {
-                console.warn("No se pudo obtener la ubicación:", geoError);
-            }
-
-            existingClockIn.clock_out_time = now;
-            if (userLat && userLng) {
-                existingClockIn.clock_out_location = `${userLat},${userLng}`;
-            }
-
-            const allClockedOut = updatedClockInData.every(c => c.clock_out_time);
-            // Store the original status before modification for the WorkEntries check
-            const originalEventStatus = event.status;
-            const newStatus = allClockedOut ? 'completed' : event.status;
-
-            const { id, created_date, updated_date, created_by, ...updateData } = event;
-            updateData.clock_in_data = updatedClockInData;
-            updateData.status = newStatus;
-
-            await base44.entities.Schedule.update(event.id, updateData);
-
-            // MEJORA: Solo llamar a processScheduleForWorkEntries si el servicio cambió a 'completed'
-            // y no se había procesado antes
-            if (newStatus === 'completed' && originalEventStatus !== 'completed') {
-                console.log('✓ Servicio completado por primera vez, invocando processScheduleForWorkEntries');
-                try {
-                    const response = await base44.functions.invoke('processScheduleForWorkEntries', {
-                        scheduleId: event.id,
-                        mode: 'create'
-                    });
-
-                    if (response.data && response.data.success) {
-                        console.log('✓ WorkEntries procesadas:', response.data.message);
-                    } else {
-                        console.warn('⚠️ Respuesta inesperada al procesar WorkEntries:', response.data);
-                    }
-                } catch (processError) {
-                    console.error('Error al procesar WorkEntries:', processError);
-                    // No bloqueamos el Clock Out si falla el procesamiento
-                }
-            } else if (newStatus === 'completed') {
-                console.log('ℹ️ Servicio ya estaba completado, no se vuelve a procesar WorkEntries');
-            }
-
-            setNotification({
-                type: "success",
-                message: `Clock Out registrado exitosamente${allClockedOut ? '. Servicio completado.' : ''}`
-            });
-
-            await loadEvents();
-        } catch (error) {
-            console.error("Error en Clock Out:", error);
+          setProcessingSchedules(prev => new Set([...prev, event.id]));
+    
+          const now = new Date().toISOString();
+          const updatedClockInData = event.clock_in_data ? [...event.clock_in_data] : [];
+          const existingClockIn = updatedClockInData.find(c => c.cleaner_id === currentUser.id);
+    
+          if (!existingClockIn || existingClockIn.clock_out_time) {
             setNotification({
                 type: "error",
-                message: "Error al registrar Clock Out. Por favor, inténtalo de nuevo."
+                message: "No tienes un Clock In activo o ya hiciste Clock Out."
             });
+            return;
+          }
+    
+          let userLat = null;
+          let userLng = null;
+          try {
+            const position = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+            });
+            userLat = position.coords.latitude;
+            userLng = position.coords.longitude;
+          } catch (geoError) {
+            console.warn("No se pudo obtener la ubicación:", geoError);
+          }
+    
+          existingClockIn.clock_out_time = now;
+          if (userLat && userLng) {
+            existingClockIn.clock_out_location = `${userLat},${userLng}`;
+          }
+    
+          const allClockedOut = updatedClockInData.every(c => c.clock_out_time);
+          // Store the original status before modification for the WorkEntries check
+          const originalEventStatus = event.status; 
+          const newStatus = allClockedOut ? 'completed' : event.status;
+    
+          const { id, created_date, updated_date, created_by, ...updateData } = event;
+          updateData.clock_in_data = updatedClockInData;
+          updateData.status = newStatus;
+    
+          await base44.entities.Schedule.update(event.id, updateData);
+    
+          // MEJORA: Solo llamar a processScheduleForWorkEntries si el servicio cambió a 'completed'
+          // y no se había procesado antes
+          if (newStatus === 'completed' && originalEventStatus !== 'completed') {
+            console.log('✓ Servicio completado por primera vez, invocando processScheduleForWorkEntries');
+            try {
+              const response = await base44.functions.invoke('processScheduleForWorkEntries', {
+                scheduleId: event.id,
+                mode: 'create'
+              });
+              
+              if (response.data && response.data.success) {
+                console.log('✓ WorkEntries procesadas:', response.data.message);
+              } else {
+                console.warn('⚠️ Respuesta inesperada al procesar WorkEntries:', response.data);
+              }
+            } catch (processError) {
+              console.error('Error al procesar WorkEntries:', processError);
+              // No bloqueamos el Clock Out si falla el procesamiento
+            }
+          } else if (newStatus === 'completed') {
+            console.log('ℹ️ Servicio ya estaba completado, no se vuelve a procesar WorkEntries');
+          }
+    
+          setNotification({
+            type: "success",
+            message: `Clock Out registrado exitosamente${allClockedOut ? '. Servicio completado.' : ''}`
+          });
+          
+          await loadEvents();
+        } catch (error) {
+          console.error("Error en Clock Out:", error);
+          setNotification({
+            type: "error",
+            message: "Error al registrar Clock Out. Por favor, inténtalo de nuevo."
+          });
         } finally {
-            // Limpiar el registro de procesamiento después de un breve delay
-            setTimeout(() => {
-                setProcessingSchedules(prev => {
-                    const newSet = new Set(prev);
-                    newSet.delete(event.id);
-                    return newSet;
-                });
-            }, 2000);
+          // Limpiar el registro de procesamiento después de un breve delay
+          setTimeout(() => {
+            setProcessingSchedules(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(event.id);
+              return newSet;
+            });
+          }, 2000);
         }
     };
-
+    
     // Pre-filter events based on cleaner view and selected cleaner
     const eventsToDisplay = useMemo(() => {
         if (!events) return [];
         if (isCleanerView && selectedCleanerId) {
-            return events.filter(event =>
+            return events.filter(event => 
                 event.cleaner_ids && event.cleaner_ids.includes(selectedCleanerId)
             );
         }
@@ -881,34 +630,36 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         const month = String(dayDate.getMonth() + 1).padStart(2, '0');
         const day = String(dayDate.getDate()).padStart(2, '0');
         const columnDateString = `${year}-${month}-${day}`;
-
-        // console.log(`[HorarioCalendario] Filtrando eventos para: ${columnDateString}`); // DEBUG
+        
+        console.log(`[HorarioCalendario] Filtrando eventos para: ${columnDateString}`);
 
         const filtered = eventsToDisplay.filter(event => {
             if (!event.start_time) {
                 return false;
             }
-
+            
             // Extraer la fecha del ISO string sin hacer ninguna conversión
             // Esto funciona porque los ISO strings siempre tienen el formato:
             // "YYYY-MM-DDTHH:MM:SS.sssZ" o "YYYY-MM-DDTHH:MM:SS.sss"
             const eventDateString = event.start_time.slice(0, 10);
-
+            
             const matches = eventDateString === columnDateString;
-
-            // if (matches) { console.log(`[HorarioCalendario] ✓ Evento coincide: ${event.client_name} - ${event.start_time}`); } // DEBUG
-
+            
+            if (matches) {
+                console.log(`[HorarioCalendario] ✓ Evento coincide: ${event.client_name} - ${event.start_time}`);
+            }
+            
             return matches;
         });
-
-        // console.log(`[HorarioCalendario] Eventos encontrados para ${columnDateString}: ${filtered.length}`); // DEBUG
+        
+        console.log(`[HorarioCalendario] Eventos encontrados para ${columnDateString}: ${filtered.length}`);
         return filtered;
     };
 
     const calculateEventPosition = (event) => {
         const startTime = parseISOAsUTC(event.start_time);
         const endTime = parseISOAsUTC(event.end_time);
-
+        
         // La lógica de cálculo de horas y minutos ahora usará los componentes UTC
         const startInHours = startTime.getUTCHours() + (startTime.getUTCMinutes() / 60);
         const endInHours = endTime.getUTCHours() + (endTime.getUTCMinutes() / 60);
@@ -921,7 +672,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         // Clip the event to the visible time range (in UTC)
         const visibleEventStart = Math.max(startInHours, VISIBLE_START_HOUR);
         const visibleEventEnd = Math.min(endInHours, VISIBLE_END_HOUR);
-
+        
         // Calculate position relative to the visible start hour (in UTC)
         const startPositionRelative = visibleEventStart - VISIBLE_START_HOUR;
         const duration = visibleEventEnd - visibleEventStart;
@@ -940,36 +691,36 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         const visibleDayEvents = dayEvents.filter(event => {
             const eventStart = parseISOAsUTC(event.start_time);
             const eventEnd = parseISOAsUTC(event.end_time);
-            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMonth() / 60); // Bug here: should be getUTCMinutes() / 60
-            const endInHours = eventEnd.getUTCHours() + (eventEnd.getUTCMinutes() / 60);
+            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMonth() / 60);
+            const endInHours = eventEnd.getUTCHours() + (eventEnd.getUTCMinutes() / 60); 
             return !(endInHours <= VISIBLE_START_HOUR || startInHours >= VISIBLE_END_HOUR);
         });
 
-        const sortedEvents = [...visibleDayEvents].sort((a, b) =>
+        const sortedEvents = [...visibleDayEvents].sort((a, b) => 
             parseISOAsUTC(a.start_time).getTime() - parseISOAsUTC(b.start_time).getTime()
         );
 
         const columns = [];
-
+        
         sortedEvents.forEach(event => {
             const eventStart = parseISOAsUTC(event.start_time);
             const eventEnd = parseISOAsUTC(event.end_time);
-
+            
             let columnIndex = 0;
             let placed = false;
-
+            
             while (!placed) {
                 if (!columns[columnIndex]) {
                     columns[columnIndex] = [];
                 }
-
+                
                 const hasConflict = columns[columnIndex].some(existingEvent => {
                     const existingStart = parseISOAsUTC(existingEvent.start_time);
                     const existingEnd = parseISOAsUTC(existingEvent.end_time);
-
+                    
                     return (eventStart.getTime() < existingEnd.getTime() && eventEnd.getTime() > existingStart.getTime());
                 });
-
+                
                 if (!hasConflict) {
                     columns[columnIndex].push(event);
                     placed = true;
@@ -996,12 +747,12 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
     // Función para obtener nombres de limpiadores con diferentes niveles de detalle
     const getCleanersDisplay = (cleanerIds, compact = false) => {
         if (!cleanerIds || cleanerIds.length === 0) return 'Sin asignar';
-
+        
         const cleanerNames = cleanerIds
             .map(id => {
                 const name = cleanerNameMap.get(id);
                 if (!name) return null;
-
+                
                 if (compact) {
                     // Para espacios muy pequeños, usar iniciales
                     return name.split(' ')
@@ -1013,19 +764,19 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                 }
             })
             .filter(Boolean);
-
+        
         if (compact && cleanerNames.length > 3) {
             // Si hay muchos limpiadores y poco espacio, mostrar solo los primeros + count
             return `${cleanerNames.slice(0, 2).join(',')},+${cleanerNames.length - 2}`;
         }
-
+        
         return cleanerNames.join(', ');
     };
 
     // Enhanced function to calculate service progress with person-hours logic
     const getServiceProgress = (event) => {
         if (isCleanerView) return null;
-
+        
         // Check if there's any clock-in data
         if (!event.clock_in_data || event.clock_in_data.length === 0) return null;
 
@@ -1040,11 +791,11 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         // STEP 2: Calculate Person-Hours Completed
         let personHoursCompleted = 0;
         let activeCleaners = 0;
-
+        
         event.clock_in_data.forEach(clockData => {
             if (clockData.clock_in_time) {
                 const clockInTime = parseISOAsUTC(clockData.clock_in_time);
-
+                
                 if (clockData.clock_out_time) {
                     // Cleaner has completed their work
                     const clockOutTime = parseISOAsUTC(clockData.clock_out_time);
@@ -1093,18 +844,18 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
             personHoursRemaining,
             activeCleaners,
             timeRemainingPerPerson,
-
+            
             // Timing information
             scheduledEnd,
             projectedEndTime,
             isOvertime,
             overtimeHours,
             isRunningLate,
-
+            
             // Additional info
             assignedCleaners,
             scheduledDurationHours,
-
+            
             // Legacy compatibility (converted to seconds for existing code)
             elapsedTime: personHoursCompleted * 3600,
             remainingTime: personHoursRemaining * 3600,
@@ -1115,10 +866,10 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
     // Enhanced format time helper
     const formatTimeHMS = (hours) => {
         if (hours <= 0) return "0m";
-
+        
         const h = Math.floor(hours);
         const m = Math.floor((hours % 1) * 60);
-
+        
         if (h > 0) {
             return m > 0 ? `${h}h ${m}m` : `${h}h`;
         } else {
@@ -1126,19 +877,186 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         }
     };
 
-    // Callback para renderizar eventos, ahora memoizado y pasando highlightedCleanerId
-    const renderEvent = useCallback((event) => {
-        return (
-            <EventComponent
-                event={event}
-                users={users}
-                isCleanerView={isCleanerView}
-                onEventClick={() => onSelectEvent && onSelectEvent(event)}
-                highlightedCleanerId={highlightedCleanerId} // NUEVO: pasar prop
-            />
-        );
-    }, [users, isCleanerView, onSelectEvent, highlightedCleanerId]);
+    // Componente de Evento Refactorizado
+    const EventBlock = ({ event, onClick, showFullInfo = false }) => {
+        const isCancelled = event.status === 'cancelled';
+        const isUnassigned = !event.cleaner_ids || event.cleaner_ids.length === 0;
+        const progress = getServiceProgress(event);
+        
+        // ARREGLADO: Determinar estado del limpiador específico si es vista de limpiador
+        let cleanerStatus = null;
+        if (isCleanerView && selectedCleanerId) {
+            const cleanerClockData = event.clock_in_data?.find(c => c.cleaner_id === selectedCleanerId); // Corrected property to cleaner_id
+            
+            // Solo establecer estado si el limpiador está asignado a este evento
+            if (event.cleaner_ids && event.cleaner_ids.includes(selectedCleanerId)) {
+                if (cleanerClockData) {
+                    if (cleanerClockData.clock_out_time) {
+                        cleanerStatus = { type: 'completed', label: 'Completado', color: 'bg-slate-100 text-slate-800', icon: '⚪️' };
+                    } else if (cleanerClockData.clock_in_time) {
+                        cleanerStatus = { type: 'in_progress', label: 'En Progreso', color: 'bg-green-100 text-green-800', icon: '🟢' };
+                    } else {
+                        cleanerStatus = { type: 'scheduled', label: 'Programado', color: 'bg-blue-100 text-blue-800', icon: '🔵' };
+                    }
+                } else {
+                    // ARREGLADO: Usar el estado del servicio global como respaldo
+                    if (event.status === 'completed') {
+                        cleanerStatus = { type: 'completed', label: 'Completado', color: 'bg-slate-100 text-slate-800', icon: '⚪️' };
+                    } else if (event.status === 'in_progress') {
+                        cleanerStatus = { type: 'in_progress', label: 'En Progreso', color: 'bg-green-100 text-green-800', icon: '🟢' };
+                    } else {
+                        cleanerStatus = { type: 'scheduled', label: 'Programado', color: 'bg-blue-100 text-blue-800', icon: '🔵' };
+                    }
+                }
+            }
+        }
+        
+        // Usamos una función de cálculo de posición temporal solo para obtener la duración
+        const originalStartTime = parseISOAsUTC(event.start_time);
+        const originalEndTime = parseISOAsUTC(event.end_time);
+        const originalDuration = (originalEndTime.getUTCHours() + originalEndTime.getUTCMinutes() / 60) - (originalStartTime.getUTCHours() + originalStartTime.getUTCMinutes() / 60);
+        
+        const cardClass = isCancelled 
+            ? "h-full bg-slate-200 border-slate-300 text-slate-500"
+            : `h-full text-white`;
+        
+        const titleClass = isCancelled
+            ? "font-bold text-sm leading-tight line-through"
+            : "font-bold text-sm leading-tight";
 
+        return (
+            <Card 
+                onClick={onClick}
+                className={`${cardClass} rounded-lg overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md relative ${isUnassigned && !isCancelled ? 'border-4 border-red-500 ring-2 ring-red-200' : 'border-2 hover:border-white/50'}`}
+                style={{ backgroundColor: isCancelled ? '#e2e8f0' : (isUnassigned ? '#dc2626' : event.color || '#3b82f6') }} // Rojo si no está asignado
+            >
+                {event.has_access && !isCancelled && (
+                    <div className="absolute top-1 right-1 bg-white/20 backdrop-blur-sm p-1 rounded-full" title={`Acceso: ${event.access_identifier}`}>
+                        <KeySquare className="w-3 h-3 text-white" />
+                    </div>
+                )}
+
+                <div className="p-1.5 md:p-2 flex flex-col h-full">
+                    <div className="flex-1 overflow-hidden">
+                        <div className="flex items-center">
+                            <p className={titleClass}>{event.client_name}</p>
+                            {isCancelled && <Badge variant="destructive" className="ml-2 text-xs">CANCELADO</Badge>}
+                        </div>
+                        
+                        <div className="text-xs opacity-90 font-medium">
+                            {formatTimeUTC(parseISOAsUTC(event.start_time))} - {formatTimeUTC(parseISOAsUTC(event.end_time))}
+                        </div>
+                        
+                        {/* NUEVO: Mostrar estado del limpiador en vista de limpiador */}
+                        {isCleanerView && cleanerStatus && (
+                            <div className="mt-2 mb-1">
+                                <Badge className={`${cleanerStatus.color} text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1 w-fit ${cleanerStatus.type === 'in_progress' ? 'animate-pulse' : ''}`}>
+                                    <span>{cleanerStatus.icon}</span>
+                                    <span>{cleanerStatus.label}</span>
+                                </Badge>
+                                {/* Added a conditional button for clock out */}
+                                {cleanerStatus.type === 'in_progress' && currentUser?.id === selectedCleanerId && (
+                                    <Button 
+                                        variant="secondary" 
+                                        size="xs" 
+                                        className="mt-2 text-xs font-semibold"
+                                        onClick={(e) => { e.stopPropagation(); handleClockOut(event); }} // Stop propagation to prevent event card click
+                                        disabled={processingSchedules.has(event.id)} // Disable if already processing
+                                    >
+                                        {processingSchedules.has(event.id) ? 'Cerrando...' : 'Cerrar Servicio'}
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Enhanced Active Service Progress - ADMIN ONLY */}
+                        {!isCleanerView && progress && progress.activeCleaners > 0 && (
+                            <div className="mt-2 mb-1">
+                                {progress.isRunningLate ? (
+                                    <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        TARDE: Fin {format(progress.projectedEndTime, 'HH:mm')} {/* projectedEndTime is local */}
+                                    </div>
+                                ) : progress.isOvertime ? (
+                                    <div className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        OVERTIME: +{formatTimeHMS(progress.overtimeHours)}
+                                    </div>
+                                ) : (
+                                    <div className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                        <Play className="w-3 h-3" />
+                                        {formatTimeHMS(progress.timeRemainingPerPerson)} por persona
+                                    </div>
+                                )}
+                                
+                                <div className="text-xs text-white/90 mt-1 space-y-1">
+                                    <div className="flex justify-between">
+                                        <span>Progreso:</span>
+                                        <span>{formatTimeHMS(progress.personHoursCompleted)} / {formatTimeHMS(progress.totalWorkUnits)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Activos:</span>
+                                        <span>{progress.activeCleaners} de {progress.assignedCleaners}</span>
+                                    </div>
+                                    {progress.projectedEndTime && (
+                                        <div className="flex justify-between">
+                                            <span>Fin estimado:</span>
+                                            <span className="font-bold">{format(progress.projectedEndTime, 'HH:mm')}</span> {/* projectedEndTime is local */}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Completed Service Summary */}
+                        {!isCleanerView && progress && progress.activeCleaners === 0 && progress.personHoursCompleted > 0 && (
+                            <div className="mt-2 mb-1">
+                                <div className="bg-slate-100 text-slate-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                    <CheckCircle className="w-3 h-3" />
+                                    COMPLETADO
+                                </div>
+                                <div className="text-xs text-white/80 mt-1">
+                                    Total: {formatTimeHMS(progress.personHoursCompleted)} horas-persona
+                                    {progress.isOvertime && (
+                                        <span className="text-red-200 block">
+                                            (+{formatTimeHMS(progress.overtimeHours)} extra)
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {!isCleanerView && (
+                            isUnassigned && !isCancelled ? (
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/30 px-2 py-1 rounded-full mt-2 w-fit">
+                                    <AlertTriangle className="w-4 h-4" />
+                                    <span>SIN ASIGNAR</span>
+                                </div>
+                            ) : (
+                                <div className="text-xs opacity-90 mt-1 font-medium flex items-center gap-1 truncate">
+                                    <Users className="w-3 h-3 flex-shrink-0" />
+                                    <span className="truncate">
+                                        {originalDuration < 1 ? 
+                                            getCleanersDisplay(event.cleaner_ids, true) : 
+                                            getCleanersDisplay(event.cleaner_ids, false) 
+                                        }
+                                    </span>
+                                </div>
+                            )
+                        )}
+                        
+                        {/* Dirección no clickeable */}
+                        {showFullInfo && (
+                            <div className="text-xs opacity-80 mt-1 truncate flex items-center gap-1">
+                                <Navigation className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{event.client_address || 'Dirección no disponible'}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </Card>
+        );
+    };
 
     const renderDayOrWeekView = (days) => {
         const isWeekView = days.length > 1;
@@ -1149,9 +1067,9 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                 timeSlots.push({ hour: h, minute: m });
             }
         }
-
+        
         return (
-            <div className="flex flex-col h-full" ref={ref}> {/* Use forwardRef here */}
+            <div className="flex flex-col h-full">
                 {isWeekView && (
                     <div className="flex border-b border-gray-200 sticky top-0 bg-white z-20">
                         <div className="w-20 flex-shrink-0 border-r border-gray-200"></div>
@@ -1163,7 +1081,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                         ))}
                     </div>
                 )}
-
+                
                 <div className="flex flex-1 overflow-auto" ref={calendarGridRef}>
                     {/* Columna de horas (Mostrando horas UTC) */}
                     <div className="w-20 flex-shrink-0 border-r border-gray-200">
@@ -1171,19 +1089,19 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                             const hour = VISIBLE_START_HOUR + i;
                             return (
                                 <div key={hour} className="p-2 text-sm text-gray-500 bg-gray-50 border-b border-gray-100 flex items-center justify-center"
-                                    style={{ height: `${HOUR_HEIGHT}px` }}
+                                    style={{height: `${HOUR_HEIGHT}px`}}
                                 >
                                     {hour.toString().padStart(2, '0')}:00
                                 </div>
                             );
                         })}
                     </div>
-
+                    
                     {/* Días de la semana / Día individual */}
                     <div className="flex flex-1">
                         {days.map((day) => (
-                            <div
-                                key={day.toISOString()}
+                            <div 
+                                key={day.toISOString()} 
                                 className="flex-1 relative border-r border-gray-200"
                                 style={{ height: `${TOTAL_DISPLAY_HEIGHT_PX}px` }}
                                 onDragOver={(e) => handleGridDragOver(e, day)}
@@ -1196,13 +1114,13 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                                     const slotTimeUTC = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute));
                                     const slotKey = `${day.toISOString().split('T')[0]}-${hour}-${minute}`;
                                     const topPositionInPx = ((hour - VISIBLE_START_HOUR) + (minute / 60)) * HOUR_HEIGHT;
-
+                                    
                                     return (
                                         <div
                                             key={slotKey}
                                             className="absolute w-full border-b border-dashed border-gray-100 transition-colors hover:bg-blue-50/70 pointer-events-auto"
-                                            style={{
-                                                top: `${topPositionInPx}px`,
+                                            style={{ 
+                                                top: `${topPositionInPx}px`, 
                                                 height: `${SLOT_HEIGHT}px`,
                                                 zIndex: 0
                                             }}
@@ -1216,7 +1134,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                                 {(() => {
                                     const dayEvents = getEventsForDay(day);
                                     const organizedEvents = organizeOverlappingEvents(dayEvents);
-
+                                    
                                     return organizedEvents.map(event => {
                                         const position = calculateEventPosition(event);
                                         // Si el evento no es visible (o solo una parte mínima), no lo renderizamos o ajustamos su posición.
@@ -1224,10 +1142,10 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
 
                                         const columnWidth = 100 / event.totalColumns;
                                         const leftPosition = event.columnIndex * columnWidth;
-
+                                        
                                         const topPx = position.startPosition * HOUR_HEIGHT;
                                         const heightPx = Math.max(position.duration * HOUR_HEIGHT, 32); // Altura mínima de 32px
-
+                                        
                                         return (
                                             <div
                                                 key={event.id}
@@ -1259,7 +1177,11 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                                                     </>
                                                 )}
 
-                                                {renderEvent(event)} {/* Using the memoized renderEvent */}
+                                                <EventBlock 
+                                                    event={event}
+                                                    onClick={() => onSelectEvent(event)}
+                                                    showFullInfo={!isWeekView} // Show full info only in day view
+                                                />
                                             </div>
                                         );
                                     });
@@ -1273,7 +1195,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
     };
 
     const renderDayView = () => renderDayOrWeekView([selectedDate]);
-
+    
     const renderWeekView = () => {
         const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
         const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
@@ -1284,10 +1206,10 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
         const monthStart = startOfMonth(selectedDate);
         const monthEnd = endOfMonth(selectedDate);
         const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-        const weeks = eachWeekOfInterval({ start: calendarStart, end: endOfWeek(monthEnd, { weekStartsOn: 1 }) }, { weekStartsOn: 1 });
+        const weeks = eachWeekOfInterval({ start: calendarStart, end: endOfWeek(monthEnd, {weekStartsOn: 1}) }, { weekStartsOn: 1 });
 
         return (
-            <div className="flex flex-col h-full" ref={ref}> {/* Use forwardRef here */}
+            <div className="flex flex-col h-full">
                 {/* Header de días de la semana */}
                 <div className="grid grid-cols-7 border-b bg-slate-50">
                     {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => (
@@ -1296,19 +1218,19 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                         </div>
                     ))}
                 </div>
-
+                
                 {/* Semanas del mes */}
                 <div className="flex-1 grid grid-rows-6">
                     {weeks.map((weekStart, weekIndex) => (
                         <div key={weekIndex} className="grid grid-cols-7 border-b">
-                            {eachDayOfInterval({ start: weekStart, end: endOfWeek(weekStart, { weekStartsOn: 1 }) }).map(day => {
+                            {eachDayOfInterval({ start: weekStart, end: endOfWeek(weekStart, {weekStartsOn: 1}) }).map(day => {
                                 const dayEvents = getEventsForDay(day);
                                 const isCurrentMonth = isSameMonth(day, selectedDate);
                                 const isTodayDate = isToday(day);
-
+                                
                                 return (
-                                    <div
-                                        key={day.toISOString()}
+                                    <div 
+                                        key={day.toISOString()} 
                                         className={`border-r p-3 min-h-[180px] relative overflow-y-auto transition-colors ${
                                             !isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'
                                         } ${isTodayDate ? 'bg-blue-50 border-2 border-blue-200' : ''}`}
@@ -1326,15 +1248,19 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                                         }`}>
                                             {format(day, 'd')}
                                         </div>
-
+                                        
                                         {/* Eventos del día */}
                                         <div className="space-y-2">
                                             {dayEvents.map(event => (
                                                 <div key={event.id}>
-                                                    {renderEvent(event)} {/* Using the memoized renderEvent */}
+                                                    <EventBlock
+                                                        event={event}
+                                                        onClick={() => onSelectEvent(event)}
+                                                        showFullInfo={true}
+                                                    />
                                                 </div>
                                             ))}
-
+                                            
                                             {/* Espacio vacío clickeable SOLO PARA ADMIN Y CUANDO onCreateAtTime ESTÁ DISPONIBLE */}
                                             {dayEvents.length === 0 && isCurrentMonth && !isReadOnly && !isCleanerView && onCreateAtTime && (
                                                 <div className="empty-space h-24 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-blue-50 rounded-lg transition-all border-2 border-dashed border-gray-200 hover:border-blue-300">
@@ -1399,7 +1325,7 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
                     </div>
                 </div>
             </CardHeader>
-
+            
             <CardContent className="flex-1 p-0 overflow-auto">
                 {isCleanerView && view === 'day' ? (
                     <CleanerDayListView
@@ -1424,10 +1350,10 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
 
             {/* Indicador de arrastre - Sigue siendo solo para admin */}
             {!isCleanerView && dragIndicator.visible && (
-                <div
+                <div 
                     className="fixed flex items-center justify-center bg-blue-500/80 text-white text-sm font-bold rounded-lg shadow-xl z-50 pointer-events-none border-2 border-blue-300"
-                    style={{
-                        top: dragIndicator.top,
+                    style={{ 
+                        top: dragIndicator.top, 
                         left: dragIndicator.left,
                         width: dragIndicator.width,
                         height: `${SLOT_HEIGHT}px`,
@@ -1440,10 +1366,10 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
 
             {/* NUEVO: Indicador de redimensionamiento */}
             {!isCleanerView && resizeIndicator.visible && (
-                <div
+                <div 
                     className="fixed flex items-center justify-center bg-purple-500/90 text-white text-sm font-bold rounded-lg shadow-xl z-50 pointer-events-none border-2 border-purple-300 px-3 py-2"
-                    style={{
-                        top: resizeIndicator.top,
+                    style={{ 
+                        top: resizeIndicator.top, 
                         left: resizeIndicator.left,
                         maxWidth: resizeIndicator.width,
                         transition: 'top 0.05s ease, left 0.05s ease'
@@ -1454,8 +1380,4 @@ const HorarioCalendario = React.forwardRef((props, ref) => {
             )}
         </Card>
     );
-});
-
-HorarioCalendario.displayName = 'HorarioCalendario';
-
-export default HorarioCalendario;
+}
