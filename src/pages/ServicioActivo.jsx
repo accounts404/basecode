@@ -376,7 +376,9 @@ export default function ServicioActivoPage() {
     const openInMaps = (address) => {
         const encodedAddress = encodeURIComponent(address);
         const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-        window.open(mapsUrl, '_blank');
+        // Cambiar window.open por window.location.href para mejor compatibilidad móvil
+        // Esto permite volver a la app usando el botón "Atrás" del navegador
+        window.location.href = mapsUrl;
     };
 
     // CORREGIDO: Función para obtener notas estructuradas (siempre del cliente como fuente principal)
