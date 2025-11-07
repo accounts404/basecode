@@ -3,18 +3,11 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit, KeySquare, Navigation, Play, Square, CheckCircle, AlertTriangle, Car } from 'lucide-react';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, Edit, KeySquare, Navigation, Play, Square, CheckCircle, AlertTriangle, Car, MapPin, FileText } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, addMonths, subMonths, startOfMonth, endOfMonth, eachWeekOfInterval, isToday, isSameDay, addDays, isSameMonth, parseISO, addMinutes, roundToNearestMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import CleanerDayListView from './CleanerDayListView';
-
-// Assuming base44 is an imported API client, if not, adjust import path or prop definition
-// For demonstration, a placeholder import:
-// import { base44 } from '@/lib/base44'; 
-// If base44 is not directly imported but passed as a prop, ensure it's in the component signature.
-// For this implementation, I will assume `base44` is passed as a prop, as it's a critical dependency
-// for the new `handleClockOut` function and the user provided it in the outline for that function.
-
 
 // NUEVA FUNCIÓN HELPER para parsear fechas de forma consistente y en UTC
 const parseISOAsUTC = (isoString) => {
@@ -41,6 +34,20 @@ const VISIBLE_END_HOUR = 22;   // 10 PM (interpretado como UTC)
 const TOTAL_VISIBLE_HOURS = VISIBLE_END_HOUR - VISIBLE_START_HOUR; // Total de horas a mostrar (16 horas)
 const TOTAL_DISPLAY_HEIGHT_PX = TOTAL_VISIBLE_HOURS * HOUR_HEIGHT; // Altura total de la sección de tiempo
 
+// NUEVA FUNCIÓN: Obtener iniciales de nombre completo (nombre y apellido)
+const getCleanerInitials = (fullName) => {
+    if (!fullName) return '?';
+    
+    const parts = fullName.trim().split(' ');
+    if (parts.length === 1) {
+        // Solo un nombre, tomar las primeras 2 letras
+        return parts[0].substring(0, 2).toUpperCase();
+    }
+    
+    // Tomar primera letra del primer nombre y primera letra del primer apellido
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+};
+
 export default function HorarioCalendario({ 
     events, 
     date, 
@@ -57,10 +64,10 @@ export default function HorarioCalendario({
     isReadOnly = false, 
     assignedVehicle = null, 
     requiredKeys = [],
-    currentUser, // New prop for handleClockOut
-    base44,      // New prop for handleClockOut (assuming it's passed down)
-    setNotification, // New prop for handleClockOut
-    loadEvents   // New prop for handleClockOut
+    currentUser,
+    base44,
+    setNotification,
+    loadEvents
 }) {
     const [selectedDate, setSelectedDate] = useState(date);
     const [draggedEvent, setDraggedEvent] = useState(null);
@@ -877,8 +884,145 @@ export default function HorarioCalendario({
         }
     };
 
-    // Componente de Evento Refactorizado
-    const EventBlock = ({ event, onClick, showFullInfo = false }) => {
+    // NUEVO: Componente de Tooltip con información del servicio
+    const ServiceTooltip = ({ event }) => {
+        const assignedCleaners = users.filter(u => event.cleaner_ids?.includes(u.id));
+        const progress = getServiceProgress(event);
+        
+        return (
+            <div className="space-y-3 w-80">
+                {/* Cliente */}
+                <div>
+                    <h4 className="font-bold text-base text-slate-900 mb-1">{event.client_name}</h4>
+                    {event.client_address && (
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                            <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <span>{event.client_address}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Horario */}
+                <div className="flex items-center gap-2 text-sm text-slate-700">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span className="font-semibold">
+                        {format(parseISOAsUTC(event.start_time), 'HH:mm')} - {format(parseISOAsUTC(event.end_time), 'HH:mm')}
+                    </span>
+                    <span className="text-slate-500">
+                        ({((parseISOAsUTC(event.end_time) - parseISOAsUTC(event.start_time)) / 3600000).toFixed(1)}h)
+                    </span>
+                </div>
+
+                {/* Limpiadores Asignados */}
+                {assignedCleaners.length > 0 && (
+                    <div className="border-t pt-3">
+                        <p className="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+                            <Users className="w-4 h-4" />
+                            Limpiadores Asignados:
+                        </p>
+                        <div className="space-y-2">
+                            {assignedCleaners.map(cleaner => {
+                                const clockData = event.clock_in_data?.find(c => c.cleaner_id === cleaner.id);
+                                const hasClockIn = clockData?.clock_in_time;
+                                const hasClockOut = clockData?.clock_out_time;
+                                
+                                return (
+                                    <div key={cleaner.id} className="flex items-center gap-2 text-sm">
+                                        <div 
+                                            className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs"
+                                            style={{ backgroundColor: cleaner.color || '#6b7280' }}
+                                        >
+                                            {getCleanerInitials(cleaner.display_name || cleaner.full_name)}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-medium text-slate-800">{cleaner.display_name || cleaner.full_name}</p>
+                                            {hasClockIn && (
+                                                <p className="text-xs text-slate-600">
+                                                    {hasClockOut ? (
+                                                        <span className="text-green-600 font-semibold">✓ Completado</span>
+                                                    ) : (
+                                                        <span className="text-blue-600 font-semibold">⚡ En progreso</span>
+                                                    )}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Progreso del Servicio (solo admin) */}
+                {!isCleanerView && progress && progress.activeCleaners > 0 && (
+                    <div className="border-t pt-3">
+                        <p className="text-xs font-semibold text-slate-700 mb-2">Progreso del Servicio:</p>
+                        <div className="space-y-1 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">Horas-persona:</span>
+                                <span className="font-semibold">{formatTimeHMS(progress.personHoursCompleted)} / {formatTimeHMS(progress.totalWorkUnits)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-slate-600">Limpiadores activos:</span>
+                                <span className="font-semibold">{progress.activeCleaners} de {progress.assignedCleaners}</span>
+                            </div>
+                            {progress.projectedEndTime && (
+                                <div className="flex justify-between">
+                                    <span className="text-slate-600">Finalización estimada:</span>
+                                    <span className="font-bold text-blue-600">{format(progress.projectedEndTime, 'HH:mm')}</span>
+                                </div>
+                            )}
+                            {progress.isOvertime && (
+                                <div className="bg-red-50 text-red-700 px-2 py-1 rounded text-xs font-semibold mt-2">
+                                    ⚠️ Overtime: +{formatTimeHMS(progress.overtimeHours)}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Acceso */}
+                {event.has_access && (
+                    <div className="border-t pt-3">
+                        <div className="flex items-center gap-2 text-sm">
+                            <KeySquare className="w-4 h-4 text-orange-600" />
+                            <span className="text-slate-700">
+                                <span className="font-semibold">Acceso:</span> {event.access_identifier}
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Notas */}
+                {event.notes_public && (
+                    <div className="border-t pt-3">
+                        <div className="flex items-start gap-2 text-sm">
+                            <FileText className="w-4 h-4 text-slate-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <p className="font-semibold text-slate-700 mb-1">Notas:</p>
+                                <p className="text-slate-600 text-xs line-clamp-3">{event.notes_public}</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Estado */}
+                <div className="border-t pt-3">
+                    <Badge 
+                        variant={event.status === 'completed' ? 'default' : event.status === 'in_progress' ? 'secondary' : 'outline'}
+                        className="text-xs"
+                    >
+                        {event.status === 'completed' ? 'Completado' : 
+                         event.status === 'in_progress' ? 'En Progreso' : 
+                         event.status === 'cancelled' ? 'Cancelado' : 'Programado'}
+                    </Badge>
+                </div>
+            </div>
+        );
+    };
+
+    // Componente de Evento Refactorizado CON TOOLTIP
+    const EventBlock = ({ event, onClick }) => {
         const isCancelled = event.status === 'cancelled';
         const isUnassigned = !event.cleaner_ids || event.cleaner_ids.length === 0;
         const progress = getServiceProgress(event);
@@ -886,7 +1030,7 @@ export default function HorarioCalendario({
         // ARREGLADO: Determinar estado del limpiador específico si es vista de limpiador
         let cleanerStatus = null;
         if (isCleanerView && selectedCleanerId) {
-            const cleanerClockData = event.clock_in_data?.find(c => c.cleaner_id === selectedCleanerId); // Corrected property to cleaner_id
+            const cleanerClockData = event.clock_in_data?.find(c => c.cleaner_id === selectedCleanerId);
             
             // Solo establecer estado si el limpiador está asignado a este evento
             if (event.cleaner_ids && event.cleaner_ids.includes(selectedCleanerId)) {
@@ -911,10 +1055,7 @@ export default function HorarioCalendario({
             }
         }
         
-        // Usamos una función de cálculo de posición temporal solo para obtener la duración
-        const originalStartTime = parseISOAsUTC(event.start_time);
-        const originalEndTime = parseISOAsUTC(event.end_time);
-        const originalDuration = (originalEndTime.getUTCHours() + originalEndTime.getUTCMinutes() / 60) - (originalStartTime.getUTCHours() + originalStartTime.getUTCMinutes() / 60);
+        const assignedCleaners = users.filter(u => event.cleaner_ids?.includes(u.id));
         
         const cardClass = isCancelled 
             ? "h-full bg-slate-200 border-slate-300 text-slate-500"
@@ -924,28 +1065,64 @@ export default function HorarioCalendario({
             ? "font-bold text-sm leading-tight line-through"
             : "font-bold text-sm leading-tight";
 
-        return (
+        const cardContent = (
             <Card 
                 onClick={onClick}
-                className={`${cardClass} rounded-lg overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md relative ${isUnassigned && !isCancelled ? 'border-4 border-red-500 ring-2 ring-red-200' : 'border-2 hover:border-white/50'}`}
-                style={{ backgroundColor: isCancelled ? '#e2e8f0' : (isUnassigned ? '#dc2626' : event.color || '#3b82f6') }} // Rojo si no está asignado
+                className={`${cardClass} rounded-lg overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.02] relative ${isUnassigned && !isCancelled ? 'border-4 border-red-500 ring-2 ring-red-200' : 'border-2 hover:border-white/50'}`}
+                style={{ backgroundColor: isCancelled ? '#e2e8f0' : (isUnassigned ? '#dc2626' : event.color || '#3b82f6') }}
             >
                 {event.has_access && !isCancelled && (
-                    <div className="absolute top-1 right-1 bg-white/20 backdrop-blur-sm p-1 rounded-full" title={`Acceso: ${event.access_identifier}`}>
+                    <div className="absolute top-1.5 right-1.5 bg-white/20 backdrop-blur-sm p-1 rounded-full" title={`Acceso: ${event.access_identifier}`}>
                         <KeySquare className="w-3 h-3 text-white" />
                     </div>
                 )}
 
-                <div className="p-1.5 md:p-2 flex flex-col h-full">
-                    <div className="flex-1 overflow-hidden">
+                <div className="p-2 md:p-2.5 flex flex-col h-full">
+                    <div className="flex-1 overflow-hidden space-y-1.5">
+                        {/* Título */}
                         <div className="flex items-center">
                             <p className={titleClass}>{event.client_name}</p>
                             {isCancelled && <Badge variant="destructive" className="ml-2 text-xs">CANCELADO</Badge>}
                         </div>
                         
+                        {/* Horario */}
                         <div className="text-xs opacity-90 font-medium">
                             {formatTimeUTC(parseISOAsUTC(event.start_time))} - {formatTimeUTC(parseISOAsUTC(event.end_time))}
                         </div>
+                        
+                        {/* NUEVO: Iniciales de Limpiadores */}
+                        {!isCleanerView && assignedCleaners.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                {assignedCleaners.map(cleaner => {
+                                    const clockData = event.clock_in_data?.find(c => c.cleaner_id === cleaner.id);
+                                    const hasClockOut = clockData?.clock_out_time;
+                                    const hasClockIn = clockData?.clock_in_time;
+                                    
+                                    return (
+                                        <div
+                                            key={cleaner.id}
+                                            className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-white font-bold text-xs border-2 ${
+                                                hasClockOut ? 'border-white/50 opacity-60' : 
+                                                hasClockIn ? 'border-green-300 animate-pulse' : 
+                                                'border-white/30'
+                                            }`}
+                                            style={{ backgroundColor: cleaner.color || '#6b7280' }}
+                                            title={`${cleaner.display_name || cleaner.full_name}${hasClockOut ? ' (Completado)' : hasClockIn ? ' (En progreso)' : ''}`}
+                                        >
+                                            {getCleanerInitials(cleaner.display_name || cleaner.full_name)}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Sin asignar alert */}
+                        {!isCleanerView && isUnassigned && !isCancelled && (
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/30 px-2 py-1 rounded-full mt-1.5 w-fit">
+                                <AlertTriangle className="w-4 h-4" />
+                                <span>SIN ASIGNAR</span>
+                            </div>
+                        )}
                         
                         {/* NUEVO: Mostrar estado del limpiador en vista de limpiador */}
                         {isCleanerView && cleanerStatus && (
@@ -975,7 +1152,7 @@ export default function HorarioCalendario({
                                 {progress.isRunningLate ? (
                                     <div className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
                                         <AlertTriangle className="w-3 h-3" />
-                                        TARDE: Fin {format(progress.projectedEndTime, 'HH:mm')} {/* projectedEndTime is local */}
+                                        TARDE: Fin {format(progress.projectedEndTime, 'HH:mm')}
                                     </div>
                                 ) : progress.isOvertime ? (
                                     <div className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
@@ -1001,7 +1178,7 @@ export default function HorarioCalendario({
                                     {progress.projectedEndTime && (
                                         <div className="flex justify-between">
                                             <span>Fin estimado:</span>
-                                            <span className="font-bold">{format(progress.projectedEndTime, 'HH:mm')}</span> {/* projectedEndTime is local */}
+                                            <span className="font-bold">{format(progress.projectedEndTime, 'HH:mm')}</span>
                                         </div>
                                     )}
                                 </div>
@@ -1025,37 +1202,32 @@ export default function HorarioCalendario({
                                 </div>
                             </div>
                         )}
-                        
-                        {!isCleanerView && (
-                            isUnassigned && !isCancelled ? (
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/30 px-2 py-1 rounded-full mt-2 w-fit">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    <span>SIN ASIGNAR</span>
-                                </div>
-                            ) : (
-                                <div className="text-xs opacity-90 mt-1 font-medium flex items-center gap-1 truncate">
-                                    <Users className="w-3 h-3 flex-shrink-0" />
-                                    <span className="truncate">
-                                        {originalDuration < 1 ? 
-                                            getCleanersDisplay(event.cleaner_ids, true) : 
-                                            getCleanersDisplay(event.cleaner_ids, false) 
-                                        }
-                                    </span>
-                                </div>
-                            )
-                        )}
-                        
-                        {/* Dirección no clickeable */}
-                        {showFullInfo && (
-                            <div className="text-xs opacity-80 mt-1 truncate flex items-center gap-1">
-                                <Navigation className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{event.client_address || 'Dirección no disponible'}</span>
-                            </div>
-                        )}
                     </div>
                 </div>
             </Card>
         );
+
+        // Envolver en HoverCard SOLO si NO es vista de limpiador (para admin)
+        if (!isCleanerView && !isCancelled) {
+            return (
+                <HoverCard openDelay={200} closeDelay={100}>
+                    <HoverCardTrigger asChild>
+                        <div>{cardContent}</div>
+                    </HoverCardTrigger>
+                    <HoverCardContent 
+                        side="right" 
+                        align="start"
+                        className="w-80 p-4 z-[100] bg-white shadow-2xl border-2 border-slate-200"
+                        sideOffset={8}
+                    >
+                        <ServiceTooltip event={event} />
+                    </HoverCardContent>
+                </HoverCard>
+            );
+        }
+
+        // Para limpiadores o eventos cancelados, devolver solo el card
+        return cardContent;
     };
 
     const renderDayOrWeekView = (days) => {
@@ -1180,7 +1352,6 @@ export default function HorarioCalendario({
                                                 <EventBlock 
                                                     event={event}
                                                     onClick={() => onSelectEvent(event)}
-                                                    showFullInfo={!isWeekView} // Show full info only in day view
                                                 />
                                             </div>
                                         );
@@ -1256,7 +1427,6 @@ export default function HorarioCalendario({
                                                     <EventBlock
                                                         event={event}
                                                         onClick={() => onSelectEvent(event)}
-                                                        showFullInfo={true}
                                                     />
                                                 </div>
                                             ))}
