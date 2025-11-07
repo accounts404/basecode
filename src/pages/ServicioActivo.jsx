@@ -262,6 +262,7 @@ export default function ServicioActivoPage() {
         // 🛑 PASO 1: MARCAR INMEDIATAMENTE QUE ESTAMOS HACIENDO CLOCK OUT
         setClockingOut(true);
         setError("");
+        isUnmountingRef.current = true; // Marcar ANTES para prevenir actualizaciones
 
         // 🛑 PASO 2: DETENER POLLING Y TIMER INMEDIATAMENTE
         if (pollingRef.current) {
@@ -277,30 +278,62 @@ export default function ServicioActivoPage() {
         }
 
         try {
-            // 🚀 PASO 3: REGISTRAR CLOCK OUT Y REDIRIGIR INMEDIATAMENTE
+            // 🚀 PASO 3: MARCAR LOCALMENTE QUE NO HAY SERVICIO ACTIVO (OPTIMISTIC UPDATE)
+            console.log('[ServicioActivo] 💾 Marcando localmente que no hay servicio activo...');
+            localStorage.setItem(`active_service_${user.id}`, 'false');
+            localStorage.setItem(`clock_out_pending_${user.id}`, 'true');
+            localStorage.setItem(`clock_out_time_${user.id}`, Date.now().toString());
+            
+            // Actualizar el schedule en localStorage inmediatamente
+            const cachedSchedules = localStorage.getItem('redoak_cleaner_schedules');
+            if (cachedSchedules) {
+                try {
+                    const schedules = JSON.parse(cachedSchedules);
+                    const updatedSchedules = schedules.map(schedule => {
+                        if (schedule.id === activeService.id) {
+                            const updatedClockInData = [...(schedule.clock_in_data || [])];
+                            const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
+                            if (existingIndex >= 0) {
+                                updatedClockInData[existingIndex] = {
+                                    ...updatedClockInData[existingIndex],
+                                    clock_out_time: new Date().toISOString()
+                                };
+                            }
+                            return {
+                                ...schedule,
+                                clock_in_data: updatedClockInData,
+                                status: 'completed'
+                            };
+                        }
+                        return schedule;
+                    });
+                    localStorage.setItem('redoak_cleaner_schedules', JSON.stringify(updatedSchedules));
+                } catch (error) {
+                    console.warn('[ServicioActivo] Error actualizando cache:', error);
+                }
+            }
+
+            // 🚀 PASO 4: REGISTRAR CLOCK OUT Y REDIRIGIR INMEDIATAMENTE
             console.log('[ServicioActivo] 💾 Registrando Clock Out en cola offline...');
             const result = await registerClockOut(activeService.id, user.id);
             console.log('[ServicioActivo] ✅ Clock Out registrado en cola:', result);
 
-            // Después de registrar exitosamente y antes de navegar, marcamos como unmounting
-            // para prevenir cualquier actualización de estado en este componente que pueda ocurrir
-            // antes de que React lo desmonte completamente.
-            isUnmountingRef.current = true; 
-
-            // 🚀 PASO 4: REDIRIGIR INMEDIATAMENTE SIN ESPERAR NADA MÁS
+            // 🚀 PASO 5: REDIRIGIR INMEDIATAMENTE CON FLAG ESPECIAL
             console.log('[ServicioActivo] 🚀 Redirigiendo a Horario...');
             navigate(createPageUrl("Horario"), { 
                 replace: true,
                 state: { 
                     clockOutSuccess: true,
-                    message: '¡Clock Out registrado exitosamente! Se sincronizará automáticamente.'
+                    skipActiveCheck: true, // NUEVO: Flag para evitar verificación de servicio activo
+                    message: '¡Clock Out registrado exitosamente! El servicio está completado.'
                 }
             });
 
-            // 📡 PASO 5: SINCRONIZACIÓN EN BACKGROUND (NO BLOQUEA LA REDIRECCIÓN)
-            // El sistema offline-first se encargará de esto automáticamente
+            // 📡 PASO 6: SINCRONIZACIÓN EN BACKGROUND (NO BLOQUEA LA REDIRECCIÓN)
             (async () => {
                 try {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo antes de sincronizar
+
                     const updatedClockInData = [...(activeService.clock_in_data || [])];
                     const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
                     const currentTime = new Date().toISOString();
@@ -349,6 +382,10 @@ export default function ServicioActivoPage() {
                             console.warn('[ServicioActivo] ⚠️ Error procesando WorkEntries:', workEntryError);
                         }
                     }
+
+                    // Limpiar flags después de sincronización exitosa
+                    localStorage.removeItem(`clock_out_pending_${user.id}`);
+                    localStorage.removeItem(`clock_out_time_${user.id}`);
                 } catch (error) {
                     console.error('[ServicioActivo] ❌ Error actualizando backend (pero Clock Out ya está en cola):', error);
                 }
@@ -356,12 +393,17 @@ export default function ServicioActivoPage() {
 
         } catch (error) {
             console.error('[ServicioActivo] ❌ Error en Clock Out:', error);
-            // Si hubo un error ANTES de navegar, restaurar el estado para permitir reintentar
+            // Si hubo un error ANTES de navegar, restaurar el estado
             isUnmountingRef.current = false; 
             setError("Error al registrar Clock Out. Por favor, inténtalo de nuevo.");
             setClockingOut(false);
             
-            // Reiniciar polling y timer si hubo error para que el usuario pueda interactuar de nuevo
+            // Limpiar flags de optimistic update
+            localStorage.setItem(`active_service_${user.id}`, 'true');
+            localStorage.removeItem(`clock_out_pending_${user.id}`);
+            localStorage.removeItem(`clock_out_time_${user.id}`);
+            
+            // Reiniciar polling y timer si hubo error
             console.warn('[ServicioActivo] Reintentando reiniciar polling y timer debido a error en Clock Out.');
             loadUserAndActiveService(); 
         }
