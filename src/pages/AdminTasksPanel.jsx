@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { 
   Plus, 
   ListChecks, 
@@ -19,7 +20,9 @@ import {
   CheckCircle2,
   Users,
   RefreshCw,
-  Shield
+  Shield,
+  Eye,
+  UserCheck
 } from 'lucide-react';
 import TaskFilters from '@/components/tasks/TaskFilters';
 import TaskTable from '@/components/tasks/TaskTable';
@@ -47,6 +50,7 @@ export default function AdminTasksPanel() {
   const [taskForDetail, setTaskForDetail] = useState(null);
   const [activeView, setActiveView] = useState('table');
   const [error, setError] = useState('');
+  const [viewAllTasks, setViewAllTasks] = useState(false); // Toggle para super admin
   const { toast } = useToast();
   
   // Estados de filtros
@@ -76,7 +80,6 @@ export default function AdminTasksPanel() {
       if (!currentUser || currentUser.role !== 'admin') {
         console.warn('[AdminTasksPanel] ⛔ Acceso denegado - Usuario no es administrador');
         navigate(createPageUrl('Horario'), { replace: true });
-        setLoading(false); // Ensure loading state is reset
         return;
       }
 
@@ -93,6 +96,11 @@ export default function AdminTasksPanel() {
       setUsers(Array.isArray(allUsers) ? allUsers.filter(u => u.role === 'admin') : []);
       setClients(Array.isArray(allClients) ? allClients : []);
       setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
+
+      // NUEVO: Si es super admin (creador de la app), activar viewAllTasks por defecto
+      const isSuperAdmin = currentUser.created_by === null || currentUser.created_by === currentUser.email;
+      setViewAllTasks(isSuperAdmin);
+
     } catch (error) {
       console.error('[AdminTasksPanel] Error loading data:', error);
       setError('Error al cargar datos. Por favor, recarga la página.');
@@ -446,9 +454,35 @@ export default function AdminTasksPanel() {
     }
   };
 
-  // Filtrado de tareas
+  // NUEVO: Determinar si el usuario es super admin (puede ver todas las tareas)
+  const isSuperAdmin = useMemo(() => {
+    if (!user) return false;
+    // El super admin es quien creó la app (created_by es null o es su propio email)
+    return user.created_by === null || user.created_by === user.email;
+  }, [user]);
+
+  // MODIFICADO: Filtrado base con permisos
+  const tasksWithPermissions = useMemo(() => {
+    if (!user) return [];
+    
+    // Si es super admin Y tiene activado "Ver todas", mostrar todo
+    if (isSuperAdmin && viewAllTasks) {
+      return tasks;
+    }
+    
+    // Si no, solo mostrar:
+    // 1. Tareas asignadas al usuario actual
+    // 2. Tareas creadas por el usuario actual
+    return tasks.filter(task => {
+      const isAssigned = task.assignee_user_ids && task.assignee_user_ids.includes(user.id);
+      const isCreator = task.created_by_user_id === user.id;
+      return isAssigned || isCreator;
+    });
+  }, [tasks, user, isSuperAdmin, viewAllTasks]);
+
+  // Filtrado de tareas con permisos aplicados
   const filteredTasks = useMemo(() => {
-    let filtered = [...tasks];
+    let filtered = [...tasksWithPermissions];
 
     // Filtro por término de búsqueda
     if (filters.searchTerm) {
@@ -519,28 +553,28 @@ export default function AdminTasksPanel() {
     }
 
     return filtered;
-  }, [tasks, filters]);
+  }, [tasksWithPermissions, filters]);
 
-  // Estadísticas
+  // MODIFICADO: Estadísticas sobre tareas con permisos
   const stats = useMemo(() => {
     const today = new Date();
     return {
-      total: tasks.length,
-      pending: tasks.filter(t => t.status === 'pending').length,
-      inProgress: tasks.filter(t => t.status === 'in_progress').length,
-      completed: tasks.filter(t => t.status === 'completed').length,
-      overdue: tasks.filter(t => {
+      total: tasksWithPermissions.length,
+      pending: tasksWithPermissions.filter(t => t.status === 'pending').length,
+      inProgress: tasksWithPermissions.filter(t => t.status === 'in_progress').length,
+      completed: tasksWithPermissions.filter(t => t.status === 'completed').length,
+      overdue: tasksWithPermissions.filter(t => {
         if (!t.due_date || t.status === 'completed') return false;
         return isBefore(new Date(t.due_date), startOfDay(today));
       }).length,
-      urgent: tasks.filter(t => t.priority === 'urgent' && t.status !== 'completed').length,
-      myTasks: tasks.filter(t => 
+      urgent: tasksWithPermissions.filter(t => t.priority === 'urgent' && t.status !== 'completed').length,
+      myTasks: tasksWithPermissions.filter(t => 
         t.assignee_user_ids && 
         t.assignee_user_ids.includes(user?.id) && 
         t.status !== 'completed'
       ).length
     };
-  }, [tasks, user]);
+  }, [tasksWithPermissions, user]);
 
   if (loading) {
     return (
@@ -601,10 +635,26 @@ export default function AdminTasksPanel() {
               </Badge>
             </div>
             <p className="text-slate-600 mt-1">
-              Coordina y administra todas las tareas del equipo administrativo
+              {isSuperAdmin && viewAllTasks 
+                ? 'Visualizando todas las tareas del equipo administrativo' 
+                : 'Visualizando tus tareas asignadas y creadas'}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
+            {/* NUEVO: Toggle para super admin */}
+            {isSuperAdmin && (
+              <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border-2 border-blue-200">
+                <Label htmlFor="view-all" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-blue-600" />
+                  Ver todas las tareas
+                </Label>
+                <Switch
+                  id="view-all"
+                  checked={viewAllTasks}
+                  onCheckedChange={setViewAllTasks}
+                />
+              </div>
+            )}
             <Button
               variant="outline"
               onClick={handleRefresh}
@@ -624,6 +674,21 @@ export default function AdminTasksPanel() {
             </Button>
           </div>
         </div>
+
+        {/* NUEVO: Info de permisos */}
+        {!isSuperAdmin && (
+          <Alert className="bg-blue-50 border-blue-200">
+            <UserCheck className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Vista personalizada:</strong> Solo ves las tareas que te fueron asignadas o que tú creaste.
+              {tasks.length > tasksWithPermissions.length && (
+                <span className="block mt-1 text-sm">
+                  Hay {tasks.length - tasksWithPermissions.length} tarea(s) adicional(es) del equipo que no están asignadas a ti.
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {error && (
           <Alert variant="destructive">
