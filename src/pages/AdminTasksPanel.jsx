@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
@@ -454,17 +455,25 @@ export default function AdminTasksPanel() {
     return user?.email === 'accounts@redoakcleaning.com.au';
   }, [user]);
 
-  // MODIFICADO: Filtrado base con scope (pestaña activa)
+  // MODIFICADO: Filtrado base con scope diferenciado
   const tasksWithScope = useMemo(() => {
     if (!user) return [];
     
-    // Si es master admin y está en "Todas las Tareas"
-    if (isMasterAdmin && taskScope === 'all_tasks') {
-      return tasks;
+    // Si es master admin
+    if (isMasterAdmin) {
+      if (taskScope === 'all_tasks') {
+        // Pestaña "Todas las Tareas" - mostrar TODAS
+        return tasks;
+      } else { // taskScope === 'my_tasks'
+        // Pestaña "Mis Tareas" - SOLO las asignadas a él (no las creadas por él)
+        return tasks.filter(task => {
+          const isAssigned = task.assignee_user_ids && task.assignee_user_ids.includes(user.id);
+          return isAssigned;
+        });
+      }
     }
     
-    // Si no es master admin O está en "Mis Tareas", filtrar
-    // Mostrar solo: tareas asignadas al usuario O creadas por el usuario
+    // Para admins regulares (no master): mostrar asignadas O creadas
     return tasks.filter(task => {
       const isAssigned = task.assignee_user_ids && task.assignee_user_ids.includes(user.id);
       const isCreator = task.created_by_user_id === user.id;
@@ -636,7 +645,7 @@ export default function AdminTasksPanel() {
               {isMasterAdmin 
                 ? (taskScope === 'all_tasks' 
                     ? 'Visualizando todas las tareas del equipo administrativo' 
-                    : 'Visualizando tus tareas asignadas y creadas')
+                    : 'Visualizando solo tus tareas asignadas')
                 : 'Visualizando tus tareas asignadas y creadas'}
             </p>
           </div>
@@ -691,18 +700,17 @@ export default function AdminTasksPanel() {
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="my_tasks" className="flex items-center gap-2">
                     <UserCheck className="w-4 h-4" />
-                    Mis Tareas
+                    Mis Tareas (Asignadas)
                     <Badge variant="secondary" className="ml-2">
                       {tasks.filter(t => {
                         const isAssigned = t.assignee_user_ids && t.assignee_user_ids.includes(user.id);
-                        const isCreator = t.created_by_user_id === user.id;
-                        return (isAssigned || isCreator) && t.status !== 'completed';
+                        return isAssigned && t.status !== 'completed';
                       }).length}
                     </Badge>
                   </TabsTrigger>
                   <TabsTrigger value="all_tasks" className="flex items-center gap-2">
                     <Eye className="w-4 h-4" />
-                    Todas las Tareas
+                    Todas las Tareas del Equipo
                     <Badge variant="secondary" className="ml-2">
                       {tasks.filter(t => t.status !== 'completed').length}
                     </Badge>
