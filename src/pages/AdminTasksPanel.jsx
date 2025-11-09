@@ -14,14 +14,19 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
-  Users
+  Users,
+  RefreshCw
 } from 'lucide-react';
 import TaskFilters from '@/components/tasks/TaskFilters';
 import TaskTable from '@/components/tasks/TaskTable';
 import ExtendedTaskForm from '@/components/tasks/ExtendedTaskForm';
 import TaskKanbanView from '@/components/tasks/TaskKanbanView';
+import TaskDetailView from '@/components/tasks/TaskDetailView';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { startOfDay, endOfDay, isAfter, isBefore, isToday } from 'date-fns';
+import { useToast } from '@/components/ui/use-toast';
+import { Toaster } from '@/components/ui/toaster';
 
 export default function AdminTasksPanel() {
   const [user, setUser] = useState(null);
@@ -30,10 +35,14 @@ export default function AdminTasksPanel() {
   const [clients, setClients] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [showTaskDetail, setShowTaskDetail] = useState(false);
+  const [taskForDetail, setTaskForDetail] = useState(null);
   const [activeView, setActiveView] = useState('table');
   const [error, setError] = useState('');
+  const { toast } = useToast();
   
   // Estados de filtros
   const [filters, setFilters] = useState({
@@ -75,6 +84,17 @@ export default function AdminTasksPanel() {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadInitialData();
+    setRefreshing(false);
+    toast({
+      title: "✅ Actualizado",
+      description: "Tareas y datos actualizados correctamente",
+      duration: 2000,
+    });
+  };
+
   const handleCreateTask = () => {
     setSelectedTask(null);
     setShowTaskForm(true);
@@ -85,22 +105,98 @@ export default function AdminTasksPanel() {
     setShowTaskForm(true);
   };
 
+  const handleViewTaskDetail = (task) => {
+    setTaskForDetail(task);
+    setShowTaskDetail(true);
+  };
+
+  const logActivity = (taskId, action, details, userId, userName) => {
+    return {
+      user_id: userId,
+      user_name: userName,
+      timestamp: new Date().toISOString(),
+      action: action,
+      details: details
+    };
+  };
+
   const handleSaveTask = async (taskData) => {
     try {
+      let savedTask;
+      const activity = [];
+
       if (selectedTask?.id) {
+        // Log changes
+        const oldTask = selectedTask;
+        if (oldTask.status !== taskData.status) {
+          activity.push(logActivity(
+            selectedTask.id,
+            'status_changed',
+            `Estado cambiado de "${oldTask.status}" a "${taskData.status}"`,
+            user.id,
+            user.full_name
+          ));
+        }
+        if (oldTask.priority !== taskData.priority) {
+          activity.push(logActivity(
+            selectedTask.id,
+            'priority_changed',
+            `Prioridad cambiada de "${oldTask.priority}" a "${taskData.priority}"`,
+            user.id,
+            user.full_name
+          ));
+        }
+        if (JSON.stringify(oldTask.assignee_user_ids) !== JSON.stringify(taskData.assignee_user_ids)) {
+          activity.push(logActivity(
+            selectedTask.id,
+            'assignees_changed',
+            'Asignados actualizados',
+            user.id,
+            user.full_name
+          ));
+        }
+
+        // Add completion tracking
+        if (taskData.status === 'completed' && oldTask.status !== 'completed') {
+          taskData.completed_at = new Date().toISOString();
+          taskData.completed_by_user_id = user.id;
+        }
+
+        // Append to existing activity log
+        const existingLog = selectedTask.activity_log || [];
+        taskData.activity_log = [...existingLog, ...activity];
+
         await base44.entities.Task.update(selectedTask.id, taskData);
+        savedTask = { ...selectedTask, ...taskData };
+
       } else {
+        // New task
         const newTask = {
           ...taskData,
-          created_by_user_id: user.id
+          created_by_user_id: user.id,
+          created_by_user_name: user.full_name,
+          activity_log: [
+            logActivity(
+              null,
+              'task_created',
+              'Tarea creada',
+              user.id,
+              user.full_name
+            )
+          ]
         };
         
-        const createdTask = await base44.entities.Task.create(newTask);
+        savedTask = await base44.entities.Task.create(newTask);
 
         // Si la tarea es recurrente, generar las instancias futuras
-        if (taskData.recurrence_type && taskData.recurrence_type !== 'none') {
+        if (taskData.recurrence_type && taskData.recurrence_type !== 'none' && taskData.recurrence_type !== 'linked_to_service') {
           try {
-            await base44.functions.invoke('generateRecurringTasks', createdTask);
+            await base44.functions.invoke('generateRecurringTasks', savedTask);
+            toast({
+              title: "✅ Tareas Recurrentes Generadas",
+              description: "Se crearon automáticamente las tareas para los próximos 6 meses",
+              duration: 3000,
+            });
           } catch (recError) {
             console.error('Error generando tareas recurrentes:', recError);
           }
@@ -110,9 +206,23 @@ export default function AdminTasksPanel() {
         if (taskData.assignee_user_ids && taskData.assignee_user_ids.length > 0) {
           try {
             await base44.functions.invoke('notifyTaskAssignment', {
-              taskId: createdTask.id,
+              taskId: savedTask.id,
               assigneeIds: taskData.assignee_user_ids,
               createdBy: user.full_name
+            });
+
+            // Create in-app notifications
+            await base44.functions.invoke('createTaskNotifications', {
+              taskId: savedTask.id,
+              assigneeIds: taskData.assignee_user_ids,
+              notificationType: 'assignment',
+              message: `${user.full_name} te asignó la tarea: "${taskData.title}"`
+            });
+
+            toast({
+              title: "📧 Notificaciones Enviadas",
+              description: `Se notificó a ${taskData.assignee_user_ids.length} administrador(es)`,
+              duration: 2000,
             });
           } catch (notifyError) {
             console.error('Error enviando notificaciones:', notifyError);
@@ -123,9 +233,22 @@ export default function AdminTasksPanel() {
       await loadInitialData();
       setShowTaskForm(false);
       setSelectedTask(null);
+
+      toast({
+        title: "✅ Tarea Guardada",
+        description: selectedTask?.id ? "Tarea actualizada correctamente" : "Nueva tarea creada exitosamente",
+        duration: 2000,
+      });
+
     } catch (error) {
       console.error('Error saving task:', error);
       setError('Error al guardar la tarea.');
+      toast({
+        variant: "destructive",
+        title: "❌ Error",
+        description: "No se pudo guardar la tarea",
+        duration: 3000,
+      });
       throw error;
     }
   };
@@ -136,9 +259,23 @@ export default function AdminTasksPanel() {
       await loadInitialData();
       setShowTaskForm(false);
       setSelectedTask(null);
+      setShowTaskDetail(false);
+      setTaskForDetail(null);
+
+      toast({
+        title: "🗑️ Tarea Eliminada",
+        description: "La tarea fue eliminada correctamente",
+        duration: 2000,
+      });
     } catch (error) {
       console.error('Error deleting task:', error);
       setError('Error al eliminar la tarea.');
+      toast({
+        variant: "destructive",
+        title: "❌ Error",
+        description: "No se pudo eliminar la tarea",
+        duration: 3000,
+      });
       throw error;
     }
   };
@@ -148,7 +285,27 @@ export default function AdminTasksPanel() {
       const task = tasks.find(t => t.id === taskId);
       const oldStatus = task?.status;
       
-      await base44.entities.Task.update(taskId, { status: newStatus });
+      const updateData = {
+        status: newStatus,
+        activity_log: [
+          ...(task.activity_log || []),
+          logActivity(
+            taskId,
+            'status_changed',
+            `Estado cambiado de "${oldStatus}" a "${newStatus}"`,
+            user.id,
+            user.full_name
+          )
+        ]
+      };
+
+      // Add completion tracking
+      if (newStatus === 'completed' && oldStatus !== 'completed') {
+        updateData.completed_at = new Date().toISOString();
+        updateData.completed_by_user_id = user.id;
+      }
+
+      await base44.entities.Task.update(taskId, updateData);
       
       // Notificar cambio de estado
       if (task && task.assignee_user_ids && task.assignee_user_ids.length > 0) {
@@ -159,15 +316,116 @@ export default function AdminTasksPanel() {
             newStatus: newStatus,
             taskTitle: task.title
           });
+
+          // Create in-app notifications
+          await base44.functions.invoke('createTaskNotifications', {
+            taskId: taskId,
+            assigneeIds: task.assignee_user_ids.filter(id => id !== user.id),
+            notificationType: 'status_change',
+            message: `${user.full_name} cambió el estado a "${newStatus}" en: "${task.title}"`
+          });
         } catch (notifyError) {
           console.error('Error enviando notificación de cambio:', notifyError);
         }
       }
       
       await loadInitialData();
+
+      toast({
+        title: "✅ Estado Actualizado",
+        description: `Tarea marcada como "${newStatus}"`,
+        duration: 2000,
+      });
     } catch (error) {
       console.error('Error updating task status:', error);
       setError('Error al actualizar el estado de la tarea.');
+      toast({
+        variant: "destructive",
+        title: "❌ Error",
+        description: "No se pudo actualizar el estado",
+        duration: 3000,
+      });
+    }
+  };
+
+  const handleAddComment = async (taskId, commentText) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const newComment = {
+        user_id: user.id,
+        user_name: user.full_name,
+        timestamp: new Date().toISOString(),
+        text: commentText
+      };
+
+      const updatedComments = [...(task.comments || []), newComment];
+      const updatedActivity = [
+        ...(task.activity_log || []),
+        logActivity(taskId, 'comment_added', 'Comentario añadido', user.id, user.full_name)
+      ];
+
+      await base44.entities.Task.update(taskId, {
+        comments: updatedComments,
+        activity_log: updatedActivity
+      });
+
+      // Notificar a otros asignados
+      if (task.assignee_user_ids && task.assignee_user_ids.length > 0) {
+        const othersAssigned = task.assignee_user_ids.filter(id => id !== user.id);
+        if (othersAssigned.length > 0) {
+          await base44.functions.invoke('createTaskNotifications', {
+            taskId: taskId,
+            assigneeIds: othersAssigned,
+            notificationType: 'comment_added',
+            message: `${user.full_name} comentó en: "${task.title}"`
+          });
+        }
+      }
+
+      await loadInitialData();
+
+      toast({
+        title: "💬 Comentario Añadido",
+        description: "Tu comentario se agregó correctamente",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast({
+        variant: "destructive",
+        title: "❌ Error",
+        description: "No se pudo añadir el comentario",
+        duration: 3000,
+      });
+    }
+  };
+
+  const handleToggleChecklistItem = async (taskId, itemIndex) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task || !task.checklist_items) return;
+
+      const updatedChecklist = task.checklist_items.map((item, idx) => {
+        if (idx === itemIndex) {
+          return {
+            ...item,
+            completed: !item.completed,
+            completed_by: !item.completed ? user.id : null,
+            completed_at: !item.completed ? new Date().toISOString() : null
+          };
+        }
+        return item;
+      });
+
+      await base44.entities.Task.update(taskId, {
+        checklist_items: updatedChecklist
+      });
+
+      await loadInitialData();
+    } catch (error) {
+      console.error('Error toggling checklist item:', error);
     }
   };
 
@@ -298,6 +556,7 @@ export default function AdminTasksPanel() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-6">
+      <Toaster />
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -307,17 +566,28 @@ export default function AdminTasksPanel() {
               Panel de Gestión de Tareas
             </h1>
             <p className="text-slate-600 mt-1">
-              Coordina y administra todas las tareas del equipo
+              Coordina y administra todas las tareas del equipo administrativo
             </p>
           </div>
-          <Button 
-            onClick={handleCreateTask}
-            size="lg"
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Nueva Tarea
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+            <Button 
+              onClick={handleCreateTask}
+              size="lg"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Nueva Tarea
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -329,7 +599,8 @@ export default function AdminTasksPanel() {
 
         {/* Estadísticas */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setFilters(prev => ({ ...prev, statuses: [], dateRange: 'all' }))}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -341,7 +612,8 @@ export default function AdminTasksPanel() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white">
+          <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setFilters(prev => ({ ...prev, statuses: ['pending'], dateRange: 'all' }))}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -353,7 +625,8 @@ export default function AdminTasksPanel() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setFilters(prev => ({ ...prev, statuses: ['in_progress'], dateRange: 'all' }))}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -365,7 +638,8 @@ export default function AdminTasksPanel() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setFilters(prev => ({ ...prev, statuses: ['completed'], dateRange: 'all' }))}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -377,7 +651,8 @@ export default function AdminTasksPanel() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
+          <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setFilters(prev => ({ ...prev, dateRange: 'overdue', statuses: ['pending', 'in_progress'] }))}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -389,19 +664,21 @@ export default function AdminTasksPanel() {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setFilters(prev => ({ ...prev, priorities: ['urgent'], statuses: ['pending', 'in_progress'] }))}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm opacity-90">Urgentes</p>
                   <p className="text-3xl font-bold">{stats.urgent}</p>
                 </div>
-                <AlertCircle className="w-8 h-8 opacity-80" />
+                <AlertCircle className="w-8 h-8 opacity-80 animate-pulse" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white">
+          <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => setFilters(prev => ({ ...prev, assignees: [user.id], statuses: ['pending', 'in_progress'] }))}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -458,6 +735,7 @@ export default function AdminTasksPanel() {
                 clients={clients}
                 schedules={schedules}
                 onEditTask={handleEditTask}
+                onViewDetail={handleViewTaskDetail}
                 onDeleteTask={handleDeleteTask}
                 onToggleStatus={handleToggleTaskStatus}
               />
@@ -467,6 +745,7 @@ export default function AdminTasksPanel() {
                 users={users}
                 clients={clients}
                 onEditTask={handleEditTask}
+                onViewDetail={handleViewTaskDetail}
                 onToggleStatus={handleToggleTaskStatus}
               />
             )}
@@ -478,8 +757,18 @@ export default function AdminTasksPanel() {
       <Dialog open={showTaskForm} onOpenChange={setShowTaskForm}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {selectedTask?.id ? 'Editar Tarea' : 'Nueva Tarea'}
+            <DialogTitle className="flex items-center gap-2">
+              {selectedTask?.id ? (
+                <>
+                  <ListChecks className="w-5 h-5 text-blue-600" />
+                  Editar Tarea
+                </>
+              ) : (
+                <>
+                  <Plus className="w-5 h-5 text-blue-600" />
+                  Nueva Tarea
+                </>
+              )}
             </DialogTitle>
           </DialogHeader>
           <ExtendedTaskForm
@@ -487,6 +776,7 @@ export default function AdminTasksPanel() {
             users={users}
             clients={clients}
             schedules={schedules}
+            currentUser={user}
             onSave={handleSaveTask}
             onDelete={selectedTask?.id ? handleDeleteTask : null}
             onCancel={() => {
@@ -496,6 +786,35 @@ export default function AdminTasksPanel() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Sheet para ver detalles de tarea */}
+      <Sheet open={showTaskDetail} onOpenChange={setShowTaskDetail}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Detalles de la Tarea</SheetTitle>
+          </SheetHeader>
+          {taskForDetail && (
+            <TaskDetailView
+              task={taskForDetail}
+              users={users}
+              clients={clients}
+              schedules={schedules}
+              currentUser={user}
+              onEdit={() => {
+                setShowTaskDetail(false);
+                handleEditTask(taskForDetail);
+              }}
+              onDelete={async () => {
+                await handleDeleteTask(taskForDetail.id);
+                setShowTaskDetail(false);
+              }}
+              onAddComment={handleAddComment}
+              onToggleChecklistItem={handleToggleChecklistItem}
+              onToggleStatus={handleToggleTaskStatus}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

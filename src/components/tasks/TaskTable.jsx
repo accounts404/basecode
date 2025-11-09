@@ -28,7 +28,9 @@ import {
   Calendar,
   User,
   Building2,
-  CalendarClock
+  CalendarClock,
+  Eye,
+  MessageSquare
 } from 'lucide-react';
 import { format, isBefore, isToday, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -48,12 +50,12 @@ const STATUS_CONFIG = {
 };
 
 const CATEGORY_CONFIG = {
-  operational: { label: 'Operacional', color: 'bg-blue-100 text-blue-800' },
-  client_care: { label: 'Cliente', color: 'bg-green-100 text-green-800' },
-  cleaner_support: { label: 'Limpiadores', color: 'bg-purple-100 text-purple-800' },
-  fleet_logistics: { label: 'Flota', color: 'bg-orange-100 text-orange-800' },
-  financial_admin: { label: 'Financiero', color: 'bg-yellow-100 text-yellow-800' },
-  general_admin: { label: 'General', color: 'bg-slate-100 text-slate-800' },
+  operational: { label: 'Operacional', color: 'bg-blue-100 text-blue-800', icon: '⚙️' },
+  client_care: { label: 'Cliente', color: 'bg-green-100 text-green-800', icon: '👥' },
+  cleaner_support: { label: 'Limpiadores', color: 'bg-purple-100 text-purple-800', icon: '🧹' },
+  fleet_logistics: { label: 'Flota', color: 'bg-orange-100 text-orange-800', icon: '🚗' },
+  financial_admin: { label: 'Financiero', color: 'bg-yellow-100 text-yellow-800', icon: '💰' },
+  general_admin: { label: 'General', color: 'bg-slate-100 text-slate-800', icon: '📋' },
 };
 
 export default function TaskTable({ 
@@ -61,7 +63,8 @@ export default function TaskTable({
   users, 
   clients, 
   schedules, 
-  onEditTask, 
+  onEditTask,
+  onViewDetail,
   onDeleteTask, 
   onToggleStatus 
 }) {
@@ -156,7 +159,7 @@ export default function TaskTable({
               Fecha Límite
             </TableHead>
             <TableHead>Asignados</TableHead>
-            <TableHead>Cliente/Servicio</TableHead>
+            <TableHead>Contexto</TableHead>
             <TableHead 
               className="cursor-pointer hover:bg-slate-100"
               onClick={() => handleSort('priority')}
@@ -181,13 +184,16 @@ export default function TaskTable({
             const overdue = isOverdue(task.due_date, task.status);
             const StatusIcon = statusConfig.icon;
             const clientName = getClientName(task.related_client_id);
+            const hasComments = task.comments && task.comments.length > 0;
+            const hasChecklist = task.checklist_items && task.checklist_items.length > 0;
 
             return (
               <TableRow 
                 key={task.id} 
-                className={`hover:bg-slate-50 ${overdue ? 'bg-red-50' : ''}`}
+                className={`hover:bg-slate-50 cursor-pointer ${overdue ? 'bg-red-50' : ''}`}
+                onClick={() => onViewDetail(task)}
               >
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {task.status !== 'completed' && task.status !== 'cancelled' && (
                     <Checkbox
                       checked={false}
@@ -204,11 +210,24 @@ export default function TaskTable({
                         {task.description}
                       </p>
                     )}
-                    {task.recurrence_type && task.recurrence_type !== 'none' && (
-                      <Badge variant="outline" className="text-xs">
-                        🔁 Recurrente
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {task.recurrence_type && task.recurrence_type !== 'none' && (
+                        <Badge variant="outline" className="text-xs">
+                          🔁 Recurrente
+                        </Badge>
+                      )}
+                      {hasComments && (
+                        <Badge variant="outline" className="text-xs flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" />
+                          {task.comments.length}
+                        </Badge>
+                      )}
+                      {hasChecklist && (
+                        <Badge variant="outline" className="text-xs">
+                          ✓ {task.checklist_items.filter(i => i.completed).length}/{task.checklist_items.length}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -260,7 +279,7 @@ export default function TaskTable({
                     {clientName && (
                       <div className="flex items-center gap-1 text-sm">
                         <Building2 className="w-3 h-3 text-slate-400" />
-                        <span>{clientName}</span>
+                        <span className="truncate">{clientName}</span>
                       </div>
                     )}
                     {task.related_schedule_id && (
@@ -268,6 +287,9 @@ export default function TaskTable({
                         <CalendarClock className="w-3 h-3" />
                         <span>Servicio vinculado</span>
                       </div>
+                    )}
+                    {!clientName && !task.related_schedule_id && (
+                      <span className="text-xs text-slate-400">-</span>
                     )}
                   </div>
                 </TableCell>
@@ -286,11 +308,12 @@ export default function TaskTable({
                 <TableCell>
                   {categoryConfig && (
                     <Badge variant="outline" className={categoryConfig.color}>
+                      <span className="mr-1">{categoryConfig.icon}</span>
                       {categoryConfig.label}
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
@@ -298,6 +321,10 @@ export default function TaskTable({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onViewDetail(task)}>
+                        <Eye className="w-4 h-4 mr-2" />
+                        Ver Detalles
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onEditTask(task)}>
                         <Edit className="w-4 h-4 mr-2" />
                         Editar

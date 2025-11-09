@@ -26,7 +26,8 @@ import {
   Minus,
   Users,
   Building2,
-  CalendarClock
+  CalendarClock,
+  Info
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -53,16 +54,16 @@ const RECURRENCE_OPTIONS = [
   { value: 'weekly', label: 'Semanalmente' },
   { value: 'biweekly', label: 'Cada 2 semanas' },
   { value: 'monthly', label: 'Mensualmente' },
-  { value: 'linked_to_service', label: 'Vinculada a servicio' },
+  { value: 'linked_to_service', label: 'Vinculada a servicio (avanzado)' },
 ];
 
 const CATEGORY_OPTIONS = [
-  { value: 'operational', label: 'Operacional', description: 'Tareas operativas del día a día' },
-  { value: 'client_care', label: 'Atención al Cliente', description: 'Seguimiento y cuidado de clientes' },
-  { value: 'cleaner_support', label: 'Soporte Limpiadores', description: 'Asuntos relacionados con el equipo' },
-  { value: 'fleet_logistics', label: 'Logística de Flota', description: 'Vehículos y logística' },
-  { value: 'financial_admin', label: 'Admin Financiera', description: 'Facturación y pagos' },
-  { value: 'general_admin', label: 'Admin General', description: 'Tareas administrativas generales' },
+  { value: 'operational', label: 'Operacional', description: 'Tareas operativas del día a día', icon: '⚙️' },
+  { value: 'client_care', label: 'Atención al Cliente', description: 'Seguimiento y cuidado de clientes', icon: '👥' },
+  { value: 'cleaner_support', label: 'Soporte Limpiadores', description: 'Asuntos relacionados con el equipo', icon: '🧹' },
+  { value: 'fleet_logistics', label: 'Logística de Flota', description: 'Vehículos y logística', icon: '🚗' },
+  { value: 'financial_admin', label: 'Admin Financiera', description: 'Facturación y pagos', icon: '💰' },
+  { value: 'general_admin', label: 'Admin General', description: 'Tareas administrativas generales', icon: '📋' },
 ];
 
 const DAYS_OF_WEEK = [
@@ -75,7 +76,7 @@ const DAYS_OF_WEEK = [
   { value: 0, label: 'Domingo' },
 ];
 
-export default function ExtendedTaskForm({ task, users, clients, schedules, onSave, onDelete, onCancel }) {
+export default function ExtendedTaskForm({ task, users, clients, schedules, currentUser, onSave, onDelete, onCancel }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -87,6 +88,7 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
     recurring_day_of_month: null,
     assignee_user_ids: [],
     related_client_id: null,
+    related_client_name: null,
     related_schedule_id: null,
     task_category: 'general_admin',
     checklist_items: [],
@@ -109,6 +111,7 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
         recurring_day_of_month: task.recurring_day_of_month || null,
         assignee_user_ids: task.assignee_user_ids || [],
         related_client_id: task.related_client_id || null,
+        related_client_name: task.related_client_name || null,
         related_schedule_id: task.related_schedule_id || null,
         task_category: task.task_category || 'general_admin',
         checklist_items: task.checklist_items || [],
@@ -137,7 +140,11 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
   };
 
   const handleClientSelect = (client) => {
-    setFormData(prev => ({ ...prev, related_client_id: client?.id || null }));
+    setFormData(prev => ({ 
+      ...prev, 
+      related_client_id: client?.id || null,
+      related_client_name: client?.name || null
+    }));
   };
 
   const handleScheduleSelect = (schedule) => {
@@ -145,6 +152,11 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
       ...prev,
       related_schedule_id: schedule?.id || null,
       related_client_id: schedule?.client_id || prev.related_client_id,
+      related_client_name: schedule?.client_name || prev.related_client_name,
+      // Si se vincula a un servicio con recurrencia, ofrecer usar esa recurrencia
+      recurrence_type: schedule?.recurrence_rule && schedule.recurrence_rule !== 'none' 
+        ? 'linked_to_service' 
+        : prev.recurrence_type
     }));
   };
 
@@ -182,6 +194,22 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
 
     if (!formData.due_date) {
       setError('La fecha límite es obligatoria');
+      return;
+    }
+
+    // Validaciones de recurrencia
+    if (formData.recurrence_type === 'weekly' && !formData.recurring_day_of_week) {
+      setError('Debes seleccionar un día de la semana para tareas semanales');
+      return;
+    }
+
+    if (formData.recurrence_type === 'monthly' && !formData.recurring_day_of_month) {
+      setError('Debes especificar un día del mes para tareas mensuales');
+      return;
+    }
+
+    if (formData.recurrence_type === 'linked_to_service' && !formData.related_schedule_id) {
+      setError('Debes seleccionar un servicio para vincular la recurrencia');
       return;
     }
 
@@ -296,9 +324,12 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
             <SelectContent>
               {CATEGORY_OPTIONS.map(option => (
                 <SelectItem key={option.value} value={option.value}>
-                  <div>
-                    <p className="font-medium">{option.label}</p>
-                    <p className="text-xs text-slate-500">{option.description}</p>
+                  <div className="flex items-center gap-2">
+                    <span>{option.icon}</span>
+                    <div>
+                      <p className="font-medium">{option.label}</p>
+                      <p className="text-xs text-slate-500">{option.description}</p>
+                    </div>
                   </div>
                 </SelectItem>
               ))}
@@ -356,7 +387,7 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
         {/* Opciones específicas de recurrencia */}
         {formData.recurrence_type === 'weekly' && (
           <div className="space-y-2">
-            <Label>Día de la Semana</Label>
+            <Label>Día de la Semana *</Label>
             <Select
               value={formData.recurring_day_of_week?.toString() || ''}
               onValueChange={(value) => setFormData(prev => ({ ...prev, recurring_day_of_week: parseInt(value) }))}
@@ -372,12 +403,37 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-xs text-slate-500">
+              Ejemplo: Si eliges "Jueves", la tarea se repetirá todos los jueves
+            </p>
+          </div>
+        )}
+
+        {formData.recurrence_type === 'biweekly' && (
+          <div className="space-y-2">
+            <Label>Día de la Semana (Opcional)</Label>
+            <Select
+              value={formData.recurring_day_of_week?.toString() || ''}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, recurring_day_of_week: value ? parseInt(value) : null }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Usar día de la fecha límite" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={null}>Usar día de la fecha límite</SelectItem>
+                {DAYS_OF_WEEK.map(day => (
+                  <SelectItem key={day.value} value={day.value.toString()}>
+                    {day.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 
         {formData.recurrence_type === 'monthly' && (
           <div className="space-y-2">
-            <Label htmlFor="recurring_day_of_month">Día del Mes (1-31)</Label>
+            <Label htmlFor="recurring_day_of_month">Día del Mes (1-31) *</Label>
             <Input
               id="recurring_day_of_month"
               type="number"
@@ -388,16 +444,29 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
                 ...prev, 
                 recurring_day_of_month: e.target.value ? parseInt(e.target.value) : null 
               }))}
-              placeholder="Ej: 15"
+              placeholder="Ej: 15 para el día 15 de cada mes"
             />
+            <p className="text-xs text-slate-500">
+              La tarea se repetirá el mismo día de cada mes
+            </p>
           </div>
         )}
 
-        {formData.recurrence_type !== 'none' && formData.recurrence_type !== 'linked_to_service' && (
+        {formData.recurrence_type === 'linked_to_service' && (
+          <Alert className="bg-purple-50 border-purple-200">
+            <Info className="h-4 w-4 text-purple-600" />
+            <AlertDescription className="text-purple-800">
+              <strong>Modo Avanzado:</strong> Esta tarea seguirá automáticamente el patrón de recurrencia del servicio que selecciones abajo. 
+              Si el servicio se repite semanalmente, la tarea también lo hará.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {formData.recurrence_type !== 'none' && formData.recurrence_type !== 'linked_to_service' && !task?.id && (
           <Alert className="bg-blue-50 border-blue-200">
             <AlertCircle className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-800">
-              Al guardar, se generarán automáticamente tareas para los próximos 6 meses.
+              Al guardar, se generarán automáticamente tareas para los próximos 6 meses siguiendo este patrón.
             </AlertDescription>
           </Alert>
         )}
@@ -478,11 +547,17 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, onSa
           </div>
         </div>
 
-        {formData.related_schedule_id && formData.recurrence_type === 'linked_to_service' && (
-          <Alert className="bg-purple-50 border-purple-200">
-            <AlertCircle className="h-4 w-4 text-purple-600" />
-            <AlertDescription className="text-purple-800">
-              Esta tarea seguirá automáticamente el patrón de recurrencia del servicio seleccionado.
+        {formData.related_schedule_id && selectedSchedule && (
+          <Alert className="bg-green-50 border-green-200">
+            <Info className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              <strong>Servicio vinculado:</strong> {selectedSchedule.client_name} - {format(new Date(selectedSchedule.start_time), "PPP 'a las' HH:mm", { locale: es })}
+              {selectedSchedule.recurrence_rule && selectedSchedule.recurrence_rule !== 'none' && (
+                <span className="block mt-1">
+                  Este servicio tiene recurrencia <strong>{selectedSchedule.recurrence_rule}</strong>. 
+                  Puedes usar "Vinculada a servicio" para que la tarea siga el mismo patrón.
+                </span>
+              )}
             </AlertDescription>
           </Alert>
         )}

@@ -10,8 +10,10 @@ import {
   Calendar,
   User,
   Building2,
-  MoreVertical,
-  Edit
+  Edit,
+  MessageSquare,
+  ListChecks,
+  Eye
 } from 'lucide-react';
 import { format, isBefore, isToday, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -48,7 +50,7 @@ const PRIORITY_CONFIG = {
   urgent: { label: 'Urgente', color: 'bg-red-100 text-red-800 font-bold', borderColor: 'border-red-400' },
 };
 
-export default function TaskKanbanView({ tasks, users, clients, onEditTask, onToggleStatus }) {
+export default function TaskKanbanView({ tasks, users, clients, onEditTask, onViewDetail, onToggleStatus }) {
   const handleDragEnd = (result) => {
     if (!result.destination) return;
 
@@ -73,6 +75,12 @@ export default function TaskKanbanView({ tasks, users, clients, onEditTask, onTo
     const priorityConfig = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
     const overdue = isOverdue(task.due_date) && task.status !== 'completed';
     const clientName = clients.find(c => c.id === task.related_client_id)?.name;
+    const hasComments = task.comments && task.comments.length > 0;
+    const hasChecklist = task.checklist_items && task.checklist_items.length > 0;
+    const checklistProgress = hasChecklist ? {
+      completed: task.checklist_items.filter(i => i.completed).length,
+      total: task.checklist_items.length
+    } : null;
 
     return (
       <Draggable draggableId={task.id} index={index}>
@@ -87,7 +95,6 @@ export default function TaskKanbanView({ tasks, users, clients, onEditTask, onTo
               className={`hover:shadow-md transition-shadow cursor-pointer border-l-4 ${priorityConfig.borderColor} ${
                 overdue ? 'bg-red-50' : ''
               }`}
-              onClick={() => onEditTask(task)}
             >
               <CardContent className="p-4 space-y-3">
                 {/* Header */}
@@ -156,12 +163,43 @@ export default function TaskKanbanView({ tasks, users, clients, onEditTask, onTo
                   </div>
                 )}
 
-                {/* Checklist progress */}
-                {task.checklist_items && task.checklist_items.length > 0 && (
-                  <div className="text-xs text-slate-600">
-                    ✓ {task.checklist_items.filter(i => i.completed).length}/{task.checklist_items.length} completados
-                  </div>
-                )}
+                {/* Progress indicators */}
+                <div className="flex items-center gap-2 text-xs">
+                  {hasComments && (
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <MessageSquare className="w-3 h-3" />
+                      {task.comments.length}
+                    </Badge>
+                  )}
+                  {checklistProgress && (
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <ListChecks className="w-3 h-3" />
+                      {checklistProgress.completed}/{checklistProgress.total}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Acciones */}
+                <div className="flex gap-2 pt-2 border-t" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => onViewDetail(task)}
+                  >
+                    <Eye className="w-3 h-3 mr-1" />
+                    Ver
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => onEditTask(task)}
+                  >
+                    <Edit className="w-3 h-3 mr-1" />
+                    Editar
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
