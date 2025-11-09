@@ -24,6 +24,7 @@ import AumentoClientes from './pages/AumentoClientes';
 import GestionCamisas from './pages/GestionCamisas';
 import HistorialClientes from './pages/HistorialClientes';
 import ServicioActivo from './pages/ServicioActivo';
+import AdminTasksPanel from './pages/AdminTasksPanel';
 import Layout from './Layout.jsx';
 
 
@@ -54,6 +55,7 @@ export const PAGES = {
     "GestionCamisas": GestionCamisas,
     "HistorialClientes": HistorialClientes,
     "ServicioActivo": ServicioActivo,
+    "AdminTasksPanel": AdminTasksPanel,
 }
 
 export const pagesConfig = {
