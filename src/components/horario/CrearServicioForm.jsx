@@ -2408,6 +2408,7 @@ export default function CrearServicioForm({
                                         <SelectItem value="weekly">Regular - Semanal</SelectItem>
                                         <SelectItem value="fortnightly">Regular - Quincenal</SelectItem>
                                         <SelectItem value="every_3_weeks">Regular - Cada 3 semanas</SelectItem>
+                                        <SelectItem value="every_4_weeks">Regular - Cada 4 semanas</SelectItem> {/* NEW ITEM */}
                                         <SelectItem value="monthly">Regular - Mensual</SelectItem>
                                     </SelectContent>
                                 </Select>
