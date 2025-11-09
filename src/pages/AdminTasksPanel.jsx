@@ -7,8 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { 
   Plus, 
   ListChecks, 
@@ -22,7 +20,8 @@ import {
   RefreshCw,
   Shield,
   Eye,
-  UserCheck
+  UserCheck,
+  Briefcase
 } from 'lucide-react';
 import TaskFilters from '@/components/tasks/TaskFilters';
 import TaskTable from '@/components/tasks/TaskTable';
@@ -49,8 +48,8 @@ export default function AdminTasksPanel() {
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [taskForDetail, setTaskForDetail] = useState(null);
   const [activeView, setActiveView] = useState('table');
+  const [taskScope, setTaskScope] = useState('my_tasks'); // NUEVO: 'my_tasks' o 'all_tasks'
   const [error, setError] = useState('');
-  const [viewAllTasks, setViewAllTasks] = useState(false); // Toggle para super admin
   const { toast } = useToast();
   
   // Estados de filtros
@@ -96,10 +95,6 @@ export default function AdminTasksPanel() {
       setUsers(Array.isArray(allUsers) ? allUsers.filter(u => u.role === 'admin') : []);
       setClients(Array.isArray(allClients) ? allClients : []);
       setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
-
-      // NUEVO: Si es super admin (creador de la app), activar viewAllTasks por defecto
-      const isSuperAdmin = currentUser.created_by === null || currentUser.created_by === currentUser.email;
-      setViewAllTasks(isSuperAdmin);
 
     } catch (error) {
       console.error('[AdminTasksPanel] Error loading data:', error);
@@ -454,35 +449,32 @@ export default function AdminTasksPanel() {
     }
   };
 
-  // NUEVO: Determinar si el usuario es super admin (puede ver todas las tareas)
-  const isSuperAdmin = useMemo(() => {
-    if (!user) return false;
-    // El super admin es quien creó la app (created_by es null o es su propio email)
-    return user.created_by === null || user.created_by === user.email;
+  // NUEVO: Detectar si es el master admin por email
+  const isMasterAdmin = useMemo(() => {
+    return user?.email === 'accounts@redoakcleaning.com.au';
   }, [user]);
 
-  // MODIFICADO: Filtrado base con permisos
-  const tasksWithPermissions = useMemo(() => {
+  // MODIFICADO: Filtrado base con scope (pestaña activa)
+  const tasksWithScope = useMemo(() => {
     if (!user) return [];
     
-    // Si es super admin Y tiene activado "Ver todas", mostrar todo
-    if (isSuperAdmin && viewAllTasks) {
+    // Si es master admin y está en "Todas las Tareas"
+    if (isMasterAdmin && taskScope === 'all_tasks') {
       return tasks;
     }
     
-    // Si no, solo mostrar:
-    // 1. Tareas asignadas al usuario actual
-    // 2. Tareas creadas por el usuario actual
+    // Si no es master admin O está en "Mis Tareas", filtrar
+    // Mostrar solo: tareas asignadas al usuario O creadas por el usuario
     return tasks.filter(task => {
       const isAssigned = task.assignee_user_ids && task.assignee_user_ids.includes(user.id);
       const isCreator = task.created_by_user_id === user.id;
       return isAssigned || isCreator;
     });
-  }, [tasks, user, isSuperAdmin, viewAllTasks]);
+  }, [tasks, user, isMasterAdmin, taskScope]);
 
-  // Filtrado de tareas con permisos aplicados
+  // Filtrado de tareas con scope aplicado
   const filteredTasks = useMemo(() => {
-    let filtered = [...tasksWithPermissions];
+    let filtered = [...tasksWithScope];
 
     // Filtro por término de búsqueda
     if (filters.searchTerm) {
@@ -553,28 +545,28 @@ export default function AdminTasksPanel() {
     }
 
     return filtered;
-  }, [tasksWithPermissions, filters]);
+  }, [tasksWithScope, filters]);
 
-  // MODIFICADO: Estadísticas sobre tareas con permisos
+  // MODIFICADO: Estadísticas sobre tareas con scope
   const stats = useMemo(() => {
     const today = new Date();
     return {
-      total: tasksWithPermissions.length,
-      pending: tasksWithPermissions.filter(t => t.status === 'pending').length,
-      inProgress: tasksWithPermissions.filter(t => t.status === 'in_progress').length,
-      completed: tasksWithPermissions.filter(t => t.status === 'completed').length,
-      overdue: tasksWithPermissions.filter(t => {
+      total: tasksWithScope.length,
+      pending: tasksWithScope.filter(t => t.status === 'pending').length,
+      inProgress: tasksWithScope.filter(t => t.status === 'in_progress').length,
+      completed: tasksWithScope.filter(t => t.status === 'completed').length,
+      overdue: tasksWithScope.filter(t => {
         if (!t.due_date || t.status === 'completed') return false;
         return isBefore(new Date(t.due_date), startOfDay(today));
       }).length,
-      urgent: tasksWithPermissions.filter(t => t.priority === 'urgent' && t.status !== 'completed').length,
-      myTasks: tasksWithPermissions.filter(t => 
+      urgent: tasksWithScope.filter(t => t.priority === 'urgent' && t.status !== 'completed').length,
+      myTasks: tasksWithScope.filter(t => 
         t.assignee_user_ids && 
         t.assignee_user_ids.includes(user?.id) && 
         t.status !== 'completed'
       ).length
     };
-  }, [tasksWithPermissions, user]);
+  }, [tasksWithScope, user]);
 
   if (loading) {
     return (
@@ -633,28 +625,22 @@ export default function AdminTasksPanel() {
                 <Shield className="w-3 h-3 mr-1" />
                 Admin
               </Badge>
+              {isMasterAdmin && (
+                <Badge className="bg-purple-600 text-white">
+                  <Briefcase className="w-3 h-3 mr-1" />
+                  Master
+                </Badge>
+              )}
             </div>
             <p className="text-slate-600 mt-1">
-              {isSuperAdmin && viewAllTasks 
-                ? 'Visualizando todas las tareas del equipo administrativo' 
+              {isMasterAdmin 
+                ? (taskScope === 'all_tasks' 
+                    ? 'Visualizando todas las tareas del equipo administrativo' 
+                    : 'Visualizando tus tareas asignadas y creadas')
                 : 'Visualizando tus tareas asignadas y creadas'}
             </p>
           </div>
-          <div className="flex gap-2 items-center flex-wrap">
-            {/* NUEVO: Toggle para super admin */}
-            {isSuperAdmin && (
-              <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border-2 border-blue-200">
-                <Label htmlFor="view-all" className="text-sm font-medium cursor-pointer flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-blue-600" />
-                  Ver todas las tareas
-                </Label>
-                <Switch
-                  id="view-all"
-                  checked={viewAllTasks}
-                  onCheckedChange={setViewAllTasks}
-                />
-              </div>
-            )}
+          <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={handleRefresh}
@@ -675,15 +661,15 @@ export default function AdminTasksPanel() {
           </div>
         </div>
 
-        {/* NUEVO: Info de permisos */}
-        {!isSuperAdmin && (
+        {/* NUEVO: Info de permisos para admins regulares */}
+        {!isMasterAdmin && (
           <Alert className="bg-blue-50 border-blue-200">
             <UserCheck className="h-4 w-4 text-blue-600" />
             <AlertDescription className="text-blue-800">
               <strong>Vista personalizada:</strong> Solo ves las tareas que te fueron asignadas o que tú creaste.
-              {tasks.length > tasksWithPermissions.length && (
+              {tasks.length > tasksWithScope.length && (
                 <span className="block mt-1 text-sm">
-                  Hay {tasks.length - tasksWithPermissions.length} tarea(s) adicional(es) del equipo que no están asignadas a ti.
+                  Hay {tasks.length - tasksWithScope.length} tarea(s) adicional(es) del equipo que no están asignadas a ti.
                 </span>
               )}
             </AlertDescription>
@@ -696,6 +682,36 @@ export default function AdminTasksPanel() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+
+        {/* NUEVO: Pestañas para Master Admin */}
+        {isMasterAdmin ? (
+          <Card className="border-2 border-purple-200">
+            <CardHeader className="bg-purple-50 border-b">
+              <Tabs value={taskScope} onValueChange={setTaskScope} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="my_tasks" className="flex items-center gap-2">
+                    <UserCheck className="w-4 h-4" />
+                    Mis Tareas
+                    <Badge variant="secondary" className="ml-2">
+                      {tasks.filter(t => {
+                        const isAssigned = t.assignee_user_ids && t.assignee_user_ids.includes(user.id);
+                        const isCreator = t.created_by_user_id === user.id;
+                        return (isAssigned || isCreator) && t.status !== 'completed';
+                      }).length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="all_tasks" className="flex items-center gap-2">
+                    <Eye className="w-4 h-4" />
+                    Todas las Tareas
+                    <Badge variant="secondary" className="ml-2">
+                      {tasks.filter(t => t.status !== 'completed').length}
+                    </Badge>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </CardHeader>
+          </Card>
+        ) : null}
 
         {/* Estadísticas */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
@@ -812,6 +828,11 @@ export default function AdminTasksPanel() {
                 {activeView === 'table' && <ListChecks className="w-5 h-5" />}
                 {activeView === 'kanban' && <LayoutGrid className="w-5 h-5" />}
                 {filteredTasks.length} Tarea{filteredTasks.length !== 1 ? 's' : ''}
+                {isMasterAdmin && taskScope === 'all_tasks' && (
+                  <Badge variant="outline" className="ml-2 text-purple-600 border-purple-300">
+                    Vista Completa
+                  </Badge>
+                )}
               </CardTitle>
               <Tabs value={activeView} onValueChange={setActiveView}>
                 <TabsList>
