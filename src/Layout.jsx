@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { syncActiveService } from "@/components/utils/activeServiceManager";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import {
   LayoutDashboard,
   Clock,
@@ -31,6 +32,7 @@ import {
   ArrowRightSquare,
   Shirt,
   History,
+  ListChecks,
 } from "lucide-react";
 import {
   Sidebar,
@@ -54,6 +56,7 @@ import CleanerMobileLayout from '@/components/layout/CleanerMobileLayout';
 const adminMenuItems = [
   { name: 'Dashboard', path: 'Dashboard', icon: BarChart },
   { name: 'Dashboard TV', path: 'TVDashboard', icon: Activity },
+  { name: 'Tareas', path: 'AdminTasksPanel', icon: ListChecks },
   { name: 'Horario', path: 'Horario', icon: Calendar },
   { name: 'Gestión Avanzada', path: 'GestionServiciosAdmin', icon: Search },
   { name: 'Reportes de Servicio', path: 'ReportesServicio', icon: AlertTriangle },
@@ -380,6 +383,10 @@ export default function Layout({ children, currentPageName }) {
                 <p className="font-medium text-slate-900 text-sm truncate whitespace-nowrap">{user.full_name}</p>
                 <p className="text-xs text-slate-500 truncate whitespace-nowrap">{user.email}</p>
               </div>
+              {/* Notification Bell - Only for admins */}
+              {user.role === 'admin' && (
+                <NotificationBell userId={user.id} />
+              )}
             </div>
             <Button
               variant="outline"
