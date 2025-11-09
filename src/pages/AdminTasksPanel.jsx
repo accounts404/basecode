@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
@@ -22,7 +21,8 @@ import {
   Shield,
   Eye,
   UserCheck,
-  Briefcase
+  Briefcase,
+  FilePlus
 } from 'lucide-react';
 import TaskFilters from '@/components/tasks/TaskFilters';
 import TaskTable from '@/components/tasks/TaskTable';
@@ -49,7 +49,7 @@ export default function AdminTasksPanel() {
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [taskForDetail, setTaskForDetail] = useState(null);
   const [activeView, setActiveView] = useState('table');
-  const [taskScope, setTaskScope] = useState('my_tasks'); // NUEVO: 'my_tasks' o 'all_tasks'
+  const [taskScope, setTaskScope] = useState('my_tasks'); // 'my_tasks', 'created_by_me', 'all_tasks'
   const [error, setError] = useState('');
   const { toast } = useToast();
   
@@ -141,6 +141,41 @@ export default function AdminTasksPanel() {
     };
   };
 
+  // NUEVA FUNCIÓN: Notificar al Master Admin cuando se completa una tarea
+  const notifyMasterAdminOnCompletion = async (task, completedByUser) => {
+    try {
+      // Buscar al Master Admin
+      const masterAdmin = users.find(u => u.email === 'accounts@redoakcleaning.com.au');
+      
+      if (!masterAdmin) {
+        console.warn('[AdminTasksPanel] Master Admin no encontrado para notificación');
+        return;
+      }
+
+      // No notificar si el Master Admin fue quien completó la tarea
+      if (completedByUser.id === masterAdmin.id) {
+        console.log('[AdminTasksPanel] Master Admin completó su propia tarea, no se envía notificación');
+        return;
+      }
+
+      // Crear notificación in-app
+      await base44.entities.TaskNotification.create({
+        user_id: masterAdmin.id,
+        task_id: task.id,
+        task_title: task.title,
+        notification_type: 'status_change',
+        message: `✅ ${completedByUser.full_name} completó la tarea: "${task.title}"`,
+        read: false,
+        action_url: createPageUrl('AdminTasksPanel')
+      });
+
+      console.log('[AdminTasksPanel] ✅ Notificación enviada al Master Admin');
+
+    } catch (error) {
+      console.error('[AdminTasksPanel] Error notificando al Master Admin:', error);
+    }
+  };
+
   const handleSaveTask = async (taskData) => {
     try {
       let savedTask;
@@ -189,6 +224,11 @@ export default function AdminTasksPanel() {
 
         await base44.entities.Task.update(selectedTask.id, taskData);
         savedTask = { ...selectedTask, ...taskData };
+
+        // NUEVA LÓGICA: Notificar al Master Admin si se completó
+        if (taskData.status === 'completed' && oldTask.status !== 'completed') {
+          await notifyMasterAdminOnCompletion(savedTask, user);
+        }
 
       } else {
         // New task
@@ -328,6 +368,11 @@ export default function AdminTasksPanel() {
 
       await base44.entities.Task.update(taskId, updateData);
       
+      // NUEVA LÓGICA: Notificar al Master Admin si se completó
+      if (newStatus === 'completed' && oldStatus !== 'completed') {
+        await notifyMasterAdminOnCompletion(task, user);
+      }
+      
       // Notificar cambio de estado
       if (task && task.assignee_user_ids && task.assignee_user_ids.length > 0) {
         try {
@@ -450,34 +495,30 @@ export default function AdminTasksPanel() {
     }
   };
 
-  // NUEVO: Detectar si es el master admin por email
+  // Detectar si es el master admin por email
   const isMasterAdmin = useMemo(() => {
     return user?.email === 'accounts@redoakcleaning.com.au';
   }, [user]);
 
-  // MODIFICADO: Filtrado base con scope diferenciado
+  // MODIFICADO: Filtrado base con 3 scopes para Master Admin y 2 para regulares
   const tasksWithScope = useMemo(() => {
     if (!user) return [];
     
-    // Si es master admin
-    if (isMasterAdmin) {
-      if (taskScope === 'all_tasks') {
-        // Pestaña "Todas las Tareas" - mostrar TODAS
-        return tasks;
-      } else { // taskScope === 'my_tasks'
-        // Pestaña "Mis Tareas" - SOLO las asignadas a él (no las creadas por él)
-        return tasks.filter(task => {
-          const isAssigned = task.assignee_user_ids && task.assignee_user_ids.includes(user.id);
-          return isAssigned;
-        });
-      }
+    if (taskScope === 'all_tasks') {
+      // Solo el Master Admin puede ver todas las tareas
+      return isMasterAdmin ? tasks : [];
     }
     
-    // Para admins regulares (no master): mostrar asignadas O creadas
+    if (taskScope === 'created_by_me') {
+      // Tareas creadas por el usuario actual
+      return tasks.filter(task => task.created_by_user_id === user.id);
+    }
+    
+    // taskScope === 'my_tasks' (por defecto)
+    // Tareas asignadas al usuario actual
     return tasks.filter(task => {
       const isAssigned = task.assignee_user_ids && task.assignee_user_ids.includes(user.id);
-      const isCreator = task.created_by_user_id === user.id;
-      return isAssigned || isCreator;
+      return isAssigned;
     });
   }, [tasks, user, isMasterAdmin, taskScope]);
 
@@ -556,7 +597,7 @@ export default function AdminTasksPanel() {
     return filtered;
   }, [tasksWithScope, filters]);
 
-  // MODIFICADO: Estadísticas sobre tareas con scope
+  // Estadísticas sobre tareas con scope
   const stats = useMemo(() => {
     const today = new Date();
     return {
@@ -642,11 +683,11 @@ export default function AdminTasksPanel() {
               )}
             </div>
             <p className="text-slate-600 mt-1">
-              {isMasterAdmin 
-                ? (taskScope === 'all_tasks' 
-                    ? 'Visualizando todas las tareas del equipo administrativo' 
-                    : 'Visualizando solo tus tareas asignadas')
-                : 'Visualizando tus tareas asignadas y creadas'}
+              {taskScope === 'all_tasks' 
+                ? 'Visualizando todas las tareas del equipo administrativo' 
+                : taskScope === 'created_by_me'
+                ? 'Visualizando tareas que tú creaste'
+                : 'Visualizando tus tareas asignadas'}
             </p>
           </div>
           <div className="flex gap-2">
@@ -670,21 +711,6 @@ export default function AdminTasksPanel() {
           </div>
         </div>
 
-        {/* NUEVO: Info de permisos para admins regulares */}
-        {!isMasterAdmin && (
-          <Alert className="bg-blue-50 border-blue-200">
-            <UserCheck className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <strong>Vista personalizada:</strong> Solo ves las tareas que te fueron asignadas o que tú creaste.
-              {tasks.length > tasksWithScope.length && (
-                <span className="block mt-1 text-sm">
-                  Hay {tasks.length - tasksWithScope.length} tarea(s) adicional(es) del equipo que no están asignadas a ti.
-                </span>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -692,34 +718,45 @@ export default function AdminTasksPanel() {
           </Alert>
         )}
 
-        {/* NUEVO: Pestañas para Master Admin */}
-        {isMasterAdmin ? (
-          <Card className="border-2 border-purple-200">
-            <CardHeader className="bg-purple-50 border-b">
-              <Tabs value={taskScope} onValueChange={setTaskScope} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="my_tasks" className="flex items-center gap-2">
-                    <UserCheck className="w-4 h-4" />
-                    Mis Tareas (Asignadas)
-                    <Badge variant="secondary" className="ml-2">
-                      {tasks.filter(t => {
-                        const isAssigned = t.assignee_user_ids && t.assignee_user_ids.includes(user.id);
-                        return isAssigned && t.status !== 'completed';
-                      }).length}
-                    </Badge>
-                  </TabsTrigger>
+        {/* Pestañas según tipo de admin */}
+        <Card className={isMasterAdmin ? "border-2 border-purple-200" : "border-2 border-blue-200"}>
+          <CardHeader className={isMasterAdmin ? "bg-purple-50 border-b" : "bg-blue-50 border-b"}>
+            <Tabs value={taskScope} onValueChange={setTaskScope} className="w-full">
+              <TabsList className={`grid w-full ${isMasterAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <TabsTrigger value="my_tasks" className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4" />
+                  Mis Tareas
+                  <Badge variant="secondary" className="ml-2">
+                    {tasks.filter(t => {
+                      const isAssigned = t.assignee_user_ids && t.assignee_user_ids.includes(user.id);
+                      return isAssigned && t.status !== 'completed';
+                    }).length}
+                  </Badge>
+                </TabsTrigger>
+                
+                <TabsTrigger value="created_by_me" className="flex items-center gap-2">
+                  <FilePlus className="w-4 h-4" />
+                  Creadas por Mí
+                  <Badge variant="secondary" className="ml-2">
+                    {tasks.filter(t => {
+                      return t.created_by_user_id === user.id && t.status !== 'completed';
+                    }).length}
+                  </Badge>
+                </TabsTrigger>
+                
+                {isMasterAdmin && (
                   <TabsTrigger value="all_tasks" className="flex items-center gap-2">
                     <Eye className="w-4 h-4" />
-                    Todas las Tareas del Equipo
+                    Todas las Tareas
                     <Badge variant="secondary" className="ml-2">
                       {tasks.filter(t => t.status !== 'completed').length}
                     </Badge>
                   </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </CardHeader>
-          </Card>
-        ) : null}
+                )}
+              </TabsList>
+            </Tabs>
+          </CardHeader>
+        </Card>
 
         {/* Estadísticas */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
@@ -836,9 +873,14 @@ export default function AdminTasksPanel() {
                 {activeView === 'table' && <ListChecks className="w-5 h-5" />}
                 {activeView === 'kanban' && <LayoutGrid className="w-5 h-5" />}
                 {filteredTasks.length} Tarea{filteredTasks.length !== 1 ? 's' : ''}
-                {isMasterAdmin && taskScope === 'all_tasks' && (
+                {taskScope === 'all_tasks' && (
                   <Badge variant="outline" className="ml-2 text-purple-600 border-purple-300">
                     Vista Completa
+                  </Badge>
+                )}
+                {taskScope === 'created_by_me' && (
+                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-300">
+                    Mis Creaciones
                   </Badge>
                 )}
               </CardTitle>
