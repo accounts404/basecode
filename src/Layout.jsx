@@ -370,22 +370,33 @@ export default function Layout({ children, currentPageName }) {
 
           {/* Footer */}
           <div className="border-t border-slate-200 p-4 h-[120px]">
-            <div className={`flex items-center gap-3 mb-3 ${isSidebarExpanded ? '' : 'justify-center'}`}>
+            <div className={`flex items-center gap-2 mb-3 ${isSidebarExpanded ? '' : 'justify-center'}`}>
               <Avatar className="w-10 h-10 flex-shrink-0">
                 <AvatarImage src={user?.profile_photo_url} alt={user?.full_name} />
                 <AvatarFallback className="bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold">
                   {user.full_name?.charAt(0)?.toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
+              
+              {/* CRITICAL: Notification Bell - ONLY for admins */}
+              {user.role === 'admin' && !isSidebarExpanded && (
+                <div className="flex-shrink-0">
+                  <NotificationBell userId={user.id} userRole={user.role} />
+                </div>
+              )}
+
               <div className={`flex-1 min-w-0 transition-all duration-300 ${
                 isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
               } overflow-hidden`}>
                 <p className="font-medium text-slate-900 text-sm truncate whitespace-nowrap">{user.full_name}</p>
                 <p className="text-xs text-slate-500 truncate whitespace-nowrap">{user.email}</p>
               </div>
-              {/* Notification Bell - Only for admins */}
-              {user.role === 'admin' && (
-                <NotificationBell userId={user.id} />
+              
+              {/* Notification Bell when expanded - ONLY for admins */}
+              {user.role === 'admin' && isSidebarExpanded && (
+                <div className="flex-shrink-0">
+                  <NotificationBell userId={user.id} userRole={user.role} />
+                </div>
               )}
             </div>
             <Button

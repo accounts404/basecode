@@ -1,5 +1,8 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useNavigate } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,7 +18,8 @@ import {
   Clock,
   CheckCircle2,
   Users,
-  RefreshCw
+  RefreshCw,
+  Shield
 } from 'lucide-react';
 import TaskFilters from '@/components/tasks/TaskFilters';
 import TaskTable from '@/components/tasks/TaskTable';
@@ -29,6 +33,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 
 export default function AdminTasksPanel() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
@@ -63,21 +68,33 @@ export default function AdminTasksPanel() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [currentUser, allTasks, allUsers, allClients, allSchedules] = await Promise.all([
-        base44.auth.me(),
+      
+      // CRITICAL: Verify user is admin FIRST
+      const currentUser = await base44.auth.me();
+      
+      // PROTECTION: Redirect non-admins immediately
+      if (!currentUser || currentUser.role !== 'admin') {
+        console.warn('[AdminTasksPanel] ⛔ Acceso denegado - Usuario no es administrador');
+        navigate(createPageUrl('Horario'), { replace: true });
+        setLoading(false); // Ensure loading state is reset
+        return;
+      }
+
+      setUser(currentUser);
+
+      const [allTasks, allUsers, allClients, allSchedules] = await Promise.all([
         base44.entities.Task.list(),
         base44.entities.User.list(),
         base44.entities.Client.list(),
         base44.entities.Schedule.list()
       ]);
 
-      setUser(currentUser);
       setTasks(Array.isArray(allTasks) ? allTasks : []);
       setUsers(Array.isArray(allUsers) ? allUsers.filter(u => u.role === 'admin') : []);
       setClients(Array.isArray(allClients) ? allClients : []);
       setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('[AdminTasksPanel] Error loading data:', error);
       setError('Error al cargar datos. Por favor, recarga la página.');
     } finally {
       setLoading(false);
@@ -536,17 +553,29 @@ export default function AdminTasksPanel() {
     );
   }
 
+  // CRITICAL PROTECTION: Double-check user role before rendering
   if (!user || user.role !== 'admin') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full border-2 border-red-200">
           <CardContent className="pt-6">
             <div className="text-center space-y-4">
-              <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
+              <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                <Shield className="w-10 h-10 text-red-600" />
+              </div>
               <h2 className="text-xl font-bold text-slate-800">Acceso Denegado</h2>
               <p className="text-slate-600">
-                Solo los administradores pueden acceder al panel de gestión de tareas.
+                ⚠️ Solo los administradores pueden acceder al panel de gestión de tareas.
               </p>
+              <p className="text-sm text-slate-500">
+                Esta funcionalidad está exclusivamente diseñada para el equipo administrativo.
+              </p>
+              <Button 
+                onClick={() => navigate(createPageUrl('Horario'))}
+                className="mt-4"
+              >
+                Volver al Horario
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -558,13 +587,19 @@ export default function AdminTasksPanel() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-6">
       <Toaster />
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
+        {/* Header with Admin Badge */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-              <ListChecks className="w-8 h-8 text-blue-600" />
-              Panel de Gestión de Tareas
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                <ListChecks className="w-8 h-8 text-blue-600" />
+                Panel de Gestión de Tareas
+              </h1>
+              <Badge className="bg-blue-600 text-white">
+                <Shield className="w-3 h-3 mr-1" />
+                Admin
+              </Badge>
+            </div>
             <p className="text-slate-600 mt-1">
               Coordina y administra todas las tareas del equipo administrativo
             </p>

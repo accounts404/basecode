@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bell, Check, Trash2, CheckCheck } from 'lucide-react';
+import { Bell, Check, Trash2, CheckCheck, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
@@ -21,21 +21,28 @@ const NOTIFICATION_ICONS = {
   overdue_alert: '🚨',
 };
 
-export default function NotificationBell({ userId }) {
+// CRITICAL: This component should ONLY be used for admin users
+export default function NotificationBell({ userId, userRole }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
+  // PROTECTION: Don't render if not admin
+  if (userRole !== 'admin') {
+    console.warn('[NotificationBell] ⛔ Component should only be used for admin users');
+    return null;
+  }
+
   useEffect(() => {
-    if (userId) {
+    if (userId && userRole === 'admin') {
       loadNotifications();
       
       // Poll for new notifications every 30 seconds
       const interval = setInterval(loadNotifications, 30000);
       return () => clearInterval(interval);
     }
-  }, [userId]);
+  }, [userId, userRole]);
 
   const loadNotifications = async () => {
     try {
@@ -50,7 +57,7 @@ export default function NotificationBell({ userId }) {
       setNotifications(sorted.slice(0, 20)); // Last 20 notifications
       setUnreadCount(sorted.filter(n => !n.read).length);
     } catch (error) {
-      console.error('Error loading notifications:', error);
+      console.error('[NotificationBell] Error loading notifications:', error);
     }
   };
 
@@ -62,7 +69,7 @@ export default function NotificationBell({ userId }) {
       });
       await loadNotifications();
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      console.error('[NotificationBell] Error marking notification as read:', error);
     }
   };
 
@@ -79,7 +86,7 @@ export default function NotificationBell({ userId }) {
       );
       await loadNotifications();
     } catch (error) {
-      console.error('Error marking all as read:', error);
+      console.error('[NotificationBell] Error marking all as read:', error);
     }
   };
 
@@ -88,7 +95,18 @@ export default function NotificationBell({ userId }) {
       await base44.entities.TaskNotification.delete(notificationId);
       await loadNotifications();
     } catch (error) {
-      console.error('Error deleting notification:', error);
+      console.error('[NotificationBell] Error deleting notification:', error);
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await Promise.all(
+        notifications.map(n => base44.entities.TaskNotification.delete(n.id))
+      );
+      await loadNotifications();
+    } catch (error) {
+      console.error('[NotificationBell] Error clearing notifications:', error);
     }
   };
 
@@ -109,12 +127,12 @@ export default function NotificationBell({ userId }) {
         <Button 
           variant="ghost" 
           size="icon" 
-          className="relative"
+          className="relative hover:bg-slate-100"
         >
           <Bell className="w-5 h-5" />
           {unreadCount > 0 && (
             <Badge 
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500 text-white text-xs"
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500 text-white text-xs animate-pulse"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
             </Badge>
@@ -122,21 +140,34 @@ export default function NotificationBell({ userId }) {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0" align="end">
-        <div className="border-b p-4 flex items-center justify-between">
+        <div className="border-b p-4 flex items-center justify-between bg-slate-50">
           <h3 className="font-semibold text-slate-900">
-            Notificaciones {unreadCount > 0 && `(${unreadCount})`}
+            Notificaciones {unreadCount > 0 && `(${unreadCount} nuevas)`}
           </h3>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleMarkAllAsRead}
-              className="text-xs"
-            >
-              <CheckCheck className="w-3 h-3 mr-1" />
-              Marcar todas como leídas
-            </Button>
-          )}
+          <div className="flex gap-1">
+            {unreadCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleMarkAllAsRead}
+                className="text-xs h-7"
+                title="Marcar todas como leídas"
+              >
+                <CheckCheck className="w-3 h-3" />
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearAll}
+                className="text-xs h-7"
+                title="Limpiar todas"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
         </div>
 
         <ScrollArea className="h-[400px]">
@@ -144,14 +175,17 @@ export default function NotificationBell({ userId }) {
             <div className="p-8 text-center text-slate-500">
               <Bell className="w-12 h-12 mx-auto mb-3 text-slate-300" />
               <p className="text-sm">No tienes notificaciones</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Recibirás notificaciones cuando te asignen tareas o haya actualizaciones
+              </p>
             </div>
           ) : (
             <div className="divide-y">
               {notifications.map(notification => (
                 <div
                   key={notification.id}
-                  className={`p-4 hover:bg-slate-50 cursor-pointer transition-colors ${
-                    !notification.read ? 'bg-blue-50' : ''
+                  className={`p-4 hover:bg-slate-50 cursor-pointer transition-colors relative ${
+                    !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                   }`}
                   onClick={() => handleNotificationClick(notification)}
                 >
@@ -163,6 +197,11 @@ export default function NotificationBell({ userId }) {
                       <p className={`text-sm ${!notification.read ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>
                         {notification.message}
                       </p>
+                      {notification.task_title && (
+                        <p className="text-xs text-slate-600 mt-1 italic">
+                          "{notification.task_title}"
+                        </p>
+                      )}
                       <p className="text-xs text-slate-500 mt-1">
                         {formatDistanceToNow(new Date(notification.created_date), { addSuffix: true, locale: es })}
                       </p>
