@@ -58,6 +58,10 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
                 siguienteInicio = addWeeks(fechaInicioActual, 3);
                 siguienteFin = addWeeks(fechaFinActual, 3);
                 break;
+            case 'every_4_weeks': // NUEVO: Soporte para cada 4 semanas
+                siguienteInicio = addWeeks(fechaInicioActual, 4);
+                siguienteFin = addWeeks(fechaFinActual, 4);
+                break;
             case 'monthly':
                 // Según la outline, ahora se usa addMonths en lugar de addWeeks(4)
                 siguienteInicio = addMonths(fechaInicioActual, 1);
