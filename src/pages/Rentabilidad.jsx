@@ -7,7 +7,7 @@ import { PricingThreshold } from '@/entities/PricingThreshold';
 import { Schedule } from '@/entities/Schedule';
 import { User } from '@/entities/User';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO } from "date-fns"; // Added parseISO
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -42,6 +42,92 @@ const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   const endDate = format(rangeEnd, 'yyyy-MM-dd');
   
   return date >= startDate && date <= endDate;
+};
+
+// NUEVA FUNCIÓN: Obtiene el precio correcto para un servicio, respetando snapshots y historial
+const getPriceForSchedule = (schedule, client) => {
+    // PRIORIDAD 1: Si tiene reconciliation_items, usar esos (ya fueron revisados)
+    if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
+        let tempRawBreakdown = {};
+        let totalRawReconciledAmount = 0;
+
+        schedule.reconciliation_items.forEach(item => {
+            const type = item.type || 'other_extra';
+            const amount = parseFloat(item.amount) || 0;
+            tempRawBreakdown[type] = (tempRawBreakdown[type] || 0) + amount;
+            // Only add non-discount items to totalRawReconciledAmount for GST calculation purposes
+            if (type !== 'discount') {
+                totalRawReconciledAmount += amount;
+            }
+        });
+        
+        return { 
+            rawAmount: totalRawReconciledAmount, 
+            breakdown: tempRawBreakdown,
+            gstType: schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive',
+            source: 'reconciliation_items'
+        };
+    }
+    
+    // PRIORIDAD 2: Si está facturado y tiene snapshot, usar ese (INMUTABLE)
+    if (schedule.xero_invoiced && schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
+        return {
+            rawAmount: schedule.billed_price_snapshot,
+            breakdown: { base_service: schedule.billed_price_snapshot },
+            gstType: schedule.billed_gst_type_snapshot || 'inclusive',
+            source: 'snapshot'
+        };
+    }
+    
+    // PRIORIDAD 3: Calcular precio vigente en la fecha del servicio usando price_history
+    if (client) {
+        const serviceDate = schedule.start_time;
+        if (!client.price_history || client.price_history.length === 0) {
+            return {
+                rawAmount: client.current_service_price || 0,
+                breakdown: { base_service: client.current_service_price || 0 },
+                gstType: client.gst_type || 'inclusive',
+                source: 'current_price_fallback'
+            };
+        }
+        
+        const serviceDateObj = parseISO(serviceDate);
+        const sortedHistory = [...client.price_history].sort((a, b) => {
+            return new Date(b.effective_date) - new Date(a.effective_date);
+        });
+        
+        for (const historyEntry of sortedHistory) {
+            const effectiveDateObj = parseISO(historyEntry.effective_date);
+            // Check if the service date is on or after the effective date of this history entry
+            if (serviceDateObj >= effectiveDateObj) {
+                return {
+                    rawAmount: historyEntry.new_price || client.current_service_price || 0,
+                    breakdown: { base_service: historyEntry.new_price || client.current_service_price || 0 },
+                    gstType: historyEntry.gst_type || client.gst_type || 'inclusive',
+                    source: 'price_history'
+                };
+            }
+        }
+        
+        // If service date is before all effective dates in history, use the price before the oldest change
+        const oldestEntry = sortedHistory[sortedHistory.length - 1];
+        if (oldestEntry && serviceDateObj < parseISO(oldestEntry.effective_date)) {
+            return {
+                rawAmount: oldestEntry.previous_price || client.current_service_price || 0,
+                breakdown: { base_service: oldestEntry.previous_price || client.current_service_price || 0 },
+                gstType: oldestEntry.gst_type || client.gst_type || 'inclusive',
+                source: 'price_history_oldest_previous'
+            };
+        }
+    }
+    
+    // Fallback: Use current service price if no specific logic applies
+    return {
+        rawAmount: client?.current_service_price || 0,
+        breakdown: { base_service: client?.current_service_price || 0 },
+        gstType: client?.gst_type || 'inclusive',
+        source: 'fallback'
+    };
 };
 
 const frequencyLabels = {
@@ -350,36 +436,20 @@ export default function RentabilidadPage() {
                     };
                 }
 
-                const gstType = client.gst_type || 'inclusive';
-                let serviceRevenueBreakdown = {};
-                let totalRawReconciledAmount = 0; // Sum of non-discount raw amounts for GST calculation
-
-                if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
-                    schedule.reconciliation_items.forEach(item => {
-                        const type = item.type || 'other_extra'; // Default to 'other_extra'
-                        const amount = parseFloat(item.amount) || 0;
-                        serviceRevenueBreakdown[type] = (serviceRevenueBreakdown[type] || 0) + amount;
-                        if (type !== 'discount') {
-                            totalRawReconciledAmount += amount;
-                        }
-                    });
-                } else {
-                    // Fallback to current_service_price if no reconciliation items
-                    totalRawReconciledAmount = client.current_service_price || 0;
-                    serviceRevenueBreakdown['base_service'] = totalRawReconciledAmount;
-                }
+                // NUEVA LÓGICA: Usar getPriceForSchedule
+                const priceData = getPriceForSchedule(schedule, client);
+                const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
                 
-                const { base: netIncomeFromRawTotal, total: grossIncomeFromRawTotal } = calculateGST(totalRawReconciledAmount, gstType);
-
-                const gstFactor = (grossIncomeFromRawTotal > 0 && totalRawReconciledAmount > 0) ? (netIncomeFromRawTotal / totalRawReconciledAmount) : 1;
+                // Calculate a GST factor to apply to individual breakdown items
+                const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
                 
                 let netBreakdownForSchedule = {};
-                for (const type in serviceRevenueBreakdown) {
-                    netBreakdownForSchedule[type] = serviceRevenueBreakdown[type] * gstFactor;
+                for (const type in priceData.breakdown) {
+                    netBreakdownForSchedule[type] = priceData.breakdown[type] * gstFactor;
                 }
 
                 clientData[clientId].revenueBreakdown = mergeRevenueBreakdowns(clientData[clientId].revenueBreakdown, netBreakdownForSchedule);
-                clientData[clientId].totalIncome += calculateTotalIncomeFromBreakdown(netBreakdownForSchedule); // Accumulate net income
+                clientData[clientId].totalIncome += calculateTotalIncomeFromBreakdown(netBreakdownForSchedule);
                 clientData[clientId].serviceCount += 1;
             });
 
@@ -485,7 +555,7 @@ export default function RentabilidadPage() {
         } finally {
             setLoading(false);
         }
-    }, [allSchedules, allWorkEntries, allFixedCosts, clients, trainingClientId, calculateGST, mergeRevenueBreakdowns, calculateTotalIncomeFromBreakdown, loading]);
+    }, [allSchedules, allWorkEntries, allFixedCosts, clients, trainingClientId]); // Removed calculateGST, mergeRevenueBreakdowns, calculateTotalIncomeFromBreakdown from deps as they are global helpers
 
     useEffect(() => {
         // This useEffect triggers the month-specific data load once initial data is ready
@@ -609,6 +679,8 @@ export default function RentabilidadPage() {
         const clientMap = new Map(activeClients.map(c => [c.id, c]));
 
         const cumulativeIncomeDetailMap = new Map();
+        
+        // MODIFICADO: Usar getPriceForSchedule para calcular ingresos acumulados
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
             return isDateInRange(schedule.start_time, cumulativeStartDate, new Date()) && 
                    schedule.xero_invoiced === true &&
@@ -623,30 +695,15 @@ export default function RentabilidadPage() {
             const clientId = client.id;
             let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
 
-            let tempRawBreakdown = {};
-            let totalRawReconciledAmount = 0;
-
-            if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
-                schedule.reconciliation_items.forEach(item => {
-                    const type = item.type || 'other_extra';
-                    const amount = parseFloat(item.amount) || 0;
-                    tempRawBreakdown[type] = (tempRawBreakdown[type] || 0) + amount;
-                    if (type !== 'discount') {
-                        totalRawReconciledAmount += amount;
-                    }
-                });
-            } else {
-                totalRawReconciledAmount = client.current_service_price || 0;
-                tempRawBreakdown['base_service'] = totalRawReconciledAmount;
-            }
+            // NUEVA LÓGICA: Usar getPriceForSchedule
+            const priceData = getPriceForSchedule(schedule, client);
+            const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
             
-            const { base: netIncomeFromRawTotal, total: grossIncomeFromRawTotal } = calculateGST(totalRawReconciledAmount, client.gst_type);
-
-            const gstFactor = (grossIncomeFromRawTotal > 0 && totalRawReconciledAmount > 0) ? (netIncomeFromRawTotal / totalRawReconciledAmount) : 1;
+            const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
             
             let netBreakdownForService = {};
-            for (const type in tempRawBreakdown) {
-                netBreakdownForService[type] = tempRawBreakdown[type] * gstFactor;
+            for (const type in priceData.breakdown) {
+                netBreakdownForService[type] = priceData.breakdown[type] * gstFactor;
             }
             
             cumulativeIncomeDetailMap.set(clientId, mergeRevenueBreakdowns(currentClientCumulativeBreakdown, netBreakdownForService));
@@ -1018,7 +1075,7 @@ export default function RentabilidadPage() {
                         </Card>
 
                         {/* Professional KPI Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md::grid-cols-3 gap-6">
                             <Card className="shadow-lg border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white">
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-sm font-semibold text-emerald-800 uppercase tracking-wide flex items-center gap-2">
