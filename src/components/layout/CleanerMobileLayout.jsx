@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
+import { clearAllFlags } from "@/components/utils/activeServiceManager";
 import {
   Calendar,
   Clock,
@@ -27,7 +28,11 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
     console.log('[CleanerMobileLayout] 🚪 Iniciando cierre de sesión...');
     
     try {
-      // Paso 1: Limpiar TODO el localStorage
+      // Paso 1: Limpiar flags de servicio activo
+      console.log('[CleanerMobileLayout] 🧹 Limpiando flags de servicio activo...');
+      clearAllFlags();
+      
+      // Paso 2: Limpiar TODO el localStorage
       console.log('[CleanerMobileLayout] 🧹 Limpiando localStorage...');
       const keys = Object.keys(localStorage);
       keys.forEach(key => {
@@ -35,23 +40,23 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
         localStorage.removeItem(key);
       });
       
-      // Paso 2: Limpiar sessionStorage también
+      // Paso 3: Limpiar sessionStorage también
       console.log('[CleanerMobileLayout] 🧹 Limpiando sessionStorage...');
       sessionStorage.clear();
       
-      // Paso 3: Llamar al logout del SDK (esto debería limpiar cookies/tokens)
+      // Paso 4: Llamar al logout del SDK (esto debería limpiar cookies/tokens)
       console.log('[CleanerMobileLayout] 📤 Llamando a base44.auth.logout()...');
       await base44.auth.logout();
       
       console.log('[CleanerMobileLayout] ✅ Logout exitoso');
       
-      // Paso 4: Esperar un momento para asegurar que todo se limpió
+      // Paso 5: Esperar un momento para asegurar que todo se limpió
       await new Promise(resolve => setTimeout(resolve, 500));
       
     } catch (error) {
       console.error('[CleanerMobileLayout] ❌ Error al cerrar sesión:', error);
     } finally {
-      // Paso 5: Forzar recarga completa de la página
+      // Paso 6: Forzar recarga completa de la página
       console.log('[CleanerMobileLayout] 🔄 Forzando recarga completa...');
       
       // Usar replace para evitar que el usuario pueda volver atrás
