@@ -975,8 +975,8 @@ export default function AdminTasksPanel() {
               <TaskTable
                 tasks={filteredTasks}
                 users={users}
-                clients={clients}
-                schedules={schedules}
+                clients={clients} {/* Added clients prop */}
+                schedules={schedules} {/* Added schedules prop */}
                 onViewTask={handleViewTaskDetail}
                 onEditTask={handleEditTask}
                 onDeleteTask={(task) => handleDeleteTask(task.id)}
@@ -988,7 +988,8 @@ export default function AdminTasksPanel() {
               <TaskKanbanView
                 tasks={filteredTasks}
                 users={users}
-                clients={clients}
+                clients={clients} {/* Added clients prop */}
+                schedules={schedules} {/* Added schedules prop */}
                 onStatusChange={handleToggleTaskStatus}
                 onViewTask={handleViewTaskDetail}
                 onEditTask={handleEditTask}
