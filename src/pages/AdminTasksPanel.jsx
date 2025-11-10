@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
@@ -176,6 +177,73 @@ export default function AdminTasksPanel() {
     }
   };
 
+  // NUEVA FUNCIÓN: Completar tarea con notas
+  const handleCompleteWithNotes = async (taskId, completionNotes) => {
+    try {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      const updateData = {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        completed_by_user_id: user.id,
+        completed_by_user_name: user.full_name,
+        completion_notes: completionNotes,
+        activity_log: [
+          ...(task.activity_log || []),
+          logActivity(
+            taskId,
+            'task_completed',
+            `Tarea completada con notas: ${completionNotes.substring(0, 100)}${completionNotes.length > 100 ? '...' : ''}`,
+            user.id,
+            user.full_name
+          )
+        ]
+      };
+
+      await base44.entities.Task.update(taskId, updateData);
+      
+      // Notificar al Master Admin
+      await notifyMasterAdminOnCompletion(task, user);
+      
+      // Notificar a otros asignados (si hay)
+      if (task.assignee_user_ids && task.assignee_user_ids.length > 0) {
+        const othersAssigned = task.assignee_user_ids.filter(id => id !== user.id);
+        if (othersAssigned.length > 0) {
+          try {
+            await base44.functions.invoke('createTaskNotifications', {
+              taskId: taskId,
+              assigneeIds: othersAssigned,
+              notificationType: 'status_change',
+              message: `${user.full_name} completó la tarea: "${task.title}"`
+            });
+          } catch (notifyError) {
+            console.error('Error notificando a asignados:', notifyError);
+          }
+        }
+      }
+      
+      await loadInitialData();
+
+      toast({
+        title: "✅ Tarea Completada",
+        description: "La tarea se marcó como completada exitosamente",
+        duration: 3000,
+        className: "bg-green-50 border-green-200"
+      });
+
+    } catch (error) {
+      console.error('Error completing task:', error);
+      toast({
+        variant: "destructive",
+        title: "❌ Error",
+        description: "No se pudo completar la tarea",
+        duration: 3000,
+      });
+      throw error;
+    }
+  };
+
   const handleSaveTask = async (taskData) => {
     try {
       let savedTask;
@@ -216,6 +284,7 @@ export default function AdminTasksPanel() {
         if (taskData.status === 'completed' && oldTask.status !== 'completed') {
           taskData.completed_at = new Date().toISOString();
           taskData.completed_by_user_id = user.id;
+          taskData.completed_by_user_name = user.full_name;
         }
 
         // Append to existing activity log
@@ -344,6 +413,8 @@ export default function AdminTasksPanel() {
   const handleToggleTaskStatus = async (taskId, newStatus) => {
     try {
       const task = tasks.find(t => t.id === taskId);
+      if (!task) return; // Ensure task exists before proceeding
+
       const oldStatus = task?.status;
       
       const updateData = {
@@ -364,11 +435,12 @@ export default function AdminTasksPanel() {
       if (newStatus === 'completed' && oldStatus !== 'completed') {
         updateData.completed_at = new Date().toISOString();
         updateData.completed_by_user_id = user.id;
+        updateData.completed_by_user_name = user.full_name;
       }
 
       await base44.entities.Task.update(taskId, updateData);
       
-      // NUEVA LÓGICA: Notificar al Master Admin si se completó
+      // Notificar al Master Admin si se completó
       if (newStatus === 'completed' && oldStatus !== 'completed') {
         await notifyMasterAdminOnCompletion(task, user);
       }
@@ -905,19 +977,23 @@ export default function AdminTasksPanel() {
                 users={users}
                 clients={clients}
                 schedules={schedules}
+                onViewTask={handleViewTaskDetail}
                 onEditTask={handleEditTask}
-                onViewDetail={handleViewTaskDetail}
-                onDeleteTask={handleDeleteTask}
-                onToggleStatus={handleToggleTaskStatus}
+                onDeleteTask={(task) => handleDeleteTask(task.id)}
+                onStatusChange={handleToggleTaskStatus}
+                onCompleteWithNotes={handleCompleteWithNotes}
+                currentUser={user}
               />
             ) : (
               <TaskKanbanView
                 tasks={filteredTasks}
                 users={users}
                 clients={clients}
+                onStatusChange={handleToggleTaskStatus}
+                onViewTask={handleViewTaskDetail}
                 onEditTask={handleEditTask}
-                onViewDetail={handleViewTaskDetail}
-                onToggleStatus={handleToggleTaskStatus}
+                onCompleteWithNotes={handleCompleteWithNotes}
+                currentUser={user}
               />
             )}
           </CardContent>
@@ -949,7 +1025,7 @@ export default function AdminTasksPanel() {
             schedules={schedules}
             currentUser={user}
             onSave={handleSaveTask}
-            onDelete={selectedTask?.id ? handleDeleteTask : null}
+            onDelete={selectedTask?.id ? () => handleDeleteTask(selectedTask.id) : null}
             onCancel={() => {
               setShowTaskForm(false);
               setSelectedTask(null);
@@ -981,7 +1057,7 @@ export default function AdminTasksPanel() {
               }}
               onAddComment={handleAddComment}
               onToggleChecklistItem={handleToggleChecklistItem}
-              onToggleStatus={handleToggleTaskStatus}
+              onStatusChange={handleToggleTaskStatus}
             />
           )}
         </SheetContent>
