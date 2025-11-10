@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Schedule } from '@/entities/Schedule';
 import { Client } from '@/entities/Client';
@@ -18,18 +17,13 @@ import { CalendarIcon, Edit, CheckCircle, Clock, DollarSign, FileCheck, Circle, 
 import { Badge } from '@/components/ui/badge';
 import { processScheduleForWorkEntries } from '@/functions/processScheduleForWorkEntries';
 
-// NUEVA FUNCIÓN: Extrae y formatea la hora UTC (HH:mm) de un ISO string
+// Función para extraer hora UTC
 const formatTimeUTC = (isoString) => {
     if (!isoString) return '';
-
-    // Asegurar que el string tenga 'Z' al final para interpretarlo como UTC
     const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
     const date = new Date(correctedIsoString);
-
-    // Extraer horas y minutos UTC
     const hours = date.getUTCHours().toString().padStart(2, '0');
     const minutes = date.getUTCMinutes().toString().padStart(2, '0');
-
     return `${hours}:${minutes}`;
 };
 
@@ -72,11 +66,59 @@ const gstTypeBadgeColors = {
     no_tax: 'bg-slate-50 text-slate-700 border border-slate-200'
 };
 
+// NUEVA FUNCIÓN: Obtiene el precio correcto para mostrar, consultando price_history si es necesario
+const getPriceForDate = (client, serviceDate) => {
+    if (!client || !serviceDate) return { price: 0, gstType: 'inclusive' };
+    
+    // Si el cliente no tiene historial de precios, usar el precio actual
+    if (!client.price_history || client.price_history.length === 0) {
+        return {
+            price: client.current_service_price || 0,
+            gstType: client.gst_type || 'inclusive'
+        };
+    }
+    
+    // Convertir la fecha del servicio a formato comparable (YYYY-MM-DD)
+    const serviceDateStr = format(parseISO(serviceDate), 'yyyy-MM-dd');
+    
+    // Ordenar el historial por fecha efectiva (más reciente primero)
+    const sortedHistory = [...client.price_history].sort((a, b) => {
+        return new Date(b.effective_date) - new Date(a.effective_date);
+    });
+    
+    // Buscar el precio que estaba vigente en la fecha del servicio
+    // (la entrada más reciente cuya effective_date sea <= serviceDate)
+    for (const historyEntry of sortedHistory) {
+        if (historyEntry.effective_date <= serviceDateStr) {
+            return {
+                price: historyEntry.new_price || client.current_service_price || 0,
+                gstType: historyEntry.gst_type || client.gst_type || 'inclusive'
+            };
+        }
+    }
+    
+    // Si no encontramos ninguna entrada en el historial que aplique,
+    // usar el precio más antiguo del historial o el actual como fallback
+    const oldestEntry = sortedHistory[sortedHistory.length - 1];
+    if (oldestEntry) {
+        return {
+            price: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0,
+            gstType: oldestEntry.gst_type || client.gst_type || 'inclusive'
+        };
+    }
+    
+    // Fallback final: precio actual del cliente
+    return {
+        price: client.current_service_price || 0,
+        gstType: client.gst_type || 'inclusive'
+    };
+};
+
 export default function ConciliacionFacturasPage() {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [schedules, setSchedules] = useState([]);
     const [clients, setClients] = useState(new Map());
-    const [users, setUsers] = useState([]); // MODIFICADO: Agregar estado para usuarios
+    const [users, setUsers] = useState([]);
     const [dailyReconciliation, setDailyReconciliation] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
     const [editingService, setEditingService] = useState(null);
@@ -86,7 +128,6 @@ export default function ConciliacionFacturasPage() {
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [serviceToDelete, setServiceToDelete] = useState(null);
 
-    // NUEVO: Crear un Map para búsqueda rápida de usuarios
     const usersMap = useMemo(() => {
         return new Map(users.map(u => [u.id, u]));
     }, [users]);
@@ -103,7 +144,6 @@ export default function ConciliacionFacturasPage() {
         }
     }, []);
 
-    // NUEVA FUNCIÓN: Cargar usuarios
     const fetchUsers = useCallback(async () => {
         try {
             const userList = await User.list();
@@ -117,20 +157,14 @@ export default function ConciliacionFacturasPage() {
         setLoading(true);
         setError(null);
         try {
-            // --- INICIO DE LA CORRECCIÓN ---
-            // En lugar de usar startOfDay/endOfDay (que dependen de la zona horaria del navegador),
-            // construiremos un rango UTC estricto para el día seleccionado.
-            // Esto asegura que un servicio agendado en una fecha específica (ej: 21 de Oct)
-            // siempre se recupere para esa fecha, sin importar la hora del día.
             const year = date.getFullYear();
             const month = date.getMonth();
             const day = date.getDate();
 
-            // Rango de medianoche a medianoche en UTC.
             const startUTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
             const endUTC = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
 
-            const dateStr = format(startUTC, 'yyyy-MM-dd'); // Format based on UTC start for consistency with backend date-only field
+            const dateStr = format(startUTC, 'yyyy-MM-dd');
 
             const [schedulesData, reconciliationData] = await Promise.all([
                 Schedule.filter({
@@ -141,20 +175,15 @@ export default function ConciliacionFacturasPage() {
                 }, '-start_time'),
                 DailyReconciliation.filter({ date: dateStr })
             ]);
-            // --- FIN DE LA CORRECCIÓN ---
 
-            // Filtrar servicios cancelados - NO deben aparecer en conciliación para facturación
             const activeSchedules = schedulesData.filter(schedule =>
                 schedule.status !== 'cancelled'
             );
 
-            // Ordenar servicios: primero los no facturados, después los facturados
             const sortedSchedules = activeSchedules.sort((a, b) => {
-                // Primero ordenar por estado de facturación (no facturados primero)
                 if (a.xero_invoiced !== b.xero_invoiced) {
-                    return a.xero_invoiced ? 1 : -1; // If a is invoiced (true), it goes after b (false)
+                    return a.xero_invoiced ? 1 : -1;
                 }
-                // Luego por hora de inicio
                 return new Date(a.start_time) - new Date(b.start_time);
             });
 
@@ -176,7 +205,7 @@ export default function ConciliacionFacturasPage() {
     useEffect(() => {
         const init = async () => {
             await fetchClients();
-            await fetchUsers(); // NUEVO: Cargar usuarios
+            await fetchUsers();
             const user = await User.me();
             setCurrentUser(user);
         };
@@ -184,7 +213,7 @@ export default function ConciliacionFacturasPage() {
     }, [fetchClients, fetchUsers]);
 
     useEffect(() => {
-        if (clients.size > 0 && users.length > 0) { // Fetch data only after clients and users are loaded
+        if (clients.size > 0 && users.length > 0) {
             fetchDataForDate(selectedDate);
         }
     }, [selectedDate, clients, users, fetchDataForDate]);
@@ -193,7 +222,7 @@ export default function ConciliacionFacturasPage() {
         try {
             await Schedule.update(serviceId, { reconciliation_items: items });
             setEditingService(null);
-            fetchDataForDate(selectedDate); // Refresh data
+            fetchDataForDate(selectedDate);
         } catch (err) {
             console.error("Error saving reconciliation:", err);
             setError("No se pudo guardar los cambios en el servicio.");
@@ -204,34 +233,24 @@ export default function ConciliacionFacturasPage() {
         setLoading(true);
         setError(null);
         try {
-            // NUEVA LÓGICA: Completar servicios pendientes y generar WorkEntries
             const servicesToComplete = schedules.filter(s =>
                 s.status !== 'completed' && s.status !== 'cancelled'
             );
 
-            console.log(`Servicios a completar automáticamente: ${servicesToComplete.length}`);
-
-            // Procesar cada servicio pendiente
             for (const service of servicesToComplete) {
                 try {
-                    // 1. Actualizar estado del servicio a 'completed'
                     await Schedule.update(service.id, { status: 'completed' });
-                    console.log(`Servicio ${service.id} marcado como completado`);
-
-                    // 2. Generar WorkEntries usando la función backend
-                    // Esta función ya tiene lógica para evitar duplicados
+                    
                     const result = await processScheduleForWorkEntries({
                         scheduleId: service.id,
                         mode: 'create'
                     });
                     console.log(`WorkEntries generadas para servicio ${service.id}:`, result);
                 } catch (serviceErr) {
-                    console.error(`Error procesando servicio ${service.id} durante el marcado como revisado:`, serviceErr);
-                    // Continuamos con los demás servicios aunque uno falle
+                    console.error(`Error procesando servicio ${service.id}:`, serviceErr);
                 }
             }
 
-            // Actualizar el DailyReconciliation como antes
             const updateData = {
                 status: 'horario_reviewed',
                 reviewed_by_user_id: currentUser.id,
@@ -243,7 +262,6 @@ export default function ConciliacionFacturasPage() {
                 await DailyReconciliation.create({ date: format(selectedDate, 'yyyy-MM-dd'), ...updateData });
             }
 
-            // Recargar datos para reflejar los cambios
             fetchDataForDate(selectedDate);
         } catch (err) {
             console.error("Error marking day as reviewed:", err);
@@ -253,7 +271,6 @@ export default function ConciliacionFacturasPage() {
         }
     };
 
-    // NUEVO: Función para volver a abrir el día para revisión
     const handleReopenDay = async () => {
         setLoading(true);
         try {
@@ -277,10 +294,27 @@ export default function ConciliacionFacturasPage() {
     const handleMarkAsInvoiced = async (serviceId) => {
         setLoading(true);
         try {
-            await Schedule.update(serviceId, { xero_invoiced: true });
+            const service = schedules.find(s => s.id === serviceId);
+            const client = clients.get(service.client_id);
+            
+            // CRÍTICO: Tomar "fotografía" del precio y GST en el momento de facturación
+            const priceSnapshot = getPriceForDate(client, service.start_time);
+            
+            await Schedule.update(serviceId, { 
+                xero_invoiced: true,
+                billed_price_snapshot: priceSnapshot.price,
+                billed_gst_type_snapshot: priceSnapshot.gstType,
+                billed_at: new Date().toISOString()
+            });
 
             const updatedSchedules = schedules.map(s =>
-                s.id === serviceId ? {...s, xero_invoiced: true} : s
+                s.id === serviceId ? {
+                    ...s, 
+                    xero_invoiced: true,
+                    billed_price_snapshot: priceSnapshot.price,
+                    billed_gst_type_snapshot: priceSnapshot.gstType,
+                    billed_at: new Date().toISOString()
+                } : s
             ).sort((a, b) => {
                 if (a.xero_invoiced !== b.xero_invoiced) {
                     return a.xero_invoiced ? 1 : -1;
@@ -308,10 +342,11 @@ export default function ConciliacionFacturasPage() {
         }
     };
 
-    // NUEVO: Función para desmarcar como facturado
     const handleUnmarkAsInvoiced = async (serviceId) => {
         setLoading(true);
         try {
+            // CRÍTICO: Al desmarcar, NO eliminar los snapshots por si se vuelve a facturar
+            // Los snapshots solo se actualizan cuando se vuelve a marcar como facturado
             await Schedule.update(serviceId, { xero_invoiced: false });
 
             const updatedSchedules = schedules.map(s =>
@@ -325,7 +360,6 @@ export default function ConciliacionFacturasPage() {
 
             setSchedules(updatedSchedules);
 
-            // Si el día estaba completado, volver a estado 'horario_reviewed'
             if (dailyReconciliation?.status === 'completed') {
                 const updateData = {
                     status: 'horario_reviewed',
@@ -333,7 +367,7 @@ export default function ConciliacionFacturasPage() {
                 };
                 if (dailyReconciliation.id) {
                     await DailyReconciliation.update(dailyReconciliation.id, updateData);
-                    fetchDataForDate(selectedDate); // Re-fetch to ensure DailyReconciliation state is updated
+                    fetchDataForDate(selectedDate);
                 }
             }
         } catch (err) {
@@ -357,15 +391,12 @@ export default function ConciliacionFacturasPage() {
         try {
             await Schedule.delete(serviceToDelete.id);
 
-            // Actualizar la lista local de schedules
             const updatedSchedules = schedules.filter(s => s.id !== serviceToDelete.id);
             setSchedules(updatedSchedules);
 
-            // Cerrar el diálogo
             setDeleteConfirmOpen(false);
             setServiceToDelete(null);
 
-            // Si ya no quedan servicios en el día, podemos resetear el estado de la reconciliación
             if (updatedSchedules.length === 0 && dailyReconciliation?.id) {
                 await DailyReconciliation.update(dailyReconciliation.id, {
                     status: 'pending',
@@ -377,7 +408,6 @@ export default function ConciliacionFacturasPage() {
                  setDailyReconciliation({ date: format(selectedDate, 'yyyy-MM-dd'), status: 'pending' });
             }
 
-            // Refrescar datos
             fetchDataForDate(selectedDate);
         } catch (err) {
             console.error("Error deleting service:", err);
@@ -394,9 +424,10 @@ export default function ConciliacionFacturasPage() {
 
     const currentStatus = dailyReconciliation?.status || 'pending';
     const config = statusConfig[currentStatus];
-    const isScheduler = currentUser?.role === 'admin'; // Adjust based on actual role for scheduling
-    const isAccountant = currentUser?.role === 'admin'; // Adjust based on actual role for accounting
+    const isScheduler = currentUser?.role === 'admin';
+    const isAccountant = currentUser?.role === 'admin';
 
+    // MODIFICADO: Función que respeta el snapshot si está facturado
     const getReconciledAmount = (service) => {
         if (service.reconciliation_items && service.reconciliation_items.length > 0) {
             return service.reconciliation_items.reduce((total, item) => {
@@ -404,13 +435,20 @@ export default function ConciliacionFacturasPage() {
                 return item.type === 'discount' ? total - amount : total + amount;
             }, 0);
         }
-        return clients.get(service.client_id)?.current_service_price || 0;
+        
+        // CRÍTICO: Si está facturado, usar el snapshot
+        if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+            return service.billed_price_snapshot;
+        }
+        
+        // Si no está facturado, calcular el precio vigente en la fecha del servicio
+        const client = clients.get(service.client_id);
+        const priceForDate = getPriceForDate(client, service.start_time);
+        return priceForDate.price;
     };
 
-    // CORREGIDO: Calcular el total del día sin dependencia innecesaria
     const totalDelDia = useMemo(() => {
         return schedules.reduce((total, service) => {
-            // Calcular directamente aquí en lugar de usar getReconciledAmount
             let amount = 0;
             if (service.reconciliation_items && service.reconciliation_items.length > 0) {
                 amount = service.reconciliation_items.reduce((itemTotal, item) => {
@@ -418,7 +456,14 @@ export default function ConciliacionFacturasPage() {
                     return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
                 }, 0);
             } else {
-                amount = clients.get(service.client_id)?.current_service_price || 0;
+                // CRÍTICO: Usar snapshot si está facturado
+                if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                    amount = service.billed_price_snapshot;
+                } else {
+                    const client = clients.get(service.client_id);
+                    const priceForDate = getPriceForDate(client, service.start_time);
+                    amount = priceForDate.price;
+                }
             }
             return total + amount;
         }, 0);
@@ -426,40 +471,61 @@ export default function ConciliacionFacturasPage() {
 
     const renderReconciledAmountBreakdown = (service) => {
         const client = clients.get(service.client_id);
-        const originalPrice = client?.current_service_price || 0;
-        const clientGstType = client?.gst_type || 'inclusive';
+        
+        // CRÍTICO: Determinar qué precio y GST usar
+        let displayPrice, displayGstType;
+        
+        if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+            // Servicio facturado: usar snapshot inmutable
+            displayPrice = service.billed_price_snapshot;
+            displayGstType = service.billed_gst_type_snapshot || 'inclusive';
+        } else {
+            // Servicio NO facturado: usar precio vigente en la fecha del servicio
+            const priceForDate = getPriceForDate(client, service.start_time);
+            displayPrice = priceForDate.price;
+            displayGstType = priceForDate.gstType;
+        }
 
-        // Si no hay reconciliation_items, mostrar solo el monto original
         if (!service.reconciliation_items || service.reconciliation_items.length === 0) {
             return (
                 <div className="space-y-2">
                     <div className="font-bold text-lg text-blue-700">
-                        ${originalPrice.toFixed(2)}
+                        ${displayPrice.toFixed(2)}
                     </div>
-                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[clientGstType]}`}>
-                        {gstTypeLabels[clientGstType]}
+                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
+                        {gstTypeLabels[displayGstType]}
                     </span>
+                    {service.xero_invoiced && (
+                        <div className="text-xs text-green-600 font-medium flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Precio Facturado
+                        </div>
+                    )}
                 </div>
             );
         }
 
-        // Si solo hay un item y es el servicio base con el monto original, mostrar simple
         if (service.reconciliation_items.length === 1 &&
             service.reconciliation_items[0].type === 'base_service' &&
-            parseFloat(service.reconciliation_items[0].amount) === originalPrice) {
+            parseFloat(service.reconciliation_items[0].amount) === displayPrice) {
             return (
                 <div className="space-y-2">
                     <div className="font-bold text-lg text-blue-700">
-                        ${originalPrice.toFixed(2)}
+                        ${displayPrice.toFixed(2)}
                     </div>
-                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[clientGstType]}`}>
-                        {gstTypeLabels[clientGstType]}
+                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
+                        {gstTypeLabels[displayGstType]}
                     </span>
+                    {service.xero_invoiced && (
+                        <div className="text-xs text-green-600 font-medium flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Precio Facturado
+                        </div>
+                    )}
                 </div>
             );
         }
 
-        // Si hay múltiples items o cambios, mostrar desglose
         const total = getReconciledAmount(service);
         const itemLabels = {
             base_service: 'Servicio Base',
@@ -485,9 +551,15 @@ export default function ConciliacionFacturasPage() {
                     <span className="text-sm font-bold text-blue-700">Total:</span>
                     <span className="font-bold text-lg text-blue-700">${total.toFixed(2)}</span>
                 </div>
-                <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[clientGstType]}`}>
-                    {gstTypeLabels[clientGstType]}
+                <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
+                    {gstTypeLabels[displayGstType]}
                 </span>
+                {service.xero_invoiced && (
+                    <div className="text-xs text-green-600 font-medium flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        Precio Facturado
+                    </div>
+                )}
             </div>
         );
     };
@@ -525,7 +597,6 @@ export default function ConciliacionFacturasPage() {
         );
     };
 
-    // NUEVA FUNCIÓN: Obtener nombres de limpiadores
     const getCleanerNames = (cleanerIds) => {
         if (!cleanerIds || !Array.isArray(cleanerIds) || cleanerIds.length === 0) {
             return [];
@@ -576,7 +647,6 @@ export default function ConciliacionFacturasPage() {
                     </div>
                 </div>
 
-                {/* Error Alert */}
                 {error && (
                     <Alert variant="destructive" className="shadow-sm">
                         <AlertTriangle className="h-5 w-5" />
@@ -606,7 +676,6 @@ export default function ConciliacionFacturasPage() {
                                 </div>
                             </div>
                             <div className="flex gap-3">
-                                {/* NUEVO: Botón para reabrir el día */}
                                 {isScheduler && (currentStatus === 'horario_reviewed' || currentStatus === 'completed') && (
                                     <Button
                                         onClick={handleReopenDay}
@@ -666,9 +735,18 @@ export default function ConciliacionFacturasPage() {
                                         const client = clients.get(service.client_id);
                                         const isUnassigned = !service.cleaner_ids || service.cleaner_ids.length === 0;
                                         const hasSpecialBillingInstructions = client?.has_special_billing_instructions && client?.special_billing_instructions;
-                                        const clientGstType = client?.gst_type || 'inclusive';
+                                        
+                                        // CRÍTICO: Determinar precio y GST a mostrar en "Monto Original"
+                                        let originalPrice, originalGstType;
+                                        if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                                            originalPrice = service.billed_price_snapshot;
+                                            originalGstType = service.billed_gst_type_snapshot || 'inclusive';
+                                        } else {
+                                            const priceForDate = getPriceForDate(client, service.start_time);
+                                            originalPrice = priceForDate.price;
+                                            originalGstType = priceForDate.gstType;
+                                        }
 
-                                        // NUEVO: Obtener nombres de limpiadores
                                         const cleanerNames = getCleanerNames(service.cleaner_ids);
 
                                         return (
@@ -680,7 +758,6 @@ export default function ConciliacionFacturasPage() {
                                                 transition-colors border-b border-slate-100
                                             `}
                                         >
-                                            {/* MODIFICADO: Usar formatTimeUTC para mostrar horas en UTC y nueva estructura */}
                                             <TableCell className="font-medium text-slate-900 py-4 min-w-[180px]">
                                                 <div className="flex flex-col gap-1">
                                                     <span className="text-sm font-bold">
@@ -734,11 +811,17 @@ export default function ConciliacionFacturasPage() {
                                             <TableCell className="min-w-[140px]">
                                                 <div className="space-y-2">
                                                     <div className="font-bold text-lg text-slate-900">
-                                                        ${(client?.current_service_price || 0).toFixed(2)}
+                                                        ${originalPrice.toFixed(2)}
                                                     </div>
-                                                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[clientGstType]}`}>
-                                                        {gstTypeLabels[clientGstType]}
+                                                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[originalGstType]}`}>
+                                                        {gstTypeLabels[originalGstType]}
                                                     </span>
+                                                    {service.xero_invoiced && (
+                                                        <div className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                                            <CheckCircle className="w-3 h-3" />
+                                                            Precio Facturado
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="min-w-[220px]">
@@ -777,7 +860,6 @@ export default function ConciliacionFacturasPage() {
                                             </TableCell>
                                             <TableCell className="text-right min-w-[280px]">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    {/* Botón Revisar (solo scheduler en pending) */}
                                                     {isScheduler && currentStatus === 'pending' && (
                                                         <Button
                                                             variant="outline"
@@ -790,7 +872,6 @@ export default function ConciliacionFacturasPage() {
                                                         </Button>
                                                     )}
 
-                                                    {/* Botón Editar (Accountant en horario_reviewed para servicios no facturados) */}
                                                     {isAccountant && currentStatus === 'horario_reviewed' && !service.xero_invoiced && (
                                                         <Button
                                                             variant="outline"
@@ -803,7 +884,6 @@ export default function ConciliacionFacturasPage() {
                                                         </Button>
                                                     )}
 
-                                                    {/* Botón Ver (Accountant en completed o para servicios ya facturados) */}
                                                     {isAccountant && (currentStatus === 'completed' || service.xero_invoiced) && (
                                                         <Button
                                                             variant="ghost"
@@ -816,7 +896,6 @@ export default function ConciliacionFacturasPage() {
                                                         </Button>
                                                     )}
 
-                                                    {/* Botones de Facturación */}
                                                     {isAccountant && currentStatus === 'horario_reviewed' && !service.xero_invoiced && (
                                                         <Button
                                                             variant="default"
@@ -829,7 +908,6 @@ export default function ConciliacionFacturasPage() {
                                                         </Button>
                                                     )}
 
-                                                    {/* Botón para Desmarcar Facturado */}
                                                     {isAccountant && service.xero_invoiced && (
                                                         <Button
                                                             variant="outline"
@@ -842,7 +920,6 @@ export default function ConciliacionFacturasPage() {
                                                         </Button>
                                                     )}
 
-                                                    {/* Botón para Eliminar Servicio */}
                                                     {isScheduler && !service.xero_invoiced && (
                                                         <Button
                                                             variant="outline"
@@ -873,7 +950,6 @@ export default function ConciliacionFacturasPage() {
                                 )}
                             </TableBody>
 
-                            {/* NUEVO: Footer con el total del día */}
                             {!loading && schedules.length > 0 && (
                                 <tfoot>
                                     <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 font-bold">
@@ -899,7 +975,6 @@ export default function ConciliacionFacturasPage() {
                 </div>
             </div>
 
-            {/* Modal de Reconciliación */}
             {editingService && (
                 <ReconciliationModal
                     service={editingService}
@@ -907,12 +982,10 @@ export default function ConciliacionFacturasPage() {
                     onSave={handleSaveReconciliation}
                     onCancel={() => setEditingService(null)}
                     userRole={currentUser?.role}
-                    // Implementación del doble filtro: el modal es de solo lectura si el servicio está facturado o el día está completado
                     isReadOnly={editingService.xero_invoiced === true || dailyReconciliation?.status === 'completed'}
                 />
             )}
 
-            {/* NUEVO: Diálogo de Confirmación de Eliminación */}
             <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
