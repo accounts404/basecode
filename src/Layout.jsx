@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
-import { syncActiveService } from "@/components/utils/activeServiceManager";
+import { syncActiveService, shouldSkipActiveCheck, hasRecentClockOut } from '@/components/utils/activeServiceManager';
 import NotificationBell from "@/components/notifications/NotificationBell";
 import {
   LayoutDashboard,
@@ -122,91 +122,168 @@ export default function Layout({ children, currentPageName }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [isScoringParticipant, setIsScoringParticipant] = useState(false);
   const [hasActiveService, setHasActiveService] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [isCheckingService, setIsCheckingService] = useState(false);
+
+  const [isCleanerView, setIsCleanerView] = useState(false);
+  const [assignedVehicle, setAssignedVehicle] = useState(null);
+  const [mainDriverName, setMainDriverName] = useState(null);
+  const [requiredKeys, setRequiredKeys] = useState([]);
+  const [loadingCleanerData, setLoadingCleanerData] = useState(false);
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  const [tasks, setTasks] = useState([]);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+
+  const [error, setError] = useState('');
+
+  const intervalRef = React.useRef(null);
+  const pollingRef = React.useRef(null);
+  const lastCheckRef = React.useRef(0);
 
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const cachedUser = localStorage.getItem('redoak_user');
-        if (cachedUser) {
-          const parsed = JSON.parse(cachedUser);
-          setUser(parsed);
-          setLoading(false);
-          
-          if (parsed.role !== 'admin') {
-            try {
-              const result = await syncActiveService(parsed.id);
-              
-              if (result.hasActive) {
-                console.log('[Layout] 🎯 Servicio activo detectado, redirigiendo a ServicioActivo');
-                if (location.pathname !== createPageUrl("ServicioActivo")) {
-                  navigate(createPageUrl("ServicioActivo"), { replace: true });
-                }
-              } else {
-                console.log('[Layout] 📅 Sin servicio activo, redirigiendo a Horario');
-                if (location.pathname === '/' || location.pathname === createPageUrl("Dashboard")) {
-                  navigate(createPageUrl("Horario"), { replace: true });
-                }
-              }
-            } catch (error) {
-              console.error('[Layout] Error verificando servicio activo:', error);
-              if (location.pathname === '/' || location.pathname === createPageUrl("Dashboard")) {
-                navigate(createPageUrl("Horario"), { replace: true });
-              }
-            }
-          }
-        }
-
-        const freshUser = await base44.auth.me();
-        setUser(freshUser);
-        localStorage.setItem('redoak_user', JSON.stringify(freshUser));
-
-        if (freshUser.role !== 'admin') {
-          const currentMonth = format(new Date(), 'yyyy-MM');
-          const scores = await base44.entities.MonthlyCleanerScore.filter({
-            cleaner_id: freshUser.id,
-            month_period: currentMonth,
-            is_participating: true,
-          });
-          setIsScoringParticipant(scores.length > 0);
-
-          checkForActiveService(freshUser.id);
-          
-          const interval = setInterval(() => {
-            checkForActiveService(freshUser.id);
-          }, 15000);
-          
-          return () => clearInterval(interval);
-        }
-      } catch (error) {
-        console.error("Error loading user:", error);
-        localStorage.removeItem('redoak_user');
-      } finally {
-        setLoading(false);
-      }
+    loadInitialData();
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (pollingRef.current) clearInterval(pollingRef.current);
     };
+  }, []);
 
-    loadUser();
-  }, [location.pathname, navigate]);
+  useEffect(() => {
+    if (location.state?.clockOutSuccess && location.state?.message) {
+      console.log('[Layout] 🎉 Mostrando mensaje de Clock Out exitoso');
+      
+      // Limpiar el state inmediatamente
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
 
-  const checkForActiveService = async (userId) => {
+  useEffect(() => {
+    if (location.state?.selectedService && location.state?.openModal) {
+      console.log('[Layout] 🎯 Abriendo modal para servicio desde dashboard:', location.state.selectedService);
+      
+      // Este caso es manejado por la página Horario, no aquí
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
+
+  // OPTIMIZADO: Verificación inteligente de servicio activo para limpiadores
+  const checkForActiveService = React.useCallback(async (userId, forceCheck = false) => {
+    // Evitar verificaciones duplicadas muy cercanas
+    const now = Date.now();
+    const timeSinceLastCheck = now - lastCheckRef.current;
+    
+    if (!forceCheck && timeSinceLastCheck < 2000) {
+      console.log('[Layout] ⏭️ Saltando verificación (muy reciente)');
+      return;
+    }
+    
+    // CRÍTICO: Respetar flags de Clock Out reciente
+    if (shouldSkipActiveCheck(userId) || hasRecentClockOut()) {
+      console.log('[Layout] 🚫 Saltando verificación por Clock Out reciente');
+      setHasActiveService(false);
+      return;
+    }
+    
+    if (isCheckingService) {
+      console.log('[Layout] ⏳ Ya hay una verificación en progreso');
+      return;
+    }
+    
+    setIsCheckingService(true);
+    lastCheckRef.current = now;
+    
     try {
-      const schedules = await base44.entities.Schedule.list(); 
-      const schedulesArray = Array.isArray(schedules) ? schedules : [];
-      const active = schedulesArray.find(schedule => {
-        if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userId)) return false;
-        const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userId);
-        return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
-      });
-      const hasActive = !!active;
+      const result = await syncActiveService(userId);
+      
+      const hasActive = result.hasActive;
+      console.log(`[Layout] ${hasActive ? '✅' : '❌'} Servicio activo:`, hasActive);
+      
       setHasActiveService(hasActive);
-      localStorage.setItem(`active_service_${userId}`, hasActive ? 'true' : 'false');
+      
+      // OPTIMIZADO: Solo redirigir si estamos en Horario y encontramos un servicio activo
+      // Y NO si acabamos de hacer Clock Out
+      if (hasActive && 
+          location.pathname === createPageUrl("Horario") && 
+          !hasRecentClockOut()) {
+        console.log('[Layout] 🚀 Servicio activo detectado, redirigiendo...');
+        navigate(createPageUrl("ServicioActivo"), { replace: true });
+      }
+      
     } catch (error) {
-      console.error('[Layout] Error verificando servicio activo:', error);
+      console.error('[Layout] ❌ Error verificando servicio activo:', error);
+      setHasActiveService(false);
+    } finally {
+      setIsCheckingService(false);
+    }
+  }, [location.pathname, navigate, isCheckingService]);
+
+  const loadInitialData = async () => {
+    try {
+      const cachedUser = localStorage.getItem('redoak_user');
+      if (cachedUser) {
+        const parsed = JSON.parse(cachedUser);
+        setUser(parsed);
+        setLoading(false);
+        
+        if (parsed.role !== 'admin') {
+          setIsCleanerView(true);
+          // Verificación inicial de servicio activo
+          checkForActiveService(parsed.id, true);
+        }
+      }
+
+      const freshUser = await base44.auth.me();
+      setUser(freshUser);
+      localStorage.setItem('redoak_user', JSON.stringify(freshUser));
+
+      if (freshUser.role !== 'admin') {
+        setIsCleanerView(true);
+        const currentMonth = format(new Date(), 'yyyy-MM');
+        const scores = await base44.entities.MonthlyCleanerScore.filter({
+          cleaner_id: freshUser.id,
+          month_period: currentMonth,
+          is_participating: true,
+        });
+        setIsScoringParticipant(scores.length > 0);
+
+        // Verificar servicio activo
+        await checkForActiveService(freshUser.id, true);
+      }
+    } catch (error) {
+      console.error("Error loading user:", error);
+      localStorage.removeItem('redoak_user');
+    } finally {
+      setLoading(false);
+      setInitialLoadComplete(true);
     }
   };
+
+  // OPTIMIZADO: Polling más inteligente para limpiadores
+  useEffect(() => {
+    if (!user || user.role === 'admin' || !initialLoadComplete) return;
+    
+    // Polling cada 15 segundos (reducido de 20s para mejor respuesta)
+    const pollingInterval = 15000;
+    
+    console.log(`[Layout] 🔄 Iniciando polling cada ${pollingInterval/1000}s`);
+    
+    pollingRef.current = setInterval(() => {
+      console.log('[Layout] 🔄 Polling: Verificando servicio activo...');
+      checkForActiveService(user.id);
+    }, pollingInterval);
+    
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [user, initialLoadComplete, checkForActiveService]);
 
   const handleLogout = async () => {
     localStorage.clear();
@@ -269,9 +346,8 @@ export default function Layout({ children, currentPageName }) {
   }
 
   // Si es admin, usar layout desktop con sidebar (código existente)
-  // At this point, `user.role` is guaranteed to be 'admin'.
   const navigation = adminNavigation;
-  const isUserActive = user.active !== false; // This is only relevant if an admin user's 'active' status is displayed
+  // const isUserActive = user.active !== false; // This line is no longer strictly necessary for admin view's rendering logic
 
   return (
     <SidebarProvider>
@@ -296,13 +372,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
               <div className={`transition-all duration-300 ${isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'} overflow-hidden`}>
                 <h2 className="font-bold text-slate-900 whitespace-nowrap">RedOak Cleaning</h2>
-                <p className="text-xs text-slate-500 whitespace-nowrap">
-                  {user.role === 'admin' ? 'Panel Administrativo' : 'Panel de Limpiador'} {/* user.role is 'admin' here */}
-                </p>
-                {/* This condition will always be false as user.role is 'admin' here */}
-                {user.role !== 'admin' && !isUserActive && (
-                  <p className="text-xs text-amber-600 font-medium whitespace-nowrap">Cuenta Inactiva</p>
-                )}
+                <p className="text-xs text-slate-500 whitespace-nowrap">Panel Administrativo</p>
               </div>
             </div>
           </div>
@@ -316,45 +386,27 @@ export default function Layout({ children, currentPageName }) {
                 Navegación
               </div>
               <div className="space-y-1">
-                {navigation.map((item) => { // 'navigation' is now 'adminNavigation'
-                  const isDisabled = item.requiresActive && !isUserActive; // 'requiresActive' is not used in adminNavigation
-                  const isActiveServiceItem = item.isActiveService; // 'isActiveService' is not used in adminNavigation
+                {navigation.map((item) => {
                   const isCurrentPage = location.pathname === item.url;
                   
                   return (
                     <div key={item.title} className="relative group">
-                      {isDisabled ? (
-                        <div
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-1 cursor-not-allowed opacity-50 ${
-                            isSidebarExpanded ? 'justify-start' : 'justify-center'
-                          }`}
-                        >
-                          <item.icon className="w-5 h-5 flex-shrink-0" />
-                          <span className={`font-medium whitespace-nowrap transition-all duration-300 ${
-                            isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
-                          } overflow-hidden`}>
-                            {item.title}
-                          </span>
-                        </div>
-                      ) : (
-                        <Link
-                          to={item.url}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all duration-200 ${
-                            isCurrentPage ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-blue-50 hover:text-blue-700'
-                          } ${isActiveServiceItem ? 'bg-green-50 text-green-700 border-2 border-green-300 animate-pulse' : ''} ${
-                            isSidebarExpanded ? 'justify-start' : 'justify-center'
-                          }`}
-                        >
-                          <item.icon className="w-5 h-5 flex-shrink-0" />
-                          <span className={`font-medium whitespace-nowrap transition-all duration-300 ${
-                            isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
-                          } overflow-hidden`}>
-                            {item.title}
-                          </span>
-                        </Link>
-                      )}
+                      <Link
+                        to={item.url}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all duration-200 ${
+                          isCurrentPage ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-blue-50 hover:text-blue-700'
+                        } ${
+                          isSidebarExpanded ? 'justify-start' : 'justify-center'
+                        }`}
+                      >
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        <span className={`font-medium whitespace-nowrap transition-all duration-300 ${
+                          isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
+                        } overflow-hidden`}>
+                          {item.title}
+                        </span>
+                      </Link>
                       
-                      {/* Tooltip cuando está contraída */}
                       {!isSidebarExpanded && (
                         <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-slate-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 whitespace-nowrap z-50">
                           {item.title}
@@ -378,7 +430,6 @@ export default function Layout({ children, currentPageName }) {
                 </AvatarFallback>
               </Avatar>
               
-              {/* CRITICAL: Notification Bell - ONLY for admins */}
               {user.role === 'admin' && !isSidebarExpanded && (
                 <div className="flex-shrink-0">
                   <NotificationBell userId={user.id} userRole={user.role} />
@@ -392,7 +443,6 @@ export default function Layout({ children, currentPageName }) {
                 <p className="text-xs text-slate-500 truncate whitespace-nowrap">{user.email}</p>
               </div>
               
-              {/* Notification Bell when expanded - ONLY for admins */}
               {user.role === 'admin' && isSidebarExpanded && (
                 <div className="flex-shrink-0">
                   <NotificationBell userId={user.id} userRole={user.role} />
