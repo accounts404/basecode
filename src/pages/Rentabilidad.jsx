@@ -27,13 +27,13 @@ import {
 import ThresholdManager from '../components/rentabilidad/ThresholdManager';
 import PricingAnalysisTable from '../components/rentabilidad/PricingAnalysisTable';
 
-// Extrae solo la fecha (YYYY-MM-DD) de un string ISO, ignorando hora y zona horaria
+// NUEVA FUNCIÓN: Extrae solo la fecha (YYYY-MM-DD) de un string ISO, ignorando hora y zona horaria
 const extractDateOnly = (isoString) => {
   if (!isoString) return null;
   return isoString.substring(0, 10);
 };
 
-// Verifica si una fecha está dentro de un rango (solo comparando fechas, no horas)
+// NUEVA FUNCIÓN: Verifica si una fecha está dentro de un rango (solo comparando fechas, no horas)
 const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   if (!dateString || !rangeStart || !rangeEnd) return false;
   
@@ -306,11 +306,12 @@ export default function RentabilidadPage() {
     }, []);
 
     const loadMonthSpecificData = useCallback(async (monthValue) => {
+        // Only proceed if initial data has been loaded
         if (loading || clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
             return;
         }
 
-        setLoading(true);
+        setLoading(true); // Re-activate loading for month-specific calculations
         setError('');
         try {
             const [year, month] = monthValue.split('-');
@@ -319,7 +320,7 @@ export default function RentabilidadPage() {
             setSelectedPeriod({ start: monthStart, end: monthEnd });
 
             const clientMap = new Map(clients.map(c => [c.id, c]));
-            const clientData = {};
+            const clientData = {}; // Will hold the aggregated data for the month
 
             // Process schedules for income (EXCLUDE TRAINING)
             const monthlySchedules = allSchedules.filter(s => 
@@ -328,6 +329,7 @@ export default function RentabilidadPage() {
             );
 
             monthlySchedules.forEach(schedule => {
+                // NEW: Skip TRAINING client
                 if (schedule.client_id === trainingClientId) return;
 
                 const client = clientMap.get(schedule.client_id);
@@ -348,18 +350,13 @@ export default function RentabilidadPage() {
                     };
                 }
 
-                // Usar snapshot de precio/GST si está disponible (servicio facturado)
-                const servicePrice = schedule.service_price_snapshot !== undefined && schedule.service_price_snapshot !== null
-                    ? schedule.service_price_snapshot
-                    : (client.current_service_price || 0);
-                const gstType = schedule.gst_type_snapshot || client.gst_type || 'inclusive';
-
+                const gstType = client.gst_type || 'inclusive';
                 let serviceRevenueBreakdown = {};
-                let totalRawReconciledAmount = 0;
+                let totalRawReconciledAmount = 0; // Sum of non-discount raw amounts for GST calculation
 
                 if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
                     schedule.reconciliation_items.forEach(item => {
-                        const type = item.type || 'other_extra';
+                        const type = item.type || 'other_extra'; // Default to 'other_extra'
                         const amount = parseFloat(item.amount) || 0;
                         serviceRevenueBreakdown[type] = (serviceRevenueBreakdown[type] || 0) + amount;
                         if (type !== 'discount') {
@@ -367,7 +364,8 @@ export default function RentabilidadPage() {
                         }
                     });
                 } else {
-                    totalRawReconciledAmount = servicePrice;
+                    // Fallback to current_service_price if no reconciliation items
+                    totalRawReconciledAmount = client.current_service_price || 0;
                     serviceRevenueBreakdown['base_service'] = totalRawReconciledAmount;
                 }
                 
@@ -381,11 +379,11 @@ export default function RentabilidadPage() {
                 }
 
                 clientData[clientId].revenueBreakdown = mergeRevenueBreakdowns(clientData[clientId].revenueBreakdown, netBreakdownForSchedule);
-                clientData[clientId].totalIncome += calculateTotalIncomeFromBreakdown(netBreakdownForSchedule);
+                clientData[clientId].totalIncome += calculateTotalIncomeFromBreakdown(netBreakdownForSchedule); // Accumulate net income
                 clientData[clientId].serviceCount += 1;
             });
 
-            // Calculate monthly training costs from all work entries for the TRAINING client ID
+            // NEW: Calculate monthly training costs from all work entries for the TRAINING client ID
             let trainingHours = 0;
             let trainingAmount = 0;
             allWorkEntries.forEach(entry => {
@@ -398,11 +396,11 @@ export default function RentabilidadPage() {
             setMonthlyTrainingCost({ hours: trainingHours, amount: trainingAmount });
 
 
-            // Filter work entries only by date (ignoring time) and activity,
+            // MODIFIED: Filter work entries only by date (ignoring time) and activity,
             // then process for labor costs and hours (including clients with only work entries)
             const monthlyWorkEntries = allWorkEntries.filter(e => 
                 isDateInRange(e.work_date, monthStart, monthEnd) &&
-                e.activity !== 'training'
+                e.activity !== 'training' // Filter out 'training' activities here
             );
 
             monthlyWorkEntries.forEach(entry => {
@@ -458,7 +456,7 @@ export default function RentabilidadPage() {
                 const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
 
                 const clientHourShare = totalMonthlyHours > 0 ? data.totalHours / totalMonthlyHours : 0;
-                const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
+                const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare; // NEW: Using totalFixedCostsWithTraining
                 const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
                 const realMargin = margin - distributedFixedCost;
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
@@ -625,12 +623,6 @@ export default function RentabilidadPage() {
             const clientId = client.id;
             let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
 
-            // Usar snapshot de precio/GST si está disponible
-            const servicePrice = schedule.service_price_snapshot !== undefined && schedule.service_price_snapshot !== null
-                ? schedule.service_price_snapshot
-                : (client.current_service_price || 0);
-            const gstType = schedule.gst_type_snapshot || client.gst_type || 'inclusive';
-
             let tempRawBreakdown = {};
             let totalRawReconciledAmount = 0;
 
@@ -644,11 +636,11 @@ export default function RentabilidadPage() {
                     }
                 });
             } else {
-                totalRawReconciledAmount = servicePrice;
+                totalRawReconciledAmount = client.current_service_price || 0;
                 tempRawBreakdown['base_service'] = totalRawReconciledAmount;
             }
             
-            const { base: netIncomeFromRawTotal, total: grossIncomeFromRawTotal } = calculateGST(totalRawReconciledAmount, gstType);
+            const { base: netIncomeFromRawTotal, total: grossIncomeFromRawTotal } = calculateGST(totalRawReconciledAmount, client.gst_type);
 
             const gstFactor = (grossIncomeFromRawTotal > 0 && totalRawReconciledAmount > 0) ? (netIncomeFromRawTotal / totalRawReconciledAmount) : 1;
             
@@ -677,10 +669,10 @@ export default function RentabilidadPage() {
             return isDateInRange(entry.work_date, cumulativeStartDate, new Date()) && 
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training';
+                   entry.activity !== 'training'; // Exclude 'training' activity
         });
 
-        // Calcular fechas únicas de servicio por cliente (for `serviceCount`)
+        // NUEVO: Calcular fechas únicas de servicio por cliente (for `serviceCount`)
         const clientServiceDates = new Map();
         cumulativeWorkEntries.forEach(entry => {
             if (!entry.client_id || !entry.work_date) return;
@@ -701,7 +693,7 @@ export default function RentabilidadPage() {
             const client = clientMap.get(entry.client_id);
             if (!client) return acc;
 
-            // Create entry in cumulativeClientProfitability if not exists (for clients with only work entries)
+            // MODIFIED: Create entry in cumulativeClientProfitability if not exists (for clients with only work entries)
             if (!acc[client.id]) {
                 acc[client.id] = {
                     clientId: client.id,
@@ -726,14 +718,14 @@ export default function RentabilidadPage() {
                 cumulativeClientProfitability[clientId].revenueBreakdown = breakdown;
                 cumulativeClientProfitability[clientId].totalIncome = calculateTotalIncomeFromBreakdown(breakdown);
                 
-                // Usar fechas únicas de WorkEntry en lugar de Schedules facturados
+                // CORREGIDO: Usar fechas únicas de WorkEntry en lugar de Schedules facturados
                 const uniqueServiceDates = clientServiceDates.get(clientId);
                 cumulativeClientProfitability[clientId].serviceCount = uniqueServiceDates ? uniqueServiceDates.size : 0;
 
             } else {
                 const client = clientMap.get(clientId);
                 if (client) {
-                    // También aquí usar fechas únicas
+                    // CORREGIDO: También aquí usar fechas únicas
                     const uniqueServiceDates = clientServiceDates.get(clientId);
                     cumulativeClientProfitability[clientId] = {
                         clientId: clientId,
@@ -762,13 +754,13 @@ export default function RentabilidadPage() {
         const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
-        // Add cumulative training costs to fixed costs
+        // NEW: Add cumulative training costs to fixed costs
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
 
         const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0); // Correctly calculate from cumulativeClientProfitability
 
         const cumulativeFixedCostPerHourOverall = overallCumulativeTotalHours > 0 ? 
-            totalFixedCostsWithTraining / overallCumulativeTotalHours : 0; // Using totalFixedCostsWithTraining
+            totalFixedCostsWithTraining / overallCumulativeTotalHours : 0; // NEW: Using totalFixedCostsWithTraining
 
         const cumulativeClientAnalysis = Object.values(cumulativeClientProfitability).map(data => {
             const margin = data.totalIncome - data.totalLaborCost;
@@ -854,7 +846,7 @@ export default function RentabilidadPage() {
         loadAllInitialData(); // Re-fetch all data including thresholds
     };
 
-    // Filter clients for pricing analysis (exclude TRAINING)
+    // NEW: Filter clients for pricing analysis (exclude TRAINING)
     const clientsForPricingAnalysis = clients.filter(c => c.id !== trainingClientId);
 
     return (
@@ -1148,7 +1140,7 @@ export default function RentabilidadPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
-                                    {/* Totales en la parte superior */}
+                                    {/* NUEVO: Totales en la parte superior */}
                                     <TotalsCard 
                                         summary={profitabilityData.summary} 
                                         title={`Totales - ${format(selectedPeriod.start, 'MMMM yyyy', { locale: es })}`}
@@ -1291,7 +1283,7 @@ export default function RentabilidadPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
-                                    {/* Totales acumulados en la parte superior */}
+                                    {/* NUEVO: Totales acumulados en la parte superior */}
                                     <TotalsCard 
                                         summary={cumulativeProfitabilityData.summary} 
                                         title={`Totales Acumulados (Desde ${format(cumulativeStartDate, 'd MMM yyyy', { locale: es })})`}

@@ -143,12 +143,6 @@ export default function AumentoClientesPage() {
             const clientId = client.id;
             let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
 
-            // NUEVO: Usar snapshot de precio/GST si está disponible
-            const servicePrice = schedule.service_price_snapshot !== undefined && schedule.service_price_snapshot !== null
-                ? schedule.service_price_snapshot
-                : (client.current_service_price || 0);
-            const gstType = schedule.gst_type_snapshot || client.gst_type || 'inclusive';
-
             let tempRawBreakdown = {};
             let totalRawReconciledAmount = 0;
 
@@ -162,12 +156,11 @@ export default function AumentoClientesPage() {
                     }
                 });
             } else {
-                // MODIFICADO: Usar servicePrice
-                totalRawReconciledAmount = servicePrice;
+                totalRawReconciledAmount = client.current_service_price || 0;
                 tempRawBreakdown['base_service'] = totalRawReconciledAmount;
             }
             
-            const { base: netIncomeFromRawTotal, total: grossIncomeFromRawTotal } = calculateGST(totalRawReconciledAmount, gstType);
+            const { base: netIncomeFromRawTotal, total: grossIncomeFromRawTotal } = calculateGST(totalRawReconciledAmount, client.gst_type);
 
             const gstFactor = (grossIncomeFromRawTotal > 0 && totalRawReconciledAmount > 0) ? (netIncomeFromRawTotal / totalRawReconciledAmount) : 1;
             

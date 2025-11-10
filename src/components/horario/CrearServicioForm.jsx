@@ -76,7 +76,7 @@ export default function CrearServicioForm({
 
     // Estado para herramientas administrativas (Ahora se usa 'loading' para los procesos de admin)
     // Eliminado: const [adminProcessing, setAdminProcessing] = useState(false);
-    // Eliminado: const [adminProcessingMessage, setAdminProcessingMessage] = "";
+    // Eliminado: const [adminProcessingMessage, setAdminProcessingMessage] = useState("");
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
@@ -183,46 +183,6 @@ export default function CrearServicioForm({
     const isLocationNearClient = (gpsCoords, clientAddress) => {
         return { isNear: null, distance: null, note: "Comparación con dirección del cliente disponible con geocoding API" };
     };
-
-    // NUEVA FUNCIÓN: Obtener precio y GST del cliente válido para una fecha específica
-    const getPriceAndGSTForDate = useCallback((client, serviceDate) => {
-        if (!client || !serviceDate) {
-            return {
-                price: 0,
-                gstType: 'inclusive'
-            };
-        }
-
-        // Si el cliente tiene historial de precios, buscar el precio vigente en esa fecha
-        if (client.price_history && client.price_history.length > 0) {
-            // Ordenar por fecha efectiva descendente
-            const sortedHistory = [...client.price_history].sort((a, b) => {
-                const dateA = new Date(a.effective_date);
-                const dateB = new Date(b.effective_date);
-                return dateB - dateA;
-            });
-
-            // Encontrar la primera entrada cuya fecha efectiva sea <= serviceDate
-            const serviceDateObj = new Date(serviceDate);
-            const applicableEntry = sortedHistory.find(entry => {
-                const effectiveDate = new Date(entry.effective_date);
-                return effectiveDate <= serviceDateObj;
-            });
-
-            if (applicableEntry) {
-                return {
-                    price: applicableEntry.new_price || 0,
-                    gstType: applicableEntry.gst_type || client.gst_type || 'inclusive'
-                };
-            }
-        }
-
-        // Si no hay historial o no se encontró entrada aplicable, usar valores actuales
-        return {
-            price: client.current_service_price || 0,
-            gstType: client.gst_type || 'inclusive'
-        };
-    }, []);
 
     // Load clients for the combobox
     useEffect(() => {
@@ -679,16 +639,11 @@ export default function CrearServicioForm({
         }
 
         try {
-            // NUEVO: Obtener el precio y GST vigente para la fecha del servicio
-            const { price, gstType } = getPriceAndGSTForDate(selectedClient, formData.start_date);
-
             // MODIFICADO: `structured_service_notes` eliminado del payload. `client_address` es de formData.
             const serviceData = {
                 client_id: selectedClient.id,
                 client_name: selectedClient.name,
                 client_address: formData.client_address || '', // Snapshot of address at time of saving
-                service_price_snapshot: price, // NUEVO: Guardar snapshot del precio
-                gst_type_snapshot: gstType,    // NUEVO: Guardar snapshot del GST
                 cleaner_ids: formData.cleaner_ids,
                 start_time: startDateTime.toISOString(),
                 end_time: endDateTime.toISOString(),
@@ -740,16 +695,6 @@ export default function CrearServicioForm({
                 if (schedule.clock_in_data) serviceData.clock_in_data = schedule.clock_in_data;
                 if (schedule.reconciliation_items) serviceData.reconciliation_items = schedule.reconciliation_items;
                 if (schedule.xero_invoiced) serviceData.xero_invoiced = schedule.xero_invoiced;
-                
-                // NUEVO: Si el servicio ya está facturado, preservar los snapshots originales
-                if (schedule.xero_invoiced) {
-                    if (schedule.service_price_snapshot !== undefined) {
-                        serviceData.service_price_snapshot = schedule.service_price_snapshot;
-                    }
-                    if (schedule.gst_type_snapshot) {
-                        serviceData.gst_type_snapshot = schedule.gst_type_snapshot;
-                    }
-                }
             }
 
             // IMPORTANT: If clientDefaultNotes were modified, update the client
@@ -2463,7 +2408,7 @@ export default function CrearServicioForm({
                                         <SelectItem value="weekly">Regular - Semanal</SelectItem>
                                         <SelectItem value="fortnightly">Regular - Quincenal</SelectItem>
                                         <SelectItem value="every_3_weeks">Regular - Cada 3 semanas</SelectItem>
-                                        <SelectItem value="every_4_weeks">Regular - Cada 4 semanas</SelectItem>
+                                        <SelectItem value="every_4_weeks">Regular - Cada 4 semanas</SelectItem> {/* NEW ITEM */}
                                         <SelectItem value="monthly">Regular - Mensual</SelectItem>
                                     </SelectContent>
                                 </Select>

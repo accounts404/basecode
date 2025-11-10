@@ -277,31 +277,10 @@ export default function ConciliacionFacturasPage() {
     const handleMarkAsInvoiced = async (serviceId) => {
         setLoading(true);
         try {
-            // Get the current service from the state to capture its current price and GST type
-            const currentService = schedules.find(s => s.id === serviceId);
-            const client = clients.get(currentService.client_id);
-
-            // Determine the price and GST type to snapshot
-            let priceToSnapshot = 0;
-            let gstTypeToSnapshot = 'inclusive'; // Default or based on client
-            if (currentService.reconciliation_items && currentService.reconciliation_items.length > 0) {
-                priceToSnapshot = currentService.reconciliation_items.reduce((total, item) => {
-                    const amount = parseFloat(item.amount) || 0;
-                    return item.type === 'discount' ? total - amount : total + amount;
-                }, 0);
-            } else {
-                priceToSnapshot = client?.current_service_price || 0;
-            }
-            gstTypeToSnapshot = client?.gst_type || 'inclusive';
-
-            await Schedule.update(serviceId, {
-                xero_invoiced: true,
-                service_price_snapshot: priceToSnapshot,
-                gst_type_snapshot: gstTypeToSnapshot,
-            });
+            await Schedule.update(serviceId, { xero_invoiced: true });
 
             const updatedSchedules = schedules.map(s =>
-                s.id === serviceId ? { ...s, xero_invoiced: true, service_price_snapshot: priceToSnapshot, gst_type_snapshot: gstTypeToSnapshot } : s
+                s.id === serviceId ? {...s, xero_invoiced: true} : s
             ).sort((a, b) => {
                 if (a.xero_invoiced !== b.xero_invoiced) {
                     return a.xero_invoiced ? 1 : -1;
@@ -329,19 +308,14 @@ export default function ConciliacionFacturasPage() {
         }
     };
 
-
     // NUEVO: Función para desmarcar como facturado
     const handleUnmarkAsInvoiced = async (serviceId) => {
         setLoading(true);
         try {
-            await Schedule.update(serviceId, {
-                xero_invoiced: false,
-                service_price_snapshot: null, // Clear snapshot
-                gst_type_snapshot: null, // Clear snapshot
-            });
+            await Schedule.update(serviceId, { xero_invoiced: false });
 
             const updatedSchedules = schedules.map(s =>
-                s.id === serviceId ? { ...s, xero_invoiced: false, service_price_snapshot: null, gst_type_snapshot: null } : s
+                s.id === serviceId ? {...s, xero_invoiced: false} : s
             ).sort((a, b) => {
                 if (a.xero_invoiced !== b.xero_invoiced) {
                     return a.xero_invoiced ? 1 : -1;
@@ -423,7 +397,6 @@ export default function ConciliacionFacturasPage() {
     const isScheduler = currentUser?.role === 'admin'; // Adjust based on actual role for scheduling
     const isAccountant = currentUser?.role === 'admin'; // Adjust based on actual role for accounting
 
-    // MODIFICADO: Usar snapshot de precio si está disponible y el servicio está facturado
     const getReconciledAmount = (service) => {
         if (service.reconciliation_items && service.reconciliation_items.length > 0) {
             return service.reconciliation_items.reduce((total, item) => {
@@ -431,13 +404,6 @@ export default function ConciliacionFacturasPage() {
                 return item.type === 'discount' ? total - amount : total + amount;
             }, 0);
         }
-
-        // NUEVO: Si el servicio tiene snapshot de precio (servicio facturado), usarlo
-        if (service.service_price_snapshot !== undefined && service.service_price_snapshot !== null) {
-            return service.service_price_snapshot;
-        }
-
-        // Fallback al precio actual del cliente
         return clients.get(service.client_id)?.current_service_price || 0;
     };
 
@@ -452,63 +418,16 @@ export default function ConciliacionFacturasPage() {
                     return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
                 }, 0);
             } else {
-                // Use snapshot if available for invoiced services, otherwise client's current price
-                amount = service.service_price_snapshot !== undefined && service.service_price_snapshot !== null
-                    ? service.service_price_snapshot
-                    : (clients.get(service.client_id)?.current_service_price || 0);
+                amount = clients.get(service.client_id)?.current_service_price || 0;
             }
             return total + amount;
         }, 0);
     }, [schedules, clients]);
 
-    // MODIFICADO: Función para mostrar el monto original considerando snapshots
-    const renderOriginalAmount = (service) => {
-        const client = clients.get(service.client_id);
-
-        // NUEVO: Si el servicio tiene snapshot (ya facturado), mostrar esos valores
-        if (service.service_price_snapshot !== undefined && service.service_price_snapshot !== null && service.gst_type_snapshot) {
-            return (
-                <div className="space-y-2">
-                    <div className="font-bold text-lg text-slate-900">
-                        ${service.service_price_snapshot.toFixed(2)}
-                    </div>
-                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[service.gst_type_snapshot]}`}>
-                        {gstTypeLabels[service.gst_type_snapshot]}
-                    </span>
-                    {service.xero_invoiced && (
-                        <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" />
-                            Precio histórico
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        // Si no hay snapshot, usar valores actuales del cliente
-        const clientGstType = client?.gst_type || 'inclusive';
-        const originalPrice = client?.current_service_price || 0;
-
-        return (
-            <div className="space-y-2">
-                <div className="font-bold text-lg text-slate-900">
-                    ${originalPrice.toFixed(2)}
-                </div>
-                <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[clientGstType]}`}>
-                    {gstTypeLabels[clientGstType]}
-                </span>
-            </div>
-        );
-    };
-
     const renderReconciledAmountBreakdown = (service) => {
         const client = clients.get(service.client_id);
-
-        // NUEVO: Obtener precio y GST del snapshot si está disponible (servicio facturado)
-        const originalPrice = service.service_price_snapshot !== undefined && service.service_price_snapshot !== null
-            ? service.service_price_snapshot
-            : (client?.current_service_price || 0);
-        const clientGstType = service.gst_type_snapshot || client?.gst_type || 'inclusive';
+        const originalPrice = client?.current_service_price || 0;
+        const clientGstType = client?.gst_type || 'inclusive';
 
         // Si no hay reconciliation_items, mostrar solo el monto original
         if (!service.reconciliation_items || service.reconciliation_items.length === 0) {
@@ -747,6 +666,9 @@ export default function ConciliacionFacturasPage() {
                                         const client = clients.get(service.client_id);
                                         const isUnassigned = !service.cleaner_ids || service.cleaner_ids.length === 0;
                                         const hasSpecialBillingInstructions = client?.has_special_billing_instructions && client?.special_billing_instructions;
+                                        const clientGstType = client?.gst_type || 'inclusive';
+
+                                        // NUEVO: Obtener nombres de limpiadores
                                         const cleanerNames = getCleanerNames(service.cleaner_ids);
 
                                         return (
@@ -810,7 +732,14 @@ export default function ConciliacionFacturasPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="min-w-[140px]">
-                                                {renderOriginalAmount(service)}
+                                                <div className="space-y-2">
+                                                    <div className="font-bold text-lg text-slate-900">
+                                                        ${(client?.current_service_price || 0).toFixed(2)}
+                                                    </div>
+                                                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[clientGstType]}`}>
+                                                        {gstTypeLabels[clientGstType]}
+                                                    </span>
+                                                </div>
                                             </TableCell>
                                             <TableCell className="min-w-[220px]">
                                                 {renderReconciledAmountBreakdown(service)}
