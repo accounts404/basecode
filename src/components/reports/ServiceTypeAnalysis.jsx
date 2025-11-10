@@ -172,7 +172,7 @@ export default function ServiceTypeAnalysis({ schedules = [], clients = [] }) {
             const clientTypeLabel = clientTypeLabels[clientType] || clientType;
             const serviceDateOnly = extractDateOnly(schedule.start_time);
 
-            // NUEVA LÓGICA: Usar getPriceForSchedule para respetar snapshots
+            // Usar getPriceForSchedule para respetar snapshots
             const priceData = getPriceForSchedule(schedule, client);
 
             // Procesar cada tipo de servicio en el breakdown
@@ -180,8 +180,10 @@ export default function ServiceTypeAnalysis({ schedules = [], clients = [] }) {
                 const serviceTypeLabel = serviceTypeLabels[serviceType] || serviceType;
                 const key = `${clientType}|${serviceType}`;
 
-                const rawAmount = priceData.breakdown[serviceType];
-                const { base } = calculateGST(rawAmount, priceData.gstType);
+                const rawAmountOriginal = priceData.breakdown[serviceType];
+                
+                // CRÍTICO: Calcular base y total según el tipo de GST
+                const { base: netAmount, total: grossAmount } = calculateGST(rawAmountOriginal, priceData.gstType);
 
                 if (!detailedBreakdown[key]) {
                     detailedBreakdown[key] = {
@@ -195,7 +197,8 @@ export default function ServiceTypeAnalysis({ schedules = [], clients = [] }) {
                     };
                 }
 
-                detailedBreakdown[key].revenue += base;
+                // Acumular el ingreso neto (sin GST)
+                detailedBreakdown[key].revenue += netAmount;
                 detailedBreakdown[key].count += 1;
 
                 detailedBreakdown[key].services.push({
@@ -203,8 +206,8 @@ export default function ServiceTypeAnalysis({ schedules = [], clients = [] }) {
                     clientName: client.name,
                     serviceDate: serviceDateOnly,
                     itemDescription: serviceTypeLabel,
-                    amount: base,
-                    rawAmount: rawAmount,
+                    amount: netAmount,        // Monto (sin GST) - siempre base
+                    rawAmount: grossAmount,   // Monto Total - siempre total (con GST si aplica)
                     gstType: priceData.gstType
                 });
             }
