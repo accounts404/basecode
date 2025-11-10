@@ -2,14 +2,11 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 import { addWeeks, addMonths, startOfDay } from 'npm:date-fns@2.30.0';
 
-// No se necesita date-fns-tz aquí, causando el problema de importación.
-// const TIME_ZONE = 'Australia/Melbourne';
-
 // Esta función está diseñada para ser llamada desde el frontend justo después de crear
 // o actualizar una cita con una regla de recurrencia.
 // Genera las futuras instances de esa cita para los próximos meses.
 
-async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
+async function generarCitasFuturas(base44, citaOriginal, monthsToGenerate) {
     const { recurrence_rule } = citaOriginal;
     if (!recurrence_rule || recurrence_rule === 'none') {
         return [];
@@ -18,7 +15,7 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
     // Usar el ID de la cita original como ID de la serie, o crear uno nuevo si no existe.
     const recurrenceId = citaOriginal.recurrence_id || citaOriginal.id;
     
-    // Actualizar la cita original para que tenga el recurrence_id
+    // Actualizar la cita original para que tenga el recurrence_id si aún no lo tiene
     if (!citaOriginal.recurrence_id) {
         await base44.asServiceRole.entities.Schedule.update(citaOriginal.id, { recurrence_id: recurrenceId });
     }
@@ -29,15 +26,23 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
     // Create a set of start dates (ignoring time) for quick lookups
     const existingStartDays = new Set(existingSchedules.map(s => startOfDay(new Date(s.start_time)).toISOString()));
 
-    const citasCreadas = [];
+    const schedulesToCreate = []; // Almacena las citas a crear antes de la inserción masiva
+    const createdSchedules = []; // Almacena las citas creadas con éxito
+
     let fechaInicioActual = new Date(citaOriginal.start_time);
     let fechaFinActual = new Date(citaOriginal.end_time);
+
+    // NUEVO: Capturar snapshots de precio y GST del original
+    const priceSnapshot = citaOriginal.service_price_snapshot;
+    const gstSnapshot = citaOriginal.gst_type_snapshot;
+    console.log('[generarCitasFuturas] 📸 Snapshots a copiar:', { precio: priceSnapshot, gst: gstSnapshot });
 
     // Definir cuántas citas generar. 'monthsToGenerate' viene del request, con un valor por defecto.
     // Iteraremos un número suficiente de veces para cubrir el periodo, y la lógica de fecha
     // decidirá si se crea una nueva cita. monthsToGenerate * 4 es un límite superior para
-    // cubrir todas las frecuencias (semanal, quincenal, etc.).
+    // cubrir todas las frecuencias (semanal, quincenal, etc.) hasta el periodo deseado.
     const maxIterations = monthsToGenerate * 4; 
+    const generationLimitDate = addMonths(new Date(citaOriginal.start_time), monthsToGenerate);
 
     for (let i = 0; i < maxIterations; i++) {
         let siguienteInicio;
@@ -54,27 +59,31 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
                 siguienteInicio = addWeeks(fechaInicioActual, 2);
                 siguienteFin = addWeeks(fechaFinActual, 2);
                 break;
-            case 'every_3_weeks': // Nueva regla de recurrencia
+            case 'every_3_weeks':
                 siguienteInicio = addWeeks(fechaInicioActual, 3);
                 siguienteFin = addWeeks(fechaFinActual, 3);
                 break;
-            case 'every_4_weeks': // NUEVO: Soporte para cada 4 semanas
+            case 'every_4_weeks':
                 siguienteInicio = addWeeks(fechaInicioActual, 4);
                 siguienteFin = addWeeks(fechaFinActual, 4);
                 break;
             case 'monthly':
-                // Según la outline, ahora se usa addMonths en lugar de addWeeks(4)
                 siguienteInicio = addMonths(fechaInicioActual, 1);
                 siguienteFin = addMonths(fechaFinActual, 1);
                 break;
             default:
                 // Si la regla de recurrencia no es reconocida, no generar más.
-                console.warn(`[generarSiguientesCitas] Regla de recurrencia desconocida: ${recurrence_rule}. Deteniendo generación.`);
-                return citasCreadas;
+                console.warn(`[generarCitasFuturas] Regla de recurrencia desconocida: ${recurrence_rule}. Deteniendo generación.`);
+                return createdSchedules; // Retornar lo que se haya generado hasta ahora.
+        }
+
+        // Si la próxima cita generada excede el límite de tiempo, detener la generación.
+        if (siguienteInicio > generationLimitDate) {
+            break;
         }
 
         // --- IDEMPOTENCY CHECK ---
-        // Check if a service for this day in the series already exists.
+        // Check if a schedule for this day in the series already exists.
         const nextDayStartISO = startOfDay(siguienteInicio).toISOString();
         if (existingStartDays.has(nextDayStartISO)) {
             // Update dates for next loop iteration but skip creation.
@@ -91,25 +100,58 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
             status: 'scheduled',
             recurrence_id: recurrenceId, // Asegurar que todas las citas de la serie tengan el mismo ID
             clock_in_data: [],
+            // NUEVO: Copiar snapshots de precio y GST
+            service_price_snapshot: priceSnapshot,
+            gst_type_snapshot: gstSnapshot,
         };
         delete nuevaCita.id; // Eliminar el ID para que se genere uno nuevo
 
-        try {
-            const creada = await base44.asServiceRole.entities.Schedule.create(nuevaCita);
-            if (creada) {
-                citasCreadas.push(creada);
-            }
-        } catch (e) {
-            console.error(`Error creando cita recurrente: ${e.message}`);
-            // Continuar con la siguiente aunque una falle
+        // Lógica para copiar y ajustar los horarios de los limpiadores (cleaner_schedules)
+        if (citaOriginal.cleaner_schedules && citaOriginal.cleaner_schedules.length > 0) {
+            const originalScheduleStart = new Date(citaOriginal.start_time);
+            
+            nuevaCita.cleaner_schedules = citaOriginal.cleaner_schedules.map(cs => {
+                const csOriginalStart = new Date(cs.start_time);
+                const csOriginalEnd = new Date(cs.end_time);
+
+                // Calcular el desplazamiento del horario del limpiador con respecto al inicio de la cita original
+                const offsetMsFromMainStart = csOriginalStart.getTime() - originalScheduleStart.getTime();
+                // Calcular la duración del horario original del limpiador
+                const csDurationMs = csOriginalEnd.getTime() - csOriginalStart.getTime();
+
+                // Aplicar este desplazamiento al nuevo tiempo de inicio de la cita recurrente
+                const csNewStart = new Date(siguienteInicio.getTime() + offsetMsFromMainStart);
+                const csNewEnd = new Date(csNewStart.getTime() + csDurationMs);
+
+                return {
+                    cleaner_id: cs.cleaner_id,
+                    start_time: csNewStart.toISOString(),
+                    end_time: csNewEnd.toISOString()
+                };
+            });
         }
+
+        schedulesToCreate.push(nuevaCita); // Añadir a la lista para creación masiva
         
         // Actualizar las fechas base para la siguiente iteración
         fechaInicioActual = siguienteInicio;
         fechaFinActual = siguienteFin;
     }
+
+    // Crear todas las citas recolectadas
+    for (const scheduleData of schedulesToCreate) {
+        try {
+            const creada = await base44.asServiceRole.entities.Schedule.create(scheduleData);
+            if (creada) {
+                createdSchedules.push(creada);
+            }
+        } catch (e) {
+            console.error(`Error creando cita recurrente: ${e.message}`);
+            // Continuar con la siguiente aunque una falle
+        }
+    }
     
-    return citasCreadas;
+    return createdSchedules;
 }
 
 Deno.serve(async (req) => {
@@ -142,7 +184,8 @@ Deno.serve(async (req) => {
             citaOriginal.recurrence_rule = recurrenceRule;
         }
 
-        const nuevasCitas = await generarSiguientesCitas(base44, citaOriginal, months);
+        // Llamar a la función actualizada
+        const nuevasCitas = await generarCitasFuturas(base44, citaOriginal, months);
         
         console.log(`[generarRecurrencias] Proceso completado. Se crearon ${nuevasCitas.length} citas futuras.`);
 

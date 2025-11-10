@@ -73,6 +73,8 @@ Deno.serve(async (req) => {
         console.log('Schedule start_time:', schedule.start_time);
         console.log('Schedule end_time:', schedule.end_time);
         console.log('Schedule cleaner_schedules:', schedule.cleaner_schedules);
+        console.log('Schedule price snapshot:', schedule.service_price_snapshot);
+        console.log('Schedule GST snapshot:', schedule.gst_type_snapshot);
 
         const workDate = new Date(schedule.start_time);
 
@@ -176,7 +178,9 @@ Deno.serve(async (req) => {
                     service_date: format(workDate, 'dd/MM/yyyy'),
                     start_time: format(new Date(schedule.start_time), 'HH:mm'),
                     end_time: format(new Date(schedule.end_time), 'HH:mm'),
-                    client_activity_type: clientActivity
+                    client_activity_type: clientActivity,
+                    service_price_snapshot: schedule.service_price_snapshot,
+                    gst_type_snapshot: schedule.gst_type_snapshot
                 }
             }), { headers: { 'Content-Type': 'application/json' } });
 
