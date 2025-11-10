@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Client } from '@/entities/Client';
 import { WorkEntry } from '@/entities/WorkEntry';
@@ -7,7 +6,7 @@ import { PricingThreshold } from '@/entities/PricingThreshold';
 import { Schedule } from '@/entities/Schedule';
 import { User } from '@/entities/User';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO } from "date-fns"; // Added parseISO
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,13 +26,11 @@ import {
 import ThresholdManager from '../components/rentabilidad/ThresholdManager';
 import PricingAnalysisTable from '../components/rentabilidad/PricingAnalysisTable';
 
-// NUEVA FUNCIÓN: Extrae solo la fecha (YYYY-MM-DD) de un string ISO, ignorando hora y zona horaria
 const extractDateOnly = (isoString) => {
   if (!isoString) return null;
   return isoString.substring(0, 10);
 };
 
-// NUEVA FUNCIÓN: Verifica si una fecha está dentro de un rango (solo comparando fechas, no horas)
 const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   if (!dateString || !rangeStart || !rangeEnd) return false;
   
@@ -42,100 +39,6 @@ const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   const endDate = format(rangeEnd, 'yyyy-MM-dd');
   
   return date >= startDate && date <= endDate;
-};
-
-// NUEVA FUNCIÓN: Obtiene el precio correcto para un servicio, respetando snapshots y historial
-const getPriceForSchedule = (schedule, client) => {
-    // PRIORIDAD 1: Si tiene reconciliation_items, usar esos (ya fueron revisados)
-    if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
-        let tempRawBreakdown = {};
-        let totalRawReconciledAmount = 0;
-
-        schedule.reconciliation_items.forEach(item => {
-            const type = item.type || 'other_extra';
-            const amount = parseFloat(item.amount) || 0;
-            tempRawBreakdown[type] = (tempRawBreakdown[type] || 0) + amount;
-            // Only add non-discount items to totalRawReconciledAmount for GST calculation purposes
-            if (type !== 'discount') {
-                totalRawReconciledAmount += amount;
-            }
-        });
-        
-        return { 
-            rawAmount: totalRawReconciledAmount, 
-            breakdown: tempRawBreakdown,
-            gstType: schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive',
-            source: 'reconciliation_items'
-        };
-    }
-    
-    // PRIORIDAD 2: Si está facturado y tiene snapshot, usar ese (INMUTABLE)
-    if (schedule.xero_invoiced && schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
-        return {
-            rawAmount: schedule.billed_price_snapshot,
-            breakdown: { base_service: schedule.billed_price_snapshot },
-            gstType: schedule.billed_gst_type_snapshot || 'inclusive',
-            source: 'snapshot'
-        };
-    }
-    
-    // PRIORIDAD 3: Calcular precio vigente en la fecha del servicio usando price_history
-    if (client) {
-        const serviceDate = schedule.start_time;
-        if (!client.price_history || client.price_history.length === 0) {
-            return {
-                rawAmount: client.current_service_price || 0,
-                breakdown: { base_service: client.current_service_price || 0 },
-                gstType: client.gst_type || 'inclusive',
-                source: 'current_price_fallback'
-            };
-        }
-        
-        const serviceDateObj = parseISO(serviceDate);
-        const sortedHistory = [...client.price_history].sort((a, b) => {
-            return new Date(b.effective_date) - new Date(a.effective_date);
-        });
-        
-        for (const historyEntry of sortedHistory) {
-            const effectiveDateObj = parseISO(historyEntry.effective_date);
-            // Check if the service date is on or after the effective date of this history entry
-            if (serviceDateObj >= effectiveDateObj) {
-                return {
-                    rawAmount: historyEntry.new_price || client.current_service_price || 0,
-                    breakdown: { base_service: historyEntry.new_price || client.current_service_price || 0 },
-                    gstType: historyEntry.gst_type || client.gst_type || 'inclusive',
-                    source: 'price_history'
-                };
-            }
-        }
-        
-        // If service date is before all effective dates in history, use the price before the oldest change
-        const oldestEntry = sortedHistory[sortedHistory.length - 1];
-        if (oldestEntry && serviceDateObj < parseISO(oldestEntry.effective_date)) {
-            return {
-                rawAmount: oldestEntry.previous_price || client.current_service_price || 0,
-                breakdown: { base_service: oldestEntry.previous_price || client.current_service_price || 0 },
-                gstType: oldestEntry.gst_type || client.gst_type || 'inclusive',
-                source: 'price_history_oldest_previous'
-            };
-        }
-    }
-    
-    // Fallback: Use current service price if no specific logic applies
-    return {
-        rawAmount: client?.current_service_price || 0,
-        breakdown: { base_service: client?.current_service_price || 0 },
-        gstType: client?.gst_type || 'inclusive',
-        source: 'fallback'
-    };
-};
-
-const frequencyLabels = {
-    'weekly': 'Semanal',
-    'fortnightly': 'Quincenal',
-    'every_3_weeks': 'Cada 3 Semanas',
-    'monthly': 'Mensual',
-    'one_off': 'Servicio Único'
 };
 
 const calculateGST = (price, gstType) => {
@@ -153,7 +56,6 @@ const calculateGST = (price, gstType) => {
     }
 };
 
-// Helper to merge two revenue breakdown objects
 const mergeRevenueBreakdowns = (currentBreakdown, newBreakdown) => {
     const merged = { ...currentBreakdown };
     for (const key in newBreakdown) {
@@ -162,7 +64,6 @@ const mergeRevenueBreakdowns = (currentBreakdown, newBreakdown) => {
     return merged;
 };
 
-// Helper to calculate total income from a breakdown object, respecting discounts
 const calculateTotalIncomeFromBreakdown = (breakdown) => {
     let total = 0;
     for (const type in breakdown) {
@@ -175,6 +76,86 @@ const calculateTotalIncomeFromBreakdown = (breakdown) => {
     return total;
 };
 
+// CRÍTICO: Función que respeta snapshots inmutables y price_history
+const getPriceForSchedule = (schedule, client) => {
+    // PRIORIDAD 1: Si tiene reconciliation_items, usar esos
+    if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
+        let tempRawBreakdown = {};
+        let totalRawReconciledAmount = 0;
+
+        schedule.reconciliation_items.forEach(item => {
+            const type = item.type || 'other_extra';
+            const amount = parseFloat(item.amount) || 0;
+            tempRawBreakdown[type] = (tempRawBreakdown[type] || 0) + amount;
+            if (type !== 'discount') {
+                totalRawReconciledAmount += amount;
+            }
+        });
+        
+        return { 
+            rawAmount: totalRawReconciledAmount, 
+            breakdown: tempRawBreakdown,
+            gstType: schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive'
+        };
+    }
+    
+    // PRIORIDAD 2: Si está facturado con snapshot (INMUTABLE)
+    if (schedule.xero_invoiced && schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
+        return {
+            rawAmount: schedule.billed_price_snapshot,
+            breakdown: { base_service: schedule.billed_price_snapshot },
+            gstType: schedule.billed_gst_type_snapshot || 'inclusive'
+        };
+    }
+    
+    // PRIORIDAD 3: Precio vigente en fecha del servicio
+    if (client) {
+        const serviceDate = schedule.start_time;
+        if (!client.price_history || client.price_history.length === 0) {
+            return {
+                rawAmount: client.current_service_price || 0,
+                breakdown: { base_service: client.current_service_price || 0 },
+                gstType: client.gst_type || 'inclusive'
+            };
+        }
+        
+        const serviceDateStr = format(parseISO(serviceDate), 'yyyy-MM-dd');
+        const sortedHistory = [...client.price_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+        
+        for (const historyEntry of sortedHistory) {
+            if (historyEntry.effective_date <= serviceDateStr) {
+                return {
+                    rawAmount: historyEntry.new_price || client.current_service_price || 0,
+                    breakdown: { base_service: historyEntry.new_price || client.current_service_price || 0 },
+                    gstType: historyEntry.gst_type || client.gst_type || 'inclusive'
+                };
+            }
+        }
+        
+        const oldestEntry = sortedHistory[sortedHistory.length - 1];
+        if (oldestEntry) {
+            return {
+                rawAmount: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0,
+                breakdown: { base_service: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0 },
+                gstType: oldestEntry.gst_type || client.gst_type || 'inclusive'
+            };
+        }
+    }
+    
+    return {
+        rawAmount: client?.current_service_price || 0,
+        breakdown: { base_service: client?.current_service_price || 0 },
+        gstType: client?.gst_type || 'inclusive'
+    };
+};
+
+const frequencyLabels = {
+    'weekly': 'Semanal',
+    'fortnightly': 'Quincenal',
+    'every_3_weeks': 'Cada 3 Semanas',
+    'monthly': 'Mensual',
+    'one_off': 'Servicio Único'
+};
 
 const ProfitabilityRow = ({ data }) => {
     const isGrossProfitable = data.margin > 0;
@@ -242,7 +223,6 @@ const TotalsCard = ({ summary, title }) => {
     const isGrossProfitable = summary.totalMargin > 0;
     const isRealProfitable = summary.totalRealMargin > 0;
     
-    // Fixed costs distributed to the clients in this summary
     const distributedFixedCostsForSummary = Math.abs(summary.totalMargin - summary.totalRealMargin);
 
     return (
@@ -252,25 +232,21 @@ const TotalsCard = ({ summary, title }) => {
                 {title}
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                {/* Total Horas */}
                 <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
                     <p className="text-slate-300 text-xs mb-1">Total Horas</p>
                     <p className="text-white text-2xl font-bold">{summary.totalHours.toFixed(2)}h</p>
                 </div>
 
-                {/* Ingresos Totales */}
                 <div className="bg-emerald-500/20 backdrop-blur-sm rounded-lg p-4 border border-emerald-500/30">
                     <p className="text-emerald-200 text-xs mb-1">Ingresos Totales</p>
                     <p className="text-emerald-100 text-2xl font-bold">${summary.totalIncome.toFixed(2)}</p>
                 </div>
 
-                {/* Costo Laboral Total */}
                 <div className="bg-rose-500/20 backdrop-blur-sm rounded-lg p-4 border border-rose-500/30">
                     <p className="text-rose-200 text-xs mb-1">Costo Laboral</p>
                     <p className="text-rose-100 text-2xl font-bold">${summary.totalLaborCost.toFixed(2)}</p>
                 </div>
 
-                {/* Margen Bruto */}
                 <div className={`${isGrossProfitable ? 'bg-blue-500/20 border-blue-500/30' : 'bg-orange-500/20 border-orange-500/30'} backdrop-blur-sm rounded-lg p-4 border`}>
                     <p className={`${isGrossProfitable ? 'text-blue-200' : 'text-orange-200'} text-xs mb-1`}>Margen Bruto</p>
                     <p className={`${isGrossProfitable ? 'text-blue-100' : 'text-orange-100'} text-2xl font-bold`}>
@@ -278,7 +254,6 @@ const TotalsCard = ({ summary, title }) => {
                     </p>
                 </div>
 
-                {/* Gastos Fijos */}
                 <div className="bg-orange-500/20 backdrop-blur-sm rounded-lg p-4 border border-orange-500/30">
                     <p className="text-orange-200 text-xs mb-1">Gastos Fijos</p>
                     <p className="text-orange-100 text-2xl font-bold">
@@ -286,7 +261,6 @@ const TotalsCard = ({ summary, title }) => {
                     </p>
                 </div>
 
-                {/* Margen Neto Real */}
                 <div className={`${isRealProfitable ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-rose-500/20 border-rose-500/30'} backdrop-blur-sm rounded-lg p-4 border`}>
                     <p className={`${isRealProfitable ? 'text-emerald-200' : 'text-rose-200'} text-xs mb-1`}>Margen Neto Real</p>
                     <p className={`${isRealProfitable ? 'text-emerald-100' : 'text-rose-100'} text-2xl font-bold`}>
@@ -294,7 +268,6 @@ const TotalsCard = ({ summary, title }) => {
                     </p>
                 </div>
 
-                {/* Rentabilidad Real % */}
                 <div className={`${isRealProfitable ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-rose-500/20 border-rose-500/30'} backdrop-blur-sm rounded-lg p-4 border`}>
                     <p className={`${isRealProfitable ? 'text-emerald-200' : 'text-rose-200'} text-xs mb-1 flex items-center gap-1`}>
                         <TrendingUp className="w-3 h-3" />
@@ -318,16 +291,16 @@ const TotalsCard = ({ summary, title }) => {
 
 export default function RentabilidadPage() {
     const [clients, setClients] = useState([]);
-    const [allWorkEntries, setAllWorkEntries] = useState([]); // All work entries
-    const [allSchedules, setAllSchedules] = useState([]);     // All schedules
+    const [allWorkEntries, setAllWorkEntries] = useState([]);
+    const [allSchedules, setAllSchedules] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [selectedPeriod, setSelectedPeriod] = useState(null);
     const [monthOptions] = useState(generateMonthOptions());
     const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
-    const [fixedCostInput, setFixedCostInput] = useState(0); // For the monthly input
-    const [allFixedCosts, setAllFixedCosts] = useState([]); // List of all fixed costs
-    const [savedFixedCosts, setSavedFixedCosts] = useState(0); // The saved fixed cost for current month
+    const [fixedCostInput, setFixedCostInput] = useState(0);
+    const [allFixedCosts, setAllFixedCosts] = useState([]);
+    const [savedFixedCosts, setSavedFixedCosts] = useState(0);
     const [savingFixedCosts, setSavingFixedCosts] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [clientSearchTerm, setClientSearchTerm] = useState("");
@@ -336,10 +309,9 @@ export default function RentabilidadPage() {
     const [pricingThresholds, setPricingThresholds] = useState([]);
     const [selectedFrequency, setSelectedFrequency] = useState('all');
     const [isThresholdModalOpen, setIsThresholdModalOpen] = useState(false);
-    const [users, setUsers] = useState([]); // Added users state
-    const [monthlyProcessedClientAnalysis, setMonthlyProcessedClientAnalysis] = useState([]); // Processed data for the monthly table
+    const [users, setUsers] = useState([]);
+    const [monthlyProcessedClientAnalysis, setMonthlyProcessedClientAnalysis] = useState([]);
     
-    // NEW: Training costs state
     const [monthlyTrainingCost, setMonthlyTrainingCost] = useState({ hours: 0, amount: 0 });
     const [cumulativeTrainingCost, setCumulativeTrainingCost] = useState({ hours: 0, amount: 0 });
     const [trainingClientId, setTrainingClientId] = useState(null);
@@ -361,10 +333,10 @@ export default function RentabilidadPage() {
         try {
             const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData, usersData] = await Promise.all([
                 Client.list(),
-                WorkEntry.list("-work_date"), // Load all work entries
+                WorkEntry.list("-work_date"),
                 PricingThreshold.list(),
-                Schedule.list(), // Load all schedules
-                FixedCost.list(), // Load all fixed costs
+                Schedule.list(),
+                FixedCost.list(),
                 User.list(),
             ]);
             setClients(clientsData || []);
@@ -374,7 +346,6 @@ export default function RentabilidadPage() {
             setAllFixedCosts(fixedCostsData || []);
             setUsers(usersData || []);
             
-            // NEW: Identify TRAINING client
             const trainingClient = (clientsData || []).find(c => c.name === 'TRAINING' || c.client_type === 'training');
             if (trainingClient) {
                 setTrainingClientId(trainingClient.id);
@@ -383,7 +354,7 @@ export default function RentabilidadPage() {
             console.error("Error loading initial data for profitability analysis:", err);
             setError("No se pudieron cargar los datos iniciales. Por favor, recarga la página.");
         } finally {
-            setLoading(false); // Set false once all *initial* data is loaded
+            setLoading(false);
         }
     };
 
@@ -392,12 +363,11 @@ export default function RentabilidadPage() {
     }, []);
 
     const loadMonthSpecificData = useCallback(async (monthValue) => {
-        // Only proceed if initial data has been loaded
         if (loading || clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
             return;
         }
 
-        setLoading(true); // Re-activate loading for month-specific calculations
+        setLoading(true);
         setError('');
         try {
             const [year, month] = monthValue.split('-');
@@ -406,16 +376,14 @@ export default function RentabilidadPage() {
             setSelectedPeriod({ start: monthStart, end: monthEnd });
 
             const clientMap = new Map(clients.map(c => [c.id, c]));
-            const clientData = {}; // Will hold the aggregated data for the month
+            const clientData = {};
 
-            // Process schedules for income (EXCLUDE TRAINING)
             const monthlySchedules = allSchedules.filter(s => 
                 isDateInRange(s.start_time, monthStart, monthEnd) &&
                 s.xero_invoiced
             );
 
             monthlySchedules.forEach(schedule => {
-                // NEW: Skip TRAINING client
                 if (schedule.client_id === trainingClientId) return;
 
                 const client = clientMap.get(schedule.client_id);
@@ -436,11 +404,9 @@ export default function RentabilidadPage() {
                     };
                 }
 
-                // NUEVA LÓGICA: Usar getPriceForSchedule
                 const priceData = getPriceForSchedule(schedule, client);
                 const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
                 
-                // Calculate a GST factor to apply to individual breakdown items
                 const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
                 
                 let netBreakdownForSchedule = {};
@@ -453,7 +419,6 @@ export default function RentabilidadPage() {
                 clientData[clientId].serviceCount += 1;
             });
 
-            // NEW: Calculate monthly training costs from all work entries for the TRAINING client ID
             let trainingHours = 0;
             let trainingAmount = 0;
             allWorkEntries.forEach(entry => {
@@ -465,48 +430,41 @@ export default function RentabilidadPage() {
             });
             setMonthlyTrainingCost({ hours: trainingHours, amount: trainingAmount });
 
-
-            // MODIFIED: Filter work entries only by date (ignoring time) and activity,
-            // then process for labor costs and hours (including clients with only work entries)
             const monthlyWorkEntries = allWorkEntries.filter(e => 
                 isDateInRange(e.work_date, monthStart, monthEnd) &&
-                e.activity !== 'training' // Filter out 'training' activities here
+                e.activity !== 'training'
             );
 
             monthlyWorkEntries.forEach(entry => {
                 const clientId = entry.client_id;
                 
-                // If this is the training client, we've already tracked it and don't want to include it in the general client data
                 if (clientId === trainingClientId) {
-                    return; // Don't add to clientData analysis
+                    return;
                 }
 
-                // If clientData entry doesn't exist (e.g., client has only work entries, no schedules)
                 if (!clientData[clientId]) {
                     const client = clientMap.get(clientId);
                     if (client) {
                         clientData[clientId] = {
                             clientId: clientId,
                             clientName: client.name,
-                            totalIncome: 0, // Work entries don't generate income directly in this model
+                            totalIncome: 0,
                             revenueBreakdown: {},
                             totalLaborCost: 0,
                             totalHours: 0,
-                            serviceCount: 0, // Work entries don't directly count as invoiced services in this model
+                            serviceCount: 0,
                             currentServicePrice: client.current_service_price || 0,
                             gstType: client.gst_type || 'inclusive',
                         };
                     }
                 }
                 
-                // Add labor cost and hours to the clientData
-                if (clientData[clientId]) { // Ensure clientData[clientId] exists after potential creation
+                if (clientData[clientId]) {
                     clientData[clientId].totalLaborCost += entry.total_amount || 0;
                     clientData[clientId].totalHours += entry.hours || 0;
                 }
             });
 
-            // Load fixed costs for the specific month
             const fixedCostsForMonth = allFixedCosts.filter(fc => fc.period === monthValue);
             const currentFixedCostAmount = fixedCostsForMonth && fixedCostsForMonth.length > 0
                 ? fixedCostsForMonth[0].amount
@@ -514,7 +472,6 @@ export default function RentabilidadPage() {
             setFixedCostInput(currentFixedCostAmount);
             setSavedFixedCosts(currentFixedCostAmount);
 
-            // Add training cost to fixed costs for distribution
             const totalFixedCostsWithTraining = currentFixedCostAmount + trainingAmount;
 
             const totalMonthlyHours = Object.values(clientData).reduce((sum, c) => sum + c.totalHours, 0);
@@ -526,7 +483,7 @@ export default function RentabilidadPage() {
                 const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
 
                 const clientHourShare = totalMonthlyHours > 0 ? data.totalHours / totalMonthlyHours : 0;
-                const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare; // NEW: Using totalFixedCostsWithTraining
+                const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
                 const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
                 const realMargin = margin - distributedFixedCost;
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
@@ -535,7 +492,7 @@ export default function RentabilidadPage() {
                 return {
                     ...data,
                     margin,
-                    profitPercentage: data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0, // gross profit percentage
+                    profitPercentage: data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0,
                     distributedFixedCost,
                     realMargin,
                     realProfitPercentage,
@@ -545,7 +502,7 @@ export default function RentabilidadPage() {
                     fixedCostPerHour,
                     realMarginPerHour
                 };
-            }).filter(data => data.totalHours > 0 || data.totalIncome > 0); // Only show clients with actual activity
+            }).filter(data => data.totalHours > 0 || data.totalIncome > 0);
 
             setMonthlyProcessedClientAnalysis(profitData);
 
@@ -555,16 +512,13 @@ export default function RentabilidadPage() {
         } finally {
             setLoading(false);
         }
-    }, [allSchedules, allWorkEntries, allFixedCosts, clients, trainingClientId]); // Removed calculateGST, mergeRevenueBreakdowns, calculateTotalIncomeFromBreakdown from deps as they are global helpers
+    }, [allSchedules, allWorkEntries, allFixedCosts, clients, trainingClientId, loading]);
 
     useEffect(() => {
-        // This useEffect triggers the month-specific data load once initial data is ready
-        // and whenever the selectedMonth changes.
         if (!loading && selectedMonth) {
             loadMonthSpecificData(selectedMonth);
         }
-    }, [selectedMonth, loading, loadMonthSpecificData]); // Depend on loading from initial data, and selectedMonth
-
+    }, [selectedMonth, loading, loadMonthSpecificData]);
 
     const handleSaveFixedCosts = async () => {
         if (!selectedMonth) return;
@@ -593,7 +547,6 @@ export default function RentabilidadPage() {
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 3000);
 
-            // Re-trigger month-specific data load to update calculations with new fixed costs
             if (!loading && selectedMonth) {
                 loadMonthSpecificData(selectedMonth);
             }
@@ -625,7 +578,6 @@ export default function RentabilidadPage() {
     };
 
     const profitabilityData = useMemo(() => {
-        // This useMemo now only handles sorting and filtering the already-processed monthly data
         if (!selectedPeriod || monthlyProcessedClientAnalysis.length === 0) {
             return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 } };
         }
@@ -658,13 +610,12 @@ export default function RentabilidadPage() {
             acc.totalLaborCost += client.totalLaborCost;
             acc.totalMargin += client.margin;
             acc.totalHours += client.totalHours;
-            acc.totalRealMargin += client.realMargin; // Include real margin in summary
+            acc.totalRealMargin += client.realMargin;
             return acc;
         }, { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalHours: 0, totalRealMargin: 0 });
 
         const totalRealProfitPercentage = summary.totalIncome > 0 ? (summary.totalRealMargin / summary.totalIncome) * 100 : 0;
         summary.totalRealProfitPercentage = totalRealProfitPercentage;
-
 
         return { clientAnalysis: filteredClientAnalysis, summary };
 
@@ -679,8 +630,6 @@ export default function RentabilidadPage() {
         const clientMap = new Map(activeClients.map(c => [c.id, c]));
 
         const cumulativeIncomeDetailMap = new Map();
-        
-        // MODIFICADO: Usar getPriceForSchedule para calcular ingresos acumulados
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
             return isDateInRange(schedule.start_time, cumulativeStartDate, new Date()) && 
                    schedule.xero_invoiced === true &&
@@ -695,7 +644,6 @@ export default function RentabilidadPage() {
             const clientId = client.id;
             let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
 
-            // NUEVA LÓGICA: Usar getPriceForSchedule
             const priceData = getPriceForSchedule(schedule, client);
             const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
             
@@ -709,7 +657,6 @@ export default function RentabilidadPage() {
             cumulativeIncomeDetailMap.set(clientId, mergeRevenueBreakdowns(currentClientCumulativeBreakdown, netBreakdownForService));
         });
 
-        // Calculate cumulative training costs separately
         let cumulativeTrainingHours = 0;
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
@@ -721,15 +668,13 @@ export default function RentabilidadPage() {
         });
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
 
-        // Filter cumulative work entries, excluding training client and 'training' activity
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
             return isDateInRange(entry.work_date, cumulativeStartDate, new Date()) && 
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training'; // Exclude 'training' activity
+                   entry.activity !== 'training';
         });
 
-        // NUEVO: Calcular fechas únicas de servicio por cliente (for `serviceCount`)
         const clientServiceDates = new Map();
         cumulativeWorkEntries.forEach(entry => {
             if (!entry.client_id || !entry.work_date) return;
@@ -738,7 +683,6 @@ export default function RentabilidadPage() {
                 clientServiceDates.set(entry.client_id, new Set());
             }
             
-            // Extraer solo la fecha (YYYY-MM-DD) para evitar problemas con horas
             const dateOnly = extractDateOnly(entry.work_date);
             if (dateOnly) {
                 clientServiceDates.get(entry.client_id).add(dateOnly);
@@ -750,15 +694,14 @@ export default function RentabilidadPage() {
             const client = clientMap.get(entry.client_id);
             if (!client) return acc;
 
-            // MODIFIED: Create entry in cumulativeClientProfitability if not exists (for clients with only work entries)
             if (!acc[client.id]) {
                 acc[client.id] = {
                     clientId: client.id,
                     clientName: client.name,
-                    totalIncome: 0, // Income will be added from schedules later
+                    totalIncome: 0,
                     totalLaborCost: 0,
                     totalHours: 0,
-                    serviceCount: 0, // Will be updated by clientServiceDates later
+                    serviceCount: 0,
                     revenueBreakdown: {},
                     currentServicePrice: client.current_service_price || 0,
                     gstType: client.gst_type || 'inclusive',
@@ -769,20 +712,17 @@ export default function RentabilidadPage() {
             return acc;
         }, {});
 
-        // Add income data from schedules to the profitability object
         cumulativeIncomeDetailMap.forEach((breakdown, clientId) => {
             if (cumulativeClientProfitability[clientId]) {
                 cumulativeClientProfitability[clientId].revenueBreakdown = breakdown;
                 cumulativeClientProfitability[clientId].totalIncome = calculateTotalIncomeFromBreakdown(breakdown);
                 
-                // CORREGIDO: Usar fechas únicas de WorkEntry en lugar de Schedules facturados
                 const uniqueServiceDates = clientServiceDates.get(clientId);
                 cumulativeClientProfitability[clientId].serviceCount = uniqueServiceDates ? uniqueServiceDates.size : 0;
 
             } else {
                 const client = clientMap.get(clientId);
                 if (client) {
-                    // CORREGIDO: También aquí usar fechas únicas
                     const uniqueServiceDates = clientServiceDates.get(clientId);
                     cumulativeClientProfitability[clientId] = {
                         clientId: clientId,
@@ -800,10 +740,10 @@ export default function RentabilidadPage() {
         });
 
         const startPeriod = format(cumulativeStartDate, 'yyyy-MM');
-        const endPeriod = format(new Date(), 'yyyy-MM'); // End period for cumulative fixed costs
+        const endPeriod = format(new Date(), 'yyyy-MM');
         const periodMonths = [];
-        let currentDate = new Date(startPeriod + '-01'); // Start from the beginning of the first month
-        while (format(currentDate, 'yyyy-MM') <= endPeriod) { // Iterate until the end month
+        let currentDate = new Date(startPeriod + '-01');
+        while (format(currentDate, 'yyyy-MM') <= endPeriod) {
             periodMonths.push(format(currentDate, 'yyyy-MM'));
             currentDate = addMonths(currentDate, 1);
         }
@@ -811,13 +751,12 @@ export default function RentabilidadPage() {
         const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
-        // NEW: Add cumulative training costs to fixed costs
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
 
-        const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0); // Correctly calculate from cumulativeClientProfitability
+        const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
 
         const cumulativeFixedCostPerHourOverall = overallCumulativeTotalHours > 0 ? 
-            totalFixedCostsWithTraining / overallCumulativeTotalHours : 0; // NEW: Using totalFixedCostsWithTraining
+            totalFixedCostsWithTraining / overallCumulativeTotalHours : 0;
 
         const cumulativeClientAnalysis = Object.values(cumulativeClientProfitability).map(data => {
             const margin = data.totalIncome - data.totalLaborCost;
@@ -848,7 +787,6 @@ export default function RentabilidadPage() {
             };
         }).filter(data => data.totalHours > 0 || data.totalIncome > 0);
 
-        // APLICAR FILTROS Y ORDENAMIENTO (IGUAL QUE LA TABLA MENSUAL)
         const sortedCumulativeAnalysis = [...cumulativeClientAnalysis].sort((a, b) => {
             let aValue = a[sortColumn];
             let bValue = b[sortColumn];
@@ -900,16 +838,14 @@ export default function RentabilidadPage() {
 
     const handleThresholdsSaved = () => {
         setIsThresholdModalOpen(false);
-        loadAllInitialData(); // Re-fetch all data including thresholds
+        loadAllInitialData();
     };
 
-    // NEW: Filter clients for pricing analysis (exclude TRAINING)
     const clientsForPricingAnalysis = clients.filter(c => c.id !== trainingClientId);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
             <div className="max-w-[1920px] mx-auto">
-                {/* Professional Header */}
                 <div className="mb-10">
                     <div className="flex items-center gap-4 mb-3">
                         <div className="p-3 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg">
@@ -922,11 +858,9 @@ export default function RentabilidadPage() {
                     </div>
                 </div>
 
-                {/* Professional Control Panel */}
                 <Card className="mb-8 shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                   <CardContent className="p-8">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-end">
-                        {/* Month Selector */}
                         <div className="space-y-3">
                           <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-blue-600" />
@@ -946,7 +880,6 @@ export default function RentabilidadPage() {
                           </Select>
                         </div>
 
-                        {/* Fixed Costs */}
                         <div className="space-y-3">
                             <Label htmlFor="fixed-costs" className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                                 <PiggyBank className="w-4 h-4 text-orange-600" />
@@ -981,7 +914,6 @@ export default function RentabilidadPage() {
                             </div>
                         </div>
 
-                        {/* NEW: Training Costs Display */}
                         <div className="space-y-3">
                             <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                                 <GraduationCap className="w-4 h-4 text-purple-600" />
@@ -1003,7 +935,6 @@ export default function RentabilidadPage() {
                             </div>
                         </div>
 
-                        {/* Threshold Manager Button */}
                         <Dialog open={isThresholdModalOpen} onOpenChange={setIsThresholdModalOpen}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" className="h-12 shadow-md border-slate-300 hover:bg-slate-50 hover:border-blue-600 font-medium">
@@ -1036,7 +967,6 @@ export default function RentabilidadPage() {
                 
                 {selectedPeriod ? (
                     <div className="space-y-8">
-                        {/* Client Search */}
                         <Card className="shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                             <CardContent className="p-6">
                                 <div className="flex items-center gap-5">
@@ -1074,8 +1004,7 @@ export default function RentabilidadPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Professional KPI Cards */}
-                        <div className="grid grid-cols-1 md::grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <Card className="shadow-lg border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white">
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-sm font-semibold text-emerald-800 uppercase tracking-wide flex items-center gap-2">
@@ -1120,7 +1049,6 @@ export default function RentabilidadPage() {
                             </Card>
                         </div>
 
-                         {/* Financial Summary Cards */}
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                              <Card className="shadow-lg border border-orange-200/60 bg-gradient-to-br from-orange-50 to-white">
                                 <CardHeader className="pb-3">
@@ -1179,9 +1107,7 @@ export default function RentabilidadPage() {
                             </Card>
                         </div>
                         
-                        {/* Professional Accordion Tables */}
                         <Accordion type="multiple" defaultValue={["item-1", "item-2", "item-3"]} className="w-full space-y-6">
-                            {/* Monthly Detailed Table */}
                             <AccordionItem value="item-1" className="bg-white border border-slate-200/60 rounded-2xl shadow-lg overflow-hidden">
                                 <AccordionTrigger className="px-8 py-6 text-lg font-bold hover:no-underline hover:bg-slate-50/50 transition-colors">
                                     <div className="flex items-center gap-3">
@@ -1197,7 +1123,6 @@ export default function RentabilidadPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
-                                    {/* NUEVO: Totales en la parte superior */}
                                     <TotalsCard 
                                         summary={profitabilityData.summary} 
                                         title={`Totales - ${format(selectedPeriod.start, 'MMMM yyyy', { locale: es })}`}
@@ -1329,7 +1254,6 @@ export default function RentabilidadPage() {
                                 </AccordionContent>
                             </AccordionItem>
                             
-                            {/* Cumulative Table */}
                             <AccordionItem value="item-2" className="bg-white border border-slate-200/60 rounded-2xl shadow-lg overflow-hidden">
                                 <AccordionTrigger className="px-8 py-6 text-lg font-bold hover:no-underline hover:bg-slate-50/50 transition-colors">
                                     <div className="flex items-center gap-3">
@@ -1340,7 +1264,6 @@ export default function RentabilidadPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
-                                    {/* NUEVO: Totales acumulados en la parte superior */}
                                     <TotalsCard 
                                         summary={cumulativeProfitabilityData.summary} 
                                         title={`Totales Acumulados (Desde ${format(cumulativeStartDate, 'd MMM yyyy', { locale: es })})`}
@@ -1491,7 +1414,6 @@ export default function RentabilidadPage() {
                                 </AccordionContent>
                             </AccordionItem>
 
-                            {/* Pricing Analysis Table */}
                             <AccordionItem value="item-3" className="bg-white border border-slate-200/60 rounded-2xl shadow-lg overflow-hidden">
                                 <AccordionTrigger className="px-8 py-6 text-lg font-bold hover:no-underline hover:bg-slate-50/50 transition-colors">
                                     <div className="flex items-center gap-3">

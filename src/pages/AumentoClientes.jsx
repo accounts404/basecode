@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Client } from '@/entities/Client';
 import { WorkEntry } from '@/entities/WorkEntry';
 import { FixedCost } from '@/entities/FixedCost';
 import { Schedule } from '@/entities/Schedule';
-import { format, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, parseISO, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,7 +15,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 
-// Helper functions (same as Rentabilidad.js)
 const extractDateOnly = (isoString) => {
   if (!isoString) return null;
   return isoString.substring(0, 10);
@@ -67,9 +65,9 @@ const calculateTotalIncomeFromBreakdown = (breakdown) => {
     return total;
 };
 
-// NUEVA FUNCIÓN: Obtiene el precio correcto para un servicio, respetando snapshots y historial
+// CRÍTICO: Función que respeta snapshots inmutables y price_history
 const getPriceForSchedule = (schedule, client) => {
-    // PRIORIDAD 1: Si tiene reconciliation_items, usar esos (ya fueron revisados)
+    // PRIORIDAD 1: Si tiene reconciliation_items, usar esos
     if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
         let tempRawBreakdown = {};
         let totalRawReconciledAmount = 0;
@@ -86,45 +84,39 @@ const getPriceForSchedule = (schedule, client) => {
         return { 
             rawAmount: totalRawReconciledAmount, 
             breakdown: tempRawBreakdown,
-            gstType: schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive',
-            source: 'reconciliation_items'
+            gstType: schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive'
         };
     }
     
-    // PRIORIDAD 2: Si está facturado y tiene snapshot, usar ese (INMUTABLE)
+    // PRIORIDAD 2: Si está facturado con snapshot (INMUTABLE)
     if (schedule.xero_invoiced && schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
         return {
             rawAmount: schedule.billed_price_snapshot,
             breakdown: { base_service: schedule.billed_price_snapshot },
-            gstType: schedule.billed_gst_type_snapshot || 'inclusive',
-            source: 'snapshot'
+            gstType: schedule.billed_gst_type_snapshot || 'inclusive'
         };
     }
     
-    // PRIORIDAD 3: Calcular precio vigente en la fecha del servicio usando price_history
+    // PRIORIDAD 3: Precio vigente en fecha del servicio
     if (client) {
         const serviceDate = schedule.start_time;
         if (!client.price_history || client.price_history.length === 0) {
             return {
                 rawAmount: client.current_service_price || 0,
                 breakdown: { base_service: client.current_service_price || 0 },
-                gstType: client.gst_type || 'inclusive',
-                source: 'current_price'
+                gstType: client.gst_type || 'inclusive'
             };
         }
         
         const serviceDateStr = format(parseISO(serviceDate), 'yyyy-MM-dd');
-        const sortedHistory = [...client.price_history].sort((a, b) => {
-            return new Date(b.effective_date) - new Date(a.effective_date);
-        });
+        const sortedHistory = [...client.price_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
         
         for (const historyEntry of sortedHistory) {
             if (historyEntry.effective_date <= serviceDateStr) {
                 return {
                     rawAmount: historyEntry.new_price || client.current_service_price || 0,
                     breakdown: { base_service: historyEntry.new_price || client.current_service_price || 0 },
-                    gstType: historyEntry.gst_type || client.gst_type || 'inclusive',
-                    source: 'price_history'
+                    gstType: historyEntry.gst_type || client.gst_type || 'inclusive'
                 };
             }
         }
@@ -134,8 +126,7 @@ const getPriceForSchedule = (schedule, client) => {
             return {
                 rawAmount: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0,
                 breakdown: { base_service: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0 },
-                gstType: oldestEntry.gst_type || client.gst_type || 'inclusive',
-                source: 'price_history_oldest'
+                gstType: oldestEntry.gst_type || client.gst_type || 'inclusive'
             };
         }
     }
@@ -143,8 +134,7 @@ const getPriceForSchedule = (schedule, client) => {
     return {
         rawAmount: client?.current_service_price || 0,
         breakdown: { base_service: client?.current_service_price || 0 },
-        gstType: client?.gst_type || 'inclusive',
-        source: 'fallback'
+        gstType: client?.gst_type || 'inclusive'
     };
 };
 
@@ -155,15 +145,13 @@ export default function AumentoClientesPage() {
     const [allFixedCosts, setAllFixedCosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [targetProfitPercentage, setTargetProfitPercentage] = useState(15); // Default: 15%
+    const [targetProfitPercentage, setTargetProfitPercentage] = useState(15);
     const [trainingClientId, setTrainingClientId] = useState(null);
     const [sortColumn, setSortColumn] = useState('adjustmentNeeded');
     const [sortDirection, setSortDirection] = useState('desc');
 
-    // Period selection
-    const [startDate] = useState(new Date('2025-04-01T00:00:00Z')); // Fixed start date
+    const [startDate] = useState(new Date('2025-04-01T00:00:00Z'));
     const [endDate, setEndDate] = useState(() => {
-        // Default to end of previous month
         const today = new Date();
         return endOfMonth(subMonths(today, 1));
     });
@@ -208,7 +196,6 @@ export default function AumentoClientesPage() {
         const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
         const clientMap = new Map(activeClients.map(c => [c.id, c]));
 
-        // Calculate cumulative income
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
             return isDateInRange(schedule.start_time, startDate, endDate) && 
@@ -224,7 +211,6 @@ export default function AumentoClientesPage() {
             const clientId = client.id;
             let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
 
-            // NUEVA LÓGICA: Usar getPriceForSchedule
             const priceData = getPriceForSchedule(schedule, client);
             const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
             
@@ -238,14 +224,12 @@ export default function AumentoClientesPage() {
             cumulativeIncomeDetailMap.set(clientId, mergeRevenueBreakdowns(currentClientCumulativeBreakdown, netBreakdownForService));
         });
 
-        // Calculate work entries
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
             return isDateInRange(entry.work_date, startDate, endDate) && 
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id);
         });
 
-        // Count unique service dates
         const clientServiceDates = new Map();
         cumulativeWorkEntries.forEach(entry => {
             if (!entry.client_id || !entry.work_date) return;
@@ -260,7 +244,6 @@ export default function AumentoClientesPage() {
             }
         });
 
-        // Calculate training costs
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
             if (entry.client_id === trainingClientId && 
@@ -269,7 +252,6 @@ export default function AumentoClientesPage() {
             }
         });
 
-        // Build client profitability data
         const cumulativeClientProfitability = cumulativeWorkEntries.reduce((acc, entry) => {
             if (!entry.client_id) return acc;
             const client = clientMap.get(entry.client_id);
@@ -295,7 +277,6 @@ export default function AumentoClientesPage() {
             return acc;
         }, {});
 
-        // Add income and service count
         cumulativeIncomeDetailMap.forEach((breakdown, clientId) => {
             if (cumulativeClientProfitability[clientId]) {
                 cumulativeClientProfitability[clientId].revenueBreakdown = breakdown;
@@ -324,7 +305,6 @@ export default function AumentoClientesPage() {
             }
         });
 
-        // Calculate fixed costs
         const startPeriod = format(startDate, 'yyyy-MM');
         const endPeriod = format(endDate, 'yyyy-MM');
         const totalCumulativeFixedCosts = allFixedCosts.filter(fc => {
@@ -336,7 +316,6 @@ export default function AumentoClientesPage() {
         const cumulativeFixedCostPerHourOverall = overallCumulativeTotalHours > 0 ? 
             totalFixedCostsWithTraining / overallCumulativeTotalHours : 0;
 
-        // Calculate margins and profitability
         const clientAnalysis = Object.values(cumulativeClientProfitability).map(data => {
             const margin = data.totalIncome - data.totalLaborCost;
             const distributedFixedCost = data.totalHours * cumulativeFixedCostPerHourOverall;
@@ -347,7 +326,6 @@ export default function AumentoClientesPage() {
             const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
             const currentRealProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
 
-            // NUEVO CÁLCULO: Basado en porcentaje de rentabilidad
             const targetDecimal = targetProfitPercentage / 100;
             let adjustmentNeeded = 0;
             let newTotalIncome = data.totalIncome;
@@ -359,7 +337,6 @@ export default function AumentoClientesPage() {
                 adjustmentPercentage = data.totalIncome > 0 ? (adjustmentNeeded / data.totalIncome) * 100 : 0;
             }
 
-            // Calculate per-service adjustment
             const currentPriceBase = calculateGST(data.currentServicePrice || 0, data.gstType).base;
             const adjustmentPerService = data.serviceCount > 0 ? adjustmentNeeded / data.serviceCount : 0;
             const newServicePriceBase = currentPriceBase + adjustmentPerService;
@@ -387,12 +364,10 @@ export default function AumentoClientesPage() {
             };
         })
         .filter(data => {
-            // IMPORTANTE: Solo incluir clientes que están actualmente activos y tienen horas o ingresos
             const client = clientMap.get(data.clientId);
             return client && client.active !== false && (data.totalHours > 0 || data.totalIncome > 0);
         });
 
-        // Filter only clients below target
         const clientsBelowTarget = clientAnalysis.filter(c => c.isBelowTarget);
 
         return clientsBelowTarget;
@@ -450,7 +425,6 @@ export default function AumentoClientesPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
             <div className="max-w-[1920px] mx-auto">
-                {/* Header */}
                 <div className="mb-10">
                     <div className="flex items-center gap-4 mb-3">
                         <div className="p-3 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl shadow-lg">
@@ -465,11 +439,9 @@ export default function AumentoClientesPage() {
                     </div>
                 </div>
 
-                {/* Control Panel */}
                 <Card className="mb-8 shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                     <CardContent className="p-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            {/* Period Selection */}
                             <div className="space-y-3">
                                 <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                                     <Calendar className="w-4 h-4 text-blue-600" />
@@ -509,7 +481,6 @@ export default function AumentoClientesPage() {
                                 </div>
                             </div>
 
-                            {/* Target Profit */}
                             <div className="space-y-3">
                                 <Label htmlFor="target-profit" className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                                     <Target className="w-4 h-4 text-orange-600" />
@@ -532,7 +503,6 @@ export default function AumentoClientesPage() {
                                 </div>
                             </div>
 
-                            {/* Info Alert */}
                             <div className="flex items-end">
                                 <Alert className="border-blue-200 bg-blue-50/50">
                                     <AlertCircle className="h-5 w-5 text-blue-600" />
@@ -545,7 +515,6 @@ export default function AumentoClientesPage() {
                     </CardContent>
                 </Card>
 
-                {/* Summary Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     <Card className="shadow-lg border border-orange-200/60 bg-gradient-to-br from-orange-50 to-white">
                         <CardHeader className="pb-3">
@@ -589,7 +558,6 @@ export default function AumentoClientesPage() {
                     </Card>
                 </div>
 
-                {/* Main Table */}
                 {sortedClients.length > 0 ? (
                     <Card className="shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                         <CardHeader>
