@@ -963,34 +963,6 @@ export default function HorarioPage() {
                 serviceData.color = assignedColor;
             }
 
-            // NUEVO: Capturar precio y GST del cliente en el momento de creación/edición
-            if (serviceData.client_id) {
-                try {
-                    const client = await Client.get(serviceData.client_id);
-                    
-                    // Solo guardar snapshot si es un servicio nuevo O si no tiene snapshot previo
-                    if (isNewService || selectedEvent?.service_price_snapshot === undefined || selectedEvent?.service_price_snapshot === null) {
-                        serviceData.service_price_snapshot = client.current_service_price || 0;
-                        serviceData.gst_type_snapshot = client.gst_type || 'inclusive';
-                        console.log('[Horario] 📸 Snapshot de precio guardado:', {
-                            precio: serviceData.service_price_snapshot,
-                            gst: serviceData.gst_type_snapshot,
-                            fecha: serviceData.start_time
-                        });
-                    } else {
-                        // Mantener el snapshot existente para servicios ya creados
-                        serviceData.service_price_snapshot = selectedEvent.service_price_snapshot;
-                        serviceData.gst_type_snapshot = selectedEvent.gst_type_snapshot;
-                        console.log('[Horario] 📌 Manteniendo snapshot existente del servicio');
-                    }
-                } catch (clientError) {
-                    console.warn('[Horario] No se pudo obtener precio del cliente:', clientError);
-                    // Si no se puede obtener, mantener valores existentes o poner 0
-                    serviceData.service_price_snapshot = selectedEvent?.service_price_snapshot || 0;
-                    serviceData.gst_type_snapshot = selectedEvent?.gst_type_snapshot || 'inclusive';
-                }
-            }
-
             let savedServiceId = null;
 
             if (!isNewService) {
