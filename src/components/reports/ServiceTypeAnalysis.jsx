@@ -1,28 +1,24 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { DollarSign, ChevronDown } from 'lucide-react';
-import { format, parse } from 'date-fns';
+import { format, parse, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
-// Extrae solo la fecha (YYYY-MM-DD) de un string ISO
 const extractDateOnly = (isoString) => {
   if (!isoString) return null;
   return isoString.substring(0, 10);
 };
 
-// Formatea una fecha YYYY-MM-DD sin conversión de zona horaria
 const formatDateOnly = (dateString) => {
   if (!dateString) return '';
   const date = parse(dateString, 'yyyy-MM-dd', new Date());
   return format(date, "d MMM yyyy", { locale: es });
 };
 
-// Función para calcular GST
 const calculateGST = (price, gstType) => {
   const numPrice = parseFloat(price) || 0;
 
@@ -54,6 +50,79 @@ const calculateGST = (price, gstType) => {
         total: numPrice
       };
   }
+};
+
+// CRÍTICO: Función que respeta snapshots inmutables y price_history
+const getPriceForSchedule = (schedule, client) => {
+    // PRIORIDAD 1: Si tiene reconciliation_items, usar esos
+    if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
+        let tempRawBreakdown = {};
+        let totalRawReconciledAmount = 0;
+
+        schedule.reconciliation_items.forEach(item => {
+            const type = item.type || 'other_extra';
+            const amount = parseFloat(item.amount) || 0;
+            tempRawBreakdown[type] = (tempRawBreakdown[type] || 0) + amount;
+            if (type !== 'discount') {
+                totalRawReconciledAmount += amount;
+            }
+        });
+        
+        return { 
+            rawAmount: totalRawReconciledAmount, 
+            breakdown: tempRawBreakdown,
+            gstType: schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive'
+        };
+    }
+    
+    // PRIORIDAD 2: Si está facturado con snapshot (INMUTABLE)
+    if (schedule.xero_invoiced && schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
+        return {
+            rawAmount: schedule.billed_price_snapshot,
+            breakdown: { base_service: schedule.billed_price_snapshot },
+            gstType: schedule.billed_gst_type_snapshot || 'inclusive'
+        };
+    }
+    
+    // PRIORIDAD 3: Precio vigente en fecha del servicio
+    if (client) {
+        const serviceDate = schedule.start_time;
+        if (!client.price_history || client.price_history.length === 0) {
+            return {
+                rawAmount: client.current_service_price || 0,
+                breakdown: { base_service: client.current_service_price || 0 },
+                gstType: client.gst_type || 'inclusive'
+            };
+        }
+        
+        const serviceDateStr = format(parseISO(serviceDate), 'yyyy-MM-dd');
+        const sortedHistory = [...client.price_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
+        
+        for (const historyEntry of sortedHistory) {
+            if (historyEntry.effective_date <= serviceDateStr) {
+                return {
+                    rawAmount: historyEntry.new_price || client.current_service_price || 0,
+                    breakdown: { base_service: historyEntry.new_price || client.current_service_price || 0 },
+                    gstType: historyEntry.gst_type || client.gst_type || 'inclusive'
+                };
+            }
+        }
+        
+        const oldestEntry = sortedHistory[sortedHistory.length - 1];
+        if (oldestEntry) {
+            return {
+                rawAmount: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0,
+                breakdown: { base_service: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0 },
+                gstType: oldestEntry.gst_type || client.gst_type || 'inclusive'
+            };
+        }
+    }
+    
+    return {
+        rawAmount: client?.current_service_price || 0,
+        breakdown: { base_service: client?.current_service_price || 0 },
+        gstType: client?.gst_type || 'inclusive'
+    };
 };
 
 export default function ServiceTypeAnalysis({ schedules = [], clients = [] }) {
@@ -101,53 +170,18 @@ export default function ServiceTypeAnalysis({ schedules = [], clients = [] }) {
 
             const clientType = client.client_type || 'domestic';
             const clientTypeLabel = clientTypeLabels[clientType] || clientType;
-            const gstType = client.gst_type || 'inclusive';
-
             const serviceDateOnly = extractDateOnly(schedule.start_time);
 
-            if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
-                schedule.reconciliation_items.forEach(item => {
-                    if (item.type === 'discount') return;
+            // NUEVA LÓGICA: Usar getPriceForSchedule para respetar snapshots
+            const priceData = getPriceForSchedule(schedule, client);
 
-                    const serviceType = item.type;
-                    const serviceTypeLabel = serviceTypeLabels[serviceType] || serviceType;
-                    const key = `${clientType}|${serviceType}`;
-
-                    const rawAmount = parseFloat(item.amount) || 0;
-                    const { base } = calculateGST(rawAmount, gstType);
-
-                    if (!detailedBreakdown[key]) {
-                        detailedBreakdown[key] = {
-                            clientType,
-                            clientTypeLabel,
-                            serviceType,
-                            serviceTypeLabel,
-                            revenue: 0,
-                            count: 0,
-                            services: []
-                        };
-                    }
-
-                    detailedBreakdown[key].revenue += base;
-                    detailedBreakdown[key].count += 1;
-
-                    detailedBreakdown[key].services.push({
-                        scheduleId: schedule.id,
-                        clientName: client.name,
-                        serviceDate: serviceDateOnly,
-                        itemDescription: item.description || serviceTypeLabel,
-                        amount: base,
-                        rawAmount: rawAmount,
-                        gstType: gstType
-                    });
-                });
-            } else {
-                const serviceType = 'base_service';
-                const serviceTypeLabel = serviceTypeLabels[serviceType];
+            // Procesar cada tipo de servicio en el breakdown
+            for (const serviceType in priceData.breakdown) {
+                const serviceTypeLabel = serviceTypeLabels[serviceType] || serviceType;
                 const key = `${clientType}|${serviceType}`;
 
-                const price = client.current_service_price || 0;
-                const { base } = calculateGST(price, gstType);
+                const rawAmount = priceData.breakdown[serviceType];
+                const { base } = calculateGST(rawAmount, priceData.gstType);
 
                 if (!detailedBreakdown[key]) {
                     detailedBreakdown[key] = {
@@ -170,8 +204,8 @@ export default function ServiceTypeAnalysis({ schedules = [], clients = [] }) {
                     serviceDate: serviceDateOnly,
                     itemDescription: serviceTypeLabel,
                     amount: base,
-                    rawAmount: price,
-                    gstType: gstType
+                    rawAmount: rawAmount,
+                    gstType: priceData.gstType
                 });
             }
         });
@@ -194,8 +228,6 @@ export default function ServiceTypeAnalysis({ schedules = [], clients = [] }) {
 
         const chartData = Object.values(clientTypeBreakdown);
 
-        // pieData is no longer needed but keeping it as an empty array to avoid breaking other parts if it was accessed for a PieChart, though it should be replaced.
-        // It's better to remove it if not used for BarChart. For now, it will not be used in the new BarChart.
         const pieData = detailedData.map(item => ({
             name: `${item.clientTypeLabel} - ${item.serviceTypeLabel}`,
             value: item.revenue
