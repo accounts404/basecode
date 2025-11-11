@@ -1,30 +1,35 @@
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { addWeeks, addMonths, startOfDay } from 'npm:date-fns@2.30.0';
 
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
-import { addWeeks, addMonths } from 'npm:date-fns@2.30.0';
-
-// Función que genera las citas futuras a partir de una cita base.
-// No necesita cambios, su lógica es correcta.
+// Función que genera las citas futuras a partir de una cita base
 async function generarSiguientesCitas(base44, citaOriginal, excludeId = null) {
     const { recurrence_rule } = citaOriginal;
     if (!recurrence_rule || recurrence_rule === 'none') {
-        return [];
+        return { created: [], failed: [] };
     }
 
     const citasCreadas = [];
+    const citasFallidas = [];
     let fechaInicioActual = new Date(citaOriginal.start_time);
     let fechaFinActual = new Date(citaOriginal.end_time);
 
+    // Límites según frecuencia
     const numSemanales = 25;
     const numQuincenales = 12;
+    const numCada3Semanas = 9;
+    const numCada4Semanas = 7;
     const numMensuales = 5;
 
     let limite = 0;
     if (recurrence_rule === 'weekly') limite = numSemanales;
-    if (recurrence_rule === 'fortnightly') limite = numQuincenales;
-    if (recurrence_rule === 'monthly') limite = numMensuales;
+    else if (recurrence_rule === 'fortnightly') limite = numQuincenales;
+    else if (recurrence_rule === 'every_3_weeks') limite = numCada3Semanas;
+    else if (recurrence_rule === 'every_4_weeks') limite = numCada4Semanas;
+    else if (recurrence_rule === 'monthly') limite = numMensuales;
 
     for (let i = 0; i < limite; i++) {
         let siguienteInicio, siguienteFin;
+        
         switch (recurrence_rule) {
             case 'weekly':
                 siguienteInicio = addWeeks(fechaInicioActual, 1);
@@ -34,13 +39,20 @@ async function generarSiguientesCitas(base44, citaOriginal, excludeId = null) {
                 siguienteInicio = addWeeks(fechaInicioActual, 2);
                 siguienteFin = addWeeks(fechaFinActual, 2);
                 break;
+            case 'every_3_weeks':
+                siguienteInicio = addWeeks(fechaInicioActual, 3);
+                siguienteFin = addWeeks(fechaFinActual, 3);
+                break;
+            case 'every_4_weeks':
+                siguienteInicio = addWeeks(fechaInicioActual, 4);
+                siguienteFin = addWeeks(fechaFinActual, 4);
+                break;
             case 'monthly':
-                // CORREGIDO: Usar addWeeks(4) en lugar de addMonths para mantener el mismo día de la semana
                 siguienteInicio = addWeeks(fechaInicioActual, 4);
                 siguienteFin = addWeeks(fechaFinActual, 4);
                 break;
             default:
-                return [];
+                return { created: citasCreadas, failed: citasFallidas };
         }
 
         const nuevaCita = {
@@ -49,22 +61,32 @@ async function generarSiguientesCitas(base44, citaOriginal, excludeId = null) {
             end_time: siguienteFin.toISOString(),
             status: 'scheduled',
             clock_in_data: [],
+            reconciliation_items: [],
+            xero_invoiced: false,
+            on_my_way_sent_at: null,
+            reminder_sent_at: null,
         };
         delete nuevaCita.id;
 
         try {
             const creada = await base44.asServiceRole.entities.Schedule.create(nuevaCita);
-            if (creada) citasCreadas.push(creada);
+            if (creada) {
+                citasCreadas.push(creada);
+            }
         } catch (e) {
-            console.error(`Error creando cita recurrente: ${e.message}`);
+            console.error(`[generarSiguientesCitas] Error creando cita: ${e.message}`);
+            citasFallidas.push({
+                fecha: siguienteInicio.toISOString(),
+                error: e.message
+            });
         }
 
         fechaInicioActual = siguienteInicio;
         fechaFinActual = siguienteFin;
     }
-    return citasCreadas;
+    
+    return { created: citasCreadas, failed: citasFallidas };
 }
-
 
 Deno.serve(async (req) => {
     try {
@@ -75,68 +97,127 @@ Deno.serve(async (req) => {
 
         console.log('[actualizarSerieRecurrente] 🚀 Iniciando. Scope:', updateScope, 'ScheduleID:', scheduleId);
 
-        if (!scheduleId || !updateScope || updateScope === 'this_only') {
-            throw new Error("Parámetros inválidos. Se requiere scheduleId y un updateScope para la serie.");
+        // VALIDACIÓN MEJORADA
+        if (!scheduleId) {
+            return new Response(JSON.stringify({ 
+                success: false,
+                error: "Se requiere scheduleId"
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (!updateScope || updateScope === 'this_only') {
+            return new Response(JSON.stringify({ 
+                success: false,
+                error: "updateScope debe ser 'this_and_future' para actualizar serie"
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (!updatedData) {
+            return new Response(JSON.stringify({ 
+                success: false,
+                error: "Se requiere updatedData"
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
         
-        // 1. Obtener el servicio original ANTES de cualquier cambio para tener la fecha de corte.
+        // 1. Obtener el servicio original ANTES de cualquier cambio
         const servicioOriginal = await base44.asServiceRole.entities.Schedule.get(scheduleId);
         if (!servicioOriginal) {
-            throw new Error(`No se encontró el servicio con ID ${scheduleId}`);
+            return new Response(JSON.stringify({ 
+                success: false,
+                error: `No se encontró el servicio con ID ${scheduleId}`
+            }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
-        // NÚCLEO DE LA CORRECCIÓN: Definir la fecha de corte.
-        const fechaDeCorte = new Date(servicioOriginal.start_time);
-        console.log(`[actualizarSerieRecurrente] 🕰️ Fecha de corte establecida: ${fechaDeCorte.toISOString()}`);
 
-        // 2. Si el servicio no tiene un recurrence_id, es un caso especial de conversión.
+        const fechaDeCorte = new Date(servicioOriginal.start_time);
+        console.log(`[actualizarSerieRecurrente] 🕰️ Fecha de corte: ${fechaDeCorte.toISOString()}`);
+
+        // 2. Caso especial: conversión a recurrente
         if (!servicioOriginal.recurrence_id) {
             if (updatedData.recurrence_rule && updatedData.recurrence_rule !== 'none') {
-                 await base44.asServiceRole.entities.Schedule.update(scheduleId, { ...updatedData, recurrence_id: scheduleId });
-                 const servicioActualizado = await base44.asServiceRole.entities.Schedule.get(scheduleId);
-                 const nuevasCitas = await generarSiguientesCitas(base44, servicioActualizado, scheduleId);
-                 return new Response(JSON.stringify({ success: true, message: `Servicio convertido a recurrente. Se crearon ${nuevasCitas.length} servicios futuros.` }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                await base44.asServiceRole.entities.Schedule.update(scheduleId, { 
+                    ...updatedData, 
+                    recurrence_id: scheduleId 
+                });
+                const servicioActualizado = await base44.asServiceRole.entities.Schedule.get(scheduleId);
+                const resultado = await generarSiguientesCitas(base44, servicioActualizado, scheduleId);
+                
+                return new Response(JSON.stringify({ 
+                    success: true, 
+                    message: `Servicio convertido a recurrente. Creados: ${resultado.created.length}, Fallidos: ${resultado.failed.length}`,
+                    created_count: resultado.created.length,
+                    failed_count: resultado.failed.length
+                }), { 
+                    status: 200, 
+                    headers: { 'Content-Type': 'application/json' } 
+                });
             }
-            // Si no, el servicio ya fue actualizado y no se hace más nada.
-            return new Response(JSON.stringify({ success: true, message: "Servicio único actualizado." }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            
+            return new Response(JSON.stringify({ 
+                success: true, 
+                message: "Servicio único actualizado." 
+            }), { 
+                status: 200, 
+                headers: { 'Content-Type': 'application/json' } 
+            });
         }
         
         // 3. ACTUALIZAR EL SERVICIO BASE
-        // Este es el servicio en la "fecha de corte", que servirá de plantilla.
         await base44.asServiceRole.entities.Schedule.update(scheduleId, updatedData);
         const servicioActualizado = await base44.asServiceRole.entities.Schedule.get(scheduleId);
-        console.log('[actualizarSerieRecurrente] ✅ Servicio base actualizado. Nueva frecuencia:', servicioActualizado.recurrence_rule);
+        console.log('[actualizarSerieRecurrente] ✅ Servicio base actualizado. Frecuencia:', servicioActualizado.recurrence_rule);
 
         // 4. ELIMINAR SERVICIOS FUTUROS
-        // Obtener todos los servicios de la serie.
         const todosLosServicios = await base44.asServiceRole.entities.Schedule.filter({ 
             recurrence_id: servicioActualizado.recurrence_id 
         });
 
-        // Filtrar para eliminar solo los que están EN o DESPUÉS de la fecha de corte,
-        // y que no sean el servicio que acabamos de actualizar.
         const serviciosAEliminar = todosLosServicios.filter(s =>
-            s.id !== scheduleId && // No eliminar el servicio que estamos editando
-            new Date(s.start_time) >= fechaDeCorte // Solo tocar servicios desde la fecha de corte en adelante
+            s.id !== scheduleId && 
+            new Date(s.start_time) >= fechaDeCorte &&
+            s.status !== 'completed' // No eliminar servicios ya completados
         );
         
-        console.log(`[actualizarSerieRecurrente] 🗑️ ${serviciosAEliminar.length} servicios marcados para eliminación.`);
+        console.log(`[actualizarSerieRecurrente] 🗑️ ${serviciosAEliminar.length} servicios marcados para eliminación`);
         
+        let deletedCount = 0;
         if (serviciosAEliminar.length > 0) {
-            await Promise.all(serviciosAEliminar.map(s => 
-                base44.asServiceRole.entities.Schedule.delete(s.id)
-            ));
+            const deleteResults = await Promise.allSettled(
+                serviciosAEliminar.map(s => base44.asServiceRole.entities.Schedule.delete(s.id))
+            );
+            deletedCount = deleteResults.filter(r => r.status === 'fulfilled').length;
+            const deleteFailed = deleteResults.filter(r => r.status === 'rejected').length;
+            
+            if (deleteFailed > 0) {
+                console.warn(`[actualizarSerieRecurrente] ⚠️ ${deleteFailed} servicios no pudieron eliminarse`);
+            }
         }
 
-        // 5. REGENERAR la serie a partir del servicio actualizado.
-        console.log(`[actualizarSerieRecurrente] 🔄 Regenerando la serie desde el servicio actualizado...`);
-        const nuevasCitas = await generarSiguientesCitas(base44, servicioActualizado, scheduleId);
-        console.log(`[actualizarSerieRecurrente] ✨ ${nuevasCitas.length} nuevos servicios futuros creados.`);
+        // 5. REGENERAR la serie
+        console.log(`[actualizarSerieRecurrente] 🔄 Regenerando serie...`);
+        const resultado = await generarSiguientesCitas(base44, servicioActualizado, scheduleId);
+        console.log(`[actualizarSerieRecurrente] ✨ Creados: ${resultado.created.length}, Fallidos: ${resultado.failed.length}`);
 
-        const message = `Serie actualizada. Eliminados: ${serviciosAEliminar.length}, Creados: ${nuevasCitas.length}.`;
+        const message = `Serie actualizada exitosamente. Eliminados: ${deletedCount}, Creados: ${resultado.created.length}${resultado.failed.length > 0 ? `, Fallidos: ${resultado.failed.length}` : ''}`;
         
         return new Response(JSON.stringify({
             success: true,
             message: message,
+            deleted_count: deletedCount,
+            created_count: resultado.created.length,
+            failed_count: resultado.failed.length,
+            failures: resultado.failed.length > 0 ? resultado.failed : undefined
         }), {
             headers: { 'Content-Type': 'application/json' },
             status: 200,
@@ -146,7 +227,8 @@ Deno.serve(async (req) => {
         console.error('[actualizarSerieRecurrente] ❌ Error:', error);
         return new Response(JSON.stringify({
             success: false,
-            error: error.message
+            error: error.message || 'Error desconocido',
+            stack: error.stack
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },

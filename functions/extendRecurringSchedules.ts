@@ -1,31 +1,33 @@
-
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.0';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
 import { addWeeks, addMonths, startOfDay, differenceInDays } from 'npm:date-fns@2.30.0';
 
-// --- CONFIGURACIÓN ---
-// Generar nuevos servicios si la última cita está a menos de 90 días desde hoy.
-const HORIZON_DAYS = 90; 
-// Cuántos servicios nuevos generar para extender la serie.
+// CONFIGURACIÓN
+const HORIZON_DAYS = 90; // Generar nuevos servicios si la última cita está a menos de 90 días
 const EXTENSION_COUNT = { 
-    weekly: 26, // approx 6 months
-    fortnightly: 13, // approx 6 months
-    every_3_weeks: 9, // approx 6 months
-    monthly: 6, // 6 months
+    weekly: 26,        // aprox 6 meses
+    fortnightly: 13,   // aprox 6 meses
+    every_3_weeks: 9,  // aprox 6 meses
+    every_4_weeks: 7,  // aprox 6 meses
+    monthly: 6,        // 6 meses
 };
 
 // Función interna para extender una serie específica
 async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
     const { recurrence_rule, recurrence_id } = lastServiceInSeries;
     if (!recurrence_rule || !recurrence_id || recurrence_rule === 'none') {
-        return [];
+        return { created: [], failed: [] };
     }
 
     const createdServices = [];
+    const failedServices = [];
     let currentStartDate = new Date(lastServiceInSeries.start_time);
     let currentEndDate = new Date(lastServiceInSeries.end_time);
 
     const limit = EXTENSION_COUNT[recurrence_rule] || 0;
-    if (limit === 0) return [];
+    if (limit === 0) {
+        console.warn(`[extendSeries] No hay límite definido para: ${recurrence_rule}`);
+        return { created: [], failed: [] };
+    }
 
     for (let i = 0; i < limit; i++) {
         let nextStartDate, nextEndDate;
@@ -43,21 +45,28 @@ async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
                 nextStartDate = addWeeks(currentStartDate, 3);
                 nextEndDate = addWeeks(currentEndDate, 3);
                 break;
+            case 'every_4_weeks':
+                nextStartDate = addWeeks(currentStartDate, 4);
+                nextEndDate = addWeeks(currentEndDate, 4);
+                break;
             case 'monthly':
                 nextStartDate = addMonths(currentStartDate, 1);
                 nextEndDate = addMonths(currentEndDate, 1);
                 break;
+            default:
+                console.warn(`[extendSeries] Regla desconocida: ${recurrence_rule}`);
+                return { created: createdServices, failed: failedServices };
         }
 
-        // --- Verificación para no crear duplicados ---
+        // Verificación de duplicados
         const nextDayStartISO = startOfDay(nextStartDate).toISOString();
         if (existingStartDays.has(nextDayStartISO)) {
             currentStartDate = nextStartDate;
             currentEndDate = nextEndDate;
-            continue; // Ya existe un servicio para este día, saltar.
+            continue;
         }
 
-        // Crear la nueva cita con datos limpios
+        // Crear nueva cita limpia
         const newService = {
             ...lastServiceInSeries,
             start_time: nextStartDate.toISOString(),
@@ -69,49 +78,74 @@ async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
             on_my_way_sent_at: null,
             reminder_sent_at: null,
         };
-        delete newService.id; // Quitar el ID para que se cree un nuevo registro
+        delete newService.id;
 
         try {
             const created = await base44.asServiceRole.entities.Schedule.create(newService);
             if (created) {
                 createdServices.push(created);
+                // Añadir a existingStartDays para prevenir duplicados en esta misma ejecución
+                existingStartDays.add(nextDayStartISO);
             }
         } catch (e) {
-            console.error(`Error creando servicio recurrente para la serie ${recurrence_id}: ${e.message}`);
+            console.error(`[extendSeries] ❌ Error creando servicio para serie ${recurrence_id}:`, e.message);
+            failedServices.push({
+                recurrence_id: recurrence_id,
+                fecha: nextStartDate.toISOString(),
+                error: e.message
+            });
         }
         
         currentStartDate = nextStartDate;
         currentEndDate = nextEndDate;
     }
     
-    return createdServices;
+    return { created: createdServices, failed: failedServices };
 }
-
 
 Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const log = (message) => console.log(`[extendRecurringSchedules] ${message}`);
 
-    // --- CHEQUEO DE SEGURIDAD PARA EL CRON JOB ---
+    // VALIDACIÓN DE SEGURIDAD PARA EL CRON JOB
     try {
         const providedApiKey = req.headers.get('api_key');
         const expectedApiKey = Deno.env.get('CRON_API_KEY');
 
-        if (!expectedApiKey || !providedApiKey || providedApiKey !== expectedApiKey) {
-            log('Intento no autorizado: clave API inválida o ausente.');
-            return new Response(JSON.stringify({ error: 'Unauthorized: Invalid API Key' }), { 
-                status: 401, headers: { 'Content-Type': 'application/json' }
+        if (!expectedApiKey) {
+            log('❌ CRON_API_KEY no configurada en el servidor');
+            return new Response(JSON.stringify({ 
+                error: 'Server configuration error: CRON_API_KEY not set' 
+            }), { 
+                status: 500, 
+                headers: { 'Content-Type': 'application/json' }
             });
         }
-        log('Ejecución del Cron Job autorizada.');
+
+        if (!providedApiKey || providedApiKey !== expectedApiKey) {
+            log('🚫 Intento no autorizado: clave API inválida o ausente');
+            return new Response(JSON.stringify({ 
+                error: 'Unauthorized: Invalid or missing API Key' 
+            }), { 
+                status: 401, 
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        
+        log('✅ Ejecución del Cron Job autorizada');
     } catch (e) {
-        log(`Error de autorización: ${e.message}`);
-        return new Response(JSON.stringify({ error: 'Authorization error' }), { status: 400 });
+        log(`❌ Error de autorización: ${e.message}`);
+        return new Response(JSON.stringify({ 
+            error: 'Authorization error',
+            details: e.message 
+        }), { 
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
-    // --- FIN DEL CHEQUEO DE SEGURIDAD ---
 
     try {
-        log('Iniciando revisión para extender series recurrentes...');
+        log('🔄 Iniciando revisión para extender series recurrentes...');
         const today = new Date();
 
         // 1. Obtener todos los servicios que pertenecen a una serie
@@ -119,8 +153,16 @@ Deno.serve(async (req) => {
         const recurringSchedules = allSchedules.filter(s => s.recurrence_id);
         
         if (recurringSchedules.length === 0) {
-            log('No se encontraron series recurrentes. Finalizando.');
-            return new Response(JSON.stringify({ message: 'No recurring schedules found.' }), { status: 200 });
+            log('ℹ️ No se encontraron series recurrentes. Finalizando.');
+            return new Response(JSON.stringify({ 
+                success: true,
+                message: 'No recurring schedules found to extend.',
+                extended_series_count: 0,
+                skipped_series: 0
+            }), { 
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
 
         // 2. Agrupar servicios por serie (recurrence_id)
@@ -131,9 +173,14 @@ Deno.serve(async (req) => {
             }
             seriesMap.get(schedule.recurrence_id).push(schedule);
         }
-        log(`Se encontraron ${seriesMap.size} series recurrentes únicas.`);
+        log(`📊 Se encontraron ${seriesMap.size} series recurrentes únicas`);
 
-        const results = { extended_series_count: 0, skipped_series: 0, errors: [] };
+        const results = { 
+            extended_series_count: 0, 
+            skipped_series: 0, 
+            total_services_created: 0,
+            errors: [] 
+        };
 
         // 3. Procesar cada serie
         for (const [recurrenceId, schedulesInSeries] of seriesMap.entries()) {
@@ -145,35 +192,64 @@ Deno.serve(async (req) => {
             const daysUntilLast = differenceInDays(new Date(lastService.start_time), today);
             
             if (daysUntilLast < HORIZON_DAYS) {
-                log(`Extendiendo la serie ${recurrenceId} (última cita en ${daysUntilLast} días)...`);
+                log(`🔧 Extendiendo serie ${recurrenceId} (última cita en ${daysUntilLast} días)...`);
                 try {
                     // Set de fechas existentes para evitar duplicados
-                    const existingStartDays = new Set(schedulesInSeries.map(s => startOfDay(new Date(s.start_time)).toISOString()));
+                    const existingStartDays = new Set(
+                        schedulesInSeries.map(s => startOfDay(new Date(s.start_time)).toISOString())
+                    );
                     
-                    const newServices = await extendSeries(base44, lastService, existingStartDays);
-                    if (newServices.length > 0) {
+                    const resultado = await extendSeries(base44, lastService, existingStartDays);
+                    
+                    if (resultado.created.length > 0) {
                         results.extended_series_count++;
+                        results.total_services_created += resultado.created.length;
+                        log(`✅ Serie ${recurrenceId}: ${resultado.created.length} servicios creados`);
                     } else {
-                        results.skipped_series++; // No se crearon nuevos, probablemente por duplicados
+                        results.skipped_series++;
+                        log(`⏭️ Serie ${recurrenceId}: Sin nuevos servicios (posibles duplicados)`);
                     }
+                    
+                    // Registrar errores si hubo
+                    if (resultado.failed.length > 0) {
+                        log(`⚠️ Serie ${recurrenceId}: ${resultado.failed.length} servicios fallidos`);
+                        results.errors.push(...resultado.failed);
+                    }
+                    
                 } catch (error) {
-                    log(`Error extendiendo la serie ${recurrenceId}: ${error.message}`);
-                    results.errors.push({ recurrenceId, error: error.message });
+                    log(`❌ Error extendiendo serie ${recurrenceId}: ${error.message}`);
+                    results.errors.push({ 
+                        recurrenceId, 
+                        error: error.message 
+                    });
+                    results.skipped_series++;
                 }
             } else {
                 results.skipped_series++;
+                log(`⏭️ Serie ${recurrenceId} omitida (última cita en ${daysUntilLast} días)`);
             }
         }
 
-        log(`Proceso finalizado. Series extendidas: ${results.extended_series_count}. Series omitidas: ${results.skipped_series}. Errores: ${results.errors.length}.`);
-        return new Response(JSON.stringify(results), {
-            status: 200, headers: { 'Content-Type': 'application/json' }
+        log(`✅ Proceso finalizado. Series extendidas: ${results.extended_series_count}, Servicios creados: ${results.total_services_created}, Series omitidas: ${results.skipped_series}, Errores: ${results.errors.length}`);
+        
+        return new Response(JSON.stringify({
+            success: true,
+            ...results,
+            message: `Extensión completada: ${results.extended_series_count} series extendidas con ${results.total_services_created} nuevos servicios`
+        }), {
+            status: 200, 
+            headers: { 'Content-Type': 'application/json' }
         });
 
     } catch (error) {
-        log(`Error fatal en la ejecución del cron: ${error.message}`);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500, headers: { 'Content-Type': 'application/json' }
+        log(`❌ Error fatal en la ejecución del cron: ${error.message}`);
+        return new Response(JSON.stringify({ 
+            success: false,
+            error: error.message,
+            stack: error.stack
+        }), {
+            status: 500, 
+            headers: { 'Content-Type': 'application/json' }
         });
     }
 });
