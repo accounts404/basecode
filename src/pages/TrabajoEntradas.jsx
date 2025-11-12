@@ -78,6 +78,8 @@ export default function TrabajoEntradasPage() {
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditData, setAuditData] = useState(null);
   const [auditLoading, setAuditLoading] = useState(false);
+  // NUEVO: Estado para auditoría de faltantes
+  const [loadingMissing, setLoadingMissing] = useState(false);
 
   // Form data for editing
   const [editFormData, setEditFormData] = useState({
@@ -424,7 +426,48 @@ export default function TrabajoEntradasPage() {
     } finally {
         setAuditLoading(false);
     }
-};
+  };
+
+  // NUEVA FUNCIÓN: Buscar WorkEntries faltantes
+  const handleSearchMissingEntries = async () => {
+    setLoadingMissing(true);
+    setNotification({ type: "", message: "" });
+
+    try {
+      const response = await base44.functions.invoke('auditMissingWorkEntries', {
+        period_start: selectedPeriod?.start ? format(selectedPeriod.start, 'yyyy-MM-dd') : null,
+        period_end: selectedPeriod?.end ? format(selectedPeriod.end, 'yyyy-MM-dd') : null,
+        cleaner_id: selectedCleaner !== 'all' ? selectedCleaner : null
+      });
+
+      if (response.data?.success) {
+        // Añadir los datos de faltantes a auditData
+        setAuditData(prev => ({
+          ...prev,
+          missing_entries_data: response.data
+        }));
+        setShowAuditModal(true);
+        
+        setNotification({ 
+          type: response.data.total_missing > 0 ? "warning" : "success",
+          message: response.data.message
+        });
+      } else {
+        setNotification({ 
+          type: "error", 
+          message: response.data?.error || 'Error al buscar entradas faltantes' 
+        });
+      }
+    } catch (error) {
+      console.error('Error searching missing entries:', error);
+      setNotification({ 
+        type: "error", 
+        message: `Error al buscar entradas faltantes: ${error.message}` 
+      });
+    } finally {
+      setLoadingMissing(false);
+    }
+  };
 
   // Apply all filters: period, cleaner, and client search
   const applyAllFilters = () => {
@@ -555,42 +598,65 @@ export default function TrabajoEntradasPage() {
             <Clock className="w-8 h-8 text-blue-600" />
             Entradas de Trabajo
           </h1>
-          <div className="flex items-center flex-wrap gap-4">
+          <div className="flex flex-wrap items-center gap-4"> {/* Changed to div for button grouping */}
             <p className="text-slate-600">Registro detallado de todo el trabajo realizado por los limpiadores.</p>
             
-            {/* Botón de Auditoría */}
+            {/* Botones de Auditoría */}
             {isAdmin && (
-              <Button 
-                onClick={handleAuditWorkEntries}
-                disabled={auditLoading}
-                variant="outline"
-                className="border-purple-600 text-purple-700 hover:bg-purple-50"
-              >
-                {auditLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analizando...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4 mr-2" />
-                    Auditoría de Entradas
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleAuditWorkEntries}
+                  disabled={auditLoading}
+                  variant="outline"
+                  className="border-purple-600 text-purple-700 hover:bg-purple-50"
+                >
+                  {auditLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Analizando...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-2" />
+                      Auditoría Completa
+                    </>
+                  )}
+                </Button>
+
+                <Button 
+                  onClick={handleSearchMissingEntries}
+                  disabled={loadingMissing}
+                  variant="outline"
+                  className="border-red-600 text-red-700 hover:bg-red-50"
+                >
+                  {loadingMissing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Buscando...
+                    </>
+                  ) : (
+                    <>
+                      <AlertTriangle className="w-4 h-4 mr-2" />
+                      Buscar Faltantes
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </div>
 
         {/* Notification */}
         {notification.message && (
-          <Alert className={`mb-6 ${notification.type === "success" ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+          <Alert className={`mb-6 ${notification.type === "success" ? "bg-green-50 border-green-200" : notification.type === "warning" ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"}`}>
             {notification.type === "success" ? (
               <CheckCircle className="h-5 w-5 text-green-600" />
+            ) : notification.type === "warning" ? (
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
             ) : (
               <AlertCircle className="h-5 w-5 text-red-600" />
             )}
-            <AlertDescription className={notification.type === "success" ? "text-green-800" : "text-red-800"}>
+            <AlertDescription className={notification.type === "success" ? "text-green-800" : notification.type === "warning" ? "text-amber-800" : "text-red-800"}>
               {notification.message}
             </AlertDescription>
           </Alert>
