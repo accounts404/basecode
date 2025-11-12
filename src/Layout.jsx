@@ -64,6 +64,7 @@ const adminMenuItems = [
   { name: 'Limpiadores', path: 'Limpiadores', icon: UserCheck },
   { name: 'Gestión de Flota', path: 'GestionFlota', icon: Car },
   { name: 'Entradas de Trabajo', path: 'TrabajoEntradas', icon: Clock },
+  { name: 'Auditoría de Entradas', path: 'AuditoriaEntradas', icon: GitCompare },
   { name: 'Facturas', path: 'Facturas', icon: FileText },
   { name: 'Conciliación Facturas', path: 'ConciliacionFacturas', icon: Landmark },
   { name: 'Reportes', path: 'Reportes', icon: BarChart3 },
@@ -137,7 +138,7 @@ export default function Layout({ children, currentPageName }) {
 
   const [tasks, setTasks] = useState([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedTask, setSelectedTask] = null;
 
   const [error, setError] = useState('');
 
