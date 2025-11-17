@@ -83,7 +83,8 @@ const parseISOAsUTC = (isoString) => {
     return new Date(correctedIsoString);
 };
 
-const CACHE_KEYS = {
+// Claves de caché legacy para compatibilidad con datos existentes
+const LEGACY_CACHE_KEYS = {
     SCHEDULES: 'redoak_cleaner_schedules',
     VEHICLE: 'redoak_cleaner_vehicle',
     TEAM: 'redoak_cleaner_team',
@@ -94,7 +95,7 @@ const CACHE_KEYS = {
 const saveToCache = (key, data) => {
     try {
         localStorage.setItem(key, JSON.stringify(data));
-        localStorage.setItem(CACHE_KEYS.LAST_UPDATE, Date.now().toString());
+        localStorage.setItem(LEGACY_CACHE_KEYS.LAST_UPDATE, Date.now().toString());
     } catch (error) {
         console.warn('[Cache] Error guardando en caché:', error);
     }
@@ -276,7 +277,7 @@ export default function HorarioPage() {
             }
         } else {
             setRequiredKeys([]);
-            saveToCache(CACHE_KEYS.KEYS, []);
+            saveToCache(LEGACY_CACHE_KEYS.KEYS, []);
         }
     }, [user]);
 
@@ -328,14 +329,14 @@ export default function HorarioPage() {
                 setMainDriverName(driverName);
                 setTeamMembers(teamMembersNames);
 
-                saveToCache(CACHE_KEYS.VEHICLE, { vehicle: vehicleInfo, driver: driverName });
-                saveToCache(CACHE_KEYS.TEAM, teamMembersNames);
+                saveToCache(LEGACY_CACHE_KEYS.VEHICLE, { vehicle: vehicleInfo, driver: driverName });
+                saveToCache(LEGACY_CACHE_KEYS.TEAM, teamMembersNames);
             } else {
                 setAssignedVehicle(null);
                 setMainDriverName(null);
                 setTeamMembers([]);
-                saveToCache(CACHE_KEYS.VEHICLE, { vehicle: null, driver: null });
-                saveToCache(CACHE_KEYS.TEAM, []);
+                saveToCache(LEGACY_CACHE_KEYS.VEHICLE, { vehicle: null, driver: null });
+                saveToCache(LEGACY_CACHE_KEYS.TEAM, []);
             }
 
         } catch (error) {
@@ -475,10 +476,10 @@ export default function HorarioPage() {
                 });
             } else {
                 logger.debug('Horario', 'Limpiador detectado, cargando desde caché local');
-                const cachedSchedules = loadFromCache(CACHE_KEYS.SCHEDULES);
-                const cachedVehicle = loadFromCache(CACHE_KEYS.VEHICLE);
-                const cachedTeam = loadFromCache(CACHE_KEYS.TEAM);
-                const cachedKeys = loadFromCache(CACHE_KEYS.KEYS);
+                const cachedSchedules = loadFromCache(LEGACY_CACHE_KEYS.SCHEDULES);
+                const cachedVehicle = loadFromCache(LEGACY_CACHE_KEYS.VEHICLE);
+                const cachedTeam = loadFromCache(LEGACY_CACHE_KEYS.TEAM);
+                const cachedKeys = loadFromCache(LEGACY_CACHE_KEYS.KEYS);
 
                 if (cachedSchedules) {
                     logger.debug('Horario', 'Mostrando servicios desde caché', { count: cachedSchedules.length });
