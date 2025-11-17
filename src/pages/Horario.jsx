@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from '@/utils';
 import {
@@ -7,6 +7,8 @@ import {
     canUserClockIn,
     syncActiveService
 } from '@/components/utils/activeServiceManager';
+import cacheManager, { CACHE_KEYS, CACHE_TTL } from '@/components/utils/cacheManager';
+import logger from '@/components/utils/logger';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,10 +62,11 @@ import { Vehicle } from "@/entities/Vehicle";
 import { Task } from "@/entities/Task";
 
 import HorarioCalendario from "../components/horario/HorarioCalendario";
-import HorarioEquiposView from "../components/horario/HorarioEquiposView";
-import CrearServicioForm from "../components/horario/CrearServicioForm";
-import CreateTaskForm from "../components/tasks/CreateTaskForm";
-import TaskList from "../components/tasks/TaskList";
+// Lazy load de componentes pesados
+const HorarioEquiposView = lazy(() => import("../components/horario/HorarioEquiposView"));
+const CrearServicioForm = lazy(() => import("../components/horario/CrearServicioForm"));
+const CreateTaskForm = lazy(() => import("../components/tasks/CreateTaskForm"));
+const TaskList = lazy(() => import("../components/tasks/TaskList"));
 
 import { generateRecurringTasks } from "@/functions/generateRecurringTasks";
 import { processScheduleForWorkEntries } from "@/functions/processScheduleForWorkEntries";
@@ -347,12 +350,12 @@ export default function HorarioPage() {
         if (!user || user.role === 'admin') return;
 
         if (loadingRef.current) {
-            console.log('[Horario] ⏳ Carga ya en progreso, saltando...');
+            logger.debug('Horario', 'Carga ya en progreso, saltando...');
             return;
         }
 
         if (navigationInProgressRef.current || clockInProcessingRef.current) {
-            console.log('[Horario] 🚫 Operación en progreso, saltando carga...');
+            logger.debug('Horario', 'Operación en progreso, saltando carga...');
             return;
         }
 
@@ -373,20 +376,41 @@ export default function HorarioPage() {
                 return `${year}-${month}-${day}`;
             };
 
-            const startDateStr = formatLocalDate(dayBefore) + 'T00:00:00.000Z';
-            const endDateStr = formatLocalDate(dayAfter) + 'T23:59:59.999Z';
+            const startDateStr = formatLocalDate(dayBefore);
+            const endDateStr = formatLocalDate(dayAfter);
+            const dateRange = `${startDateStr}_${endDateStr}`;
 
-            console.log(`[Horario] 🔍 ${isSilentUpdate ? 'Actualización silenciosa' : 'Cargando servicios'}...`);
+            logger.info('Horario', `${isSilentUpdate ? 'Actualización silenciosa' : 'Cargando servicios'}`, { dateRange });
 
+            // Intentar obtener de caché primero
+            const cacheKey = CACHE_KEYS.SCHEDULES(dateRange);
+            const cachedSchedules = cacheManager.get(cacheKey);
+
+            if (cachedSchedules && !isSilentUpdate) {
+                logger.debug('Horario', 'Usando servicios desde caché', { count: cachedSchedules.length });
+                setSchedules(cachedSchedules);
+                loadingRef.current = false;
+                if (!isSilentUpdate) {
+                    setLoadingCleanerData(false);
+                }
+                
+                // Cargar en background para actualizar caché
+                setTimeout(() => {
+                    loadCleanerSpecificData(forDate, true);
+                }, 100);
+                return;
+            }
+
+            // Consulta optimizada con índices
             const cleanerSchedules = await Schedule.filter({
                 cleaner_ids: { $contains: user.id },
                 status: { $ne: 'cancelled' },
                 start_time: {
-                    $gte: startDateStr,
-                    $lte: endDateStr
+                    $gte: startDateStr + 'T00:00:00.000Z',
+                    $lte: endDateStr + 'T23:59:59.999Z'
                 }
             }).catch(filterError => {
-                console.warn('[Horario] ⚠️ Filtro optimizado falló:', filterError);
+                logger.warn('Horario', 'Filtro optimizado falló, usando fallback', filterError);
                 const monthStart = startOfMonth(forDate);
                 const monthEnd = endOfMonth(forDate);
                 return Schedule.filter({
@@ -402,17 +426,19 @@ export default function HorarioPage() {
                 });
             });
 
-            console.log(`[Horario] ✅ Servicios cargados: ${cleanerSchedules?.length || 0}`);
+            logger.info('Horario', 'Servicios cargados desde BD', { count: cleanerSchedules?.length || 0 });
 
             const currentCleanerSchedules = Array.isArray(cleanerSchedules) ? cleanerSchedules : [];
             setSchedules(currentCleanerSchedules);
-            saveToCache(CACHE_KEYS.SCHEDULES, currentCleanerSchedules);
+            
+            // Guardar en caché con TTL de 2 minutos para limpiadores
+            cacheManager.set(cacheKey, currentCleanerSchedules, CACHE_TTL.SHORT);
 
             await loadVehicleAndTeamForDate(forDate);
             await loadRequiredKeysForDate(currentCleanerSchedules, forDate);
 
         } catch (error) {
-            console.error('[Horario] ❌ Error cargando datos:', error);
+            logger.error('Horario', 'Error cargando datos de limpiador', error);
         } finally {
             if (!isSilentUpdate) {
                 setLoadingCleanerData(false);
@@ -426,29 +452,36 @@ export default function HorarioPage() {
             const currentUser = await User.me();
             setUser(currentUser);
 
-            console.log('[Horario] Usuario cargado:', currentUser.id, 'Rol:', currentUser.role);
+            logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
             if (currentUser.role === 'admin') {
-                const [allUsers, allSchedules, allTasks] = await Promise.all([
-                    User.list(),
-                    Schedule.list(),
-                    Task.list()
+                // Usar caché para admin también
+                const [cachedUsers, cachedSchedules, cachedTasks] = await Promise.all([
+                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list(), CACHE_TTL.MEDIUM),
+                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list(), CACHE_TTL.SHORT),
+                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list(), CACHE_TTL.MEDIUM)
                 ]);
-                setUsers(Array.isArray(allUsers) ? allUsers : []);
-                setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
-                setTasks(Array.isArray(allTasks) ? allTasks : []);
+                
+                setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
+                setSchedules(Array.isArray(cachedSchedules) ? cachedSchedules : []);
+                setTasks(Array.isArray(cachedTasks) ? cachedTasks : []);
                 setLoading(false);
                 setInitialLoadComplete(true);
-                console.log('[Horario] Admin - Cargados:', allUsers?.length || 0, 'usuarios,', allSchedules?.length || 0, 'servicios');
+                
+                logger.info('Horario', 'Admin - Datos cargados', { 
+                    users: cachedUsers?.length || 0, 
+                    schedules: cachedSchedules?.length || 0,
+                    tasks: cachedTasks?.length || 0
+                });
             } else {
-                console.log('[Horario] 📦 Limpiador detectado, cargando desde caché...');
+                logger.debug('Horario', 'Limpiador detectado, cargando desde caché local');
                 const cachedSchedules = loadFromCache(CACHE_KEYS.SCHEDULES);
                 const cachedVehicle = loadFromCache(CACHE_KEYS.VEHICLE);
                 const cachedTeam = loadFromCache(CACHE_KEYS.TEAM);
                 const cachedKeys = loadFromCache(CACHE_KEYS.KEYS);
 
                 if (cachedSchedules) {
-                    console.log('[Horario] ✅ Mostrando', cachedSchedules.length, 'servicios desde caché');
+                    logger.debug('Horario', 'Mostrando servicios desde caché', { count: cachedSchedules.length });
                     setSchedules(cachedSchedules);
                 }
                 if (cachedVehicle) {
@@ -463,17 +496,17 @@ export default function HorarioPage() {
                 setLoading(false);
                 setInitialLoadComplete(true);
 
-                console.log('[Horario] 🔄 Iniciando actualización en background...');
+                logger.debug('Horario', 'Iniciando actualización en background');
                 setTimeout(() => {
                     loadCleanerSpecificData(new Date(), true);
                 }, 100);
             }
 
         } catch (error) {
-            console.error('[Horario] Error cargando datos:', error);
+            logger.error('Horario', 'Error cargando datos iniciales', error);
             setError(`Error al cargar datos: ${error.message || 'Error desconocido'}`);
             if (error.response?.status === 401) {
-                console.log('[Horario] Error de autenticación (401), redirigiendo al login...');
+                logger.warn('Horario', 'Error de autenticación (401), redirigiendo al login');
                 await User.logout();
                 window.location.reload();
             }
@@ -530,19 +563,35 @@ export default function HorarioPage() {
 
         try {
             if (user.role === 'admin') {
+                // Invalidar caché y recargar
+                cacheManager.invalidatePattern('schedules_');
+                cacheManager.invalidatePattern('tasks_');
+                
                 const [allSchedules, allTasks] = await Promise.all([
                     Schedule.list(),
                     Task.list()
                 ]);
-                setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
-                setTasks(Array.isArray(allTasks) ? allTasks : []);
-                console.log('[Horario] ✅ Datos admin actualizados');
+                
+                const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
+                const tasksArray = Array.isArray(allTasks) ? allTasks : [];
+                
+                setSchedules(schedulesArray);
+                setTasks(tasksArray);
+                
+                // Actualizar caché
+                cacheManager.set(CACHE_KEYS.SCHEDULES('all'), schedulesArray, CACHE_TTL.SHORT);
+                cacheManager.set(CACHE_KEYS.TASKS('all'), tasksArray, CACHE_TTL.MEDIUM);
+                
+                logger.info('Horario', 'Datos admin actualizados', { 
+                    schedules: schedulesArray.length, 
+                    tasks: tasksArray.length 
+                });
             } else {
                 await loadCleanerSpecificData(date, false);
-                console.log('[Horario] ✅ Datos limpiador actualizados');
+                logger.info('Horario', 'Datos limpiador actualizados');
             }
         } catch (error) {
-            console.error('[Horario] ❌ Error en handleRefresh:', error);
+            logger.error('Horario', 'Error en handleRefresh', error);
             setError(`Error al refrescar: ${error.message || 'Error desconocido'}`);
         } finally {
             setRefreshing(false);
@@ -1492,31 +1541,40 @@ export default function HorarioPage() {
             <div className="flex-grow overflow-hidden flex flex-col min-h-0">
                 <div className="flex-1 overflow-auto bg-white">
                     <div className="w-full h-full">
-                        {view === 'teams' ? (
-                            <HorarioEquiposView
-                                schedules={filteredSchedules}
-                                date={date}
-                                users={users}
-                                onSelectEvent={handleSelectEvent}
-                            />
-                        ) : (
-                            <HorarioCalendario
-                                ref={calendarRef}
-                                events={filteredSchedules}
-                                date={date}
-                                view={view}
-                                onNavigate={setDate}
-                                onView={setView}
-                                onSelectEvent={handleSelectEvent}
-                                onCreateAtTime={user?.role === 'admin' ? handleCreateAtTime : null}
-                                users={users}
-                                isCleanerView={isCleanerView}
-                                selectedCleanerId={user?.id}
-                                isReadOnly={isCleanerView}
-                                onMoveEvent={user?.role === 'admin' ? handleMoveEvent : null}
-                                onResizeEvent={user?.role === 'admin' ? handleResizeEvent : null}
-                            />
-                        )}
+                        <Suspense fallback={
+                            <div className="flex items-center justify-center h-full">
+                                <div className="text-center space-y-3">
+                                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+                                    <p className="text-slate-600">Cargando vista...</p>
+                                </div>
+                            </div>
+                        }>
+                            {view === 'teams' ? (
+                                <HorarioEquiposView
+                                    schedules={filteredSchedules}
+                                    date={date}
+                                    users={users}
+                                    onSelectEvent={handleSelectEvent}
+                                />
+                            ) : (
+                                <HorarioCalendario
+                                    ref={calendarRef}
+                                    events={filteredSchedules}
+                                    date={date}
+                                    view={view}
+                                    onNavigate={setDate}
+                                    onView={setView}
+                                    onSelectEvent={handleSelectEvent}
+                                    onCreateAtTime={user?.role === 'admin' ? handleCreateAtTime : null}
+                                    users={users}
+                                    isCleanerView={isCleanerView}
+                                    selectedCleanerId={user?.id}
+                                    isReadOnly={isCleanerView}
+                                    onMoveEvent={user?.role === 'admin' ? handleMoveEvent : null}
+                                    onResizeEvent={user?.role === 'admin' ? handleResizeEvent : null}
+                                />
+                            )}
+                        </Suspense>
                     </div>
                 </div>
             </div>
@@ -1531,21 +1589,27 @@ export default function HorarioPage() {
                             {isCleanerView ? 'Detalles del Servicio' : selectedEvent?.id ? 'Editar Servicio' : 'Nuevo Servicio'}
                         </DialogTitle>
                     </DialogHeader>
-                    <CrearServicioForm
-                        schedule={selectedEvent}
-                        onSave={handleSaveService}
-                        onCancel={() => {
-                            setShowForm(false);
-                            setSelectedEvent(null);
-                        }}
-                        onDelete={!isCleanerView ? handleServiceDeleted : null}
-                        users={users}
-                        isReadOnly={isCleanerView}
-                        selectedCleanerId={user?.id}
-                        onClockInOut={isCleanerView ? handleClockInOut : null}
-                        openInMaps={openInMaps}
-                        currentServiceElapsedTime={currentServiceElapsedTime}
-                    />
+                    <Suspense fallback={
+                        <div className="flex items-center justify-center py-12">
+                            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                        </div>
+                    }>
+                        <CrearServicioForm
+                            schedule={selectedEvent}
+                            onSave={handleSaveService}
+                            onCancel={() => {
+                                setShowForm(false);
+                                setSelectedEvent(null);
+                            }}
+                            onDelete={!isCleanerView ? handleServiceDeleted : null}
+                            users={users}
+                            isReadOnly={isCleanerView}
+                            selectedCleanerId={user?.id}
+                            onClockInOut={isCleanerView ? handleClockInOut : null}
+                            openInMaps={openInMaps}
+                            currentServiceElapsedTime={currentServiceElapsedTime}
+                        />
+                    </Suspense>
                 </DialogContent>
             </Dialog>
 
@@ -1560,15 +1624,21 @@ export default function HorarioPage() {
                                 {selectedTask?.id ? 'Editar Tarea' : 'Nueva Tarea'}
                             </DialogTitle>
                         </DialogHeader>
-                        <CreateTaskForm
-                            task={selectedTask}
-                            onSave={handleSaveTask}
-                            onCancel={() => {
-                                setShowTaskForm(false);
-                                setSelectedTask(null);
-                            }}
-                            onDelete={selectedTask?.id ? handleDeleteTask : null}
-                        />
+                        <Suspense fallback={
+                            <div className="flex items-center justify-center py-12">
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                            </div>
+                        }>
+                            <CreateTaskForm
+                                task={selectedTask}
+                                onSave={handleSaveTask}
+                                onCancel={() => {
+                                    setShowTaskForm(false);
+                                    setSelectedTask(null);
+                                }}
+                                onDelete={selectedTask?.id ? handleDeleteTask : null}
+                            />
+                        </Suspense>
                     </DialogContent>
                 </Dialog>
             )}
