@@ -60,6 +60,7 @@ import { Vehicle } from "@/entities/Vehicle";
 import { Task } from "@/entities/Task";
 
 import HorarioCalendario from "../components/horario/HorarioCalendario";
+import HorarioEquiposView from "../components/horario/HorarioEquiposView";
 import CrearServicioForm from "../components/horario/CrearServicioForm";
 import CreateTaskForm from "../components/tasks/CreateTaskForm";
 import TaskList from "../components/tasks/TaskList";
@@ -1356,6 +1357,7 @@ export default function HorarioPage() {
                             <Button variant={view === 'day' ? 'default' : 'outline'} size="sm" onClick={() => setView('day')}>Día</Button>
                             <Button variant={view === 'week' ? 'default' : 'outline'} size="sm" onClick={() => setView('week')}>Semana</Button>
                             <Button variant={view === 'month' ? 'default' : 'outline'} size="sm" onClick={() => setView('month')}>Mes</Button>
+                            <Button variant={view === 'teams' ? 'default' : 'outline'} size="sm" onClick={() => setView('teams')}>Equipos</Button>
                         </div>
 
                         <Button
@@ -1489,23 +1491,32 @@ export default function HorarioPage() {
 
             <div className="flex-grow overflow-hidden flex flex-col min-h-0">
                 <div className="flex-1 overflow-auto bg-white">
-                    <div className="w-full">
-                        <HorarioCalendario
-                            ref={calendarRef}
-                            events={filteredSchedules}
-                            date={date}
-                            view={view}
-                            onNavigate={setDate}
-                            onView={setView}
-                            onSelectEvent={handleSelectEvent}
-                            onCreateAtTime={user?.role === 'admin' ? handleCreateAtTime : null}
-                            users={users}
-                            isCleanerView={isCleanerView}
-                            selectedCleanerId={user?.id}
-                            isReadOnly={isCleanerView}
-                            onMoveEvent={user?.role === 'admin' ? handleMoveEvent : null}
-                            onResizeEvent={user?.role === 'admin' ? handleResizeEvent : null}
-                        />
+                    <div className="w-full h-full">
+                        {view === 'teams' ? (
+                            <HorarioEquiposView
+                                schedules={filteredSchedules}
+                                date={date}
+                                users={users}
+                                onSelectEvent={handleSelectEvent}
+                            />
+                        ) : (
+                            <HorarioCalendario
+                                ref={calendarRef}
+                                events={filteredSchedules}
+                                date={date}
+                                view={view}
+                                onNavigate={setDate}
+                                onView={setView}
+                                onSelectEvent={handleSelectEvent}
+                                onCreateAtTime={user?.role === 'admin' ? handleCreateAtTime : null}
+                                users={users}
+                                isCleanerView={isCleanerView}
+                                selectedCleanerId={user?.id}
+                                isReadOnly={isCleanerView}
+                                onMoveEvent={user?.role === 'admin' ? handleMoveEvent : null}
+                                onResizeEvent={user?.role === 'admin' ? handleResizeEvent : null}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
