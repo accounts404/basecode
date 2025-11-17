@@ -270,7 +270,7 @@ export default function HorarioPage() {
 
                 console.log('[Horario] 🔑 Llaves necesarias encontradas:', keys.length);
                 setRequiredKeys(keys);
-                saveToCache(CACHE_KEYS.KEYS, keys);
+                saveToCache(LEGACY_CACHE_KEYS.KEYS, keys);
             } catch (clientError) {
                 console.warn('Error cargando información de clientes:', clientError);
                 setRequiredKeys([]);
@@ -769,7 +769,7 @@ export default function HorarioPage() {
                 return s;
             });
             setSchedules(updatedSchedules);
-            saveToCache(CACHE_KEYS.SCHEDULES, updatedSchedules);
+            saveToCache(LEGACY_CACHE_KEYS.SCHEDULES, updatedSchedules);
 
             // PASO 6: Cerrar modal y mostrar mensaje
             setShowForm(false);
