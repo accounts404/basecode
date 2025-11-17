@@ -282,34 +282,37 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
                                 <p className="text-xs text-slate-500 mb-3">
                                     {unassignedCleaners.length} {unassignedCleaners.length === 1 ? 'limpiador' : 'limpiadores'} sin asignación
                                 </p>
-                                {unassignedCleaners.map((cleaner) => (
-                                    <div
-                                        key={cleaner.id}
-                                        className="flex items-center gap-3 p-2 bg-white rounded-lg border border-slate-200 hover:border-orange-300 transition-colors"
-                                    >
-                                        <Avatar className="w-8 h-8">
-                                            <AvatarFallback 
-                                                className="text-xs font-semibold"
-                                                style={{ 
-                                                    backgroundColor: cleaner.color || '#94a3b8',
-                                                    color: 'white'
-                                                }}
-                                            >
-                                                {cleaner.full_name?.charAt(0)?.toUpperCase() || '?'}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-slate-900 truncate">
-                                                {cleaner.full_name}
-                                            </p>
-                                            {cleaner.email && (
-                                                <p className="text-xs text-slate-500 truncate">
-                                                    {cleaner.email}
+                                {unassignedCleaners.map((cleaner) => {
+                                    const displayName = cleaner.schedule_display_name || cleaner.invoice_name || cleaner.full_name;
+                                    return (
+                                        <div
+                                            key={cleaner.id}
+                                            className="flex items-center gap-3 p-2 bg-white rounded-lg border border-slate-200 hover:border-orange-300 transition-colors"
+                                        >
+                                            <Avatar className="w-8 h-8">
+                                                <AvatarFallback 
+                                                    className="text-xs font-semibold"
+                                                    style={{ 
+                                                        backgroundColor: cleaner.color || '#94a3b8',
+                                                        color: 'white'
+                                                    }}
+                                                >
+                                                    {displayName?.charAt(0)?.toUpperCase() || '?'}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-slate-900 truncate">
+                                                    {displayName}
                                                 </p>
-                                            )}
+                                                {cleaner.email && (
+                                                    <p className="text-xs text-slate-500 truncate">
+                                                        {cleaner.email}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </CardContent>
