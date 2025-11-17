@@ -89,9 +89,9 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
         const day = String(date.getDate()).padStart(2, '0');
         const selectedDateStr = `${year}-${month}-${day}`;
 
-        // IDs de todos los cleaners
+        // IDs de todos los cleaners activos
         const allCleanerIds = usersArray
-            .filter(u => u.role !== 'admin')
+            .filter(u => u.role !== 'admin' && u.active !== false)
             .map(u => u.id);
 
         // IDs asignados a equipos
