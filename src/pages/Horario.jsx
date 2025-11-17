@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from '@/utils';
@@ -649,69 +648,77 @@ export default function HorarioPage() {
                 console.log('[Horario] ✅ Clock Out registrado en localStorage (20s de gracia)');
             }
 
-            // PASO 4: Actualizar en base de datos
-            console.log('[Horario] 💾 Actualizando base de datos...');
-            const updatePayload = {
+            // PASO 4: Actualizar clock_in_data primero
+            console.log('[Horario] 💾 Actualizando clock_in_data en base de datos...');
+            await Schedule.update(scheduleId, {
                 clock_in_data: updatedClockData
-            };
+            });
 
-            if (action === 'clock_in' && schedule.status === 'scheduled') {
-                updatePayload.status = 'in_progress';
-            }
+            // PASO 5: Determinar y actualizar el estado correcto del servicio
+            let finalStatus = schedule.status; // Mantener el status actual por defecto
 
-            await Schedule.update(scheduleId, updatePayload);
-            console.log('[Horario] ✅ Base de datos actualizada');
-
-            // PASO 5: Procesamiento post-Clock Out
-            if (action === 'clock_out') {
-                console.log('[Horario] 🔄 Verificando si todos han cerrado...');
+            if (action === 'clock_in') {
+                // Si es clock in y está scheduled, cambiar a in_progress
+                if (schedule.status === 'scheduled') {
+                    finalStatus = 'in_progress';
+                }
+            } else if (action === 'clock_out') {
+                console.log('[Horario] 🔄 Verificando si todos los limpiadores han cerrado...');
                 
-                // Verificar si todos los limpiadores cerraron
+                // CRÍTICO: Obtener el schedule FRESCO después de actualizar clock_in_data
                 const freshSchedule = await Schedule.get(scheduleId);
                 const allCleanerIds = Array.isArray(freshSchedule.cleaner_ids) ? freshSchedule.cleaner_ids : [];
                 const freshClockData = Array.isArray(freshSchedule.clock_in_data) ? freshSchedule.clock_in_data : [];
 
+                // Verificar si TODOS los limpiadores asignados tienen clock_out_time
                 const allHaveClockedOut = allCleanerIds.every(cleanerId => {
                     const clockData = freshClockData.find(c => c.cleaner_id === cleanerId);
                     return clockData && clockData.clock_out_time;
                 });
 
-                if (allHaveClockedOut) {
-                    console.log('[Horario] ✅ Todos cerraron, marcando como completado...');
-                    await Schedule.update(scheduleId, { status: 'completed' });
+                console.log(`[Horario] 🔍 Total limpiadores: ${allCleanerIds.length}, Todos con clock out: ${allHaveClockedOut}`);
 
-                    // Crear WorkEntries
-                    try {
-                        const { data } = await processScheduleForWorkEntries({
-                            scheduleId: scheduleId,
-                            mode: 'create'
-                        });
-
-                        if (data.success && data.created_entries > 0) {
-                            console.log(`[Horario] ✅ ${data.created_entries} WorkEntries creadas`);
-                        }
-                    } catch (workEntryError) {
-                        console.error("[Horario] ⚠️ Error creando WorkEntries:", workEntryError);
-                    }
-                } else {
-                    console.log('[Horario] ⏳ Algunos limpiadores aún activos');
-                }
-
-                // CRÍTICO: Actualizar cache local con el servicio cerrado
-                const schedulesArray = Array.isArray(schedules) ? schedules : [];
-                const updatedSchedules = schedulesArray.map(s => {
-                    if (s.id === scheduleId) {
-                        return {
-                            ...s,
-                            clock_in_data: updatedClockData,
-                            status: allHaveClockedOut ? 'completed' : s.status
-                        };
-                    }
-                    return s;
-                });
-                setSchedules(updatedSchedules);
-                saveToCache(CACHE_KEYS.SCHEDULES, updatedSchedules);
+                // SOLO marcar como completado si TODOS han cerrado
+                finalStatus = allHaveClockedOut ? 'completed' : 'in_progress';
             }
+
+            // PASO 6: Actualizar el estado final del servicio
+            await Schedule.update(scheduleId, { status: finalStatus });
+            console.log(`[Horario] ✅ Estado del servicio actualizado a: ${finalStatus}`);
+
+            // PASO 7: Procesamiento post-Clock Out (crear WorkEntries solo si está completado)
+            if (action === 'clock_out' && finalStatus === 'completed') {
+                console.log('[Horario] ✅ Todos cerraron, creando WorkEntries...');
+                try {
+                    const { data } = await processScheduleForWorkEntries({
+                        scheduleId: scheduleId,
+                        mode: 'create'
+                    });
+
+                    if (data.success && data.created_entries > 0) {
+                        console.log(`[Horario] ✅ ${data.created_entries} WorkEntries creadas`);
+                    }
+                } catch (workEntryError) {
+                    console.error("[Horario] ⚠️ Error creando WorkEntries:", workEntryError);
+                }
+            } else if (action === 'clock_out' && finalStatus === 'in_progress') {
+                console.log('[Horario] ⏳ Algunos limpiadores aún activos, WorkEntries no creadas aún');
+            }
+
+            // CRÍTICO: Actualizar cache local con el estado correcto
+            const schedulesArray = Array.isArray(schedules) ? schedules : [];
+            const updatedSchedules = schedulesArray.map(s => {
+                if (s.id === scheduleId) {
+                    return {
+                        ...s,
+                        clock_in_data: updatedClockData,
+                        status: finalStatus
+                    };
+                }
+                return s;
+            });
+            setSchedules(updatedSchedules);
+            saveToCache(CACHE_KEYS.SCHEDULES, updatedSchedules);
 
             // PASO 6: Cerrar modal y mostrar mensaje
             setShowForm(false);

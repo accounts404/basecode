@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -361,17 +360,35 @@ export default function ServicioActivoPage() {
                         };
                     }
 
-                    const allClockedOut = updatedClockInData.every(c => c.clock_out_time);
-                    const newStatus = allClockedOut ? 'completed' : activeService.status;
-
+                    // PASO CRÍTICO: Actualizar primero el clock_in_data
                     await base44.entities.Schedule.update(activeService.id, {
-                        clock_in_data: updatedClockInData,
-                        status: newStatus
+                        clock_in_data: updatedClockInData
                     });
 
-                    console.log('[ServicioActivo] ✅ Backend actualizado exitosamente en segundo plano');
+                    // PASO CRÍTICO: Obtener el schedule FRESCO para verificar todos los limpiadores
+                    const freshSchedule = await base44.entities.Schedule.get(activeService.id);
+                    const allCleanerIds = Array.isArray(freshSchedule.cleaner_ids) ? freshSchedule.cleaner_ids : [];
+                    const freshClockData = Array.isArray(freshSchedule.clock_in_data) ? freshSchedule.clock_in_data : [];
 
-                    if (newStatus === 'completed') {
+                    // Verificar si TODOS los limpiadores asignados han hecho clock out
+                    const allHaveClockedOut = allCleanerIds.every(cleanerId => {
+                        const clockData = freshClockData.find(c => c.cleaner_id === cleanerId);
+                        return clockData && clockData.clock_out_time;
+                    });
+
+                    console.log(`[ServicioActivo] 🔍 Todos los limpiadores con clock out: ${allHaveClockedOut}`);
+
+                    // SOLO marcar como completado si TODOS han hecho clock out
+                    const finalStatus = allHaveClockedOut ? 'completed' : 'in_progress';
+
+                    await base44.entities.Schedule.update(activeService.id, {
+                        status: finalStatus
+                    });
+
+                    console.log(`[ServicioActivo] ✅ Estado actualizado a: ${finalStatus}`);
+
+                    if (finalStatus === 'completed') {
+                        console.log('[ServicioActivo] ✅ Todos cerraron, creando WorkEntries...');
                         try {
                             await base44.functions.invoke('processScheduleForWorkEntries', {
                                 scheduleId: activeService.id,
@@ -381,6 +398,8 @@ export default function ServicioActivoPage() {
                         } catch (workEntryError) {
                             console.warn('[ServicioActivo] ⚠️ Error procesando WorkEntries:', workEntryError);
                         }
+                    } else {
+                        console.log('[ServicioActivo] ⏳ Algunos limpiadores aún activos, WorkEntries no creadas aún');
                     }
 
                     // Limpiar flags después de sincronización exitosa
