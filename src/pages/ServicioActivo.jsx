@@ -253,178 +253,174 @@ export default function ServicioActivoPage() {
         intervalRef.current = setInterval(updateTimer, 1000);
     };
 
-    const handleClockOut = async () => {
+    const handleClockOut = async (retryCount = 0) => {
         if (!activeService || !user) return;
 
-        console.log('[ServicioActivo] 🕐 Iniciando Clock Out...');
+        const MAX_RETRIES = 3;
+        console.log(`[ServicioActivo] 🕐 Iniciando Clock Out (intento ${retryCount + 1}/${MAX_RETRIES + 1})...`);
         
-        // 🛑 PASO 1: MARCAR INMEDIATAMENTE QUE ESTAMOS HACIENDO CLOCK OUT
+        // 🛑 PASO 1: BLOQUEAR UI Y DETENER ACTUALIZACIONES
         setClockingOut(true);
         setError("");
-        isUnmountingRef.current = true; // Marcar ANTES para prevenir actualizaciones
+        isUnmountingRef.current = true;
 
         // 🛑 PASO 2: DETENER POLLING Y TIMER INMEDIATAMENTE
         if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
-            console.log('[ServicioActivo] 🛑 Polling detenido para Clock Out');
+            console.log('[ServicioActivo] 🛑 Polling detenido');
         }
 
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
-            console.log('[ServicioActivo] 🛑 Timer detenido para Clock Out');
+            console.log('[ServicioActivo] 🛑 Timer detenido');
         }
 
         try {
-            // 🚀 PASO 3: MARCAR LOCALMENTE QUE NO HAY SERVICIO ACTIVO (OPTIMISTIC UPDATE)
-            console.log('[ServicioActivo] 💾 Marcando localmente que no hay servicio activo...');
+            // 🚀 PASO 3: OBTENER UBICACIÓN GPS (ANTES de actualizar BD)
+            let userLocation = null;
+            if ('geolocation' in navigator) {
+                try {
+                    const position = await Promise.race([
+                        new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                timeout: 8000,
+                                enableHighAccuracy: false,
+                                maximumAge: 30000
+                            });
+                        }),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('GPS timeout')), 8000))
+                    ]);
+                    userLocation = `${position.coords.latitude},${position.coords.longitude}`;
+                    console.log('[ServicioActivo] 📍 Ubicación GPS obtenida');
+                } catch (gpsError) {
+                    console.warn('[ServicioActivo] ⚠️ No se pudo obtener GPS:', gpsError.message);
+                }
+            }
+
+            // 🚀 PASO 4: ACTUALIZAR CLOCK_IN_DATA EN BASE DE DATOS
+            console.log('[ServicioActivo] 💾 Actualizando clock_in_data en BD...');
+            const updatedClockInData = [...(activeService.clock_in_data || [])];
+            const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
+            const currentTime = new Date().toISOString();
+
+            if (existingIndex >= 0) {
+                updatedClockInData[existingIndex] = {
+                    ...updatedClockInData[existingIndex],
+                    clock_out_time: currentTime,
+                    clock_out_location: userLocation
+                };
+            } else {
+                updatedClockInData.push({
+                    cleaner_id: user.id,
+                    clock_in_time: activeService.clock_in_data?.find(c => c.cleaner_id === user.id)?.clock_in_time || currentTime,
+                    clock_out_time: currentTime,
+                    clock_out_location: userLocation
+                });
+            }
+
+            await base44.entities.Schedule.update(activeService.id, {
+                clock_in_data: updatedClockInData
+            });
+            console.log('[ServicioActivo] ✅ Clock Out registrado en BD');
+
+            // 🚀 PASO 5: VERIFICAR ESTADO DEL SERVICIO
+            console.log('[ServicioActivo] 🔍 Verificando estado del servicio...');
+            const freshSchedule = await base44.entities.Schedule.get(activeService.id);
+            const allCleanerIds = Array.isArray(freshSchedule.cleaner_ids) ? freshSchedule.cleaner_ids : [];
+            const freshClockData = Array.isArray(freshSchedule.clock_in_data) ? freshSchedule.clock_in_data : [];
+
+            const allHaveClockedOut = allCleanerIds.every(cleanerId => {
+                const clockData = freshClockData.find(c => c.cleaner_id === cleanerId);
+                return clockData && clockData.clock_out_time;
+            });
+
+            console.log(`[ServicioActivo] 🔍 Todos con clock out: ${allHaveClockedOut}`);
+            const finalStatus = allHaveClockedOut ? 'completed' : 'in_progress';
+
+            // 🚀 PASO 6: ACTUALIZAR ESTADO DEL SERVICIO
+            await base44.entities.Schedule.update(activeService.id, {
+                status: finalStatus
+            });
+            console.log(`[ServicioActivo] ✅ Estado actualizado a: ${finalStatus}`);
+
+            // 🚀 PASO 7: CREAR WORK ENTRIES SI CORRESPONDE
+            if (finalStatus === 'completed') {
+                console.log('[ServicioActivo] 📝 Todos cerraron, creando WorkEntries...');
+                try {
+                    await base44.functions.invoke('processScheduleForWorkEntries', {
+                        scheduleId: activeService.id,
+                        mode: 'create'
+                    });
+                    console.log('[ServicioActivo] ✅ WorkEntries creadas');
+                } catch (workEntryError) {
+                    console.warn('[ServicioActivo] ⚠️ Error creando WorkEntries:', workEntryError);
+                }
+            }
+
+            // 🚀 PASO 8: ACTUALIZAR CACHE LOCAL
+            console.log('[ServicioActivo] 💾 Actualizando cache local...');
             localStorage.setItem(`active_service_${user.id}`, 'false');
-            localStorage.setItem(`clock_out_pending_${user.id}`, 'true');
-            localStorage.setItem(`clock_out_time_${user.id}`, Date.now().toString());
+            registerClockOut(activeService.id, user.id);
             
-            // Actualizar el schedule en localStorage inmediatamente
             const cachedSchedules = localStorage.getItem('redoak_cleaner_schedules');
             if (cachedSchedules) {
                 try {
                     const schedules = JSON.parse(cachedSchedules);
                     const updatedSchedules = schedules.map(schedule => {
                         if (schedule.id === activeService.id) {
-                            const updatedClockInData = [...(schedule.clock_in_data || [])];
-                            const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
-                            if (existingIndex >= 0) {
-                                updatedClockInData[existingIndex] = {
-                                    ...updatedClockInData[existingIndex],
-                                    clock_out_time: new Date().toISOString()
-                                };
-                            }
                             return {
                                 ...schedule,
                                 clock_in_data: updatedClockInData,
-                                status: 'completed'
+                                status: finalStatus
                             };
                         }
                         return schedule;
                     });
                     localStorage.setItem('redoak_cleaner_schedules', JSON.stringify(updatedSchedules));
                 } catch (error) {
-                    console.warn('[ServicioActivo] Error actualizando cache:', error);
+                    console.warn('[ServicioActivo] ⚠️ Error actualizando cache:', error);
                 }
             }
 
-            // 🚀 PASO 4: REGISTRAR CLOCK OUT Y REDIRIGIR INMEDIATAMENTE
-            console.log('[ServicioActivo] 💾 Registrando Clock Out en cola offline...');
-            const result = await registerClockOut(activeService.id, user.id);
-            console.log('[ServicioActivo] ✅ Clock Out registrado en cola:', result);
-
-            // 🚀 PASO 5: REDIRIGIR INMEDIATAMENTE CON FLAG ESPECIAL
-            console.log('[ServicioActivo] 🚀 Redirigiendo a Horario...');
-            navigate(createPageUrl("Horario"), { 
-                replace: true,
-                state: { 
-                    clockOutSuccess: true,
-                    skipActiveCheck: true, // NUEVO: Flag para evitar verificación de servicio activo
-                    message: '¡Clock Out registrado exitosamente! El servicio está completado.'
-                }
-            });
-
-            // 📡 PASO 6: SINCRONIZACIÓN EN BACKGROUND (NO BLOQUEA LA REDIRECCIÓN)
-            (async () => {
-                try {
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo antes de sincronizar
-
-                    const updatedClockInData = [...(activeService.clock_in_data || [])];
-                    const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
-                    const currentTime = new Date().toISOString();
-
-                    if (existingIndex >= 0) {
-                        let userLocation = null;
-                        if ('geolocation' in navigator) {
-                            try {
-                                const position = await new Promise((resolve, reject) => {
-                                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                                        timeout: 5000,
-                                        enableHighAccuracy: true
-                                    });
-                                });
-                                userLocation = `${position.coords.latitude},${position.coords.longitude}`;
-                            } catch (error) {
-                                console.warn('[ServicioActivo] No se pudo obtener ubicación GPS:', error);
-                            }
-                        }
-
-                        updatedClockInData[existingIndex] = {
-                            ...updatedClockInData[existingIndex],
-                            clock_out_time: currentTime,
-                            clock_out_location: userLocation
-                        };
+            // 🎉 PASO 9: ÉXITO - REDIRIGIR
+            console.log('[ServicioActivo] 🎉 Clock Out completado exitosamente, redirigiendo...');
+            setTimeout(() => {
+                navigate(createPageUrl("Horario"), { 
+                    replace: true,
+                    state: { 
+                        clockOutSuccess: true,
+                        message: '✅ Clock Out exitoso. ¡Servicio finalizado!'
                     }
-
-                    // PASO CRÍTICO: Actualizar primero el clock_in_data
-                    await base44.entities.Schedule.update(activeService.id, {
-                        clock_in_data: updatedClockInData
-                    });
-
-                    // PASO CRÍTICO: Obtener el schedule FRESCO para verificar todos los limpiadores
-                    const freshSchedule = await base44.entities.Schedule.get(activeService.id);
-                    const allCleanerIds = Array.isArray(freshSchedule.cleaner_ids) ? freshSchedule.cleaner_ids : [];
-                    const freshClockData = Array.isArray(freshSchedule.clock_in_data) ? freshSchedule.clock_in_data : [];
-
-                    // Verificar si TODOS los limpiadores asignados han hecho clock out
-                    const allHaveClockedOut = allCleanerIds.every(cleanerId => {
-                        const clockData = freshClockData.find(c => c.cleaner_id === cleanerId);
-                        return clockData && clockData.clock_out_time;
-                    });
-
-                    console.log(`[ServicioActivo] 🔍 Todos los limpiadores con clock out: ${allHaveClockedOut}`);
-
-                    // SOLO marcar como completado si TODOS han hecho clock out
-                    const finalStatus = allHaveClockedOut ? 'completed' : 'in_progress';
-
-                    await base44.entities.Schedule.update(activeService.id, {
-                        status: finalStatus
-                    });
-
-                    console.log(`[ServicioActivo] ✅ Estado actualizado a: ${finalStatus}`);
-
-                    if (finalStatus === 'completed') {
-                        console.log('[ServicioActivo] ✅ Todos cerraron, creando WorkEntries...');
-                        try {
-                            await base44.functions.invoke('processScheduleForWorkEntries', {
-                                scheduleId: activeService.id,
-                                mode: 'create'
-                            });
-                            console.log('[ServicioActivo] ✅ WorkEntries procesadas');
-                        } catch (workEntryError) {
-                            console.warn('[ServicioActivo] ⚠️ Error procesando WorkEntries:', workEntryError);
-                        }
-                    } else {
-                        console.log('[ServicioActivo] ⏳ Algunos limpiadores aún activos, WorkEntries no creadas aún');
-                    }
-
-                    // Limpiar flags después de sincronización exitosa
-                    localStorage.removeItem(`clock_out_pending_${user.id}`);
-                    localStorage.removeItem(`clock_out_time_${user.id}`);
-                } catch (error) {
-                    console.error('[ServicioActivo] ❌ Error actualizando backend (pero Clock Out ya está en cola):', error);
-                }
-            })();
+                });
+            }, 500);
 
         } catch (error) {
-            console.error('[ServicioActivo] ❌ Error en Clock Out:', error);
-            // Si hubo un error ANTES de navegar, restaurar el estado
-            isUnmountingRef.current = false; 
-            setError("Error al registrar Clock Out. Por favor, inténtalo de nuevo.");
+            console.error(`[ServicioActivo] ❌ Error en Clock Out (intento ${retryCount + 1}):`, error);
+            
+            // 🔄 REINTENTAR SI NO SE ALCANZÓ EL MÁXIMO
+            if (retryCount < MAX_RETRIES) {
+                const delay = Math.pow(2, retryCount) * 1000; // Backoff exponencial
+                console.log(`[ServicioActivo] 🔄 Reintentando en ${delay/1000}s...`);
+                setError(`Error en Clock Out. Reintentando automáticamente (${retryCount + 1}/${MAX_RETRIES})...`);
+                
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return handleClockOut(retryCount + 1);
+            }
+            
+            // ❌ MÁXIMO DE REINTENTOS ALCANZADO
+            console.error('[ServicioActivo] ❌ Clock Out falló después de todos los reintentos');
+            isUnmountingRef.current = false;
             setClockingOut(false);
+            setError(
+                `❌ No se pudo completar el Clock Out después de ${MAX_RETRIES + 1} intentos. ` +
+                `Por favor, verifica tu conexión a internet y vuelve a intentar. ` +
+                `Si el problema persiste, contacta al administrador.`
+            );
             
-            // Limpiar flags de optimistic update
-            localStorage.setItem(`active_service_${user.id}`, 'true');
-            localStorage.removeItem(`clock_out_pending_${user.id}`);
-            localStorage.removeItem(`clock_out_time_${user.id}`);
-            
-            // Reiniciar polling y timer si hubo error
-            console.warn('[ServicioActivo] Reintentando reiniciar polling y timer debido a error en Clock Out.');
-            loadUserAndActiveService(); 
+            // Reiniciar polling y timer
+            loadUserAndActiveService();
         }
     };
 
@@ -543,9 +539,18 @@ export default function ServicioActivoPage() {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 pb-20">
             <div className="max-w-2xl mx-auto space-y-4">
                 {error && (
-                    <Alert variant="destructive">
+                    <Alert variant="destructive" className="border-2">
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>{error}</AlertDescription>
+                        <AlertDescription className="font-medium">{error}</AlertDescription>
+                    </Alert>
+                )}
+
+                {clockingOut && (
+                    <Alert className="bg-blue-50 border-2 border-blue-500 animate-pulse">
+                        <Clock className="h-4 w-4 text-blue-700 animate-spin" />
+                        <AlertDescription className="text-blue-900 font-semibold">
+                            ⏳ Finalizando servicio... Por favor, espera sin salir de esta página.
+                        </AlertDescription>
                     </Alert>
                 )}
 
@@ -1048,14 +1053,14 @@ export default function ServicioActivoPage() {
                     </Button>
                     
                     <Button
-                        onClick={handleClockOut}
+                        onClick={() => handleClockOut(0)}
                         disabled={clockingOut}
-                        className="w-full h-14 text-base font-semibold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full h-14 text-base font-semibold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all"
                     >
                         {clockingOut ? (
                             <>
                                 <Clock className="w-5 h-5 mr-2 animate-spin" />
-                                Finalizando Servicio...
+                                Procesando Clock Out...
                             </>
                         ) : (
                             <>
@@ -1064,6 +1069,11 @@ export default function ServicioActivoPage() {
                             </>
                         )}
                     </Button>
+                    {clockingOut && (
+                        <p className="text-center text-sm text-slate-600 font-medium bg-blue-50 p-3 rounded-lg border border-blue-200">
+                            💡 <strong>No cierres esta página</strong> hasta que el proceso se complete
+                        </p>
+                    )}
                 </div>
             </div>
 
