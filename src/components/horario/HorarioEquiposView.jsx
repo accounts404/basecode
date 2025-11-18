@@ -129,70 +129,8 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="text-slate-600">Cargando vista de equipos...</p>
                 </div>
-
-                {/* Panel Lateral - Limpiadores Sin Asignar */}
-                <div className="w-80 flex-shrink-0 overflow-auto p-4 bg-slate-50 border-l">
-                    <Card className="sticky top-0">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-base">
-                                <AlertCircle className="w-5 h-5 text-orange-600" />
-                                Sin Asignar
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {unassignedCleaners.length === 0 ? (
-                                <div className="text-center py-6">
-                                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                                        <Users className="w-6 h-6 text-green-600" />
-                                    </div>
-                                    <p className="text-sm text-slate-600">
-                                        ✓ Todos los limpiadores están asignados
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <p className="text-xs text-slate-500 mb-3">
-                                        {unassignedCleaners.length} {unassignedCleaners.length === 1 ? 'limpiador' : 'limpiadores'} sin asignación
-                                    </p>
-                                    {unassignedCleaners.map((cleaner) => {
-                                        const displayName = cleaner.schedule_display_name || cleaner.invoice_name || cleaner.full_name;
-                                        return (
-                                            <div
-                                                key={cleaner.id}
-                                                className="flex items-center gap-3 p-2 bg-white rounded-lg border border-slate-200 hover:border-orange-300 transition-colors"
-                                            >
-                                                <Avatar className="w-8 h-8">
-                                                    <AvatarFallback 
-                                                        className="text-xs font-semibold"
-                                                        style={{ 
-                                                            backgroundColor: cleaner.color || '#94a3b8',
-                                                            color: 'white'
-                                                        }}
-                                                    >
-                                                        {displayName?.charAt(0)?.toUpperCase() || '?'}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-slate-900 truncate">
-                                                        {displayName}
-                                                    </p>
-                                                    {cleaner.email && (
-                                                        <p className="text-xs text-slate-500 truncate">
-                                                            {cleaner.email}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-                </div>
-                </div>
-                );
+            </div>
+        );
     }
 
     if (teamAssignments.length === 0) {
