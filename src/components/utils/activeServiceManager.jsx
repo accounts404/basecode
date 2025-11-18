@@ -122,12 +122,59 @@ export const clearAllFlags = () => {
 };
 
 /**
+ * Limpia flags obsoletos (más de 5 minutos)
+ */
+export const cleanupStaleFlags = () => {
+    console.log('[ActiveServiceManager] 🧹 Limpiando flags obsoletos');
+    
+    try {
+        // Limpiar Clock Out reciente obsoleto
+        const recentClockOut = localStorage.getItem(RECENT_CLOCKOUT_KEY);
+        if (recentClockOut) {
+            const data = JSON.parse(recentClockOut);
+            const elapsed = Date.now() - data.timestamp;
+            if (elapsed > 5 * 60 * 1000) { // 5 minutos
+                localStorage.removeItem(RECENT_CLOCKOUT_KEY);
+                console.log('[ActiveServiceManager] 🧹 Clock Out reciente limpiado (obsoleto)');
+            }
+        }
+        
+        // Limpiar skip check obsoleto
+        const skipCheck = localStorage.getItem(SKIP_CHECK_KEY);
+        if (skipCheck) {
+            const data = JSON.parse(skipCheck);
+            const elapsed = Date.now() - data.timestamp;
+            if (elapsed > 5 * 60 * 1000) { // 5 minutos
+                localStorage.removeItem(SKIP_CHECK_KEY);
+                console.log('[ActiveServiceManager] 🧹 Skip check limpiado (obsoleto)');
+            }
+        }
+        
+        // Limpiar servicio activo obsoleto (más de 24 horas)
+        const activeService = localStorage.getItem(ACTIVE_SERVICE_KEY);
+        if (activeService) {
+            const data = JSON.parse(activeService);
+            const elapsed = Date.now() - data.timestamp;
+            if (elapsed > 24 * 60 * 60 * 1000) { // 24 horas
+                localStorage.removeItem(ACTIVE_SERVICE_KEY);
+                console.log('[ActiveServiceManager] 🧹 Servicio activo limpiado (obsoleto)');
+            }
+        }
+    } catch (error) {
+        console.error('[ActiveServiceManager] Error limpiando flags obsoletos:', error);
+    }
+};
+
+/**
  * Sincroniza el estado del servicio activo con la base de datos
  * OPTIMIZADO: Respeta flags de Clock Out reciente
  */
 export const syncActiveService = async (userId) => {
     try {
         console.log('[ActiveServiceManager] 🔄 Sincronizando servicio activo para:', userId);
+        
+        // Limpiar flags obsoletos primero
+        cleanupStaleFlags();
         
         // CRÍTICO: Verificar si hay un Clock Out reciente
         if (hasRecentClockOut() || shouldSkipActiveCheck(userId)) {
@@ -239,6 +286,7 @@ export default {
     hasRecentClockOut,
     shouldSkipActiveCheck,
     clearAllFlags,
+    cleanupStaleFlags,
     syncActiveService,
     canUserClockIn,
     getActiveServiceFromCache
