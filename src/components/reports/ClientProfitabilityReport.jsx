@@ -83,10 +83,14 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                 }
             });
 
-            // Costos (horas trabajadas * tarifas)
+            // Costos (horas trabajadas * tarifas) - SOLO DEL PERÍODO
             let totalCost = 0;
             completedSchedules.forEach(schedule => {
-                const scheduleWorkEntries = workEntries.filter(we => we.schedule_id === schedule.id);
+                const scheduleWorkEntries = workEntries.filter(we => 
+                    we.schedule_id === schedule.id &&
+                    we.work_date &&
+                    isDateInRange(we.work_date, monthStart, monthEnd)
+                );
                 scheduleWorkEntries.forEach(we => {
                     totalCost += we.total_amount || 0;
                 });
