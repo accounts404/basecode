@@ -14,108 +14,8 @@ import {
     ThumbsDown,
     Zap
 } from "lucide-react";
-import { format, startOfMonth, endOfMonth, parse, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { es } from "date-fns/locale";
-
-// Calcular GST según el tipo
-const calculateGST = (price, gstType) => {
-    const numPrice = parseFloat(price) || 0;
-
-    switch (gstType) {
-        case 'inclusive':
-            const baseInclusive = numPrice / 1.1;
-            return {
-                base: baseInclusive,
-                gst: numPrice - baseInclusive,
-                total: numPrice
-            };
-        case 'exclusive':
-            const gstExclusive = numPrice * 0.1;
-            return {
-                base: numPrice,
-                gst: gstExclusive,
-                total: numPrice + gstExclusive
-            };
-        case 'no_tax':
-            return {
-                base: numPrice,
-                gst: 0,
-                total: numPrice
-            };
-        default:
-            return {
-                base: numPrice,
-                gst: 0,
-                total: numPrice
-            };
-    }
-};
-
-// Función que respeta snapshots y reconciliation_items
-const getPriceForSchedule = (schedule, client) => {
-    // PRIORIDAD 1: Si tiene reconciliation_items, usar esos
-    if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
-        let totalAmount = 0;
-
-        schedule.reconciliation_items.forEach(item => {
-            const amount = parseFloat(item.amount) || 0;
-            if (item.type === 'discount') {
-                totalAmount -= Math.abs(amount);
-            } else {
-                totalAmount += amount;
-            }
-        });
-        
-        return { 
-            rawAmount: totalAmount,
-            gstType: schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive'
-        };
-    }
-    
-    // PRIORIDAD 2: Si está facturado con snapshot (INMUTABLE)
-    if (schedule.xero_invoiced && schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
-        return {
-            rawAmount: schedule.billed_price_snapshot,
-            gstType: schedule.billed_gst_type_snapshot || 'inclusive'
-        };
-    }
-    
-    // PRIORIDAD 3: Precio vigente en fecha del servicio
-    if (client) {
-        const serviceDate = schedule.start_time;
-        if (!client.price_history || client.price_history.length === 0) {
-            return {
-                rawAmount: client.current_service_price || 0,
-                gstType: client.gst_type || 'inclusive'
-            };
-        }
-        
-        const serviceDateStr = format(parseISO(serviceDate), 'yyyy-MM-dd');
-        const sortedHistory = [...client.price_history].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-        
-        for (const historyEntry of sortedHistory) {
-            if (historyEntry.effective_date <= serviceDateStr) {
-                return {
-                    rawAmount: historyEntry.new_price || client.current_service_price || 0,
-                    gstType: historyEntry.gst_type || client.gst_type || 'inclusive'
-                };
-            }
-        }
-        
-        const oldestEntry = sortedHistory[sortedHistory.length - 1];
-        if (oldestEntry) {
-            return {
-                rawAmount: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0,
-                gstType: oldestEntry.gst_type || client.gst_type || 'inclusive'
-            };
-        }
-    }
-    
-    return {
-        rawAmount: client?.current_service_price || 0,
-        gstType: client?.gst_type || 'inclusive'
-    };
-};
 
 export default function ClientProfitabilityReport({ clients, schedules, workEntries }) {
     const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
@@ -163,21 +63,29 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                 isDateInRange(s.start_time, monthStart, monthEnd)
             );
 
-            // Filtrar solo servicios facturados
-            const invoicedSchedules = clientSchedules.filter(s => s.xero_invoiced === true);
+            const completedSchedules = clientSchedules.filter(s => s.status === 'completed');
 
-            // Ingresos - usar la misma lógica que ServiceTypeAnalysis
+            // Ingresos
             let totalRevenue = 0;
-            invoicedSchedules.forEach(schedule => {
-                const priceData = getPriceForSchedule(schedule, client);
-                // Calcular base sin GST
-                const { base } = calculateGST(priceData.rawAmount, priceData.gstType);
-                totalRevenue += base;
+            completedSchedules.forEach(schedule => {
+                if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
+                    // Si hay reconciliation_items, usar esos (ya incluye el base_service)
+                    schedule.reconciliation_items.forEach(item => {
+                        if (item.type === 'discount') {
+                            totalRevenue -= Math.abs(item.amount || 0);
+                        } else {
+                            totalRevenue += item.amount || 0;
+                        }
+                    });
+                } else if (schedule.billed_price_snapshot) {
+                    // Si no hay reconciliation_items, usar el precio snapshot
+                    totalRevenue += schedule.billed_price_snapshot;
+                }
             });
 
             // Costos (horas trabajadas * tarifas) - SOLO DEL PERÍODO
             let totalCost = 0;
-            invoicedSchedules.forEach(schedule => {
+            completedSchedules.forEach(schedule => {
                 const scheduleWorkEntries = workEntries.filter(we => 
                     we.schedule_id === schedule.id &&
                     we.work_date &&
@@ -211,16 +119,15 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                 other: 0
             };
 
-            invoicedSchedules.forEach(schedule => {
+            completedSchedules.forEach(schedule => {
                 if (schedule.reconciliation_items) {
                     schedule.reconciliation_items.forEach(item => {
-                        const amount = parseFloat(item.amount) || 0;
-                        if (item.type === 'windows_cleaning') additionalServices.windows += amount;
-                        else if (item.type === 'steam_vacuum') additionalServices.steam_vacuum += amount;
-                        else if (item.type === 'spring_cleaning') additionalServices.spring_cleaning += amount;
-                        else if (item.type === 'oven_cleaning') additionalServices.oven_cleaning += amount;
-                        else if (item.type === 'fridge_cleaning') additionalServices.fridge_cleaning += amount;
-                        else if (item.type === 'other_extra') additionalServices.other += amount;
+                        if (item.type === 'windows_cleaning') additionalServices.windows += item.amount || 0;
+                        else if (item.type === 'steam_vacuum') additionalServices.steam_vacuum += item.amount || 0;
+                        else if (item.type === 'spring_cleaning') additionalServices.spring_cleaning += item.amount || 0;
+                        else if (item.type === 'oven_cleaning') additionalServices.oven_cleaning += item.amount || 0;
+                        else if (item.type === 'fridge_cleaning') additionalServices.fridge_cleaning += item.amount || 0;
+                        else if (item.type === 'other_extra') additionalServices.other += item.amount || 0;
                     });
                 }
             });
@@ -229,13 +136,13 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
 
             return {
                 client,
-                totalServices: invoicedSchedules.length,
+                totalServices: completedSchedules.length,
                 totalRevenue: Math.round(totalRevenue * 100) / 100,
                 totalCost: Math.round(totalCost * 100) / 100,
                 profit: Math.round(profit * 100) / 100,
                 profitMargin: Math.round(profitMargin * 10) / 10,
-                avgRevenuePerService: invoicedSchedules.length > 0 
-                    ? Math.round((totalRevenue / invoicedSchedules.length) * 100) / 100 
+                avgRevenuePerService: completedSchedules.length > 0 
+                    ? Math.round((totalRevenue / completedSchedules.length) * 100) / 100 
                     : 0,
                 totalHoursWorked: Math.round(totalHoursWorked * 10) / 10,
                 revenuePerHour: Math.round(revenuePerHour * 100) / 100,
