@@ -9,8 +9,9 @@ import { es } from "date-fns/locale";
 
 const parseISOAsUTC = (isoString) => {
     if (!isoString) return null;
-    const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
-    return new Date(correctedIsoString);
+    // Remover la 'Z' si existe para interpretar en zona horaria local
+    const cleanString = isoString.endsWith('Z') ? isoString.slice(0, -1) : isoString;
+    return new Date(cleanString);
 };
 
 export default function HorarioEquiposView({ schedules, date, users, onSelectEvent }) {
