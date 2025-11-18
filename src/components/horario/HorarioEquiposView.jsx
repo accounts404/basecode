@@ -2,10 +2,9 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Car, Users, Clock, MapPin, AlertCircle, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
-import { format, parseISO, addDays, subDays, isToday } from "date-fns";
+import { Car, Users, Clock, MapPin, AlertCircle } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 
 const parseISOAsUTC = (isoString) => {
@@ -14,7 +13,7 @@ const parseISOAsUTC = (isoString) => {
     return new Date(correctedIsoString);
 };
 
-export default function HorarioEquiposView({ schedules, date, users, onSelectEvent, onDateChange }) {
+export default function HorarioEquiposView({ schedules, date, users, onSelectEvent }) {
     const [teamAssignments, setTeamAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -154,63 +153,9 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
-            {/* Header de Navegación */}
-            <div className="flex-shrink-0 bg-white border-b p-4">
-                <div className="flex items-center justify-between max-w-7xl mx-auto">
-                    <div className="flex items-center gap-3">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDateChange && onDateChange(subDays(date, 1))}
-                            className="hover:bg-blue-50"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </Button>
-
-                        <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-slate-50 rounded-lg border-2 border-blue-200">
-                            <CalendarIcon className="w-5 h-5 text-blue-600" />
-                            <div className="text-center">
-                                <p className="text-lg font-bold text-slate-900">
-                                    {format(date, 'd MMMM yyyy', { locale: es })}
-                                </p>
-                                <p className="text-xs text-slate-600">
-                                    {format(date, 'EEEE', { locale: es })}
-                                    {isToday(date) && (
-                                        <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                                            HOY
-                                        </span>
-                                    )}
-                                </p>
-                            </div>
-                        </div>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDateChange && onDateChange(addDays(date, 1))}
-                            className="hover:bg-blue-50"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </Button>
-                    </div>
-
-                    {!isToday(date) && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDateChange && onDateChange(new Date())}
-                            className="bg-blue-600 text-white hover:bg-blue-700"
-                        >
-                            Ir a Hoy
-                        </Button>
-                    )}
-                </div>
-            </div>
-
+        <div className="flex gap-4 h-full overflow-hidden">
             {/* Panel Principal - Equipos */}
-            <div className="flex gap-4 flex-1 overflow-hidden">
-                <div className="flex-1 overflow-auto space-y-4 p-4">
+            <div className="flex-1 overflow-auto space-y-4 p-4">
                 {teamsWithServices.map((team, index) => (
                     <Card key={team.id || index} className="shadow-lg">
                         <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-slate-50">
