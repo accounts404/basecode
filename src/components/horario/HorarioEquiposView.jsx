@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Car, Users, Clock, MapPin, AlertCircle } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Car, Users, Clock, MapPin, AlertCircle, ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { format, parseISO, addDays, subDays, isToday } from "date-fns";
 import { es } from "date-fns/locale";
 
 const parseISOAsUTC = (isoString) => {
@@ -13,7 +14,7 @@ const parseISOAsUTC = (isoString) => {
     return new Date(correctedIsoString);
 };
 
-export default function HorarioEquiposView({ schedules, date, users, onSelectEvent }) {
+export default function HorarioEquiposView({ schedules, date, users, onSelectEvent, onDateChange }) {
     const [teamAssignments, setTeamAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -128,8 +129,70 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="text-slate-600">Cargando vista de equipos...</p>
                 </div>
-            </div>
-        );
+
+                {/* Panel Lateral - Limpiadores Sin Asignar */}
+                <div className="w-80 flex-shrink-0 overflow-auto p-4 bg-slate-50 border-l">
+                    <Card className="sticky top-0">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-base">
+                                <AlertCircle className="w-5 h-5 text-orange-600" />
+                                Sin Asignar
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {unassignedCleaners.length === 0 ? (
+                                <div className="text-center py-6">
+                                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                        <Users className="w-6 h-6 text-green-600" />
+                                    </div>
+                                    <p className="text-sm text-slate-600">
+                                        ✓ Todos los limpiadores están asignados
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-slate-500 mb-3">
+                                        {unassignedCleaners.length} {unassignedCleaners.length === 1 ? 'limpiador' : 'limpiadores'} sin asignación
+                                    </p>
+                                    {unassignedCleaners.map((cleaner) => {
+                                        const displayName = cleaner.schedule_display_name || cleaner.invoice_name || cleaner.full_name;
+                                        return (
+                                            <div
+                                                key={cleaner.id}
+                                                className="flex items-center gap-3 p-2 bg-white rounded-lg border border-slate-200 hover:border-orange-300 transition-colors"
+                                            >
+                                                <Avatar className="w-8 h-8">
+                                                    <AvatarFallback 
+                                                        className="text-xs font-semibold"
+                                                        style={{ 
+                                                            backgroundColor: cleaner.color || '#94a3b8',
+                                                            color: 'white'
+                                                        }}
+                                                    >
+                                                        {displayName?.charAt(0)?.toUpperCase() || '?'}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-slate-900 truncate">
+                                                        {displayName}
+                                                    </p>
+                                                    {cleaner.email && (
+                                                        <p className="text-xs text-slate-500 truncate">
+                                                            {cleaner.email}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+                </div>
+                </div>
+                );
     }
 
     if (teamAssignments.length === 0) {
@@ -153,9 +216,63 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
     }
 
     return (
-        <div className="flex gap-4 h-full overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Header de Navegación */}
+            <div className="flex-shrink-0 bg-white border-b p-4">
+                <div className="flex items-center justify-between max-w-7xl mx-auto">
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onDateChange && onDateChange(subDays(date, 1))}
+                            className="hover:bg-blue-50"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </Button>
+
+                        <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-slate-50 rounded-lg border-2 border-blue-200">
+                            <CalendarIcon className="w-5 h-5 text-blue-600" />
+                            <div className="text-center">
+                                <p className="text-lg font-bold text-slate-900">
+                                    {format(date, 'd MMMM yyyy', { locale: es })}
+                                </p>
+                                <p className="text-xs text-slate-600">
+                                    {format(date, 'EEEE', { locale: es })}
+                                    {isToday(date) && (
+                                        <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                                            HOY
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onDateChange && onDateChange(addDays(date, 1))}
+                            className="hover:bg-blue-50"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </Button>
+                    </div>
+
+                    {!isToday(date) && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onDateChange && onDateChange(new Date())}
+                            className="bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                            Ir a Hoy
+                        </Button>
+                    )}
+                </div>
+            </div>
+
             {/* Panel Principal - Equipos */}
-            <div className="flex-1 overflow-auto space-y-4 p-4">
+            <div className="flex gap-4 flex-1 overflow-hidden">
+                <div className="flex-1 overflow-auto space-y-4 p-4">
                 {teamsWithServices.map((team, index) => (
                     <Card key={team.id || index} className="shadow-lg">
                         <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-slate-50">

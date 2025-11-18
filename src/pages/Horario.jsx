@@ -1556,6 +1556,7 @@ export default function HorarioPage() {
                                     date={date}
                                     users={users}
                                     onSelectEvent={handleSelectEvent}
+                                    onDateChange={setDate}
                                 />
                             ) : (
                                 <HorarioCalendario
