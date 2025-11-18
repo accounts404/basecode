@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -333,14 +334,6 @@ export default function Layout({ children, currentPageName }) {
 
   // Si es limpiador, usar layout móvil
   if (user.role !== 'admin') {
-    // CRÍTICO: Si hay servicio activo y no estamos en ServicioActivo, redirigir
-    React.useEffect(() => {
-      if (hasActiveService && currentPageName !== 'ServicioActivo') {
-        console.log('[Layout] 🔴 Redirigiendo a ServicioActivo por servicio activo');
-        navigate(createPageUrl('ServicioActivo'), { replace: true });
-      }
-    }, [hasActiveService, currentPageName]);
-
     return (
       <CleanerMobileLayout 
         user={user} 

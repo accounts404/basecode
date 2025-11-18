@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { clearAllFlags } from "@/components/utils/activeServiceManager";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Calendar,
   Clock,
@@ -12,9 +11,7 @@ import {
   Activity,
   Trophy,
   FileText,
-  DollarSign,
-  Lock,
-  AlertCircle
+  DollarSign
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -23,18 +20,6 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [showBlockedMessage, setShowBlockedMessage] = useState(false);
-
-  // CRÍTICO: Redirigir automáticamente a ServicioActivo si hay servicio activo y no estamos ahí
-  useEffect(() => {
-    const currentPath = location.pathname;
-    const servicioActivoPath = createPageUrl("ServicioActivo");
-    
-    if (hasActiveService && currentPath !== servicioActivoPath) {
-      console.log('[CleanerMobileLayout] 🔴 Servicio activo detectado, redirigiendo a ServicioActivo');
-      navigate(servicioActivoPath, { replace: true });
-    }
-  }, [hasActiveService, location.pathname, navigate]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -85,78 +70,51 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       title: "Horario",
       url: createPageUrl("Horario"),
       icon: Calendar,
-      show: true,
-      disabled: hasActiveService
+      show: true
     },
     {
       title: "Servicio Activo",
       url: createPageUrl("ServicioActivo"),
       icon: Activity,
       show: hasActiveService,
-      isActive: true,
-      disabled: false
+      isActive: true
     },
     {
       title: "Mis Horas",
       url: createPageUrl("MisHoras"),
       icon: Clock,
-      show: true,
-      disabled: hasActiveService
+      show: true
     },
     {
       title: "Mis Pagos",
       url: createPageUrl("MisFacturas"),
       icon: DollarSign,
-      show: user?.active !== false,
-      disabled: hasActiveService
+      show: user?.active !== false
     },
     {
       title: "Registrar",
       url: createPageUrl("RegistrarTrabajo"),
       icon: FileText,
-      show: user?.active !== false,
-      disabled: hasActiveService
+      show: user?.active !== false
     },
     {
       title: "Puntuación",
       url: createPageUrl("MiPuntuacion"),
       icon: Trophy,
-      show: isScoringParticipant,
-      disabled: hasActiveService
+      show: isScoringParticipant
     },
     {
       title: "Perfil",
       url: createPageUrl("MiPerfil"),
       icon: User,
-      show: true,
-      disabled: hasActiveService
+      show: true
     }
   ].filter(item => item.show);
 
   const isCurrentPage = (url) => location.pathname === url;
 
-  const handleNavigationClick = (e, item) => {
-    if (item.disabled) {
-      e.preventDefault();
-      setShowBlockedMessage(true);
-      setTimeout(() => setShowBlockedMessage(false), 3000);
-    }
-  };
-
   return (
     <div className="flex flex-col h-screen bg-slate-50">
-      {/* Mensaje de bloqueo cuando hay servicio activo */}
-      {showBlockedMessage && (
-        <div className="fixed top-20 left-4 right-4 z-50 animate-in fade-in slide-in-from-top-5">
-          <Alert variant="destructive" className="shadow-lg border-2">
-            <Lock className="h-4 w-4" />
-            <AlertDescription className="font-semibold">
-              🔴 Debes finalizar el servicio activo antes de navegar a otra página
-            </AlertDescription>
-          </Alert>
-        </div>
-      )}
-
       {/* Header móvil simple */}
       <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -202,26 +160,19 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
             const Icon = item.icon;
             const isCurrent = isCurrentPage(item.url);
             const isActiveService = item.isActive;
-            const isDisabled = item.disabled;
             
             return (
               <Link
                 key={item.title}
                 to={item.url}
-                onClick={(e) => handleNavigationClick(e, item)}
                 className={`flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg transition-colors ${
-                  isDisabled
-                    ? 'opacity-40 cursor-not-allowed'
-                    : isCurrent 
+                  isCurrent 
                     ? 'bg-blue-50 text-blue-600' 
                     : isActiveService
                     ? 'text-green-600'
                     : 'text-slate-600'
                 } ${isActiveService ? 'animate-pulse' : ''}`}
               >
-                {isDisabled && !isActiveService && (
-                  <Lock className="w-3 h-3 absolute top-1 right-1 text-red-500" />
-                )}
                 <Icon className={`w-6 h-6 mb-1 ${isActiveService ? 'text-green-600' : ''}`} />
                 <span className="text-xs font-medium">{item.title}</span>
               </Link>
