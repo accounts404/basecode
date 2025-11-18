@@ -41,26 +41,12 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
         const monthStart = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
         const monthEnd = endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
 
-        // Función auxiliar para comparar solo fecha (YYYY-MM-DD)
-        const extractDate = (isoString) => {
-            if (!isoString) return null;
-            return isoString.substring(0, 10);
-        };
-
-        const isDateInRange = (dateString, rangeStart, rangeEnd) => {
-            if (!dateString) return false;
-            const date = extractDate(dateString);
-            const startDate = format(rangeStart, 'yyyy-MM-dd');
-            const endDate = format(rangeEnd, 'yyyy-MM-dd');
-            return date >= startDate && date <= endDate;
-        };
-
         return clients.map(client => {
-            // Servicios del cliente en el período (solo comparando fechas)
+            // Servicios del cliente en el período
             const clientSchedules = schedules.filter(s =>
                 s.client_id === client.id &&
                 s.start_time &&
-                isDateInRange(s.start_time, monthStart, monthEnd)
+                isWithinInterval(new Date(s.start_time), { start: monthStart, end: monthEnd })
             );
 
             const completedSchedules = clientSchedules.filter(s => s.status === 'completed');
@@ -96,12 +82,8 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
             const profit = totalRevenue - totalCost;
             const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
-            // Calcular horas trabajadas totales para este cliente EN EL PERÍODO
-            const clientWorkEntries = workEntries.filter(we => 
-                we.client_id === client.id &&
-                we.work_date &&
-                isDateInRange(we.work_date, monthStart, monthEnd)
-            );
+            // Calcular horas trabajadas totales para este cliente
+            const clientWorkEntries = workEntries.filter(we => we.client_id === client.id);
             const totalHoursWorked = clientWorkEntries.reduce((sum, we) => sum + (we.hours || 0), 0);
             const revenuePerHour = totalHoursWorked > 0 ? totalRevenue / totalHoursWorked : 0;
 
