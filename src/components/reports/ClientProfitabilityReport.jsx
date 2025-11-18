@@ -117,7 +117,7 @@ const getPriceForSchedule = (schedule, client) => {
     };
 };
 
-export default function ClientProfitabilityReport({ clients, schedules, workEntries }) {
+export default function ClientProfitabilityReport({ clients, schedules, workEntries, fixedCosts }) {
     const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
     const [filterType, setFilterType] = useState('all');
 
@@ -154,6 +154,9 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
             const endDate = format(rangeEnd, 'yyyy-MM-dd');
             return date >= startDate && date <= endDate;
         };
+
+        // Obtener gastos fijos del período
+        const monthlyFixedCost = fixedCosts?.find(fc => fc.period === selectedMonth)?.amount || 0;
 
         return clients.map(client => {
             // Servicios del cliente en el período (solo comparando fechas)
@@ -232,8 +235,8 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                 totalServices: invoicedSchedules.length,
                 totalRevenue: Math.round(totalRevenue * 100) / 100,
                 totalCost: Math.round(totalCost * 100) / 100,
-                profit: Math.round(profit * 100) / 100,
-                profitMargin: Math.round(profitMargin * 10) / 10,
+                directProfit: Math.round(profit * 100) / 100,
+                directProfitMargin: Math.round(profitMargin * 10) / 10,
                 avgRevenuePerService: invoicedSchedules.length > 0 
                     ? Math.round((totalRevenue / invoicedSchedules.length) * 100) / 100 
                     : 0,
@@ -243,7 +246,33 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                 totalAdditionalRevenue: Math.round(totalAdditionalRevenue * 100) / 100
             };
         }).filter(c => c.client.active !== false && c.totalServices > 0);
-    }, [clients, schedules, workEntries, selectedMonth]);
+
+        // Calcular ingresos totales para distribución proporcional de gastos fijos
+        const totalRevenueAllClients = clientsData.reduce((sum, c) => sum + c.totalRevenue, 0);
+
+        // Asignar gastos fijos proporcionalmente
+        const clientsWithFixedCosts = clientsData.map(client => {
+            const fixedCostAllocation = totalRevenueAllClients > 0 
+                ? (client.totalRevenue / totalRevenueAllClients) * monthlyFixedCost 
+                : 0;
+            
+            const totalCostWithFixed = client.totalCost + fixedCostAllocation;
+            const profitWithFixed = client.totalRevenue - totalCostWithFixed;
+            const profitMarginWithFixed = client.totalRevenue > 0 
+                ? (profitWithFixed / client.totalRevenue) * 100 
+                : 0;
+
+            return {
+                ...client,
+                fixedCostAllocation: Math.round(fixedCostAllocation * 100) / 100,
+                totalCostWithFixed: Math.round(totalCostWithFixed * 100) / 100,
+                profit: Math.round(profitWithFixed * 100) / 100,
+                profitMargin: Math.round(profitMarginWithFixed * 10) / 10
+            };
+        });
+
+        return clientsWithFixedCosts;
+    }, [clients, schedules, workEntries, fixedCosts, selectedMonth]);
 
     // Filtrar por tipo
     const filteredData = useMemo(() => {
@@ -259,7 +288,9 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
     // Estadísticas generales
     const stats = useMemo(() => {
         const totalRevenue = sortedData.reduce((sum, c) => sum + c.totalRevenue, 0);
-        const totalCost = sortedData.reduce((sum, c) => sum + c.totalCost, 0);
+        const totalDirectCost = sortedData.reduce((sum, c) => sum + c.totalCost, 0);
+        const totalFixedCost = sortedData.reduce((sum, c) => sum + (c.fixedCostAllocation || 0), 0);
+        const totalCost = totalDirectCost + totalFixedCost;
         const totalProfit = totalRevenue - totalCost;
         const avgMargin = sortedData.length > 0
             ? sortedData.reduce((sum, c) => sum + c.profitMargin, 0) / sortedData.length
@@ -267,6 +298,8 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
 
         return {
             totalRevenue: Math.round(totalRevenue * 100) / 100,
+            totalDirectCost: Math.round(totalDirectCost * 100) / 100,
+            totalFixedCost: Math.round(totalFixedCost * 100) / 100,
             totalCost: Math.round(totalCost * 100) / 100,
             totalProfit: Math.round(totalProfit * 100) / 100,
             avgMargin: Math.round(avgMargin * 10) / 10,
@@ -397,7 +430,7 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
             </div>
 
             {/* KPIs Generales */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <Card>
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
@@ -414,8 +447,37 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-slate-500">Ganancia Total</p>
-                                <p className="text-2xl font-bold text-slate-900">${stats.totalProfit}</p>
+                                <p className="text-sm text-slate-500">Costos Directos</p>
+                                <p className="text-2xl font-bold text-slate-900">${stats.totalDirectCost}</p>
+                                <p className="text-xs text-slate-500 mt-1">Mano de obra</p>
+                            </div>
+                            <TrendingDown className="w-8 h-8 text-orange-600" />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-slate-500">Gastos Fijos</p>
+                                <p className="text-2xl font-bold text-slate-900">${stats.totalFixedCost}</p>
+                                <p className="text-xs text-slate-500 mt-1">Distribuidos</p>
+                            </div>
+                            <Package className="w-8 h-8 text-red-600" />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-slate-500">Ganancia Neta</p>
+                                <p className={`text-2xl font-bold ${stats.totalProfit >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
+                                    ${stats.totalProfit}
+                                </p>
+                                <p className="text-xs text-slate-500 mt-1">Con gastos fijos</p>
                             </div>
                             <TrendingUp className="w-8 h-8 text-blue-600" />
                         </div>
@@ -429,19 +491,7 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                                 <p className="text-sm text-slate-500">Margen Promedio</p>
                                 <p className="text-2xl font-bold text-slate-900">{stats.avgMargin}%</p>
                             </div>
-                            <Package className="w-8 h-8 text-purple-600" />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm text-slate-500">Clientes Activos</p>
-                                <p className="text-2xl font-bold text-slate-900">{stats.totalClients}</p>
-                            </div>
-                            <Users className="w-8 h-8 text-orange-600" />
+                            <Users className="w-8 h-8 text-purple-600" />
                         </div>
                     </CardContent>
                 </Card>
@@ -685,8 +735,9 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                                     <th className="text-center p-3 text-sm font-semibold text-slate-700">Frecuencia</th>
                                     <th className="text-right p-3 text-sm font-semibold text-slate-700">Servicios</th>
                                     <th className="text-right p-3 text-sm font-semibold text-slate-700">Ingresos</th>
-                                    <th className="text-right p-3 text-sm font-semibold text-slate-700">Costos</th>
-                                    <th className="text-right p-3 text-sm font-semibold text-slate-700">Ganancia</th>
+                                    <th className="text-right p-3 text-sm font-semibold text-slate-700">Costos Directos</th>
+                                    <th className="text-right p-3 text-sm font-semibold text-slate-700">Gastos Fijos</th>
+                                    <th className="text-right p-3 text-sm font-semibold text-slate-700">Ganancia Neta</th>
                                     <th className="text-center p-3 text-sm font-semibold text-slate-700">Margen</th>
                                     <th className="text-center p-3 text-sm font-semibold text-slate-700">$/Hora</th>
                                 </tr>
@@ -715,7 +766,8 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                                         </td>
                                         <td className="p-3 text-right font-medium">{item.totalServices}</td>
                                         <td className="p-3 text-right font-medium text-green-700">${item.totalRevenue}</td>
-                                        <td className="p-3 text-right font-medium text-red-700">${item.totalCost}</td>
+                                        <td className="p-3 text-right font-medium text-orange-600">${item.totalCost}</td>
+                                        <td className="p-3 text-right text-sm text-slate-600">${item.fixedCostAllocation || 0}</td>
                                         <td className="p-3 text-right">
                                             <span className={`font-bold ${item.profit >= 0 ? 'text-blue-700' : 'text-red-700'}`}>
                                                 ${item.profit}
