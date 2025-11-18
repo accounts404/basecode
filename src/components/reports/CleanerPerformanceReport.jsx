@@ -78,7 +78,15 @@ export default function CleanerPerformanceReport({
             const totalHours = cleanerWorkEntries.reduce((sum, we) => sum + (we.hours || 0), 0);
             const completedServices = cleanerSchedules.filter(s => s.status === 'completed').length;
             const totalServices = cleanerSchedules.length;
-            const avgHoursPerService = completedServices > 0 ? totalHours / completedServices : 0;
+            
+            // Calcular días únicos trabajados
+            const uniqueWorkDates = new Set(
+                cleanerWorkEntries
+                    .filter(we => we.work_date)
+                    .map(we => we.work_date.slice(0, 10))
+            );
+            const daysWorked = uniqueWorkDates.size;
+            const avgHoursPerDay = daysWorked > 0 ? totalHours / daysWorked : 0;
 
             // Puntualidad: comparar clock_in_time real vs start_time programado
             let onTimeCount = 0;
@@ -128,7 +136,8 @@ export default function CleanerPerformanceReport({
                 totalHours: Math.round(totalHours * 10) / 10,
                 completedServices,
                 totalServices,
-                avgHoursPerService: Math.round(avgHoursPerService * 10) / 10,
+                daysWorked,
+                avgHoursPerDay: Math.round(avgHoursPerDay * 10) / 10,
                 punctualityRate: Math.round(punctualityRate * 10) / 10,
                 onTimeCount,
                 lateCount,
@@ -342,7 +351,8 @@ export default function CleanerPerformanceReport({
                                             <SortIcon field="services" />
                                         </Button>
                                     </th>
-                                    <th className="text-center p-3 text-sm font-semibold text-slate-700">Promedio h/servicio</th>
+                                    <th className="text-center p-3 text-sm font-semibold text-slate-700">Días Trabajados</th>
+                                    <th className="text-center p-3 text-sm font-semibold text-slate-700">Promedio h/día</th>
                                     <th className="text-center p-3 text-sm font-semibold text-slate-700">
                                         <Button 
                                             variant="ghost" 
@@ -388,7 +398,8 @@ export default function CleanerPerformanceReport({
                                             <span className="font-medium">{metric.completedServices}</span>
                                             <span className="text-slate-400 text-sm">/{metric.totalServices}</span>
                                         </td>
-                                        <td className="p-3 text-center text-slate-600">{metric.avgHoursPerService}h</td>
+                                        <td className="p-3 text-center font-medium text-slate-600">{metric.daysWorked}</td>
+                                        <td className="p-3 text-center font-medium text-blue-700">{metric.avgHoursPerDay}h</td>
                                         <td className="p-3 text-center">
                                             <div className="flex items-center justify-center gap-1">
                                                 <span className="font-medium">{metric.punctualityRate}%</span>
