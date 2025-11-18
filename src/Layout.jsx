@@ -284,6 +284,14 @@ export default function Layout({ children, currentPageName }) {
     };
   }, [user, initialLoadComplete, checkForActiveService]);
 
+  // CRÍTICO: Redirigir a ServicioActivo si hay servicio activo (para limpiadores)
+  useEffect(() => {
+    if (user?.role !== 'admin' && hasActiveService && currentPageName !== 'ServicioActivo') {
+      console.log('[Layout] 🔴 Redirigiendo a ServicioActivo por servicio activo');
+      navigate(createPageUrl('ServicioActivo'), { replace: true });
+    }
+  }, [user, hasActiveService, currentPageName, navigate]);
+
   const handleLogout = async () => {
     localStorage.clear();
     await base44.auth.logout();
@@ -330,14 +338,6 @@ export default function Layout({ children, currentPageName }) {
       </div>
     );
   }
-
-  // CRÍTICO: Redirigir a ServicioActivo si hay servicio activo (para limpiadores)
-  useEffect(() => {
-    if (user?.role !== 'admin' && hasActiveService && currentPageName !== 'ServicioActivo') {
-      console.log('[Layout] 🔴 Redirigiendo a ServicioActivo por servicio activo');
-      navigate(createPageUrl('ServicioActivo'), { replace: true });
-    }
-  }, [user, hasActiveService, currentPageName, navigate]);
 
   // Si es limpiador, usar layout móvil
   if (user.role !== 'admin') {
