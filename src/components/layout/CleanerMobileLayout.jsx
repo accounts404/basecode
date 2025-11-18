@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { clearAllFlags } from "@/components/utils/activeServiceManager";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Calendar,
   Clock,
@@ -20,6 +21,14 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  
+  // 🔒 BLOQUEAR NAVEGACIÓN cuando hay servicio activo
+  useEffect(() => {
+    if (hasActiveService && location.pathname !== createPageUrl("ServicioActivo")) {
+      console.log('[CleanerMobileLayout] 🔒 Servicio activo detectado, redirigiendo a ServicioActivo');
+      navigate(createPageUrl("ServicioActivo"), { replace: true });
+    }
+  }, [hasActiveService, location.pathname, navigate]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -148,6 +157,16 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
         </button>
       </header>
 
+      {/* Alerta de servicio activo */}
+      {hasActiveService && location.pathname !== createPageUrl("ServicioActivo") && (
+        <Alert className="m-4 bg-amber-50 border-amber-300">
+          <Activity className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-900 font-medium">
+            ⚠️ Tienes un servicio activo. Debes finalizarlo antes de acceder a otras páginas.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Contenido principal con scroll */}
       <main className="flex-1 overflow-auto pb-20">
         {children}
@@ -160,6 +179,22 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
             const Icon = item.icon;
             const isCurrent = isCurrentPage(item.url);
             const isActiveService = item.isActive;
+            
+            // 🔒 Bloquear navegación si hay servicio activo (excepto a ServicioActivo)
+            const isBlocked = hasActiveService && item.url !== createPageUrl("ServicioActivo");
+            
+            if (isBlocked) {
+              return (
+                <button
+                  key={item.title}
+                  disabled
+                  className="flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg text-slate-300 cursor-not-allowed opacity-50"
+                >
+                  <Icon className="w-6 h-6 mb-1" />
+                  <span className="text-xs font-medium">{item.title}</span>
+                </button>
+              );
+            }
             
             return (
               <Link
