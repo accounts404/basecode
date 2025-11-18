@@ -54,20 +54,18 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
             // Ingresos
             let totalRevenue = 0;
             completedSchedules.forEach(schedule => {
-                // Precio base
-                if (schedule.billed_price_snapshot) {
-                    totalRevenue += schedule.billed_price_snapshot;
-                }
-
-                // Servicios adicionales
-                if (schedule.reconciliation_items) {
+                if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
+                    // Si hay reconciliation_items, usar esos (ya incluye el base_service)
                     schedule.reconciliation_items.forEach(item => {
-                        if (item.type !== 'discount') {
-                            totalRevenue += item.amount || 0;
-                        } else {
+                        if (item.type === 'discount') {
                             totalRevenue -= Math.abs(item.amount || 0);
+                        } else {
+                            totalRevenue += item.amount || 0;
                         }
                     });
+                } else if (schedule.billed_price_snapshot) {
+                    // Si no hay reconciliation_items, usar el precio snapshot
+                    totalRevenue += schedule.billed_price_snapshot;
                 }
             });
 
