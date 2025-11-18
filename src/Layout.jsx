@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -66,7 +67,6 @@ const adminMenuItems = [
   { name: 'Facturas', path: 'Facturas', icon: FileText },
   { name: 'Conciliación Facturas', path: 'ConciliacionFacturas', icon: Landmark },
   { name: 'Reportes', path: 'Reportes', icon: BarChart3 },
-  { name: 'Reportes Avanzados', path: 'ReportesAvanzados', icon: TrendingUp },
   { name: 'Rentabilidad', path: 'Rentabilidad', icon: TrendingUp },
   { name: 'Aumento Clientes', path: 'AumentoClientes', icon: ArrowRightSquare },
   { name: 'Puntuación Limpiadores', path: 'PuntuacionLimpiadores', icon: Trophy },
