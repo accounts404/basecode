@@ -24,7 +24,6 @@ export default function ReportesAvanzadosPage() {
     const [serviceReports, setServiceReports] = useState([]);
     const [tasks, setTasks] = useState([]);
     const [scores, setScores] = useState([]);
-    const [fixedCosts, setFixedCosts] = useState([]);
 
     useEffect(() => {
         loadAllData();
@@ -43,8 +42,7 @@ export default function ReportesAvanzadosPage() {
                 teamAssignmentsData,
                 serviceReportsData,
                 tasksData,
-                scoresData,
-                fixedCostsData
+                scoresData
             ] = await Promise.all([
                 base44.entities.User.list(),
                 base44.entities.Schedule.list(),
@@ -54,8 +52,7 @@ export default function ReportesAvanzadosPage() {
                 base44.entities.DailyTeamAssignment.list(),
                 base44.entities.ServiceReport.list(),
                 base44.entities.Task.list(),
-                base44.entities.MonthlyCleanerScore.list(),
-                base44.entities.FixedCost.list()
+                base44.entities.MonthlyCleanerScore.list()
             ]);
 
             setCleaners(Array.isArray(usersData) ? usersData.filter(u => u.role !== 'admin') : []);
@@ -67,7 +64,6 @@ export default function ReportesAvanzadosPage() {
             setServiceReports(Array.isArray(serviceReportsData) ? serviceReportsData : []);
             setTasks(Array.isArray(tasksData) ? tasksData : []);
             setScores(Array.isArray(scoresData) ? scoresData : []);
-            setFixedCosts(Array.isArray(fixedCostsData) ? fixedCostsData : []);
 
         } catch (error) {
             console.error('[ReportesAvanzados] Error cargando datos:', error);
@@ -157,7 +153,6 @@ export default function ReportesAvanzadosPage() {
                                     clients={clients}
                                     schedules={schedules}
                                     workEntries={workEntries}
-                                    fixedCosts={fixedCosts}
                                 />
                             </TabsContent>
 
