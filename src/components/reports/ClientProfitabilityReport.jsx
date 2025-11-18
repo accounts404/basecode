@@ -314,6 +314,8 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
         return types.map(type => {
             const typeData = clientProfitability.filter(c => c.client.client_type === type);
             const revenue = typeData.reduce((sum, c) => sum + c.totalRevenue, 0);
+            const directCost = typeData.reduce((sum, c) => sum + c.totalCost, 0);
+            const fixedCost = typeData.reduce((sum, c) => sum + (c.fixedCostAllocation || 0), 0);
             const profit = typeData.reduce((sum, c) => sum + c.profit, 0);
             const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -322,6 +324,8 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                 label: type === 'domestic' ? 'Doméstico' : type === 'commercial' ? 'Comercial' : 'Entrenamiento',
                 clients: typeData.length,
                 revenue: Math.round(revenue * 100) / 100,
+                directCost: Math.round(directCost * 100) / 100,
+                fixedCost: Math.round(fixedCost * 100) / 100,
                 profit: Math.round(profit * 100) / 100,
                 margin: Math.round(margin * 10) / 10
             };
@@ -334,6 +338,8 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
         return frequencies.map(freq => {
             const freqData = clientProfitability.filter(c => c.client.service_frequency === freq);
             const revenue = freqData.reduce((sum, c) => sum + c.totalRevenue, 0);
+            const directCost = freqData.reduce((sum, c) => sum + c.totalCost, 0);
+            const fixedCost = freqData.reduce((sum, c) => sum + (c.fixedCostAllocation || 0), 0);
             const profit = freqData.reduce((sum, c) => sum + c.profit, 0);
             const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
@@ -345,6 +351,8 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                        freq === 'monthly' ? 'Mensual' : 'One-Off',
                 clients: freqData.length,
                 revenue: Math.round(revenue * 100) / 100,
+                directCost: Math.round(directCost * 100) / 100,
+                fixedCost: Math.round(fixedCost * 100) / 100,
                 profit: Math.round(profit * 100) / 100,
                 margin: Math.round(margin * 10) / 10
             };
@@ -517,7 +525,15 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                                         <span className="font-medium text-green-700">${type.revenue}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-600">Ganancia:</span>
+                                        <span className="text-slate-600">Costos Directos:</span>
+                                        <span className="font-medium text-orange-600">${type.directCost}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-600">Gastos Fijos:</span>
+                                        <span className="font-medium text-red-600">${type.fixedCost}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-600">Ganancia Neta:</span>
                                         <span className="font-medium text-blue-700">${type.profit}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
@@ -559,7 +575,15 @@ export default function ClientProfitabilityReport({ clients, schedules, workEntr
                                         <span className="font-medium text-green-700">${freq.revenue}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-slate-600">Ganancia:</span>
+                                        <span className="text-slate-600">Costos Directos:</span>
+                                        <span className="font-medium text-orange-600">${freq.directCost}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-600">Gastos Fijos:</span>
+                                        <span className="font-medium text-red-600">${freq.fixedCost}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-slate-600">Ganancia Neta:</span>
                                         <span className="font-medium text-blue-700">${freq.profit}</span>
                                     </div>
                                     <div className="flex justify-between text-sm">
