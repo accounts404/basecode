@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Car, Users, Clock, MapPin, AlertCircle } from "lucide-react";
+import { Car, Users, Clock, MapPin, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -132,22 +132,40 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
         );
     }
 
+    // Mostrar fecha prominentemente
+    const dateHeader = (
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 mb-4 rounded-lg shadow-md">
+            <div className="flex items-center justify-center gap-2">
+                <CalendarIcon className="w-6 h-6" />
+                <h2 className="text-xl font-bold">
+                    {format(date, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
+                </h2>
+            </div>
+        </div>
+    );
+
     if (teamAssignments.length === 0) {
         return (
-            <div className="flex items-center justify-center py-12">
-                <Card className="max-w-md">
-                    <CardContent className="pt-6">
-                        <div className="text-center space-y-3">
-                            <AlertCircle className="w-12 h-12 text-slate-400 mx-auto" />
-                            <h3 className="text-lg font-semibold text-slate-900">
-                                No hay equipos asignados
-                            </h3>
-                            <p className="text-slate-600">
-                                No se encontraron asignaciones de equipo para el {format(date, 'd MMMM yyyy', { locale: es })}
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
+            <div className="p-4">
+                {dateHeader}
+                <div className="flex items-center justify-center py-12">
+                    <Card className="max-w-md">
+                        <CardContent className="pt-6">
+                            <div className="text-center space-y-3">
+                                <AlertCircle className="w-12 h-12 text-slate-400 mx-auto" />
+                                <h3 className="text-lg font-semibold text-slate-900">
+                                    No hay equipos asignados
+                                </h3>
+                                <p className="text-slate-600">
+                                    No se encontraron asignaciones de equipo para el {format(date, 'd MMMM yyyy', { locale: es })}
+                                </p>
+                                <p className="text-sm text-slate-500 mt-2">
+                                    💡 Usa los controles de navegación arriba para ver otros días
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         );
     }
@@ -156,6 +174,7 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
         <div className="flex gap-4 h-full overflow-hidden">
             {/* Panel Principal - Equipos */}
             <div className="flex-1 overflow-auto space-y-4 p-4">
+                {dateHeader}
                 {teamsWithServices.map((team, index) => (
                     <Card key={team.id || index} className="shadow-lg">
                         <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-slate-50">
