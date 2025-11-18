@@ -331,16 +331,16 @@ export default function Layout({ children, currentPageName }) {
     );
   }
 
-  // CRÍTICO: Redirigir a ServicioActivo si hay servicio activo (para limpiadores)
-  useEffect(() => {
-    if (user?.role !== 'admin' && hasActiveService && currentPageName !== 'ServicioActivo') {
-      console.log('[Layout] 🔴 Redirigiendo a ServicioActivo por servicio activo');
-      navigate(createPageUrl('ServicioActivo'), { replace: true });
-    }
-  }, [user, hasActiveService, currentPageName, navigate]);
-
   // Si es limpiador, usar layout móvil
   if (user.role !== 'admin') {
+    // CRÍTICO: Si hay servicio activo y no estamos en ServicioActivo, redirigir
+    React.useEffect(() => {
+      if (hasActiveService && currentPageName !== 'ServicioActivo') {
+        console.log('[Layout] 🔴 Redirigiendo a ServicioActivo por servicio activo');
+        navigate(createPageUrl('ServicioActivo'), { replace: true });
+      }
+    }, [hasActiveService, currentPageName]);
+
     return (
       <CleanerMobileLayout 
         user={user} 
