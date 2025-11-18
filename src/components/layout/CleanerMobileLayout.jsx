@@ -21,17 +21,6 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // BLOQUEO DE NAVEGACIÓN: Si hay servicio activo, solo permitir ServicioActivo
-  React.useEffect(() => {
-    const currentPath = location.pathname;
-    const servicioActivoPath = createPageUrl("ServicioActivo");
-    
-    if (hasActiveService && currentPath !== servicioActivoPath) {
-      console.log('[CleanerMobileLayout] 🚫 Bloqueando navegación - Hay servicio activo');
-      navigate(servicioActivoPath, { replace: true });
-    }
-  }, [hasActiveService, location.pathname, navigate]);
-
   const handleLogout = async () => {
     if (isLoggingOut) return;
     
@@ -76,21 +65,19 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   };
 
   // Determinar qué elementos de navegación mostrar
-  // CRÍTICO: Si hay servicio activo, solo mostrar "Servicio Activo"
-  const navigationItems = hasActiveService ? [
-    {
-      title: "Servicio Activo",
-      url: createPageUrl("ServicioActivo"),
-      icon: Activity,
-      show: true,
-      isActive: true
-    }
-  ] : [
+  const navigationItems = [
     {
       title: "Horario",
       url: createPageUrl("Horario"),
       icon: Calendar,
       show: true
+    },
+    {
+      title: "Servicio Activo",
+      url: createPageUrl("ServicioActivo"),
+      icon: Activity,
+      show: hasActiveService,
+      isActive: true
     },
     {
       title: "Mis Horas",
@@ -174,26 +161,17 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
             const isCurrent = isCurrentPage(item.url);
             const isActiveService = item.isActive;
             
-            // BLOQUEO: Si hay servicio activo, desactivar navegación
-            const handleClick = (e) => {
-              if (hasActiveService && !isActiveService) {
-                e.preventDefault();
-                console.log('[CleanerMobileLayout] 🚫 Navegación bloqueada - Servicio activo');
-              }
-            };
-            
             return (
               <Link
                 key={item.title}
                 to={item.url}
-                onClick={handleClick}
                 className={`flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg transition-colors ${
                   isCurrent 
                     ? 'bg-blue-50 text-blue-600' 
                     : isActiveService
-                    ? 'bg-green-50 text-green-600'
+                    ? 'text-green-600'
                     : 'text-slate-600'
-                } ${isActiveService ? 'animate-pulse ring-2 ring-green-400 ring-offset-2' : ''} ${hasActiveService && !isActiveService ? 'opacity-30 cursor-not-allowed' : ''}`}
+                } ${isActiveService ? 'animate-pulse' : ''}`}
               >
                 <Icon className={`w-6 h-6 mb-1 ${isActiveService ? 'text-green-600' : ''}`} />
                 <span className="text-xs font-medium">{item.title}</span>

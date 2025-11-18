@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -241,21 +242,17 @@ export default function Layout({ children, currentPageName }) {
       localStorage.setItem('redoak_user', JSON.stringify(freshUser));
 
       if (freshUser.role !== 'admin') {
-          setIsCleanerView(true);
-          const currentMonth = format(new Date(), 'yyyy-MM');
-          const scores = await base44.entities.MonthlyCleanerScore.filter({
-              cleaner_id: freshUser.id,
-              month_period: currentMonth,
-              is_participating: true,
-          });
-          setIsScoringParticipant(scores.length > 0);
+        setIsCleanerView(true);
+        const currentMonth = format(new Date(), 'yyyy-MM');
+        const scores = await base44.entities.MonthlyCleanerScore.filter({
+          cleaner_id: freshUser.id,
+          month_period: currentMonth,
+          is_participating: true,
+        });
+        setIsScoringParticipant(scores.length > 0);
 
-          // Verificar servicio activo y redirigir si existe
-          const result = await checkForActiveService(freshUser.id, true);
-          if (result && result.hasActive && window.location.pathname !== createPageUrl("ServicioActivo")) {
-              console.log('[Layout] 🚀 Servicio activo detectado en inicio, redirigiendo...');
-              navigate(createPageUrl('ServicioActivo'), { replace: true });
-          }
+        // Verificar servicio activo
+        await checkForActiveService(freshUser.id, true);
       }
     } catch (error) {
       console.error("Error loading user:", error);
