@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { User } from '@/entities/User';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Settings, AlertCircle, CheckCircle, Info, BellRing } from 'lucide-react';
 import { sendServiceReminders } from '@/functions/sendServiceReminders';
+import ThemeConfigurator from '@/components/theme/ThemeConfigurator';
+import { useTheme } from '@/components/theme/ThemeProvider';
 
 const defaultOnMyWayTemplate = `Hola {client_name}, tu limpiador de RedOak, {cleaner_name}, va de camino para tu servicio. ¡Nos vemos pronto!`;
 const defaultReminderTemplate = `Hola {client_name}, te recordamos tu servicio de limpieza de RedOak programado para mañana a las {service_time}. ¡Gracias!`;
@@ -18,6 +19,7 @@ const defaultUpdateTemplate = `Hola {client_name}, tu servicio con RedOak ha sid
 const defaultMotivationalMessage = '¡Hoy es un gran día para brillar! Da lo mejor de ti y haz que cada cliente sonría. 💪✨';
 
 export default function ConfiguracionPage() {
+    const { refreshTheme } = useTheme();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -334,6 +336,9 @@ export default function ConfiguracionPage() {
                         
                     </CardContent>
                 </Card>
+
+                {/* Configuración de Temas */}
+                <ThemeConfigurator onThemeChange={refreshTheme} />
 
                 <Card>
                     <CardHeader>

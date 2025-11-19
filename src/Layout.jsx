@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { syncActiveService, shouldSkipActiveCheck, hasRecentClockOut } from '@/components/utils/activeServiceManager';
 import NotificationBell from "@/components/notifications/NotificationBell";
+import ThemeProvider, { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
 import {
   LayoutDashboard,
   Clock,
@@ -117,9 +117,10 @@ const cleanerNavigationItems = [
   },
 ];
 
-export default function Layout({ children, currentPageName }) {
+function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme } = useTheme();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -347,11 +348,12 @@ export default function Layout({ children, currentPageName }) {
 
   // Si es admin, usar layout desktop con sidebar (código existente)
   const navigation = adminNavigation;
+  const currentTheme = THEME_DEFINITIONS[theme] || THEME_DEFINITIONS.default;
   // const isUserActive = user.active !== false; // This line is no longer strictly necessary for admin view's rendering logic
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-slate-50">
+      <div className="min-h-screen flex w-full" style={{ backgroundColor: currentTheme.colors.background }}>
         {/* Sidebar con hover para expandir */}
         <div
           className={`fixed left-0 top-0 h-full bg-white border-r border-slate-200 transition-all duration-300 ease-in-out z-40 ${
@@ -361,7 +363,7 @@ export default function Layout({ children, currentPageName }) {
           onMouseLeave={() => setIsSidebarExpanded(false)}
         >
           {/* Header */}
-          <div className="border-b border-slate-200 p-4 h-[73px] flex items-center justify-center overflow-hidden">
+          <div className="border-b border-slate-200 p-4 h-[73px] flex items-center justify-center overflow-hidden" style={{ backgroundColor: 'white' }}>
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                 <img
@@ -371,7 +373,10 @@ export default function Layout({ children, currentPageName }) {
                 />
               </div>
               <div className={`transition-all duration-300 ${isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'} overflow-hidden`}>
-                <h2 className="font-bold text-slate-900 whitespace-nowrap">RedOak Cleaning</h2>
+                <h2 className="font-bold text-slate-900 whitespace-nowrap flex items-center gap-2">
+                  RedOak Cleaning
+                  {currentTheme.emoji && <span className="text-lg">{currentTheme.emoji}</span>}
+                </h2>
                 <p className="text-xs text-slate-500 whitespace-nowrap">Panel Administrativo</p>
               </div>
             </div>
@@ -394,10 +399,14 @@ export default function Layout({ children, currentPageName }) {
                       <Link
                         to={item.url}
                         className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all duration-200 ${
-                          isCurrentPage ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-blue-50 hover:text-blue-700'
-                        } ${
                           isSidebarExpanded ? 'justify-start' : 'justify-center'
                         }`}
+                        style={isCurrentPage ? {
+                          backgroundColor: `${currentTheme.colors.primary}15`,
+                          color: currentTheme.colors.primary,
+                          borderColor: currentTheme.colors.primary,
+                          borderWidth: '1px'
+                        } : {}}
                       >
                         <item.icon className="w-5 h-5 flex-shrink-0" />
                         <span className={`font-medium whitespace-nowrap transition-all duration-300 ${
@@ -484,5 +493,13 @@ export default function Layout({ children, currentPageName }) {
         </main>
       </div>
     </SidebarProvider>
+  );
+}
+
+export default function Layout({ children, currentPageName }) {
+  return (
+    <ThemeProvider>
+      <LayoutContent children={children} currentPageName={currentPageName} />
+    </ThemeProvider>
   );
 }
