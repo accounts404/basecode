@@ -9,6 +9,7 @@ import {
 } from '@/components/utils/activeServiceManager';
 import cacheManager, { CACHE_KEYS, CACHE_TTL } from '@/components/utils/cacheManager';
 import logger from '@/components/utils/logger';
+import { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +116,8 @@ export default function HorarioPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const { toast } = useToast();
+    const { theme } = useTheme();
+    const currentTheme = THEME_DEFINITIONS[theme] || THEME_DEFINITIONS.default;
 
     const [user, setUser] = useState(null);
     const [schedules, setSchedules] = useState([]);
@@ -1334,15 +1337,17 @@ export default function HorarioPage() {
     }
 
     return (
-        <div className="flex flex-col h-screen bg-slate-100 overflow-hidden">
+        <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: currentTheme.colors.background }}>
             <Toaster />
             {isCleanerView ? (
-                <header className="flex-shrink-0 bg-white border-b">
+                <header className="flex-shrink-0 bg-white border-b" style={{ borderColor: currentTheme.colors.cardBorder }}>
                     <div className="flex items-center justify-between p-4">
                         <div className="flex items-center gap-2">
-                            <h1 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <CalendarIcon className="w-5 h-5 text-blue-600" />
+                            <h1 className="text-lg font-bold flex items-center gap-2" style={{ color: currentTheme.colors.primary }}>
+                                <CalendarIcon className="w-5 h-5" style={{ color: currentTheme.colors.primary }} />
+                                {theme === 'christmas' && <span>🎄</span>}
                                 Mi Horario
+                                {theme === 'christmas' && <span>🎁</span>}
                                 {!loading && (
                                     <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
                                 )}

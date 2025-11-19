@@ -19,7 +19,9 @@ export const THEME_DEFINITIONS = {
       secondary: '#64748b',
       accent: '#6366f1',
       background: '#f8fafc',
-      headerGradient: 'from-blue-600 to-indigo-600'
+      headerGradient: 'from-blue-600 to-indigo-600',
+      cardBackground: '#ffffff',
+      cardBorder: '#e2e8f0'
     }
   },
   halloween: {
@@ -29,9 +31,18 @@ export const THEME_DEFINITIONS = {
       secondary: '#7c2d12',
       accent: '#ea580c',
       background: '#fff7ed',
-      headerGradient: 'from-orange-600 to-amber-700'
+      headerGradient: 'from-orange-600 to-amber-700',
+      cardBackground: '#ffffff',
+      cardBorder: '#fdba74'
     },
-    emoji: '🎃'
+    emoji: '🎃',
+    decorations: {
+      ghost: '👻',
+      spider: '🕷️',
+      bat: '🦇',
+      skull: '💀',
+      candy: '🍭'
+    }
   },
   christmas: {
     name: 'Navidad',
@@ -40,9 +51,20 @@ export const THEME_DEFINITIONS = {
       secondary: '#065f46',
       accent: '#ca8a04',
       background: '#fef2f2',
-      headerGradient: 'from-red-600 to-green-700'
+      headerGradient: 'from-red-600 to-green-700',
+      cardBackground: '#ffffff',
+      cardBorder: '#fca5a5'
     },
-    emoji: '🎄'
+    emoji: '🎄',
+    decorations: {
+      snow: '❄️',
+      santa: '🎅',
+      gift: '🎁',
+      star: '⭐',
+      bell: '🔔',
+      candy: '🍬',
+      lights: '✨'
+    }
   }
 };
 

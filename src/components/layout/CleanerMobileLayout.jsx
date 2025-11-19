@@ -4,6 +4,8 @@ import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { clearAllFlags } from "@/components/utils/activeServiceManager";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
+import ChristmasDecoration from '@/components/theme/ChristmasDecoration';
 import {
   Calendar,
   Clock,
@@ -20,7 +22,9 @@ import { Button } from "@/components/ui/button";
 export default function CleanerMobileLayout({ children, user, hasActiveService, isScoringParticipant }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme } = useTheme();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const currentTheme = THEME_DEFINITIONS[theme] || THEME_DEFINITIONS.default;
   
   // 🔒 BLOQUEAR NAVEGACIÓN cuando hay servicio activo
   useEffect(() => {
@@ -123,9 +127,19 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   const isCurrentPage = (url) => location.pathname === url;
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
+    <div className="flex flex-col h-screen" style={{ backgroundColor: currentTheme.colors.background }}>
+      {theme === 'christmas' && <ChristmasDecoration />}
       {/* Header móvil simple */}
-      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between flex-shrink-0">
+      <header 
+        className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0"
+        style={{ 
+          backgroundColor: 'white',
+          borderColor: currentTheme.colors.cardBorder,
+          background: theme === 'christmas' 
+            ? 'linear-gradient(135deg, #ffffff 0%, #fef2f2 100%)' 
+            : 'white'
+        }}
+      >
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 flex items-center justify-center">
             <img
@@ -135,8 +149,14 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
             />
           </div>
           <div>
-            <h1 className="text-sm font-bold text-slate-900">RedOak</h1>
-            <p className="text-xs text-slate-600">{user?.full_name}</p>
+            <h1 className="text-sm font-bold flex items-center gap-1" style={{ color: theme === 'christmas' ? '#dc2626' : '#0f172a' }}>
+              {theme === 'christmas' && <span>🎄</span>}
+              RedOak
+              {theme === 'christmas' && <span>✨</span>}
+            </h1>
+            <p className="text-xs" style={{ color: theme === 'christmas' ? '#065f46' : '#475569' }}>
+              {theme === 'christmas' ? `¡Feliz Navidad, ${user?.full_name?.split(' ')[0]}! 🎅` : user?.full_name}
+            </p>
           </div>
         </div>
         
@@ -173,7 +193,16 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 safe-area-inset-bottom z-50">
+      <nav 
+        className="fixed bottom-0 left-0 right-0 border-t px-2 py-2 safe-area-inset-bottom z-50"
+        style={{ 
+          backgroundColor: 'white',
+          borderColor: currentTheme.colors.cardBorder,
+          background: theme === 'christmas' 
+            ? 'linear-gradient(180deg, #fef2f2 0%, #ffffff 100%)' 
+            : 'white'
+        }}
+      >
         <div className="flex items-center justify-around max-w-lg mx-auto">
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -201,14 +230,20 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
                 key={item.title}
                 to={item.url}
                 className={`flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg transition-colors ${
+                  isActiveService ? 'animate-pulse' : ''
+                }`}
+                style={
                   isCurrent 
-                    ? 'bg-blue-50 text-blue-600' 
+                    ? { 
+                        backgroundColor: `${currentTheme.colors.primary}15`,
+                        color: currentTheme.colors.primary 
+                      }
                     : isActiveService
-                    ? 'text-green-600'
-                    : 'text-slate-600'
-                } ${isActiveService ? 'animate-pulse' : ''}`}
+                    ? { color: '#16a34a' }
+                    : { color: '#64748b' }
+                }
               >
-                <Icon className={`w-6 h-6 mb-1 ${isActiveService ? 'text-green-600' : ''}`} />
+                <Icon className="w-6 h-6 mb-1" />
                 <span className="text-xs font-medium">{item.title}</span>
               </Link>
             );

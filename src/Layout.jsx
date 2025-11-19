@@ -5,6 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { syncActiveService, shouldSkipActiveCheck, hasRecentClockOut } from '@/components/utils/activeServiceManager';
 import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeProvider, { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
+import ChristmasDecoration from '@/components/theme/ChristmasDecoration';
 import {
   LayoutDashboard,
   Clock,
@@ -353,6 +354,7 @@ function LayoutContent({ children, currentPageName }) {
 
   return (
     <SidebarProvider>
+      {theme === 'christmas' && <ChristmasDecoration />}
       <div className="min-h-screen flex w-full" style={{ backgroundColor: currentTheme.colors.background }}>
         {/* Sidebar con hover para expandir */}
         <div
@@ -374,10 +376,14 @@ function LayoutContent({ children, currentPageName }) {
               </div>
               <div className={`transition-all duration-300 ${isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'} overflow-hidden`}>
                 <h2 className="font-bold text-slate-900 whitespace-nowrap flex items-center gap-2">
+                  {theme === 'christmas' && <span className="text-xl">🎅</span>}
                   RedOak Cleaning
                   {currentTheme.emoji && <span className="text-lg">{currentTheme.emoji}</span>}
+                  {theme === 'christmas' && <span className="text-xl">🎁</span>}
                 </h2>
-                <p className="text-xs text-slate-500 whitespace-nowrap">Panel Administrativo</p>
+                <p className="text-xs whitespace-nowrap" style={{ color: theme === 'christmas' ? '#dc2626' : '#64748b' }}>
+                  {theme === 'christmas' ? '¡Felices Fiestas! 🔔✨' : 'Panel Administrativo'}
+                </p>
               </div>
             </div>
           </div>
