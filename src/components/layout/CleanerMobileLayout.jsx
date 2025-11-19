@@ -133,9 +133,13 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       <header 
         className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0"
         style={{ 
-          backgroundColor: currentTheme.colors.cardBackground,
+          backgroundColor: 'white',
           borderColor: currentTheme.colors.cardBorder,
-          background: `linear-gradient(135deg, ${currentTheme.colors.cardBackground} 0%, ${currentTheme.colors.background} 100%)`
+          background: theme.startsWith('christmas_') 
+            ? 'linear-gradient(135deg, #ffffff 0%, #fef2f2 100%)' 
+            : theme.startsWith('halloween_')
+            ? 'linear-gradient(135deg, #ffffff 0%, #fff7ed 100%)'
+            : 'white'
         }}
       >
         <div className="flex items-center gap-3">
@@ -147,14 +151,14 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
             />
           </div>
           <div>
-            <h1 className="text-sm font-bold flex items-center gap-1" style={{ color: currentTheme.colors.primary }}>
+            <h1 className="text-sm font-bold flex items-center gap-1" style={{ color: theme.startsWith('christmas_') ? '#dc2626' : theme.startsWith('halloween_') ? '#f97316' : '#0f172a' }}>
               {theme.startsWith('christmas_') && currentTheme.decorations?.main && <span>{currentTheme.decorations.main}</span>}
               {theme.startsWith('halloween_') && currentTheme.decorations?.main && <span>{currentTheme.decorations.main}</span>}
               RedOak
               {theme.startsWith('christmas_') && currentTheme.decorations?.lights && <span>{currentTheme.decorations.lights}</span>}
               {theme.startsWith('halloween_') && currentTheme.decorations?.candy && <span>{currentTheme.decorations.candy}</span>}
             </h1>
-            <p className="text-xs" style={{ color: currentTheme.colors.secondary }}>
+            <p className="text-xs" style={{ color: theme.startsWith('christmas_') ? '#065f46' : theme.startsWith('halloween_') ? '#7c2d12' : '#475569' }}>
               {theme.startsWith('christmas_') ? `¡Feliz Navidad, ${user?.full_name?.split(' ')[0]}! 🎅` : 
                theme.startsWith('halloween_') ? `¡Feliz Halloween, ${user?.full_name?.split(' ')[0]}! 🎃` : 
                user?.full_name}
@@ -198,9 +202,13 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       <nav 
         className="fixed bottom-0 left-0 right-0 border-t px-2 py-2 safe-area-inset-bottom z-50"
         style={{ 
-          backgroundColor: currentTheme.colors.cardBackground,
+          backgroundColor: 'white',
           borderColor: currentTheme.colors.cardBorder,
-          background: `linear-gradient(180deg, ${currentTheme.colors.background} 0%, ${currentTheme.colors.cardBackground} 100%)`
+          background: theme.startsWith('christmas_') 
+            ? 'linear-gradient(180deg, #fef2f2 0%, #ffffff 100%)' 
+            : theme.startsWith('halloween_')
+            ? 'linear-gradient(180deg, #fff7ed 0%, #ffffff 100%)'
+            : 'white'
         }}
       >
         <div className="flex items-center justify-around max-w-lg mx-auto">
