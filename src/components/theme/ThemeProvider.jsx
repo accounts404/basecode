@@ -222,19 +222,32 @@ export default function ThemeProvider({ children }) {
       
       // Si los temas estacionales están habilitados, verificar fechas
       if (config.seasonal_themes_enabled) {
-        if (isDateInRange(config.halloween_start_date, config.halloween_end_date)) {
-          // Si el tema activo no es de Halloween, usar el primero por defecto
-          if (!effectiveTheme.startsWith('halloween_')) {
+        const isHalloweenSeason = isDateInRange(config.halloween_start_date, config.halloween_end_date);
+        const isChristmasSeason = isDateInRange(config.christmas_start_date, config.christmas_end_date);
+        
+        if (isHalloweenSeason) {
+          // Si el tema configurado es de Halloween, usarlo; si no, usar el predeterminado
+          if (effectiveTheme.startsWith('halloween_')) {
+            // Ya está configurado correctamente, mantenerlo
+          } else {
             effectiveTheme = 'halloween_spooky';
           }
-        } else if (isDateInRange(config.christmas_start_date, config.christmas_end_date)) {
-          // Si el tema activo no es de Navidad, usar el primero por defecto
-          if (!effectiveTheme.startsWith('christmas_')) {
+        } else if (isChristmasSeason) {
+          // Si el tema configurado es de Navidad, usarlo; si no, usar el predeterminado
+          if (effectiveTheme.startsWith('christmas_')) {
+            // Ya está configurado correctamente, mantenerlo
+          } else {
             effectiveTheme = 'christmas_classic';
+          }
+        } else {
+          // Fuera de temporadas: usar default si está en un tema estacional
+          if (effectiveTheme.startsWith('halloween_') || effectiveTheme.startsWith('christmas_')) {
+            effectiveTheme = 'default';
           }
         }
       }
       
+      console.log('[ThemeProvider] Tema efectivo:', effectiveTheme);
       setTheme(effectiveTheme);
       
     } catch (error) {
