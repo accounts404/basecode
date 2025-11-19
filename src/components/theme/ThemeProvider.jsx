@@ -24,28 +24,76 @@ export const THEME_DEFINITIONS = {
       cardBorder: '#e2e8f0'
     }
   },
-  halloween: {
-    name: 'Halloween',
+  
+  // ========== VARIANTES DE HALLOWEEN ==========
+  halloween_spooky: {
+    name: 'Halloween Terrorífico 👻',
+    category: 'halloween',
     colors: {
       primary: '#f97316',
       secondary: '#7c2d12',
       accent: '#ea580c',
+      background: '#1a0a00',
+      headerGradient: 'from-orange-600 via-red-700 to-black',
+      cardBackground: '#2d1810',
+      cardBorder: '#f97316'
+    },
+    emoji: '🎃',
+    decorations: {
+      main: '👻',
+      secondary: '🕷️',
+      accent: '🦇',
+      extra: '💀',
+      candy: '🍭'
+    }
+  },
+  halloween_fun: {
+    name: 'Halloween Divertido 🎃',
+    category: 'halloween',
+    colors: {
+      primary: '#f59e0b',
+      secondary: '#fb923c',
+      accent: '#fbbf24',
       background: '#fff7ed',
-      headerGradient: 'from-orange-600 to-amber-700',
+      headerGradient: 'from-orange-400 to-amber-500',
       cardBackground: '#ffffff',
       cardBorder: '#fdba74'
     },
     emoji: '🎃',
     decorations: {
-      ghost: '👻',
-      spider: '🕷️',
-      bat: '🦇',
-      skull: '💀',
-      candy: '🍭'
+      main: '🎃',
+      secondary: '🍬',
+      accent: '🍭',
+      extra: '🧙',
+      candy: '🍫'
     }
   },
-  christmas: {
-    name: 'Navidad',
+  halloween_gothic: {
+    name: 'Halloween Gótico 🦇',
+    category: 'halloween',
+    colors: {
+      primary: '#7c3aed',
+      secondary: '#4c1d95',
+      accent: '#a855f7',
+      background: '#0f0a1f',
+      headerGradient: 'from-purple-900 via-violet-800 to-black',
+      cardBackground: '#1e1433',
+      cardBorder: '#7c3aed'
+    },
+    emoji: '🦇',
+    decorations: {
+      main: '🦇',
+      secondary: '🕸️',
+      accent: '🌙',
+      extra: '⚰️',
+      candy: '🕷️'
+    }
+  },
+  
+  // ========== VARIANTES DE NAVIDAD ==========
+  christmas_classic: {
+    name: 'Navidad Clásica 🎅',
+    category: 'christmas',
     colors: {
       primary: '#dc2626',
       secondary: '#065f46',
@@ -57,13 +105,59 @@ export const THEME_DEFINITIONS = {
     },
     emoji: '🎄',
     decorations: {
-      snow: '❄️',
-      santa: '🎅',
-      gift: '🎁',
-      star: '⭐',
-      bell: '🔔',
+      main: '🎅',
+      secondary: '🎄',
+      accent: '🎁',
+      extra: '⭐',
       candy: '🍬',
-      lights: '✨'
+      lights: '✨',
+      bell: '🔔'
+    }
+  },
+  christmas_winter: {
+    name: 'Invierno Mágico ❄️',
+    category: 'christmas',
+    colors: {
+      primary: '#0ea5e9',
+      secondary: '#0284c7',
+      accent: '#38bdf8',
+      background: '#f0f9ff',
+      headerGradient: 'from-blue-400 via-cyan-300 to-blue-500',
+      cardBackground: '#ffffff',
+      cardBorder: '#bae6fd'
+    },
+    emoji: '❄️',
+    decorations: {
+      main: '❄️',
+      secondary: '⛄',
+      accent: '🎿',
+      extra: '✨',
+      candy: '🧊',
+      lights: '💎',
+      bell: '🔵'
+    }
+  },
+  christmas_rustic: {
+    name: 'Navidad Rústica 🌲',
+    category: 'christmas',
+    colors: {
+      primary: '#78716c',
+      secondary: '#166534',
+      accent: '#b45309',
+      background: '#faf8f5',
+      headerGradient: 'from-stone-600 via-green-800 to-amber-700',
+      cardBackground: '#ffffff',
+      cardBorder: '#d6d3d1'
+    },
+    emoji: '🌲',
+    decorations: {
+      main: '🌲',
+      secondary: '🦌',
+      accent: '🍂',
+      extra: '🌰',
+      candy: '🎄',
+      lights: '🕯️',
+      bell: '🔔'
     }
   }
 };
@@ -129,9 +223,15 @@ export default function ThemeProvider({ children }) {
       // Si los temas estacionales están habilitados, verificar fechas
       if (config.seasonal_themes_enabled) {
         if (isDateInRange(config.halloween_start_date, config.halloween_end_date)) {
-          effectiveTheme = 'halloween';
+          // Si el tema activo no es de Halloween, usar el primero por defecto
+          if (!effectiveTheme.startsWith('halloween_')) {
+            effectiveTheme = 'halloween_spooky';
+          }
         } else if (isDateInRange(config.christmas_start_date, config.christmas_end_date)) {
-          effectiveTheme = 'christmas';
+          // Si el tema activo no es de Navidad, usar el primero por defecto
+          if (!effectiveTheme.startsWith('christmas_')) {
+            effectiveTheme = 'christmas_classic';
+          }
         }
       }
       

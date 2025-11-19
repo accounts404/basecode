@@ -113,40 +113,131 @@ export default function ThemeConfigurator({ onThemeChange }) {
                         <SelectTrigger id="active_theme">
                             <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                            {Object.entries(THEME_DEFINITIONS).map(([key, theme]) => (
-                                <SelectItem key={key} value={key}>
-                                    {theme.emoji ? `${theme.emoji} ` : ''}{theme.name}
-                                </SelectItem>
-                            ))}
+                        <SelectContent className="max-h-[400px]">
+                            {/* Default */}
+                            {Object.entries(THEME_DEFINITIONS)
+                                .filter(([key]) => key === 'default')
+                                .map(([key, theme]) => (
+                                    <SelectItem key={key} value={key}>
+                                        {theme.emoji ? `${theme.emoji} ` : '🎨 '}{theme.name}
+                                    </SelectItem>
+                                ))}
+                            
+                            {/* Halloween */}
+                            <div className="px-2 py-1 text-xs font-semibold text-orange-700 bg-orange-50 border-t border-b my-1">
+                                🎃 HALLOWEEN
+                            </div>
+                            {Object.entries(THEME_DEFINITIONS)
+                                .filter(([key, theme]) => theme.category === 'halloween')
+                                .map(([key, theme]) => (
+                                    <SelectItem key={key} value={key}>
+                                        {theme.emoji ? `${theme.emoji} ` : ''}{theme.name}
+                                    </SelectItem>
+                                ))}
+                            
+                            {/* Christmas */}
+                            <div className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-50 border-t border-b my-1">
+                                🎄 NAVIDAD
+                            </div>
+                            {Object.entries(THEME_DEFINITIONS)
+                                .filter(([key, theme]) => theme.category === 'christmas')
+                                .map(([key, theme]) => (
+                                    <SelectItem key={key} value={key}>
+                                        {theme.emoji ? `${theme.emoji} ` : ''}{theme.name}
+                                    </SelectItem>
+                                ))}
                         </SelectContent>
                     </Select>
                     <p className="text-sm text-slate-600">
-                        Este tema se aplicará si los temas automáticos están desactivados.
+                        Este tema se aplicará si los temas automáticos están desactivados, o será el tema por defecto de la temporada.
                     </p>
                 </div>
 
                 {/* Vista Previa */}
-                <div className="border rounded-lg p-4 space-y-3">
-                    <Label className="text-sm font-semibold">Vista Previa del Tema</Label>
-                    <div className="grid grid-cols-3 gap-3">
-                        {Object.entries(THEME_DEFINITIONS).map(([key, theme]) => (
-                            <div
-                                key={key}
-                                className={`p-3 rounded-lg border-2 text-center transition-all ${
-                                    config.active_theme === key 
-                                        ? 'border-blue-600 shadow-md' 
-                                        : 'border-slate-200'
-                                }`}
-                                style={{ 
-                                    backgroundColor: theme.colors.background,
-                                    color: theme.colors.primary 
-                                }}
-                            >
-                                <div className="text-2xl mb-1">{theme.emoji || '🎨'}</div>
-                                <div className="text-xs font-semibold">{theme.name}</div>
-                            </div>
-                        ))}
+                <div className="border rounded-lg p-4 space-y-4">
+                    <Label className="text-sm font-semibold">Vista Previa de Temas</Label>
+                    
+                    {/* Default */}
+                    <div>
+                        <p className="text-xs font-semibold text-slate-600 mb-2">Estándar</p>
+                        <div className="grid grid-cols-1 gap-2">
+                            {Object.entries(THEME_DEFINITIONS)
+                                .filter(([key]) => key === 'default')
+                                .map(([key, theme]) => (
+                                    <div
+                                        key={key}
+                                        className={`p-3 rounded-lg border-2 text-center transition-all cursor-pointer hover:scale-105 ${
+                                            config.active_theme === key 
+                                                ? 'border-blue-600 shadow-md' 
+                                                : 'border-slate-200'
+                                        }`}
+                                        style={{ 
+                                            backgroundColor: theme.colors.background,
+                                            color: theme.colors.primary 
+                                        }}
+                                        onClick={() => setConfig({ ...config, active_theme: key })}
+                                    >
+                                        <div className="text-2xl mb-1">{theme.emoji || '🎨'}</div>
+                                        <div className="text-xs font-semibold">{theme.name}</div>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+
+                    {/* Halloween */}
+                    <div>
+                        <p className="text-xs font-semibold text-orange-700 mb-2">🎃 Halloween</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {Object.entries(THEME_DEFINITIONS)
+                                .filter(([key, theme]) => theme.category === 'halloween')
+                                .map(([key, theme]) => (
+                                    <div
+                                        key={key}
+                                        className={`p-3 rounded-lg border-2 text-center transition-all cursor-pointer hover:scale-105 ${
+                                            config.active_theme === key 
+                                                ? 'ring-2 ring-orange-600 border-orange-600 shadow-lg' 
+                                                : 'border-slate-200'
+                                        }`}
+                                        style={{ 
+                                            backgroundColor: theme.colors.cardBackground,
+                                            color: theme.colors.primary,
+                                            borderColor: config.active_theme === key ? theme.colors.primary : undefined
+                                        }}
+                                        onClick={() => setConfig({ ...config, active_theme: key })}
+                                    >
+                                        <div className="text-2xl mb-1">{theme.emoji}</div>
+                                        <div className="text-[10px] font-semibold">{theme.name.replace('Halloween ', '')}</div>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+
+                    {/* Christmas */}
+                    <div>
+                        <p className="text-xs font-semibold text-red-700 mb-2">🎄 Navidad</p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {Object.entries(THEME_DEFINITIONS)
+                                .filter(([key, theme]) => theme.category === 'christmas')
+                                .map(([key, theme]) => (
+                                    <div
+                                        key={key}
+                                        className={`p-3 rounded-lg border-2 text-center transition-all cursor-pointer hover:scale-105 ${
+                                            config.active_theme === key 
+                                                ? 'ring-2 ring-red-600 border-red-600 shadow-lg' 
+                                                : 'border-slate-200'
+                                        }`}
+                                        style={{ 
+                                            backgroundColor: theme.colors.cardBackground,
+                                            color: theme.colors.primary,
+                                            borderColor: config.active_theme === key ? theme.colors.primary : undefined
+                                        }}
+                                        onClick={() => setConfig({ ...config, active_theme: key })}
+                                    >
+                                        <div className="text-2xl mb-1">{theme.emoji}</div>
+                                        <div className="text-[10px] font-semibold">{theme.name.replace('Navidad ', '').replace('Invierno ', '')}</div>
+                                    </div>
+                                ))}
+                        </div>
                     </div>
                 </div>
 

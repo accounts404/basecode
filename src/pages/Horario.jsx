@@ -1345,9 +1345,11 @@ export default function HorarioPage() {
                         <div className="flex items-center gap-2">
                             <h1 className="text-lg font-bold flex items-center gap-2" style={{ color: currentTheme.colors.primary }}>
                                 <CalendarIcon className="w-5 h-5" style={{ color: currentTheme.colors.primary }} />
-                                {theme === 'christmas' && <span>🎄</span>}
+                                {theme.startsWith('christmas_') && currentTheme.decorations?.main && <span>{currentTheme.decorations.main}</span>}
+                                {theme.startsWith('halloween_') && currentTheme.decorations?.main && <span>{currentTheme.decorations.main}</span>}
                                 Mi Horario
-                                {theme === 'christmas' && <span>🎁</span>}
+                                {theme.startsWith('christmas_') && currentTheme.decorations?.accent && <span>{currentTheme.decorations.accent}</span>}
+                                {theme.startsWith('halloween_') && currentTheme.decorations?.accent && <span>{currentTheme.decorations.accent}</span>}
                                 {!loading && (
                                     <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
                                 )}
