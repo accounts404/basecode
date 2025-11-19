@@ -128,17 +128,15 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
 
   return (
     <div className="flex flex-col h-screen" style={{ backgroundColor: currentTheme.colors.background }}>
-      {theme.startsWith('christmas_') && <ChristmasDecoration />}
+      {theme === 'christmas' && <ChristmasDecoration />}
       {/* Header móvil simple */}
       <header 
         className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0"
         style={{ 
           backgroundColor: 'white',
           borderColor: currentTheme.colors.cardBorder,
-          background: theme.startsWith('christmas_') 
+          background: theme === 'christmas' 
             ? 'linear-gradient(135deg, #ffffff 0%, #fef2f2 100%)' 
-            : theme.startsWith('halloween_')
-            ? 'linear-gradient(135deg, #ffffff 0%, #fff7ed 100%)'
             : 'white'
         }}
       >
@@ -151,17 +149,13 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
             />
           </div>
           <div>
-            <h1 className="text-sm font-bold flex items-center gap-1" style={{ color: theme.startsWith('christmas_') ? '#dc2626' : theme.startsWith('halloween_') ? '#f97316' : '#0f172a' }}>
-              {theme.startsWith('christmas_') && currentTheme.decorations?.main && <span>{currentTheme.decorations.main}</span>}
-              {theme.startsWith('halloween_') && currentTheme.decorations?.main && <span>{currentTheme.decorations.main}</span>}
+            <h1 className="text-sm font-bold flex items-center gap-1" style={{ color: theme === 'christmas' ? '#dc2626' : '#0f172a' }}>
+              {theme === 'christmas' && <span>🎄</span>}
               RedOak
-              {theme.startsWith('christmas_') && currentTheme.decorations?.lights && <span>{currentTheme.decorations.lights}</span>}
-              {theme.startsWith('halloween_') && currentTheme.decorations?.candy && <span>{currentTheme.decorations.candy}</span>}
+              {theme === 'christmas' && <span>✨</span>}
             </h1>
-            <p className="text-xs" style={{ color: theme.startsWith('christmas_') ? '#065f46' : theme.startsWith('halloween_') ? '#7c2d12' : '#475569' }}>
-              {theme.startsWith('christmas_') ? `¡Feliz Navidad, ${user?.full_name?.split(' ')[0]}! 🎅` : 
-               theme.startsWith('halloween_') ? `¡Feliz Halloween, ${user?.full_name?.split(' ')[0]}! 🎃` : 
-               user?.full_name}
+            <p className="text-xs" style={{ color: theme === 'christmas' ? '#065f46' : '#475569' }}>
+              {theme === 'christmas' ? `¡Feliz Navidad, ${user?.full_name?.split(' ')[0]}! 🎅` : user?.full_name}
             </p>
           </div>
         </div>
@@ -204,10 +198,8 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
         style={{ 
           backgroundColor: 'white',
           borderColor: currentTheme.colors.cardBorder,
-          background: theme.startsWith('christmas_') 
+          background: theme === 'christmas' 
             ? 'linear-gradient(180deg, #fef2f2 0%, #ffffff 100%)' 
-            : theme.startsWith('halloween_')
-            ? 'linear-gradient(180deg, #fff7ed 0%, #ffffff 100%)'
             : 'white'
         }}
       >

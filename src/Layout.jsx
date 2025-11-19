@@ -354,7 +354,7 @@ function LayoutContent({ children, currentPageName }) {
 
   return (
     <SidebarProvider>
-      {theme.startsWith('christmas_') && <ChristmasDecoration />}
+      {theme === 'christmas' && <ChristmasDecoration />}
       <div className="min-h-screen flex w-full" style={{ backgroundColor: currentTheme.colors.background }}>
         {/* Sidebar con hover para expandir */}
         <div
@@ -376,15 +376,13 @@ function LayoutContent({ children, currentPageName }) {
               </div>
               <div className={`transition-all duration-300 ${isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'} overflow-hidden`}>
                 <h2 className="font-bold text-slate-900 whitespace-nowrap flex items-center gap-2">
-                  {theme.startsWith('christmas_') && currentTheme.decorations?.main && <span className="text-xl">{currentTheme.decorations.main}</span>}
-                  {theme.startsWith('halloween_') && currentTheme.decorations?.main && <span className="text-xl">{currentTheme.decorations.main}</span>}
+                  {theme === 'christmas' && <span className="text-xl">🎅</span>}
                   RedOak Cleaning
                   {currentTheme.emoji && <span className="text-lg">{currentTheme.emoji}</span>}
-                  {theme.startsWith('christmas_') && currentTheme.decorations?.accent && <span className="text-xl">{currentTheme.decorations.accent}</span>}
-                  {theme.startsWith('halloween_') && currentTheme.decorations?.accent && <span className="text-xl">{currentTheme.decorations.accent}</span>}
+                  {theme === 'christmas' && <span className="text-xl">🎁</span>}
                 </h2>
-                <p className="text-xs whitespace-nowrap" style={{ color: theme.startsWith('christmas_') ? '#dc2626' : theme.startsWith('halloween_') ? '#f97316' : '#64748b' }}>
-                  {theme.startsWith('christmas_') ? '¡Felices Fiestas! 🔔✨' : theme.startsWith('halloween_') ? '¡Feliz Halloween! 🎃👻' : 'Panel Administrativo'}
+                <p className="text-xs whitespace-nowrap" style={{ color: theme === 'christmas' ? '#dc2626' : '#64748b' }}>
+                  {theme === 'christmas' ? '¡Felices Fiestas! 🔔✨' : 'Panel Administrativo'}
                 </p>
               </div>
             </div>
