@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
     History, 
@@ -23,7 +23,9 @@ import {
     MapPin,
     ChevronDown,
     ChevronUp,
-    Camera
+    Camera,
+    Search,
+    X
 } from 'lucide-react';
 import { format, parseISO, isFuture, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -37,6 +39,7 @@ export default function HistorialClientes() {
     const [cleaners, setCleaners] = useState([]);
     const [loading, setLoading] = useState(true);
     const [expandedServices, setExpandedServices] = useState(new Set());
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         loadData();
@@ -90,6 +93,15 @@ export default function HistorialClientes() {
     const selectedClient = useMemo(() => {
         return clients.find(c => c.id === selectedClientId);
     }, [clients, selectedClientId]);
+
+    const filteredClients = useMemo(() => {
+        if (!searchTerm.trim()) return clients;
+        const lowerSearch = searchTerm.toLowerCase();
+        return clients.filter(client => 
+            (client.name?.toLowerCase() || '').includes(lowerSearch) ||
+            (client.address?.toLowerCase() || '').includes(lowerSearch)
+        );
+    }, [clients, searchTerm]);
 
     const calculateServiceAmount = (service, client) => {
         let total = 0;
@@ -434,24 +446,85 @@ export default function HistorialClientes() {
                     </div>
                 </div>
 
-                {/* Selector de Cliente */}
+                {/* Buscador de Cliente */}
                 <Card className="mb-6">
                     <CardHeader>
-                        <CardTitle className="text-lg">Seleccionar Cliente</CardTitle>
+                        <CardTitle className="text-lg">Buscar Cliente</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <Select value={selectedClientId || ''} onValueChange={setSelectedClientId}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Selecciona un cliente..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {clients.map((client) => (
-                                    <SelectItem key={client.id} value={client.id}>
-                                        {client.name} - {client.address}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                    <CardContent className="space-y-4">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <Input
+                                type="text"
+                                placeholder="Buscar por nombre o dirección..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10"
+                            />
+                            {searchTerm && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSearchTerm("")}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-slate-100"
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
+
+                        {searchTerm && (
+                            <div className="max-h-96 overflow-y-auto border rounded-lg bg-white">
+                                {filteredClients.length === 0 ? (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <p>No se encontraron clientes</p>
+                                    </div>
+                                ) : (
+                                    <div className="divide-y">
+                                        {filteredClients.map((client) => (
+                                            <button
+                                                key={client.id}
+                                                onClick={() => {
+                                                    setSelectedClientId(client.id);
+                                                    setSearchTerm('');
+                                                }}
+                                                className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors ${
+                                                    selectedClientId === client.id ? 'bg-blue-100' : ''
+                                                }`}
+                                            >
+                                                <div className="font-medium text-slate-900">{client.name}</div>
+                                                <div className="text-sm text-slate-600 flex items-center gap-1 mt-1">
+                                                    <MapPin className="w-3 h-3" />
+                                                    {client.address}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {selectedClient && !searchTerm && (
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="font-semibold text-blue-900">{selectedClient.name}</div>
+                                        <div className="text-sm text-blue-700 flex items-center gap-1 mt-1">
+                                            <MapPin className="w-3 h-3" />
+                                            {selectedClient.address}
+                                        </div>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSelectedClientId(null)}
+                                        className="hover:bg-blue-100"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
