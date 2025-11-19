@@ -358,14 +358,21 @@ function LayoutContent({ children, currentPageName }) {
       <div className="min-h-screen flex w-full" style={{ backgroundColor: currentTheme.colors.background }}>
         {/* Sidebar con hover para expandir */}
         <div
-          className={`fixed left-0 top-0 h-full bg-white border-r border-slate-200 transition-all duration-300 ease-in-out z-40 ${
+          className={`fixed left-0 top-0 h-full border-r transition-all duration-300 ease-in-out z-40 ${
             isSidebarExpanded ? 'w-64' : 'w-20'
           }`}
+          style={{ 
+            backgroundColor: currentTheme.colors.cardBackground,
+            borderColor: currentTheme.colors.cardBorder 
+          }}
           onMouseEnter={() => setIsSidebarExpanded(true)}
           onMouseLeave={() => setIsSidebarExpanded(false)}
         >
           {/* Header */}
-          <div className="border-b border-slate-200 p-4 h-[73px] flex items-center justify-center overflow-hidden" style={{ backgroundColor: 'white' }}>
+          <div className="border-b p-4 h-[73px] flex items-center justify-center overflow-hidden" style={{ 
+            backgroundColor: currentTheme.colors.cardBackground,
+            borderColor: currentTheme.colors.cardBorder 
+          }}>
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
                 <img
@@ -375,7 +382,7 @@ function LayoutContent({ children, currentPageName }) {
                 />
               </div>
               <div className={`transition-all duration-300 ${isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'} overflow-hidden`}>
-                <h2 className="font-bold text-slate-900 whitespace-nowrap flex items-center gap-2">
+                <h2 className="font-bold whitespace-nowrap flex items-center gap-2" style={{ color: currentTheme.colors.primary }}>
                   {theme.startsWith('christmas_') && currentTheme.decorations?.main && <span className="text-xl">{currentTheme.decorations.main}</span>}
                   {theme.startsWith('halloween_') && currentTheme.decorations?.main && <span className="text-xl">{currentTheme.decorations.main}</span>}
                   RedOak Cleaning
@@ -383,7 +390,7 @@ function LayoutContent({ children, currentPageName }) {
                   {theme.startsWith('christmas_') && currentTheme.decorations?.accent && <span className="text-xl">{currentTheme.decorations.accent}</span>}
                   {theme.startsWith('halloween_') && currentTheme.decorations?.accent && <span className="text-xl">{currentTheme.decorations.accent}</span>}
                 </h2>
-                <p className="text-xs whitespace-nowrap" style={{ color: theme.startsWith('christmas_') ? '#dc2626' : theme.startsWith('halloween_') ? '#f97316' : '#64748b' }}>
+                <p className="text-xs whitespace-nowrap" style={{ color: currentTheme.colors.secondary }}>
                   {theme.startsWith('christmas_') ? '¡Felices Fiestas! 🔔✨' : theme.startsWith('halloween_') ? '¡Feliz Halloween! 🎃👻' : 'Panel Administrativo'}
                 </p>
               </div>
@@ -438,7 +445,7 @@ function LayoutContent({ children, currentPageName }) {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-slate-200 p-4 h-[120px]">
+          <div className="border-t p-4 h-[120px]" style={{ borderColor: currentTheme.colors.cardBorder }}>
             <div className={`flex items-center gap-2 mb-3 ${isSidebarExpanded ? '' : 'justify-center'}`}>
               <Avatar className="w-10 h-10 flex-shrink-0">
                 <AvatarImage src={user?.profile_photo_url} alt={user?.full_name} />
@@ -456,8 +463,8 @@ function LayoutContent({ children, currentPageName }) {
               <div className={`flex-1 min-w-0 transition-all duration-300 ${
                 isSidebarExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
               } overflow-hidden`}>
-                <p className="font-medium text-slate-900 text-sm truncate whitespace-nowrap">{user.full_name}</p>
-                <p className="text-xs text-slate-500 truncate whitespace-nowrap">{user.email}</p>
+                <p className="font-medium text-sm truncate whitespace-nowrap" style={{ color: currentTheme.colors.primary }}>{user.full_name}</p>
+                <p className="text-xs truncate whitespace-nowrap" style={{ color: currentTheme.colors.secondary }}>{user.email}</p>
               </div>
               
               {user.role === 'admin' && isSidebarExpanded && (
@@ -488,10 +495,15 @@ function LayoutContent({ children, currentPageName }) {
         <main className={`flex-1 flex flex-col transition-all duration-300 ${
           isSidebarExpanded ? 'ml-64' : 'ml-20'
         }`}>
-          <header className="bg-white border-b border-slate-200 px-6 py-4 md:hidden">
+          <header className="border-b px-6 py-4 md:hidden" style={{ 
+            backgroundColor: currentTheme.colors.cardBackground,
+            borderColor: currentTheme.colors.cardBorder 
+          }}>
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="hover:bg-slate-100 p-2 rounded-lg transition-colors duration-200" />
-              <h1 className="text-xl font-semibold text-slate-900">RedOak Cleaning</h1>
+              <SidebarTrigger className="p-2 rounded-lg transition-colors duration-200" style={{ 
+                backgroundColor: `${currentTheme.colors.primary}10` 
+              }} />
+              <h1 className="text-xl font-semibold" style={{ color: currentTheme.colors.primary }}>RedOak Cleaning</h1>
             </div>
           </header>
 

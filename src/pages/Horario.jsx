@@ -1340,7 +1340,10 @@ export default function HorarioPage() {
         <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: currentTheme.colors.background }}>
             <Toaster />
             {isCleanerView ? (
-                <header className="flex-shrink-0 bg-white border-b" style={{ borderColor: currentTheme.colors.cardBorder }}>
+                <header className="flex-shrink-0 border-b" style={{ 
+                    backgroundColor: currentTheme.colors.cardBackground,
+                    borderColor: currentTheme.colors.cardBorder 
+                }}>
                     <div className="flex items-center justify-between p-4">
                         <div className="flex items-center gap-2">
                             <h1 className="text-lg font-bold flex items-center gap-2" style={{ color: currentTheme.colors.primary }}>
@@ -1368,12 +1371,19 @@ export default function HorarioPage() {
                     </div>
                 </header>
             ) : (
-                <header className="flex-shrink-0 bg-white border-b p-2 md:p-4">
+                <header className="flex-shrink-0 border-b p-2 md:p-4" style={{ 
+                    backgroundColor: currentTheme.colors.cardBackground,
+                    borderColor: currentTheme.colors.cardBorder 
+                }}>
                     <div className="flex flex-col gap-2 md:gap-0 md:flex-row md:items-center md:justify-between">
                         <div className="flex items-center gap-2">
-                            <h1 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <CalendarIcon className="w-5 h-5 text-blue-600" />
+                            <h1 className="text-lg md:text-xl font-bold flex items-center gap-2" style={{ color: currentTheme.colors.primary }}>
+                                <CalendarIcon className="w-5 h-5" style={{ color: currentTheme.colors.primary }} />
+                                {theme.startsWith('christmas_') && currentTheme.decorations?.main && <span>{currentTheme.decorations.main}</span>}
+                                {theme.startsWith('halloween_') && currentTheme.decorations?.main && <span>{currentTheme.decorations.main}</span>}
                                 Horario de Servicios
+                                {theme.startsWith('christmas_') && currentTheme.decorations?.accent && <span>{currentTheme.decorations.accent}</span>}
+                                {theme.startsWith('halloween_') && currentTheme.decorations?.accent && <span>{currentTheme.decorations.accent}</span>}
                                 {!loading && (
                                     <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
                                 )}
