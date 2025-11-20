@@ -124,13 +124,13 @@ export default function HistorialClientes() {
 
     const pastServices = useMemo(() => {
         return schedules
-            .filter(s => isPast(parseISO(s.start_time)) && (s.status === 'completed' || s.status === 'cancelled'))
+            .filter(s => isPast(parseISO(s.start_time)))
             .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
     }, [schedules]);
 
     const futureServices = useMemo(() => {
         return schedules
-            .filter(s => isFuture(parseISO(s.start_time)) || s.status === 'scheduled' || s.status === 'in_progress')
+            .filter(s => !isPast(parseISO(s.start_time)))
             .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
     }, [schedules]);
 
