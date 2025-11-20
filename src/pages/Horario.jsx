@@ -197,6 +197,8 @@ export default function HorarioPage() {
     }, [location.state, navigate, location.pathname]);
 
     useEffect(() => {
+        if (!initialLoadComplete) return;
+        
         const urlParams = new URLSearchParams(window.location.search);
         const focusScheduleId = urlParams.get('focus');
 
@@ -205,10 +207,11 @@ export default function HorarioPage() {
 
             if (scheduleToFocus) {
                 handleSelectEvent(scheduleToFocus);
+                setShowForm(true);
                 window.history.replaceState({}, '', window.location.pathname);
             }
         }
-    }, [schedules]);
+    }, [schedules, initialLoadComplete, handleSelectEvent]);
 
     const loadRequiredKeysForDate = useCallback(async (currentSchedules, forDate) => {
         if (!user || user.role === 'admin') {
