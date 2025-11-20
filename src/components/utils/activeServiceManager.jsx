@@ -166,8 +166,32 @@ export const cleanupStaleFlags = () => {
 };
 
 /**
+ * Función auxiliar para reintentos con backoff exponencial
+ */
+const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000) => {
+    let lastError;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            console.warn(`[ActiveServiceManager] ⚠️ Intento ${attempt + 1}/${maxRetries} falló:`, error.message);
+            
+            if (attempt < maxRetries - 1) {
+                const delay = initialDelay * Math.pow(2, attempt);
+                console.log(`[ActiveServiceManager] ⏳ Reintentando en ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    
+    throw lastError;
+};
+
+/**
  * Sincroniza el estado del servicio activo con la base de datos
- * OPTIMIZADO: Respeta flags de Clock Out reciente
+ * OPTIMIZADO: Respeta flags de Clock Out reciente y usa reintentos
  */
 export const syncActiveService = async (userId) => {
     try {
@@ -185,8 +209,13 @@ export const syncActiveService = async (userId) => {
         // Importar dinámicamente para evitar problemas de circular dependency
         const { base44 } = await import('@/api/base44Client');
         
-        // Consultar la base de datos
-        const schedules = await base44.entities.Schedule.list();
+        // Consultar la base de datos con reintentos
+        const schedules = await retryWithBackoff(
+            () => base44.entities.Schedule.list(),
+            3,
+            1000
+        );
+        
         const schedulesArray = Array.isArray(schedules) ? schedules : [];
         
         const activeSchedule = schedulesArray.find(schedule => {
@@ -217,8 +246,10 @@ export const syncActiveService = async (userId) => {
             const activeServiceData = {
                 scheduleId: activeSchedule.id,
                 clientName: activeSchedule.client_name,
+                clientAddress: activeSchedule.client_address,
                 startTime: activeSchedule.start_time,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                fullSchedule: activeSchedule // Guardar el schedule completo
             };
             localStorage.setItem(ACTIVE_SERVICE_KEY, JSON.stringify(activeServiceData));
         } else {
@@ -280,6 +311,19 @@ export const getActiveServiceFromCache = () => {
     }
 };
 
+/**
+ * Actualiza la base de datos con reintentos automáticos
+ */
+export const updateScheduleWithRetry = async (scheduleId, updateData) => {
+    const { base44 } = await import('@/api/base44Client');
+    
+    return await retryWithBackoff(
+        () => base44.entities.Schedule.update(scheduleId, updateData),
+        3,
+        1000
+    );
+};
+
 export default {
     registerClockIn,
     registerClockOut,
@@ -289,5 +333,6 @@ export default {
     cleanupStaleFlags,
     syncActiveService,
     canUserClockIn,
-    getActiveServiceFromCache
+    getActiveServiceFromCache,
+    updateScheduleWithRetry
 };
