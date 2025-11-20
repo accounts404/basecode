@@ -619,6 +619,13 @@ export default function HorarioPage() {
         clockInProcessingRef.current = true;
         navigationInProgressRef.current = true;
 
+        // 🎯 MOSTRAR INDICADOR DE PROCESANDO
+        toast({
+            title: action === 'clock_in' ? "⏳ Iniciando Clock In..." : "⏳ Finalizando Clock Out...",
+            description: "Por favor espera, procesando...",
+            duration: 60000, // Duración larga mientras procesa
+        });
+
         try {
             console.log(`[Horario] 🎬 Iniciando ${action === 'clock_in' ? 'Clock In' : 'Clock Out'}...`);
 
@@ -661,6 +668,7 @@ export default function HorarioPage() {
             }
 
             // PASO 3: Obtener y actualizar el schedule
+            console.log('[Horario] 📥 Obteniendo información del servicio...');
             const schedule = await Schedule.get(scheduleId);
             if (!schedule) {
                 throw new Error('Servicio no encontrado');
@@ -702,9 +710,11 @@ export default function HorarioPage() {
                 console.log('[Horario] ✅ Clock Out registrado en localStorage (20s de gracia)');
             }
 
-            // PASO 4: Actualizar clock_in_data primero
+            // PASO 4: Actualizar clock_in_data con reintentos
             console.log('[Horario] 💾 Actualizando clock_in_data en base de datos...');
-            await Schedule.update(scheduleId, {
+            const { updateScheduleWithRetry } = await import('@/components/utils/activeServiceManager');
+            
+            await updateScheduleWithRetry(scheduleId, {
                 clock_in_data: updatedClockData
             });
 
@@ -736,8 +746,8 @@ export default function HorarioPage() {
                 finalStatus = allHaveClockedOut ? 'completed' : 'in_progress';
             }
 
-            // PASO 6: Actualizar el estado final del servicio
-            await Schedule.update(scheduleId, { status: finalStatus });
+            // PASO 6: Actualizar el estado final del servicio con reintentos
+            await updateScheduleWithRetry(scheduleId, { status: finalStatus });
             console.log(`[Horario] ✅ Estado del servicio actualizado a: ${finalStatus}`);
 
             // PASO 7: Procesamiento post-Clock Out (crear WorkEntries solo si está completado)

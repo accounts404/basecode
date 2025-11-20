@@ -163,6 +163,39 @@ export default function ServicioActivoPage() {
             if (isUnmountingRef.current) return;
             setUser(userData);
 
+            // 🚀 PASO 1: Cargar datos INMEDIATAMENTE desde localStorage para mostrar UI rápido
+            console.log('[ServicioActivo] 📦 Cargando datos iniciales desde localStorage...');
+            const cachedActiveService = localStorage.getItem('redoak_active_service');
+            if (cachedActiveService) {
+                try {
+                    const parsed = JSON.parse(cachedActiveService);
+                    if (parsed.fullSchedule) {
+                        console.log('[ServicioActivo] ✅ Mostrando servicio desde caché:', parsed.clientName);
+                        setActiveService(parsed.fullSchedule);
+                        setLoading(false); // Mostrar UI inmediatamente
+                        
+                        // Calcular duración desde cache
+                        const cleanerSchedule = parsed.fullSchedule.cleaner_schedules?.find(cs => cs.cleaner_id === userData.id);
+                        let duration = 0;
+                        if (cleanerSchedule?.start_time && cleanerSchedule?.end_time) {
+                            const schedStart = parseISOAsUTC(cleanerSchedule.start_time);
+                            const schedEnd = parseISOAsUTC(cleanerSchedule.end_time);
+                            duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
+                        } else {
+                            const schedStart = parseISOAsUTC(parsed.fullSchedule.start_time);
+                            const schedEnd = parseISOAsUTC(parsed.fullSchedule.end_time);
+                            duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
+                        }
+                        setScheduledDuration(duration);
+                        startTimer(parsed.fullSchedule, userData.id, duration);
+                    }
+                } catch (parseError) {
+                    console.warn('[ServicioActivo] Error parseando cache:', parseError);
+                }
+            }
+
+            // 🚀 PASO 2: Actualizar en background desde la base de datos
+            console.log('[ServicioActivo] 🔄 Sincronizando con base de datos en background...');
             const schedules = await base44.entities.Schedule.list();
             if (isUnmountingRef.current) return;
 
