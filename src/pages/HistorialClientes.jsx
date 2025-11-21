@@ -190,10 +190,10 @@ export default function HistorialClientes() {
                             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             <div>
                                 <div className="font-medium">
-                                    {format(parseISOAsUTC(service.start_time), 'dd MMM yyyy', { locale: es })}
+                                    {format(parseISOAsLocal(service.start_time), 'dd MMM yyyy', { locale: es })}
                                 </div>
                                 <div className="text-sm text-slate-500">
-                                    {format(parseISOAsUTC(service.start_time), 'HH:mm', { locale: es })} - {format(parseISOAsUTC(service.end_time), 'HH:mm', { locale: es })}
+                                    {format(parseISOAsLocal(service.start_time), 'HH:mm', { locale: es })} - {format(parseISOAsLocal(service.end_time), 'HH:mm', { locale: es })}
                                 </div>
                             </div>
                         </div>
