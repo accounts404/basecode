@@ -288,11 +288,11 @@ export default function HistorialClientes() {
                                                             <div className="grid grid-cols-2 gap-2 text-sm">
                                                                 <div>
                                                                     <span className="text-slate-500">Entrada:</span>{' '}
-                                                                    {clock.clock_in_time ? format(parseISO(clock.clock_in_time), 'HH:mm') : 'N/A'}
+                                                                    {clock.clock_in_time ? format(parseISOAsUTC(clock.clock_in_time), 'HH:mm') : 'N/A'}
                                                                 </div>
                                                                 <div>
                                                                     <span className="text-slate-500">Salida:</span>{' '}
-                                                                    {clock.clock_out_time ? format(parseISO(clock.clock_out_time), 'HH:mm') : 'N/A'}
+                                                                    {clock.clock_out_time ? format(parseISOAsUTC(clock.clock_out_time), 'HH:mm') : 'N/A'}
                                                                 </div>
                                                             </div>
                                                         </div>
