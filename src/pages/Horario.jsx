@@ -373,18 +373,18 @@ export default function HorarioPage() {
             const dayBefore = subDays(forDate, 2);
             const dayAfter = addDays(forDate, 2);
 
-            const formatLocalDate = (date) => {
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            };
+            // CORRECCIÓN DE ZONA HORARIA: Calcula los límites UTC correctos para el rango de fechas LOCALES
+            // Esto asegura que los eventos registrados en un día local se capturen correctamente
+            // sin importar la zona horaria del usuario
+            const startOfRangeUTC = startOfDay(dayBefore).toISOString();
+            const endOfRangeUTC = endOfDay(dayAfter).toISOString();
+            const dateRange = `${dayBefore.toISOString().slice(0, 10)}_${dayAfter.toISOString().slice(0, 10)}`;
 
-            const startDateStr = formatLocalDate(dayBefore);
-            const endDateStr = formatLocalDate(dayAfter);
-            const dateRange = `${startDateStr}_${endDateStr}`;
-
-            logger.info('Horario', `${isSilentUpdate ? 'Actualización silenciosa' : 'Cargando servicios'}`, { dateRange });
+            logger.info('Horario', `${isSilentUpdate ? 'Actualización silenciosa' : 'Cargando servicios'}`, { 
+                dateRange,
+                startUTC: startOfRangeUTC,
+                endUTC: endOfRangeUTC
+            });
 
             // Intentar obtener de caché primero
             const cacheKey = CACHE_KEYS.SCHEDULES(dateRange);
@@ -405,22 +405,24 @@ export default function HorarioPage() {
                 return;
             }
 
-            // Consulta optimizada con índices
+            // Consulta optimizada con índices y rangos UTC correctos
             const cleanerSchedules = await Schedule.filter({
                 cleaner_ids: { $contains: user.id },
                 status: { $ne: 'cancelled' },
                 start_time: {
-                    $gte: startDateStr + 'T00:00:00.000Z',
-                    $lte: endDateStr + 'T23:59:59.999Z'
+                    $gte: startOfRangeUTC,
+                    $lte: endOfRangeUTC
                 }
             }).catch(filterError => {
                 logger.warn('Horario', 'Filtro optimizado falló, usando fallback', filterError);
                 const monthStart = startOfMonth(forDate);
                 const monthEnd = endOfMonth(forDate);
+                const monthStartUTC = startOfDay(monthStart).toISOString();
+                const monthEndUTC = endOfDay(monthEnd).toISOString();
                 return Schedule.filter({
                     start_time: {
-                        $gte: formatLocalDate(monthStart) + 'T00:00:00.000Z',
-                        $lte: formatLocalDate(monthEnd) + 'T23:59:59.999Z'
+                        $gte: monthStartUTC,
+                        $lte: monthEndUTC
                     }
                 }).then(allSchedules => {
                     const allSchedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
