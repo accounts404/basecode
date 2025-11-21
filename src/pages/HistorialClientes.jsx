@@ -132,14 +132,14 @@ export default function HistorialClientes() {
 
     const pastServices = useMemo(() => {
         return schedules
-            .filter(s => isPast(parseISOAsUTC(s.start_time)))
-            .sort((a, b) => parseISOAsUTC(b.start_time) - parseISOAsUTC(a.start_time));
+            .filter(s => isPast(parseISOAsLocal(s.start_time)))
+            .sort((a, b) => parseISOAsLocal(b.start_time) - parseISOAsLocal(a.start_time));
     }, [schedules]);
 
     const futureServices = useMemo(() => {
         return schedules
-            .filter(s => !isPast(parseISOAsUTC(s.start_time)))
-            .sort((a, b) => parseISOAsUTC(a.start_time) - parseISOAsUTC(b.start_time));
+            .filter(s => !isPast(parseISOAsLocal(s.start_time)))
+            .sort((a, b) => parseISOAsLocal(a.start_time) - parseISOAsLocal(b.start_time));
     }, [schedules]);
 
     const getServiceReports = (scheduleId) => {
