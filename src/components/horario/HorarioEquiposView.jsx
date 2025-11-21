@@ -15,39 +15,11 @@ const parseISOAsUTC = (isoString) => {
 };
 
 export default function HorarioEquiposView({ schedules, date, users, onSelectEvent }) {
-    const [teamAssignments, setTeamAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        loadTeamAssignments();
+        setLoading(false);
     }, [date]);
-
-    const loadTeamAssignments = async () => {
-        try {
-            setLoading(true);
-            const allAssignments = await base44.entities.DailyTeamAssignment.list();
-            
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const selectedDateStr = `${year}-${month}-${day}`;
-            
-            const matchingAssignments = allAssignments.filter(assignment => {
-                if (!assignment.date) return false;
-                const assignmentDateStr = typeof assignment.date === 'string' 
-                    ? assignment.date.slice(0, 10) 
-                    : null;
-                return assignmentDateStr === selectedDateStr;
-            });
-
-            setTeamAssignments(matchingAssignments);
-        } catch (error) {
-            console.error('[HorarioEquipos] Error cargando asignaciones:', error);
-            setTeamAssignments([]);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     // Agrupar servicios por equipo (con o sin DailyTeamAssignment)
     const teamsWithServices = useMemo(() => {
