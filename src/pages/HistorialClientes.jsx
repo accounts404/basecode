@@ -256,7 +256,7 @@ export default function HistorialClientes() {
                                                             </span>
                                                             <span className="text-sm text-slate-600">
                                                                 {cs.start_time && cs.end_time ? 
-                                                                    `${format(parseISO(cs.start_time), 'HH:mm')} - ${format(parseISO(cs.end_time), 'HH:mm')}` 
+                                                                    `${format(parseISOAsUTC(cs.start_time), 'HH:mm')} - ${format(parseISOAsUTC(cs.end_time), 'HH:mm')}` 
                                                                     : 'Horario no definido'}
                                                             </span>
                                                         </div>
