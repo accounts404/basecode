@@ -21,7 +21,7 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
         setLoading(false);
     }, [date]);
 
-    // Agrupar servicios por equipo (con o sin DailyTeamAssignment)
+    // Agrupar servicios por equipo basándose solo en los horarios
     const teamsWithServices = useMemo(() => {
         const schedulesArray = Array.isArray(schedules) ? schedules : [];
         const usersArray = Array.isArray(users) ? users : [];
@@ -41,25 +41,8 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
             return timeA - timeB;
         });
 
-        // Si hay DailyTeamAssignments, usarlos como base
-        if (teamAssignments.length > 0) {
-            return teamAssignments.map(team => {
-                const teamMemberIds = Array.isArray(team.team_member_ids) ? team.team_member_ids : [];
-                const teamServices = servicesOfDay.filter(schedule => {
-                    const scheduleCleaner = Array.isArray(schedule.cleaner_ids) ? schedule.cleaner_ids : [];
-                    return scheduleCleaner.some(cleanerId => teamMemberIds.includes(cleanerId));
-                });
-
-                return {
-                    ...team,
-                    services: teamServices
-                };
-            });
-        }
-
-        // Si NO hay DailyTeamAssignments, crear equipos dinámicos basados en servicios
+        // Crear equipos dinámicos basados en servicios
         const dynamicTeams = [];
-        const processedCleaners = new Set();
 
         servicesOfDay.forEach(service => {
             const cleanerIds = Array.isArray(service.cleaner_ids) ? service.cleaner_ids : [];
@@ -102,7 +85,7 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
         });
 
         return dynamicTeams;
-    }, [teamAssignments, schedules, users, date]);
+    }, [schedules, users, date]);
 
     // Calcular limpiadores sin asignar
     const unassignedCleaners = useMemo(() => {
