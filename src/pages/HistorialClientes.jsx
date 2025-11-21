@@ -31,11 +31,12 @@ import { format, parseISO, isFuture, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createPageUrl } from '@/utils';
 
-// Helper para interpretar fechas ISO como UTC y mostrarlas en hora local
-const parseISOAsUTC = (isoString) => {
+// Helper para interpretar fechas ISO en hora local (sin forzar UTC)
+const parseISOAsLocal = (isoString) => {
     if (!isoString) return null;
-    const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
-    return new Date(correctedIsoString);
+    // Remover la 'Z' si existe para interpretar en hora local del navegador
+    const cleanString = isoString.endsWith('Z') ? isoString.slice(0, -1) : isoString;
+    return new Date(cleanString);
 };
 
 export default function HistorialClientes() {
