@@ -761,7 +761,10 @@ export default function RentabilidadPage() {
             currentDate = addMonths(currentDate, 1);
         }
 
-        const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
+        // Excluir gastos fijos de meses no fiables
+        const relevantFixedCosts = allFixedCosts.filter(fc => 
+            periodMonths.includes(fc.period) && !excludedMonths.includes(fc.period)
+        );
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
