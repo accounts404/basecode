@@ -65,6 +65,7 @@ const adminMenuItems = [
   { name: 'Limpiadores', path: 'Limpiadores', icon: UserCheck },
   { name: 'Gestión de Flota', path: 'GestionFlota', icon: Car },
   { name: 'Entradas de Trabajo', path: 'TrabajoEntradas', icon: Clock },
+  { name: 'Revisión Entradas', path: 'RevisionEntradas', icon: GitCompare },
   { name: 'Facturas', path: 'Facturas', icon: FileText },
   { name: 'Conciliación Facturas', path: 'ConciliacionFacturas', icon: Landmark },
   { name: 'Reportes', path: 'Reportes', icon: BarChart3 },
