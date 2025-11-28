@@ -318,6 +318,16 @@ export default function RentabilidadPage() {
 
     const cumulativeStartDate = useMemo(() => new Date('2025-04-01T00:00:00Z'), []);
 
+    // Meses a excluir de la rentabilidad acumulada (datos no fiables)
+    const excludedMonths = useMemo(() => ['2025-08', '2025-09'], []);
+    
+    // Función para verificar si una fecha está en un mes excluido
+    const isInExcludedMonth = useCallback((dateString) => {
+        if (!dateString) return false;
+        const monthStr = dateString.substring(0, 7); // 'YYYY-MM'
+        return excludedMonths.includes(monthStr);
+    }, [excludedMonths]);
+
     const frequencyOptions = [
         { value: "all", label: "Todas las Frecuencias" },
         { value: "weekly", label: "Semanal" },
