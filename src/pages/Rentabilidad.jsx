@@ -843,7 +843,7 @@ export default function RentabilidadPage() {
             summary: cumulativeSummary, 
             overallTotalFixedCosts: totalCumulativeFixedCosts 
         };
-    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection]);
+    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection, excludedMonths, isInExcludedMonth]);
 
     if (loading) return <div className="p-8 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div></div>;
     if (error) return <div className="p-8 text-red-700 text-center font-medium">{error}</div>;
