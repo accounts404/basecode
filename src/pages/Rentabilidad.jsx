@@ -672,7 +672,8 @@ export default function RentabilidadPage() {
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
             if (entry.client_id === trainingClientId && 
-                isDateInRange(entry.work_date, cumulativeStartDate, new Date())) {
+                isDateInRange(entry.work_date, cumulativeStartDate, new Date()) &&
+                !isInExcludedMonth(entry.work_date)) { // Excluir meses no fiables
                 cumulativeTrainingHours += entry.hours || 0;
                 cumulativeTrainingAmount += entry.total_amount || 0;
             }
@@ -683,7 +684,8 @@ export default function RentabilidadPage() {
             return isDateInRange(entry.work_date, cumulativeStartDate, new Date()) && 
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training';
+                   entry.activity !== 'training' &&
+                   !isInExcludedMonth(entry.work_date); // Excluir meses no fiables
         });
 
         const clientServiceDates = new Map();
