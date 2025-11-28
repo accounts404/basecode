@@ -644,7 +644,8 @@ export default function RentabilidadPage() {
             return isDateInRange(schedule.start_time, cumulativeStartDate, new Date()) && 
                    schedule.xero_invoiced === true &&
                    schedule.client_id !== trainingClientId &&
-                   clientMap.has(schedule.client_id);
+                   clientMap.has(schedule.client_id) &&
+                   !isInExcludedMonth(schedule.start_time); // Excluir meses no fiables
         });
 
         invoicedSchedulesCumulative.forEach(schedule => {
