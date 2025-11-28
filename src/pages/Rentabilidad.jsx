@@ -1275,7 +1275,7 @@ export default function RentabilidadPage() {
                                     <div className="flex items-center gap-3">
                                         <ArrowRightSquare className="w-6 h-6 text-slate-700"/>
                                         <span className="text-slate-900">
-                                            Rentabilidad Acumulada por Cliente (Desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })})
+                                            Rentabilidad Acumulada por Cliente (Desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - Excl. Ago/Sep 2025)
                                         </span>
                                     </div>
                                 </AccordionTrigger>
