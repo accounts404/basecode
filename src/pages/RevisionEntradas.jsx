@@ -510,14 +510,17 @@ export default function RevisionEntradas() {
         );
     }
 
-    if (user?.role !== 'admin') {
+    // Acceso restringido solo a usuario específico
+    const allowedEmail = 'danielramonreyes@gmail.com';
+    
+    if (user?.role !== 'admin' || user?.email !== allowedEmail) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
                 <Card className="max-w-md">
                     <CardContent className="pt-6 text-center">
                         <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
                         <h2 className="text-xl font-bold text-slate-900 mb-2">Acceso Restringido</h2>
-                        <p className="text-slate-600">Esta página es solo para administradores.</p>
+                        <p className="text-slate-600">No tienes permisos para acceder a esta página.</p>
                     </CardContent>
                 </Card>
             </div>
