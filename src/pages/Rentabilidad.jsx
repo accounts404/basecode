@@ -318,16 +318,6 @@ export default function RentabilidadPage() {
 
     const cumulativeStartDate = useMemo(() => new Date('2025-04-01T00:00:00Z'), []);
 
-    // Meses a excluir de la rentabilidad acumulada (datos no fiables)
-    const excludedMonths = useMemo(() => ['2025-08', '2025-09'], []);
-    
-    // Función para verificar si una fecha está en un mes excluido
-    const isInExcludedMonth = useCallback((dateString) => {
-        if (!dateString) return false;
-        const monthStr = dateString.substring(0, 7); // 'YYYY-MM'
-        return excludedMonths.includes(monthStr);
-    }, [excludedMonths]);
-
     const frequencyOptions = [
         { value: "all", label: "Todas las Frecuencias" },
         { value: "weekly", label: "Semanal" },
@@ -644,8 +634,7 @@ export default function RentabilidadPage() {
             return isDateInRange(schedule.start_time, cumulativeStartDate, new Date()) && 
                    schedule.xero_invoiced === true &&
                    schedule.client_id !== trainingClientId &&
-                   clientMap.has(schedule.client_id) &&
-                   !isInExcludedMonth(schedule.start_time); // Excluir meses no fiables
+                   clientMap.has(schedule.client_id);
         });
 
         invoicedSchedulesCumulative.forEach(schedule => {
@@ -672,8 +661,7 @@ export default function RentabilidadPage() {
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
             if (entry.client_id === trainingClientId && 
-                isDateInRange(entry.work_date, cumulativeStartDate, new Date()) &&
-                !isInExcludedMonth(entry.work_date)) { // Excluir meses no fiables
+                isDateInRange(entry.work_date, cumulativeStartDate, new Date())) {
                 cumulativeTrainingHours += entry.hours || 0;
                 cumulativeTrainingAmount += entry.total_amount || 0;
             }
@@ -684,8 +672,7 @@ export default function RentabilidadPage() {
             return isDateInRange(entry.work_date, cumulativeStartDate, new Date()) && 
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training' &&
-                   !isInExcludedMonth(entry.work_date); // Excluir meses no fiables
+                   entry.activity !== 'training';
         });
 
         const clientServiceDates = new Map();
@@ -761,10 +748,7 @@ export default function RentabilidadPage() {
             currentDate = addMonths(currentDate, 1);
         }
 
-        // Excluir gastos fijos de meses no fiables
-        const relevantFixedCosts = allFixedCosts.filter(fc => 
-            periodMonths.includes(fc.period) && !excludedMonths.includes(fc.period)
-        );
+        const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
@@ -843,7 +827,7 @@ export default function RentabilidadPage() {
             summary: cumulativeSummary, 
             overallTotalFixedCosts: totalCumulativeFixedCosts 
         };
-    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection, excludedMonths, isInExcludedMonth]);
+    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection]);
 
     if (loading) return <div className="p-8 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div></div>;
     if (error) return <div className="p-8 text-red-700 text-center font-medium">{error}</div>;
@@ -1275,7 +1259,7 @@ export default function RentabilidadPage() {
                                     <div className="flex items-center gap-3">
                                         <ArrowRightSquare className="w-6 h-6 text-slate-700"/>
                                         <span className="text-slate-900">
-                                            Rentabilidad Acumulada por Cliente (Desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - Excl. Ago/Sep 2025)
+                                            Rentabilidad Acumulada por Cliente (Desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })})
                                         </span>
                                     </div>
                                 </AccordionTrigger>
