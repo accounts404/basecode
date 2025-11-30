@@ -581,14 +581,6 @@ export default function HorarioPage() {
                 const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
                 const tasksArray = Array.isArray(allTasks) ? allTasks : [];
                 
-                // DEBUG: Verificar qué schedules se están cargando
-                console.log('[Horario] DEBUG - Schedules cargados:', schedulesArray.length);
-                console.log('[Horario] DEBUG - Fecha actual del calendario:', format(date, 'yyyy-MM-dd'));
-                const todayStr = format(date, 'yyyy-MM-dd');
-                const schedulesForToday = schedulesArray.filter(s => s.start_time && s.start_time.slice(0, 10) === todayStr);
-                console.log('[Horario] DEBUG - Schedules para fecha seleccionada:', schedulesForToday.length);
-                schedulesForToday.forEach(s => console.log(`  - ${s.client_name}: ${s.start_time}`));
-                
                 setSchedules(schedulesArray);
                 setTasks(tasksArray);
                 
