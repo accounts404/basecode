@@ -373,28 +373,12 @@ export default function HorarioPage() {
             const dayBefore = subDays(forDate, 2);
             const dayAfter = addDays(forDate, 2);
 
-            // CORRECCIÓN DEFINITIVA DE ZONA HORARIA:
-            // Los servicios se almacenan con fechas "locales" representadas en UTC
-            // Por ejemplo, un servicio a las 08:00 del 1 de diciembre en Australia 
-            // se guarda como "2024-12-01T08:00:00.000Z" (la Z es solo formato, la hora es local)
-            // Por eso debemos buscar por el string de fecha, no por conversiones UTC reales
-            
-            // Crear strings de fecha en formato YYYY-MM-DD para el rango
-            const formatDateString = (d) => {
-                const year = d.getFullYear();
-                const month = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            };
-            
-            const startDateStr = formatDateString(dayBefore);
-            const endDateStr = formatDateString(dayAfter);
-            const dateRange = `${startDateStr}_${endDateStr}`;
-            
-            // Crear rangos UTC que cubran completamente las fechas locales
-            // Usamos 00:00:00Z del día inicial y 23:59:59Z del día final
-            const startOfRangeUTC = `${startDateStr}T00:00:00.000Z`;
-            const endOfRangeUTC = `${endDateStr}T23:59:59.999Z`;
+            // CORRECCIÓN DE ZONA HORARIA: Calcula los límites UTC correctos para el rango de fechas LOCALES
+            // Esto asegura que los eventos registrados en un día local se capturen correctamente
+            // sin importar la zona horaria del usuario
+            const startOfRangeUTC = startOfDay(dayBefore).toISOString();
+            const endOfRangeUTC = endOfDay(dayAfter).toISOString();
+            const dateRange = `${dayBefore.toISOString().slice(0, 10)}_${dayAfter.toISOString().slice(0, 10)}`;
 
             logger.info('Horario', `${isSilentUpdate ? 'Actualización silenciosa' : 'Cargando servicios'}`, { 
                 dateRange,
