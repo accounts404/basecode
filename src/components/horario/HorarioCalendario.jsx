@@ -621,12 +621,11 @@ export default function HorarioCalendario({
         return events;
     }, [events, isCleanerView, selectedCleanerId]);
 
-    // CORREGIDO: Función para filtrar eventos por día usando UTC
+    // CORREGIDO: Función para filtrar eventos por día
     // Los eventos tienen start_time en formato ISO UTC (ej: 2025-12-01T08:00:00.000Z)
-    // Debemos comparar la fecha UTC del evento con la fecha UTC del día seleccionado
+    // La fecha del calendario (dayDate) es una fecha local
     const getEventsForDay = (dayDate) => {
-        // Crear el string de fecha en formato YYYY-MM-DD desde el objeto Date
-        // Usamos la fecha local del calendario para la comparación
+        // Crear el string de fecha en formato YYYY-MM-DD desde el objeto Date LOCAL
         const year = dayDate.getFullYear();
         const month = String(dayDate.getMonth() + 1).padStart(2, '0');
         const day = String(dayDate.getDate()).padStart(2, '0');
@@ -637,12 +636,16 @@ export default function HorarioCalendario({
                 return false;
             }
             
-            // Extraer la fecha del ISO string directamente (YYYY-MM-DD)
-            // Los eventos se guardan con la fecha UTC correcta
+            // Extraer la fecha del ISO string directamente (YYYY-MM-DD de la parte UTC)
             const eventDateString = event.start_time.slice(0, 10);
             
             return eventDateString === columnDateString;
         });
+        
+        // DEBUG: Log para verificar el filtrado
+        if (filtered.length > 0 || eventsToDisplay.length > 0) {
+            console.log(`[getEventsForDay] Fecha columna: ${columnDateString}, Eventos encontrados: ${filtered.length}/${eventsToDisplay.length}`);
+        }
         
         return filtered;
     };
