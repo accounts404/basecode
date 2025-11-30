@@ -15,29 +15,19 @@ import CleanerDayListView from './CleanerDayListView';
 // for the new `handleClockOut` function and the user provided it in the outline for that function.
 
 
-// FUNCIÓN HELPER para parsear fechas ISO - devuelve objeto Date JavaScript
-// que automáticamente se convierte a hora local cuando se usan getHours(), getMinutes(), etc.
+// NUEVA FUNCIÓN HELPER para parsear fechas de forma consistente y en UTC
 const parseISOAsUTC = (isoString) => {
-    if (!isoString) return new Date();
-    // Simplemente crear un Date desde el ISO string
-    // JavaScript automáticamente convierte UTC a hora local del navegador
-    return new Date(isoString);
+    if (!isoString) return new Date(); // Or handle as error/null depending on desired behavior
+    const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
+    // Create a Date object from the ISO string, which will represent the time in UTC
+    return new Date(correctedIsoString);
 };
 
-// Helper para formatear una fecha a HH:mm en hora LOCAL
-const formatTimeLocal = (date) => {
-    if (!date) return '';
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-};
-
-// Mantener formatTimeUTC para compatibilidad con código existente que lo necesite
+// Helper para formatear una fecha UTC a HH:mm
 const formatTimeUTC = (date) => {
     if (!date) return '';
-    // Ahora devuelve hora local para consistencia en la UI
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const hours = date.getUTCHours().toString().padStart(2, '0');
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
 };
 
@@ -662,24 +652,23 @@ export default function HorarioCalendario({
     };
 
     const calculateEventPosition = (event) => {
-        // CORREGIDO: Usar hora LOCAL, no UTC, para posicionar eventos en el calendario
-        const startTime = new Date(event.start_time);
-        const endTime = new Date(event.end_time);
+        const startTime = parseISOAsUTC(event.start_time);
+        const endTime = parseISOAsUTC(event.end_time);
         
-        // Obtener horas y minutos en hora LOCAL del navegador
-        const startInHours = startTime.getHours() + (startTime.getMinutes() / 60);
-        const endInHours = endTime.getHours() + (endTime.getMinutes() / 60);
+        // La lógica de cálculo de horas y minutos ahora usará los componentes UTC
+        const startInHours = startTime.getUTCHours() + (startTime.getUTCMinutes() / 60);
+        const endInHours = endTime.getUTCHours() + (endTime.getUTCMinutes() / 60);
 
-        // Si el evento está completamente fuera del rango visible, no mostrarlo
+        // If the event starts after the visible end or ends before the visible start (in UTC), it's not visible
         if (endInHours <= VISIBLE_START_HOUR || startInHours >= VISIBLE_END_HOUR) {
             return null;
         }
 
-        // Recortar el evento al rango visible
+        // Clip the event to the visible time range (in UTC)
         const visibleEventStart = Math.max(startInHours, VISIBLE_START_HOUR);
         const visibleEventEnd = Math.min(endInHours, VISIBLE_END_HOUR);
         
-        // Calcular posición relativa a la hora de inicio visible
+        // Calculate position relative to the visible start hour (in UTC)
         const startPositionRelative = visibleEventStart - VISIBLE_START_HOUR;
         const duration = visibleEventEnd - visibleEventStart;
 
@@ -693,24 +682,24 @@ export default function HorarioCalendario({
     const organizeOverlappingEvents = (dayEvents) => {
         if (dayEvents.length === 0) return [];
 
-        // Filtrar eventos que están completamente fuera del rango visible (usando hora LOCAL)
+        // Filter out events that are entirely outside the visible range before sorting
         const visibleDayEvents = dayEvents.filter(event => {
-            const eventStart = new Date(event.start_time);
-            const eventEnd = new Date(event.end_time);
-            const startInHours = eventStart.getHours() + (eventStart.getMinutes() / 60);
-            const endInHours = eventEnd.getHours() + (eventEnd.getMinutes() / 60); 
+            const eventStart = parseISOAsUTC(event.start_time);
+            const eventEnd = parseISOAsUTC(event.end_time);
+            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMonth() / 60);
+            const endInHours = eventEnd.getUTCHours() + (eventEnd.getUTCMinutes() / 60); 
             return !(endInHours <= VISIBLE_START_HOUR || startInHours >= VISIBLE_END_HOUR);
         });
 
         const sortedEvents = [...visibleDayEvents].sort((a, b) => 
-            new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+            parseISOAsUTC(a.start_time).getTime() - parseISOAsUTC(b.start_time).getTime()
         );
 
         const columns = [];
         
         sortedEvents.forEach(event => {
-            const eventStart = new Date(event.start_time);
-            const eventEnd = new Date(event.end_time);
+            const eventStart = parseISOAsUTC(event.start_time);
+            const eventEnd = parseISOAsUTC(event.end_time);
             
             let columnIndex = 0;
             let placed = false;
@@ -721,8 +710,8 @@ export default function HorarioCalendario({
                 }
                 
                 const hasConflict = columns[columnIndex].some(existingEvent => {
-                    const existingStart = new Date(existingEvent.start_time);
-                    const existingEnd = new Date(existingEvent.end_time);
+                    const existingStart = parseISOAsUTC(existingEvent.start_time);
+                    const existingEnd = parseISOAsUTC(existingEvent.end_time);
                     
                     return (eventStart.getTime() < existingEnd.getTime() && eventEnd.getTime() > existingStart.getTime());
                 });
