@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -623,36 +622,35 @@ export default function HorarioCalendario({
     }, [events, isCleanerView, selectedCleanerId]);
 
     // CORREGIDO DEFINITIVAMENTE: Función mejorada para filtrar eventos por día
-    // Ahora maneja correctamente todos los casos de zona horaria
+    // CRÍTICO: Las fechas en la BD están en UTC, pero el calendario muestra fechas locales.
+    // Debemos convertir la fecha UTC del evento a fecha local para comparar correctamente.
     const getEventsForDay = (dayDate) => {
-        // Crear el string de fecha en formato YYYY-MM-DD desde el objeto Date local
+        // Crear el string de fecha en formato YYYY-MM-DD desde el objeto Date local del calendario
         const year = dayDate.getFullYear();
         const month = String(dayDate.getMonth() + 1).padStart(2, '0');
         const day = String(dayDate.getDate()).padStart(2, '0');
         const columnDateString = `${year}-${month}-${day}`;
-        
-        console.log(`[HorarioCalendario] Filtrando eventos para: ${columnDateString}`);
 
         const filtered = eventsToDisplay.filter(event => {
             if (!event.start_time) {
                 return false;
             }
             
-            // Extraer la fecha del ISO string sin hacer ninguna conversión
-            // Esto funciona porque los ISO strings siempre tienen el formato:
-            // "YYYY-MM-DDTHH:MM:SS.sssZ" o "YYYY-MM-DDTHH:MM:SS.sss"
-            const eventDateString = event.start_time.slice(0, 10);
+            // CORRECCIÓN: Convertir la fecha UTC del evento a fecha LOCAL para comparar
+            // Ejemplo: '2025-11-29T22:15:00.000Z' en UTC = 30 Nov 9:15 AM en Melbourne (UTC+11)
+            const eventDateUTC = new Date(event.start_time);
             
-            const matches = eventDateString === columnDateString;
+            // Obtener los componentes de fecha LOCAL (no UTC)
+            const eventYear = eventDateUTC.getFullYear();
+            const eventMonth = String(eventDateUTC.getMonth() + 1).padStart(2, '0');
+            const eventDay = String(eventDateUTC.getDate()).padStart(2, '0');
+            const eventLocalDateString = `${eventYear}-${eventMonth}-${eventDay}`;
             
-            if (matches) {
-                console.log(`[HorarioCalendario] ✓ Evento coincide: ${event.client_name} - ${event.start_time}`);
-            }
+            const matches = eventLocalDateString === columnDateString;
             
             return matches;
         });
         
-        console.log(`[HorarioCalendario] Eventos encontrados para ${columnDateString}: ${filtered.length}`);
         return filtered;
     };
 
