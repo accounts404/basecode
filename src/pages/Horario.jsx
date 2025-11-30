@@ -1586,7 +1586,7 @@ export default function HorarioPage() {
                                     onCreateAtTime={user?.role === 'admin' ? handleCreateAtTime : null}
                                     users={users}
                                     isCleanerView={isCleanerView}
-                                    selectedCleanerId={isCleanerView ? user?.id : null}
+                                    selectedCleanerId={user?.id}
                                     isReadOnly={isCleanerView}
                                     onMoveEvent={user?.role === 'admin' ? handleMoveEvent : null}
                                     onResizeEvent={user?.role === 'admin' ? handleResizeEvent : null}

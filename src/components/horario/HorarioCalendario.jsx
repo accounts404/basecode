@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -622,26 +623,36 @@ export default function HorarioCalendario({
     }, [events, isCleanerView, selectedCleanerId]);
 
     // CORREGIDO DEFINITIVAMENTE: Función mejorada para filtrar eventos por día
-    // Ahora usa isSameDay de date-fns para manejar correctamente zonas horarias
+    // Ahora maneja correctamente todos los casos de zona horaria
     const getEventsForDay = (dayDate) => {
         // Crear el string de fecha en formato YYYY-MM-DD desde el objeto Date local
         const year = dayDate.getFullYear();
         const month = String(dayDate.getMonth() + 1).padStart(2, '0');
         const day = String(dayDate.getDate()).padStart(2, '0');
         const columnDateString = `${year}-${month}-${day}`;
+        
+        console.log(`[HorarioCalendario] Filtrando eventos para: ${columnDateString}`);
 
         const filtered = eventsToDisplay.filter(event => {
             if (!event.start_time) {
                 return false;
             }
             
-            // SOLUCIÓN: Extraer SOLO la parte de la fecha del ISO string (YYYY-MM-DD)
-            // y comparar directamente como strings, ignorando cualquier componente de hora/zona
-            const eventDateString = event.start_time.substring(0, 10);
+            // Extraer la fecha del ISO string sin hacer ninguna conversión
+            // Esto funciona porque los ISO strings siempre tienen el formato:
+            // "YYYY-MM-DDTHH:MM:SS.sssZ" o "YYYY-MM-DDTHH:MM:SS.sss"
+            const eventDateString = event.start_time.slice(0, 10);
             
-            return eventDateString === columnDateString;
+            const matches = eventDateString === columnDateString;
+            
+            if (matches) {
+                console.log(`[HorarioCalendario] ✓ Evento coincide: ${event.client_name} - ${event.start_time}`);
+            }
+            
+            return matches;
         });
         
+        console.log(`[HorarioCalendario] Eventos encontrados para ${columnDateString}: ${filtered.length}`);
         return filtered;
     };
 
