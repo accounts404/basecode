@@ -1211,7 +1211,15 @@ export default function HorarioPage() {
         if (!isCleanerView) return 0;
         try {
             const filteredArray = Array.isArray(filteredSchedules) ? filteredSchedules : [];
-            return filteredArray.filter(s => s.start_time && isSameDay(parseISOAsUTC(s.start_time), date)).length;
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const selectedDateStr = `${year}-${month}-${day}`;
+            
+            return filteredArray.filter(s => {
+                if (!s.start_time) return false;
+                return s.start_time.slice(0, 10) === selectedDateStr;
+            }).length;
         } catch (error) {
             console.error("[Horario] Error filtrando servicios:", error);
             return 0;
