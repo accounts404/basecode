@@ -177,25 +177,27 @@ export default function RevisionEntradas() {
             
             console.log(`[RevisionEntradas] Cargando datos para ${selectedCleanerId} del ${startDateStr} al ${endDateStr}`);
             
-            // Cargar WorkEntries y Schedules sin filtros complejos
-            const [allEntries, allSchedules] = await Promise.all([
-                base44.entities.WorkEntry.list(),
-                base44.entities.Schedule.list()
-            ]);
+            // Cargar WorkEntries del limpiador en el período
+            const entriesPromise = base44.entities.WorkEntry.filter({
+                cleaner_id: selectedCleanerId
+            });
             
-            // Filtrar WorkEntries del limpiador en el período
+            // Cargar Schedules del limpiador en el período
+            const schedulesPromise = base44.entities.Schedule.filter({
+                cleaner_ids: { $contains: selectedCleanerId }
+            });
+            
+            const [allEntries, allSchedules] = await Promise.all([entriesPromise, schedulesPromise]);
+            
+            // Filtrar por fechas en el cliente
             const filteredEntries = (allEntries || []).filter(entry => {
-                if (!entry.work_date || entry.cleaner_id !== selectedCleanerId) return false;
+                if (!entry.work_date) return false;
                 const entryDate = new Date(entry.work_date);
                 return entryDate >= currentQuincenaData.startDate && entryDate <= currentQuincenaData.endDate;
             });
             
-            // Filtrar Schedules del limpiador en el período
             const filteredSchedules = (allSchedules || []).filter(schedule => {
                 if (!schedule.start_time) return false;
-                if (!schedule.cleaner_ids || !Array.isArray(schedule.cleaner_ids)) return false;
-                if (!schedule.cleaner_ids.includes(selectedCleanerId)) return false;
-                
                 const scheduleDate = parseISOAsLocal(schedule.start_time);
                 return scheduleDate >= currentQuincenaData.startDate && scheduleDate <= currentQuincenaData.endDate;
             });
@@ -207,7 +209,7 @@ export default function RevisionEntradas() {
             
         } catch (err) {
             console.error('Error cargando datos del limpiador:', err);
-            setError(`Error al cargar datos: ${err.message || 'Error desconocido'}`);
+            setError('Error al cargar datos del limpiador');
         } finally {
             setLoadingData(false);
         }
