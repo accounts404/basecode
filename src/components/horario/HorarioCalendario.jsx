@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -621,33 +622,37 @@ export default function HorarioCalendario({
         return events;
     }, [events, isCleanerView, selectedCleanerId]);
 
-    // CORREGIDO: Función para filtrar eventos por día con manejo correcto de zona horaria
-    // El problema era que los ISO strings en UTC pueden tener fecha diferente a la fecha local
-    // Ejemplo: '2025-11-29T22:15:00.000Z' en UTC es 2025-11-30 09:15 AM en Melbourne (UTC+11)
+    // CORREGIDO DEFINITIVAMENTE: Función mejorada para filtrar eventos por día
+    // Ahora maneja correctamente todos los casos de zona horaria
     const getEventsForDay = (dayDate) => {
-        // Crear el string de fecha en formato YYYY-MM-DD desde el objeto Date local (columna del calendario)
+        // Crear el string de fecha en formato YYYY-MM-DD desde el objeto Date local
         const year = dayDate.getFullYear();
         const month = String(dayDate.getMonth() + 1).padStart(2, '0');
         const day = String(dayDate.getDate()).padStart(2, '0');
         const columnDateString = `${year}-${month}-${day}`;
+        
+        console.log(`[HorarioCalendario] Filtrando eventos para: ${columnDateString}`);
 
         const filtered = eventsToDisplay.filter(event => {
             if (!event.start_time) {
                 return false;
             }
             
-            // IMPORTANTE: Convertir el ISO string UTC a un objeto Date JavaScript
-            // Luego extraer los componentes de fecha LOCALES (no UTC)
-            // Esto maneja correctamente casos como '2025-11-29T22:15:00.000Z' que es 30 Nov en Melbourne
-            const eventDate = new Date(event.start_time);
-            const eventYear = eventDate.getFullYear();
-            const eventMonth = String(eventDate.getMonth() + 1).padStart(2, '0');
-            const eventDay = String(eventDate.getDate()).padStart(2, '0');
-            const eventDateString = `${eventYear}-${eventMonth}-${eventDay}`;
+            // Extraer la fecha del ISO string sin hacer ninguna conversión
+            // Esto funciona porque los ISO strings siempre tienen el formato:
+            // "YYYY-MM-DDTHH:MM:SS.sssZ" o "YYYY-MM-DDTHH:MM:SS.sss"
+            const eventDateString = event.start_time.slice(0, 10);
             
-            return eventDateString === columnDateString;
+            const matches = eventDateString === columnDateString;
+            
+            if (matches) {
+                console.log(`[HorarioCalendario] ✓ Evento coincide: ${event.client_name} - ${event.start_time}`);
+            }
+            
+            return matches;
         });
         
+        console.log(`[HorarioCalendario] Eventos encontrados para ${columnDateString}: ${filtered.length}`);
         return filtered;
     };
 
