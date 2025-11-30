@@ -23,11 +23,20 @@ const parseISOAsUTC = (isoString) => {
     return new Date(correctedIsoString);
 };
 
-// Helper para formatear una fecha UTC a HH:mm
+// Helper para formatear una fecha a HH:mm en hora LOCAL
+const formatTimeLocal = (date) => {
+    if (!date) return '';
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+};
+
+// Mantener formatTimeUTC para compatibilidad con código existente que lo necesite
 const formatTimeUTC = (date) => {
     if (!date) return '';
-    const hours = date.getUTCHours().toString().padStart(2, '0');
-    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+    // Ahora devuelve hora local para consistencia en la UI
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
 };
 
