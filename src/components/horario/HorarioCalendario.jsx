@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -690,7 +691,7 @@ export default function HorarioCalendario({
         const visibleDayEvents = dayEvents.filter(event => {
             const eventStart = parseISOAsUTC(event.start_time);
             const eventEnd = parseISOAsUTC(event.end_time);
-            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMinutes() / 60);
+            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMonth() / 60);
             const endInHours = eventEnd.getUTCHours() + (eventEnd.getUTCMinutes() / 60); 
             return !(endInHours <= VISIBLE_START_HOUR || startInHours >= VISIBLE_END_HOUR);
         });
