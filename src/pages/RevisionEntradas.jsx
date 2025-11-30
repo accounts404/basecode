@@ -231,23 +231,11 @@ export default function RevisionEntradas() {
         return schedule.clock_in_data.find(c => c.cleaner_id === selectedCleanerId);
     };
 
-    // Obtener horario individual del limpiador (cleaner_schedules)
-    const getCleanerSchedule = (schedule) => {
-        if (!schedule.cleaner_schedules || !Array.isArray(schedule.cleaner_schedules)) return null;
-        return schedule.cleaner_schedules.find(cs => cs.cleaner_id === selectedCleanerId);
-    };
-
-    // Calcular horas asignadas según cleaner_schedules (horarios individuales)
-    const getAssignedHoursFromSchedule = (schedule) => {
-        const cleanerSchedule = getCleanerSchedule(schedule);
-        if (cleanerSchedule?.start_time && cleanerSchedule?.end_time) {
-            return calculateHours(cleanerSchedule.start_time, cleanerSchedule.end_time);
-        }
-        // Fallback: usar horario general del servicio
-        if (schedule.start_time && schedule.end_time) {
-            return calculateHours(schedule.start_time, schedule.end_time);
-        }
-        return 0;
+    // Calcular horas trabajadas según clock-in/out
+    const getWorkedHoursFromSchedule = (schedule) => {
+        const clockData = getClockData(schedule);
+        if (!clockData?.clock_in_time || !clockData?.clock_out_time) return 0;
+        return calculateHours(clockData.clock_in_time, clockData.clock_out_time);
     };
 
     // Agrupar datos por fecha
@@ -291,8 +279,8 @@ export default function RevisionEntradas() {
                 // Buscar WorkEntry vinculada a este schedule
                 const linkedEntry = dayData.entries.find(e => e.schedule_id === schedule.id);
                 
-                // Si está completado pero no tiene WorkEntry
-                if (isCompleted && !linkedEntry) {
+                // Si está completado y tiene clock-in/out pero no tiene WorkEntry
+                if (isCompleted && hasClockIn && hasClockOut && !linkedEntry) {
                     issues.push({
                         type: 'missing_entry',
                         date: dayData.date,
@@ -313,11 +301,11 @@ export default function RevisionEntradas() {
                     });
                 }
                 
-                // Si hay entrada vinculada, comparar horas asignadas vs entrada
-                if (linkedEntry) {
-                    const assignedHours = getAssignedHoursFromSchedule(schedule);
+                // Si hay entrada vinculada, comparar horas
+                if (linkedEntry && hasClockIn && hasClockOut) {
+                    const workedHours = getWorkedHoursFromSchedule(schedule);
                     const entryHours = linkedEntry.hours || 0;
-                    const hoursDiff = Math.abs(assignedHours - entryHours);
+                    const hoursDiff = Math.abs(workedHours - entryHours);
                     
                     if (hoursDiff >= 0.5) { // Diferencia de 30 minutos o más
                         issues.push({
@@ -325,9 +313,9 @@ export default function RevisionEntradas() {
                             date: dayData.date,
                             schedule: schedule,
                             entry: linkedEntry,
-                            assignedHours: assignedHours,
+                            workedHours: workedHours,
                             entryHours: entryHours,
-                            message: `Diferencia de ${hoursDiff.toFixed(2)} horas (Asignadas: ${assignedHours}h vs Entrada: ${entryHours}h)`,
+                            message: `Diferencia de ${hoursDiff.toFixed(2)} horas`,
                             severity: 'low'
                         });
                     }
@@ -358,7 +346,7 @@ export default function RevisionEntradas() {
     // Resumen de totales
     const summary = useMemo(() => {
         const totalScheduledHours = schedules.reduce((sum, s) => {
-            return sum + getAssignedHoursFromSchedule(s);
+            return sum + getWorkedHoursFromSchedule(s);
         }, 0);
         
         const totalEntryHours = workEntries.reduce((sum, e) => sum + (e.hours || 0), 0);
@@ -385,7 +373,8 @@ export default function RevisionEntradas() {
 
     // Abrir diálogo para crear WorkEntry
     const openCreateEntryDialog = (schedule) => {
-        const assignedHours = getAssignedHoursFromSchedule(schedule);
+        const clockData = getClockData(schedule);
+        const workedHours = getWorkedHoursFromSchedule(schedule);
         
         // Obtener tarifa del limpiador
         const cleaner = cleaners.find(c => c.id === selectedCleanerId);
@@ -407,7 +396,7 @@ export default function RevisionEntradas() {
         
         setScheduleToCreateEntry(schedule);
         setNewEntryData({
-            hours: assignedHours,
+            hours: workedHours,
             hourly_rate: hourlyRate,
             activity: activity,
             notes: ''
@@ -635,9 +624,9 @@ export default function RevisionEntradas() {
                         
                         <Card className="bg-white">
                             <CardContent className="pt-4 text-center">
-                                <p className="text-xs text-slate-500 uppercase tracking-wide">Horas Asignadas</p>
+                                <p className="text-xs text-slate-500 uppercase tracking-wide">Horas Clock</p>
                                 <p className="text-2xl font-bold text-blue-600">{summary.totalScheduledHours.toFixed(2)}</p>
-                                <p className="text-xs text-slate-500">En Horarios</p>
+                                <p className="text-xs text-slate-500">Registradas</p>
                             </CardContent>
                         </Card>
                         
@@ -742,7 +731,7 @@ export default function RevisionEntradas() {
                                             <TableRow>
                                                 <TableHead>Fecha</TableHead>
                                                 <TableHead>Cliente</TableHead>
-                                                <TableHead>Horario Asignado</TableHead>
+                                                <TableHead>Clock In/Out</TableHead>
                                                 <TableHead>Horas</TableHead>
                                                 <TableHead>Estado</TableHead>
                                             </TableRow>
@@ -756,11 +745,11 @@ export default function RevisionEntradas() {
                                                 </TableRow>
                                             ) : (
                                                 schedules.sort((a, b) => a.start_time.localeCompare(b.start_time)).map(schedule => {
-                                                    const cleanerSchedule = getCleanerSchedule(schedule);
-                                                    const assignedHours = getAssignedHoursFromSchedule(schedule);
+                                                    const clockData = getClockData(schedule);
+                                                    const workedHours = getWorkedHoursFromSchedule(schedule);
                                                     const hasEntry = workEntries.some(e => e.schedule_id === schedule.id);
                                                     const isCompleted = schedule.status === 'completed';
-                                                    const needsEntry = isCompleted && !hasEntry;
+                                                    const needsEntry = isCompleted && clockData?.clock_in_time && clockData?.clock_out_time && !hasEntry;
                                                     
                                                     return (
                                                         <TableRow 
@@ -781,25 +770,26 @@ export default function RevisionEntradas() {
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell>
-                                                                {cleanerSchedule?.start_time ? (
+                                                                {clockData?.clock_in_time ? (
                                                                     <div className="text-xs">
-                                                                        <div className="text-blue-600 font-medium">
-                                                                            {format(parseISOAsLocal(cleanerSchedule.start_time), 'HH:mm')} - {format(parseISOAsLocal(cleanerSchedule.end_time), 'HH:mm')}
+                                                                        <div className="text-green-600">
+                                                                            In: {format(parseISOAsLocal(clockData.clock_in_time), 'HH:mm')}
                                                                         </div>
-                                                                        <div className="text-slate-500">Horario asignado</div>
+                                                                        {clockData.clock_out_time ? (
+                                                                            <div className="text-blue-600">
+                                                                                Out: {format(parseISOAsLocal(clockData.clock_out_time), 'HH:mm')}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-orange-600">Sin clock-out</div>
+                                                                        )}
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="text-xs">
-                                                                        <div className="text-slate-600">
-                                                                            {format(parseISOAsLocal(schedule.start_time), 'HH:mm')} - {format(parseISOAsLocal(schedule.end_time), 'HH:mm')}
-                                                                        </div>
-                                                                        <div className="text-slate-400">Horario general</div>
-                                                                    </div>
+                                                                    <span className="text-slate-400 text-xs">Sin registro</span>
                                                                 )}
                                                             </TableCell>
                                                             <TableCell>
                                                                 <span className="font-semibold">
-                                                                    {assignedHours > 0 ? `${assignedHours.toFixed(2)}h` : '-'}
+                                                                    {workedHours > 0 ? `${workedHours.toFixed(2)}h` : '-'}
                                                                 </span>
                                                             </TableCell>
                                                             <TableCell>
