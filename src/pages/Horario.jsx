@@ -461,33 +461,22 @@ export default function HorarioPage() {
             logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
             if (currentUser.role === 'admin') {
-                // CRITICAL FIX: Invalidar caché antes de cargar para evitar datos obsoletos
-                cacheManager.invalidatePattern('schedules_');
-                
-                const [cachedUsers, allSchedules, cachedTasks] = await Promise.all([
+                // Usar caché para admin también
+                const [cachedUsers, cachedSchedules, cachedTasks] = await Promise.all([
                     cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list(), CACHE_TTL.MEDIUM),
-                    Schedule.list(), // Sin caché para admin - siempre fresco
+                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list(), CACHE_TTL.SHORT),
                     cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list(), CACHE_TTL.MEDIUM)
                 ]);
                 
-                const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
-                
-                console.log('[Horario] 📊 Admin - Total schedules cargados:', schedulesArray.length);
-                console.log('[Horario] 🔍 Primeros 3 schedules:', schedulesArray.slice(0, 3).map(s => ({
-                    client: s.client_name,
-                    start: s.start_time,
-                    status: s.status
-                })));
-                
                 setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
-                setSchedules(schedulesArray);
+                setSchedules(Array.isArray(cachedSchedules) ? cachedSchedules : []);
                 setTasks(Array.isArray(cachedTasks) ? cachedTasks : []);
                 setLoading(false);
                 setInitialLoadComplete(true);
                 
                 logger.info('Horario', 'Admin - Datos cargados', { 
                     users: cachedUsers?.length || 0, 
-                    schedules: schedulesArray.length,
+                    schedules: cachedSchedules?.length || 0,
                     tasks: cachedTasks?.length || 0
                 });
             } else {
@@ -592,19 +581,12 @@ export default function HorarioPage() {
                 const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
                 const tasksArray = Array.isArray(allTasks) ? allTasks : [];
                 
-                console.log('[Horario Refresh] 📊 Total schedules:', schedulesArray.length);
-                console.log('[Horario Refresh] 🔍 Servicios para 30 Nov:', 
-                    schedulesArray.filter(s => s.start_time?.includes('2025-11-30')).length
-                );
-                console.log('[Horario Refresh] 🔍 Servicios para 1 Dic:', 
-                    schedulesArray.filter(s => s.start_time?.includes('2025-12-01')).length
-                );
-                console.log('[Horario Refresh] 🔍 Servicios para 2 Dic:', 
-                    schedulesArray.filter(s => s.start_time?.includes('2025-12-02')).length
-                );
-                
                 setSchedules(schedulesArray);
                 setTasks(tasksArray);
+                
+                // Actualizar caché
+                cacheManager.set(CACHE_KEYS.SCHEDULES('all'), schedulesArray, CACHE_TTL.SHORT);
+                cacheManager.set(CACHE_KEYS.TASKS('all'), tasksArray, CACHE_TTL.MEDIUM);
                 
                 logger.info('Horario', 'Datos admin actualizados', { 
                     schedules: schedulesArray.length, 
