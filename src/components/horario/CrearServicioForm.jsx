@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -647,31 +648,15 @@ export default function CrearServicioForm({
                 start_time: startDateTime.toISOString(),
                 end_time: endDateTime.toISOString(),
                 cleaner_schedules: cleanerSchedules.length > 0 ? cleanerSchedules.map(cs => {
-                    // Parsear las horas locales del cleaner_schedule
                     const csStart = parseISO(cs.start_time);
                     const csEnd = parseISO(cs.end_time);
-                    
-                    // Crear nueva fecha UTC combinando la fecha del servicio (local) con las horas del cleaner
-                    const newStartUTC = new Date(Date.UTC(
-                        startDateTime.getUTCFullYear(),
-                        startDateTime.getUTCMonth(),
-                        startDateTime.getUTCDate(),
-                        csStart.getUTCHours(),
-                        csStart.getUTCMinutes()
-                    ));
-                    
-                    const newEndUTC = new Date(Date.UTC(
-                        startDateTime.getUTCFullYear(),
-                        startDateTime.getUTCMonth(),
-                        startDateTime.getUTCDate(),
-                        csEnd.getUTCHours(),
-                        csEnd.getUTCMinutes()
-                    ));
+                    csStart.setFullYear(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate());
+                    csEnd.setFullYear(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate());
 
                     return {
                         ...cs,
-                        start_time: newStartUTC.toISOString(),
-                        end_time: newEndUTC.toISOString()
+                        start_time: csStart.toISOString(),
+                        end_time: csEnd.toISOString()
                     };
                 }) : null,
                 service_specific_notes: formData.service_specific_notes || '',
