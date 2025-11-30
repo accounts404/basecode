@@ -652,23 +652,24 @@ export default function HorarioCalendario({
     };
 
     const calculateEventPosition = (event) => {
-        const startTime = parseISOAsUTC(event.start_time);
-        const endTime = parseISOAsUTC(event.end_time);
+        // CORREGIDO: Usar hora LOCAL, no UTC, para posicionar eventos en el calendario
+        const startTime = new Date(event.start_time);
+        const endTime = new Date(event.end_time);
         
-        // La lógica de cálculo de horas y minutos ahora usará los componentes UTC
-        const startInHours = startTime.getUTCHours() + (startTime.getUTCMinutes() / 60);
-        const endInHours = endTime.getUTCHours() + (endTime.getUTCMinutes() / 60);
+        // Obtener horas y minutos en hora LOCAL del navegador
+        const startInHours = startTime.getHours() + (startTime.getMinutes() / 60);
+        const endInHours = endTime.getHours() + (endTime.getMinutes() / 60);
 
-        // If the event starts after the visible end or ends before the visible start (in UTC), it's not visible
+        // Si el evento está completamente fuera del rango visible, no mostrarlo
         if (endInHours <= VISIBLE_START_HOUR || startInHours >= VISIBLE_END_HOUR) {
             return null;
         }
 
-        // Clip the event to the visible time range (in UTC)
+        // Recortar el evento al rango visible
         const visibleEventStart = Math.max(startInHours, VISIBLE_START_HOUR);
         const visibleEventEnd = Math.min(endInHours, VISIBLE_END_HOUR);
         
-        // Calculate position relative to the visible start hour (in UTC)
+        // Calcular posición relativa a la hora de inicio visible
         const startPositionRelative = visibleEventStart - VISIBLE_START_HOUR;
         const duration = visibleEventEnd - visibleEventStart;
 
