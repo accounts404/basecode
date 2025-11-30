@@ -15,12 +15,13 @@ import CleanerDayListView from './CleanerDayListView';
 // for the new `handleClockOut` function and the user provided it in the outline for that function.
 
 
-// NUEVA FUNCIÓN HELPER para parsear fechas de forma consistente y en UTC
+// FUNCIÓN HELPER para parsear fechas ISO - devuelve objeto Date JavaScript
+// que automáticamente se convierte a hora local cuando se usan getHours(), getMinutes(), etc.
 const parseISOAsUTC = (isoString) => {
-    if (!isoString) return new Date(); // Or handle as error/null depending on desired behavior
-    const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
-    // Create a Date object from the ISO string, which will represent the time in UTC
-    return new Date(correctedIsoString);
+    if (!isoString) return new Date();
+    // Simplemente crear un Date desde el ISO string
+    // JavaScript automáticamente convierte UTC a hora local del navegador
+    return new Date(isoString);
 };
 
 // Helper para formatear una fecha a HH:mm en hora LOCAL
