@@ -721,8 +721,8 @@ export default function HorarioCalendario({
                 }
                 
                 const hasConflict = columns[columnIndex].some(existingEvent => {
-                    const existingStart = parseISOAsUTC(existingEvent.start_time);
-                    const existingEnd = parseISOAsUTC(existingEvent.end_time);
+                    const existingStart = new Date(existingEvent.start_time);
+                    const existingEnd = new Date(existingEvent.end_time);
                     
                     return (eventStart.getTime() < existingEnd.getTime() && eventEnd.getTime() > existingStart.getTime());
                 });
