@@ -19,8 +19,7 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
 
     useEffect(() => {
         setLoading(false);
-        console.log('[HorarioEquiposView] Total schedules recibidos:', schedules?.length || 0);
-    }, [date, schedules]);
+    }, [date]);
 
     // Agrupar servicios por equipo basándose solo en los horarios
     const teamsWithServices = useMemo(() => {

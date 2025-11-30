@@ -406,7 +406,6 @@ export default function HorarioPage() {
             }
 
             // Consulta optimizada con índices y rangos UTC correctos
-            // CRÍTICO: Usar límite alto (500) para evitar pérdida de datos
             const cleanerSchedules = await Schedule.filter({
                 cleaner_ids: { $contains: user.id },
                 status: { $ne: 'cancelled' },
@@ -414,7 +413,7 @@ export default function HorarioPage() {
                     $gte: startOfRangeUTC,
                     $lte: endOfRangeUTC
                 }
-            }, '-start_time', 500).catch(filterError => {
+            }).catch(filterError => {
                 logger.warn('Horario', 'Filtro optimizado falló, usando fallback', filterError);
                 const monthStart = startOfMonth(forDate);
                 const monthEnd = endOfMonth(forDate);
@@ -425,7 +424,7 @@ export default function HorarioPage() {
                         $gte: monthStartUTC,
                         $lte: monthEndUTC
                     }
-                }, '-start_time', 500).then(allSchedules => {
+                }).then(allSchedules => {
                     const allSchedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
                     return allSchedulesArray.filter(s =>
                         s.cleaner_ids && Array.isArray(s.cleaner_ids) && s.cleaner_ids.includes(user.id) && s.status !== 'cancelled'
@@ -463,11 +462,10 @@ export default function HorarioPage() {
 
             if (currentUser.role === 'admin') {
                 // Usar caché para admin también
-                // CRÍTICO: Usar límite alto (1000) para evitar pérdida de datos
                 const [cachedUsers, cachedSchedules, cachedTasks] = await Promise.all([
-                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list('-created_date', 500), CACHE_TTL.MEDIUM),
-                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list('-start_time', 1000), CACHE_TTL.SHORT),
-                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list('-due_date', 500), CACHE_TTL.MEDIUM)
+                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list(), CACHE_TTL.MEDIUM),
+                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list(), CACHE_TTL.SHORT),
+                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list(), CACHE_TTL.MEDIUM)
                 ]);
                 
                 setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
@@ -574,11 +572,10 @@ export default function HorarioPage() {
                 // Invalidar caché y recargar
                 cacheManager.invalidatePattern('schedules_');
                 cacheManager.invalidatePattern('tasks_');
-
-                // CRÍTICO: Usar límite alto (1000) para evitar pérdida de datos
+                
                 const [allSchedules, allTasks] = await Promise.all([
-                    Schedule.list('-start_time', 1000),
-                    Task.list('-due_date', 500)
+                    Schedule.list(),
+                    Task.list()
                 ]);
                 
                 const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
@@ -1318,10 +1315,9 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // CRÍTICO: Usar límite alto (1000) para evitar pérdida de datos
                     const [allSchedules, allTasks] = await Promise.all([
-                        Schedule.list('-start_time', 1000),
-                        Task.list('-due_date', 500)
+                        Schedule.list(),
+                        Task.list()
                     ]);
                     setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
                     setTasks(Array.isArray(allTasks) ? allTasks : []);
