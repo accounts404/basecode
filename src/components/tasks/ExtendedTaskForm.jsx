@@ -33,7 +33,6 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ClientSearchCombobox from '@/components/work/ClientSearchCombobox';
 import ServiceSearchCombobox from '@/components/tasks/ServiceSearchCombobox';
-import ProjectSelector from '@/components/projects/ProjectSelector';
 
 const PRIORITY_OPTIONS = [
   { value: 'low', label: 'Baja - Info general', color: 'bg-slate-100 text-slate-800' },
@@ -77,7 +76,7 @@ const DAYS_OF_WEEK = [
   { value: 0, label: 'Domingo' },
 ];
 
-export default function ExtendedTaskForm({ task, users, clients, schedules, projects = [], currentUser, onSave, onDelete, onCancel }) {
+export default function ExtendedTaskForm({ task, users, clients, schedules, currentUser, onSave, onDelete, onCancel }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -91,8 +90,6 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, proj
     related_client_id: null,
     related_client_name: null,
     related_schedule_id: null,
-    project_id: null,
-    project_name: null,
     task_category: 'general_admin',
     checklist_items: [],
   });
@@ -116,8 +113,6 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, proj
         related_client_id: task.related_client_id || null,
         related_client_name: task.related_client_name || null,
         related_schedule_id: task.related_schedule_id || null,
-        project_id: task.project_id || null,
-        project_name: task.project_name || null,
         task_category: task.task_category || 'general_admin',
         checklist_items: task.checklist_items || [],
       });
@@ -519,43 +514,6 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, proj
           </Alert>
         )}
       </div>
-
-      {/* Proyecto */}
-      {projects.length > 0 && (
-        <div className="space-y-4 border-t pt-4">
-          <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-            📁 Proyecto
-          </h3>
-          <ProjectSelector
-            projects={projects}
-            selectedProjectId={formData.project_id}
-            onSelect={(value) => {
-              if (value === 'all' || value === 'no_project') {
-                setFormData(prev => ({ ...prev, project_id: null, project_name: null }));
-              } else {
-                const project = projects.find(p => p.id === value);
-                setFormData(prev => ({ 
-                  ...prev, 
-                  project_id: value, 
-                  project_name: project?.name || null 
-                }));
-              }
-            }}
-            includeAll={false}
-            includeNoProject={true}
-            placeholder="Asignar a un proyecto..."
-          />
-          {formData.project_id && (
-            <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
-              <div 
-                className="w-3 h-3 rounded-full" 
-                style={{ backgroundColor: projects.find(p => p.id === formData.project_id)?.color || '#3b82f6' }}
-              />
-              <span className="text-sm font-medium">{formData.project_name}</span>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Vinculación con Cliente/Servicio */}
       <div className="space-y-4 border-t pt-4">
