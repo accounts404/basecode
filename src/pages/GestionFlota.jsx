@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Vehicle } from '@/entities/Vehicle';
 import { DailyTeamAssignment } from '@/entities/DailyTeamAssignment';
@@ -91,9 +90,11 @@ export default function GestionFlotaPage() {
             setAssignments(existingAssignments);
             
             // 2. Obtener todos los servicios del horario Y TODOS LOS CLIENTES
+            // CRÍTICO: Usar base44 directamente con límite alto para obtener TODOS los registros
+            const { base44 } = await import('@/api/base44Client');
             const [allSchedules, allClients] = await Promise.all([
-                Schedule.list(),
-                Client.list()
+                base44.entities.Schedule.list('-start_time', 5000),
+                base44.entities.Client.list('-created_date', 1000)
             ]);
             const clientMap = new Map(allClients.map(c => [c.id, c]));
 
