@@ -14,21 +14,29 @@ const parseISOAsUTC = (isoString) => {
     return new Date(cleanString);
 };
 
-export default function HorarioEquiposView({ schedules, date, users, onSelectEvent }) {
+export default function HorarioEquiposView({ schedules, date, users, dailyTeamAssignments = [], onSelectEvent }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         setLoading(false);
     }, [date]);
 
-    // Agrupar servicios por equipo basándose solo en los horarios
+    // Agrupar servicios por equipo basándose en DailyTeamAssignment y luego en los horarios
     const teamsWithServices = useMemo(() => {
         const schedulesArray = Array.isArray(schedules) ? schedules : [];
         const usersArray = Array.isArray(users) ? users : [];
+        const assignmentsArray = Array.isArray(dailyTeamAssignments) ? dailyTeamAssignments : [];
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         const selectedDateStr = `${year}-${month}-${day}`;
+
+        // Obtener asignaciones del día
+        const todayAssignments = assignmentsArray.filter(assignment => {
+            if (!assignment.date) return false;
+            const assignmentDateStr = typeof assignment.date === 'string' ? assignment.date.slice(0, 10) : '';
+            return assignmentDateStr === selectedDateStr;
+        });
 
         // Filtrar servicios del día
         const servicesOfDay = schedulesArray.filter(schedule => {
@@ -41,51 +49,79 @@ export default function HorarioEquiposView({ schedules, date, users, onSelectEve
             return timeA - timeB;
         });
 
-        // Crear equipos dinámicos basados en servicios
+        // Crear equipos basados en DailyTeamAssignment
         const dynamicTeams = [];
 
+        // Primero, crear equipos desde las asignaciones diarias
+        todayAssignments.forEach(assignment => {
+            const teamMemberIds = Array.isArray(assignment.team_member_ids) ? assignment.team_member_ids : [];
+            const teamKey = `assignment_${assignment.id}_${assignment.vehicle_id || 'no_vehicle'}`;
+            
+            dynamicTeams.push({
+                id: assignment.id,
+                teamKey,
+                team_name: assignment.team_name || `Equipo ${assignment.vehicle_info || 'Sin Vehículo'}`,
+                team_member_ids: teamMemberIds,
+                team_members_names: assignment.team_members_names || [],
+                vehicle_info: assignment.vehicle_info || null,
+                driver_name: assignment.driver_name || null,
+                vehicle_id: assignment.vehicle_id,
+                main_driver_id: assignment.main_driver_id,
+                services: []
+            });
+        });
+
+        // Asignar servicios a equipos basándose en si algún limpiador del servicio pertenece al equipo
         servicesOfDay.forEach(service => {
             const cleanerIds = Array.isArray(service.cleaner_ids) ? service.cleaner_ids : [];
             if (cleanerIds.length === 0) return;
 
-            // Crear una clave única para este grupo de limpiadores
-            const teamKey = [...cleanerIds].sort().join('_');
+            // Buscar el equipo que contenga a ALGUNO de los limpiadores del servicio
+            let matchingTeam = dynamicTeams.find(team => {
+                const teamMemberIds = Array.isArray(team.team_member_ids) ? team.team_member_ids : [];
+                return cleanerIds.some(cleanerId => teamMemberIds.includes(cleanerId));
+            });
 
-            // Buscar si ya existe un equipo con estos limpiadores
-            let existingTeam = dynamicTeams.find(t => t.teamKey === teamKey);
+            if (matchingTeam) {
+                // Añadir servicio al equipo encontrado
+                matchingTeam.services.push(service);
+            } else {
+                // Si no hay asignación de equipo, crear equipo dinámico basado en limpiadores
+                const teamKey = [...cleanerIds].sort().join('_');
+                let existingDynamicTeam = dynamicTeams.find(t => t.teamKey === teamKey && !t.vehicle_id);
 
-            if (!existingTeam) {
-                // Crear nuevo equipo dinámico
-                const teamMembers = cleanerIds
-                    .map(id => usersArray.find(u => u.id === id))
-                    .filter(Boolean);
-                
-                const teamMembersNames = teamMembers.map(m => 
-                    m.schedule_display_name || m.invoice_name || m.full_name
-                ).filter(Boolean);
+                if (!existingDynamicTeam) {
+                    const teamMembers = cleanerIds
+                        .map(id => usersArray.find(u => u.id === id))
+                        .filter(Boolean);
+                    
+                    const teamMembersNames = teamMembers.map(m => 
+                        m.schedule_display_name || m.invoice_name || m.full_name
+                    ).filter(Boolean);
 
-                existingTeam = {
-                    id: `dynamic_${teamKey}`,
-                    teamKey,
-                    team_name: teamMembersNames.length > 0 
-                        ? `Equipo: ${teamMembersNames.join(' + ')}` 
-                        : 'Equipo Sin Nombre',
-                    team_member_ids: cleanerIds,
-                    team_members_names: teamMembersNames,
-                    vehicle_info: null,
-                    driver_name: null,
-                    services: []
-                };
-                
-                dynamicTeams.push(existingTeam);
+                    existingDynamicTeam = {
+                        id: `dynamic_${teamKey}`,
+                        teamKey,
+                        team_name: teamMembersNames.length > 0 
+                            ? `Equipo: ${teamMembersNames.join(' + ')}` 
+                            : 'Equipo Sin Nombre',
+                        team_member_ids: cleanerIds,
+                        team_members_names: teamMembersNames,
+                        vehicle_info: null,
+                        driver_name: null,
+                        services: []
+                    };
+                    
+                    dynamicTeams.push(existingDynamicTeam);
+                }
+
+                existingDynamicTeam.services.push(service);
             }
-
-            // Añadir servicio al equipo
-            existingTeam.services.push(service);
         });
 
-        return dynamicTeams;
-    }, [schedules, users, date]);
+        // Filtrar equipos sin servicios si se desea mostrar solo equipos con trabajo
+        return dynamicTeams.filter(team => team.services.length > 0);
+    }, [schedules, users, dailyTeamAssignments, date]);
 
     // Calcular limpiadores sin asignar
     const unassignedCleaners = useMemo(() => {
