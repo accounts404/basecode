@@ -463,35 +463,9 @@ export default function HorarioPage() {
             if (currentUser.role === 'admin') {
                 // Usar caché para admin también - CRÍTICO: Aumentar límite a 500 para obtener todos los servicios
                 const [cachedUsers, cachedSchedules, cachedTasks] = await Promise.all([
-                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list(), CACHE_TTL.MEDIUM),
-                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), async () => {
-                        // Obtener todos los schedules sin límite usando paginación
-                        const allSchedules = [];
-                        let skip = 0;
-                        const batchSize = 50;
-                        let hasMore = true;
-                        
-                        while (hasMore) {
-                            const batch = await Schedule.filter({}, '-start_time', batchSize, skip);
-                            const batchArray = Array.isArray(batch) ? batch : [];
-                            allSchedules.push(...batchArray);
-                            
-                            if (batchArray.length < batchSize) {
-                                hasMore = false;
-                            } else {
-                                skip += batchSize;
-                            }
-                            
-                            // Límite de seguridad: máximo 1000 registros
-                            if (allSchedules.length >= 1000) {
-                                hasMore = false;
-                            }
-                        }
-                        
-                        console.log(`[Horario] ✅ Total schedules cargados: ${allSchedules.length}`);
-                        return allSchedules;
-                    }, CACHE_TTL.SHORT),
-                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list(), CACHE_TTL.MEDIUM)
+                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list('-created_date', 200), CACHE_TTL.MEDIUM),
+                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list('-start_time', 500), CACHE_TTL.SHORT),
+                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list('-due_date', 200), CACHE_TTL.MEDIUM)
                 ]);
                 
                 setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
@@ -599,31 +573,11 @@ export default function HorarioPage() {
                 cacheManager.invalidatePattern('schedules_');
                 cacheManager.invalidatePattern('tasks_');
                 
-                // CRÍTICO: Obtener todos los schedules usando paginación
-                const allSchedules = [];
-                let skip = 0;
-                const batchSize = 50;
-                let hasMore = true;
-                
-                while (hasMore) {
-                    const batch = await Schedule.filter({}, '-start_time', batchSize, skip);
-                    const batchArray = Array.isArray(batch) ? batch : [];
-                    allSchedules.push(...batchArray);
-                    
-                    if (batchArray.length < batchSize) {
-                        hasMore = false;
-                    } else {
-                        skip += batchSize;
-                    }
-                    
-                    if (allSchedules.length >= 1000) {
-                        hasMore = false;
-                    }
-                }
-                
-                console.log(`[Horario] ✅ Refresh - Total schedules: ${allSchedules.length}`);
-                
-                const allTasks = await Task.list();
+                // CRÍTICO: Aumentar límite a 500 para obtener todos los servicios
+                const [allSchedules, allTasks] = await Promise.all([
+                    Schedule.list('-start_time', 500),
+                    Task.list('-due_date', 200)
+                ]);
                 
                 const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
                 const tasksArray = Array.isArray(allTasks) ? allTasks : [];
@@ -1362,30 +1316,12 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // CRÍTICO: Obtener todos los schedules usando paginación
-                    const allSchedules = [];
-                    let skip = 0;
-                    const batchSize = 50;
-                    let hasMore = true;
-                    
-                    while (hasMore) {
-                        const batch = await Schedule.filter({}, '-start_time', batchSize, skip);
-                        const batchArray = Array.isArray(batch) ? batch : [];
-                        allSchedules.push(...batchArray);
-                        
-                        if (batchArray.length < batchSize) {
-                            hasMore = false;
-                        } else {
-                            skip += batchSize;
-                        }
-                        
-                        if (allSchedules.length >= 1000) {
-                            hasMore = false;
-                        }
-                    }
-                    
-                    const allTasks = await Task.list();
-                    setSchedules(allSchedules);
+                    // CRÍTICO: Aumentar límite a 500 para obtener todos los servicios
+                    const [allSchedules, allTasks] = await Promise.all([
+                        Schedule.list('-start_time', 500),
+                        Task.list('-due_date', 200)
+                    ]);
+                    setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
                     setTasks(Array.isArray(allTasks) ? allTasks : []);
                 } else {
                     await loadCleanerSpecificData(currentDateRef.current, true);
