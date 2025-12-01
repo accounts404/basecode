@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Schedule } from '@/entities/Schedule';
 import { Client } from '@/entities/Client';
@@ -79,7 +78,9 @@ export default function GestionServiciosAdminPage() {
             
             setUser(currentUser);
             
-            const allUsers = await User.list();
+            // CRÍTICO: Usar base44 directamente con límite alto
+            const { base44 } = await import('@/api/base44Client');
+            const allUsers = await base44.entities.User.list('-created_date', 500);
             setUsers(allUsers || []);
             
         } catch (err) {

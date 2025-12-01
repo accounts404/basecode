@@ -55,13 +55,15 @@ export default function ReportesPage() {
     const loadData = async () => {
       setLoading(true);
       try {
+        // CRÍTICO: Usar base44 directamente con límite alto para obtener TODOS los registros
+        const { base44 } = await import('@/api/base44Client');
         // Fetch last 2 years of data for historical analysis
         const twoYearsAgo = subMonths(new Date(), 24);
         const [entriesResult, usersResult, schedulesResult, clientsResult] = await Promise.allSettled([
-          WorkEntry.list("-work_date", 10000),
-          User.list(),
-          Schedule.list("-start_time", 10000),
-          Client.list()
+          base44.entities.WorkEntry.list("-work_date", 10000),
+          base44.entities.User.list('-created_date', 500),
+          base44.entities.Schedule.list("-start_time", 10000),
+          base44.entities.Client.list('-created_date', 1000)
         ]);
         
         const allEntriesRaw = entriesResult.status === 'fulfilled' ? entriesResult.value : [];

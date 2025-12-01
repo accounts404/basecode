@@ -59,11 +59,13 @@ export default function ReportesServicioPage() {
     const loadInitialData = async () => {
         setLoading(true);
         try {
+            // CRÍTICO: Usar base44 directamente con límite alto para obtener TODOS los registros
+            const { base44 } = await import('@/api/base44Client');
             // Cargar reportes, limpiadores y clientes en paralelo
             const [reportsResult, cleanersResult, clientsResult] = await Promise.allSettled([
-                ServiceReport.list('-created_date'),
-                User.filter({ role: 'user' }),
-                Client.list()
+                base44.entities.ServiceReport.list('-created_date', 1000),
+                base44.entities.User.filter({ role: 'user' }, '-created_date', 500),
+                base44.entities.Client.list('-created_date', 1000)
             ]);
 
             const allReports = reportsResult.status === 'fulfilled' ? reportsResult.value || [] : [];

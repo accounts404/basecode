@@ -71,14 +71,16 @@ export default function HistorialClientes() {
     const loadData = async () => {
         setLoading(true);
         try {
+            // CRÍTICO: Usar base44 directamente con límite alto para obtener TODOS los registros
+            const { base44 } = await import('@/api/base44Client');
             const [clientsData, cleanersData, reportsData] = await Promise.all([
-                Client.list(),
-                User.list(),
-                ServiceReport.list()
+                base44.entities.Client.list('-created_date', 1000),
+                base44.entities.User.list('-created_date', 500),
+                base44.entities.ServiceReport.list('-created_date', 1000)
             ]);
-            setClients(clientsData.filter(c => c.active !== false));
-            setCleaners(cleanersData);
-            setServiceReports(reportsData);
+            setClients((clientsData || []).filter(c => c.active !== false));
+            setCleaners(cleanersData || []);
+            setServiceReports(reportsData || []);
         } catch (error) {
             console.error('Error cargando datos:', error);
         } finally {
@@ -89,8 +91,10 @@ export default function HistorialClientes() {
     const loadClientSchedules = async (clientId) => {
         setLoading(true);
         try {
-            const schedulesData = await Schedule.filter({ client_id: clientId });
-            setSchedules(schedulesData);
+            // CRÍTICO: Usar base44 directamente con límite alto
+            const { base44 } = await import('@/api/base44Client');
+            const schedulesData = await base44.entities.Schedule.filter({ client_id: clientId }, '-start_time', 1000);
+            setSchedules(schedulesData || []);
         } catch (error) {
             console.error('Error cargando horarios del cliente:', error);
         } finally {
