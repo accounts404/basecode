@@ -462,10 +462,11 @@ export default function HorarioPage() {
 
             if (currentUser.role === 'admin') {
                 // Usar caché para admin también
+                // CRÍTICO: Usar límites altos para obtener TODOS los registros (el default es 50)
                 const [cachedUsers, cachedSchedules, cachedTasks] = await Promise.all([
-                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list(), CACHE_TTL.MEDIUM),
-                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list(), CACHE_TTL.SHORT),
-                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list(), CACHE_TTL.MEDIUM)
+                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list('-created_date', 500), CACHE_TTL.MEDIUM),
+                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list('-start_time', 2000), CACHE_TTL.SHORT),
+                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list('-created_date', 500), CACHE_TTL.MEDIUM)
                 ]);
                 
                 setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
@@ -573,9 +574,10 @@ export default function HorarioPage() {
                 cacheManager.invalidatePattern('schedules_');
                 cacheManager.invalidatePattern('tasks_');
                 
+                // CRÍTICO: Usar límites altos para obtener TODOS los registros
                 const [allSchedules, allTasks] = await Promise.all([
-                    Schedule.list(),
-                    Task.list()
+                    Schedule.list('-start_time', 2000),
+                    Task.list('-created_date', 500)
                 ]);
                 
                 const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
@@ -1315,9 +1317,10 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
+                    // CRÍTICO: Usar límites altos para obtener TODOS los registros
                     const [allSchedules, allTasks] = await Promise.all([
-                        Schedule.list(),
-                        Task.list()
+                        Schedule.list('-start_time', 2000),
+                        Task.list('-created_date', 500)
                     ]);
                     setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
                     setTasks(Array.isArray(allTasks) ? allTasks : []);
