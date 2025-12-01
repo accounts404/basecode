@@ -142,6 +142,7 @@ export default function HorarioPage() {
     const [tasks, setTasks] = useState([]);
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
+    const [dailyTeamAssignments, setDailyTeamAssignments] = useState([]);
 
     const [error, setError] = useState('');
 
@@ -463,22 +464,25 @@ export default function HorarioPage() {
             if (currentUser.role === 'admin') {
                 // CRÍTICO: Obtener TODOS los registros sin límite de 50
                 const { base44 } = await import('@/api/base44Client');
-                const [cachedUsers, cachedSchedules, cachedTasks] = await Promise.all([
+                const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
                     base44.entities.User.list('-created_date', 500),
                     base44.entities.Schedule.list('-start_time', 5000),
-                    base44.entities.Task.list('-created_date', 500)
+                    base44.entities.Task.list('-created_date', 500),
+                    base44.entities.DailyTeamAssignment.list('-date', 500)
                 ]);
-                
+
                 setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
                 setSchedules(Array.isArray(cachedSchedules) ? cachedSchedules : []);
                 setTasks(Array.isArray(cachedTasks) ? cachedTasks : []);
+                setDailyTeamAssignments(Array.isArray(cachedAssignments) ? cachedAssignments : []);
                 setLoading(false);
                 setInitialLoadComplete(true);
-                
+
                 logger.info('Horario', 'Admin - Datos cargados', { 
                     users: cachedUsers?.length || 0, 
                     schedules: cachedSchedules?.length || 0,
-                    tasks: cachedTasks?.length || 0
+                    tasks: cachedTasks?.length || 0,
+                    assignments: cachedAssignments?.length || 0
                 });
             } else {
                 logger.debug('Horario', 'Limpiador detectado, cargando desde caché local');
@@ -572,24 +576,28 @@ export default function HorarioPage() {
             if (user.role === 'admin') {
                 // CRÍTICO: Obtener TODOS los registros sin límite de 50
                 const { base44 } = await import('@/api/base44Client');
-                const [allSchedules, allTasks] = await Promise.all([
+                const [allSchedules, allTasks, allAssignments] = await Promise.all([
                     base44.entities.Schedule.list('-start_time', 5000),
-                    base44.entities.Task.list('-created_date', 500)
+                    base44.entities.Task.list('-created_date', 500),
+                    base44.entities.DailyTeamAssignment.list('-date', 500)
                 ]);
-                
+
                 const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
                 const tasksArray = Array.isArray(allTasks) ? allTasks : [];
-                
+                const assignmentsArray = Array.isArray(allAssignments) ? allAssignments : [];
+
                 setSchedules(schedulesArray);
                 setTasks(tasksArray);
-                
+                setDailyTeamAssignments(assignmentsArray);
+
                 // Actualizar caché
                 cacheManager.set(CACHE_KEYS.SCHEDULES('all'), schedulesArray, CACHE_TTL.SHORT);
                 cacheManager.set(CACHE_KEYS.TASKS('all'), tasksArray, CACHE_TTL.MEDIUM);
-                
+
                 logger.info('Horario', 'Datos admin actualizados', { 
                     schedules: schedulesArray.length, 
-                    tasks: tasksArray.length 
+                    tasks: tasksArray.length,
+                    assignments: assignmentsArray.length
                 });
             } else {
                 await loadCleanerSpecificData(date, false);
@@ -1316,12 +1324,14 @@ export default function HorarioPage() {
                 if (user?.role === 'admin') {
                     // CRÍTICO: Obtener TODOS los registros sin límite de 50
                     const { base44 } = await import('@/api/base44Client');
-                    const [allSchedules, allTasks] = await Promise.all([
+                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
                         base44.entities.Schedule.list('-start_time', 5000),
-                        base44.entities.Task.list('-created_date', 500)
+                        base44.entities.Task.list('-created_date', 500),
+                        base44.entities.DailyTeamAssignment.list('-date', 500)
                     ]);
                     setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
                     setTasks(Array.isArray(allTasks) ? allTasks : []);
+                    setDailyTeamAssignments(Array.isArray(allAssignments) ? allAssignments : []);
                 } else {
                     await loadCleanerSpecificData(currentDateRef.current, true);
                 }
@@ -1573,6 +1583,7 @@ export default function HorarioPage() {
                                     schedules={filteredSchedules}
                                     date={date}
                                     users={users}
+                                    dailyTeamAssignments={dailyTeamAssignments}
                                     onSelectEvent={handleSelectEvent}
                                 />
                             ) : (
