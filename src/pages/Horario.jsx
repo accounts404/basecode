@@ -461,11 +461,11 @@ export default function HorarioPage() {
             logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
             if (currentUser.role === 'admin') {
-                // Usar caché para admin también - CRÍTICO: Aumentar límite a 500 para obtener todos los servicios
+                // Usar caché para admin también
                 const [cachedUsers, cachedSchedules, cachedTasks] = await Promise.all([
-                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list('-created_date', 200), CACHE_TTL.MEDIUM),
-                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list('-start_time', 500), CACHE_TTL.SHORT),
-                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list('-due_date', 200), CACHE_TTL.MEDIUM)
+                    cacheManager.getOrSet(CACHE_KEYS.USERS, () => User.list(), CACHE_TTL.MEDIUM),
+                    cacheManager.getOrSet(CACHE_KEYS.SCHEDULES('all'), () => Schedule.list(), CACHE_TTL.SHORT),
+                    cacheManager.getOrSet(CACHE_KEYS.TASKS('all'), () => Task.list(), CACHE_TTL.MEDIUM)
                 ]);
                 
                 setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
@@ -573,10 +573,9 @@ export default function HorarioPage() {
                 cacheManager.invalidatePattern('schedules_');
                 cacheManager.invalidatePattern('tasks_');
                 
-                // CRÍTICO: Aumentar límite a 500 para obtener todos los servicios
                 const [allSchedules, allTasks] = await Promise.all([
-                    Schedule.list('-start_time', 500),
-                    Task.list('-due_date', 200)
+                    Schedule.list(),
+                    Task.list()
                 ]);
                 
                 const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
@@ -1316,10 +1315,9 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // CRÍTICO: Aumentar límite a 500 para obtener todos los servicios
                     const [allSchedules, allTasks] = await Promise.all([
-                        Schedule.list('-start_time', 500),
-                        Task.list('-due_date', 200)
+                        Schedule.list(),
+                        Task.list()
                     ]);
                     setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
                     setTasks(Array.isArray(allTasks) ? allTasks : []);
