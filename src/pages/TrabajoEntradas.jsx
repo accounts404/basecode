@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client"; // Corrected import for base44
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -280,8 +279,6 @@ export default function TrabajoEntradasPage() {
             <div class="terms-title">TERMS:</div>
             <div class="cleaning-service">1. Cleaning Service:</div>
             <div class="service-list">
-                <div class="service-item">Month/day: $value</div>
-                <div class="example-text">ej.</div>
                 ${servicesHTML}
             </div>
         </div>
