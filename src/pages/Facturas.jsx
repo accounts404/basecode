@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { User } from "@/entities/User";
 import { Invoice } from "@/entities/Invoice";
@@ -184,10 +183,12 @@ export default function FacturasPage() {
       const userData = await User.me();
       setUser(userData);
       if (userData.role === 'admin') {
+        // CRÍTICO: Usar base44 directamente con límite alto para obtener TODOS los registros
+        const { base44 } = await import('@/api/base44Client');
         const [invoicesResult, workEntriesResult, usersResult] = await Promise.allSettled([
-          Invoice.list("-created_date"),
-          WorkEntry.list(),
-          User.list(),
+          base44.entities.Invoice.list("-created_date", 5000),
+          base44.entities.WorkEntry.list("-work_date", 10000),
+          base44.entities.User.list("-created_date", 500),
         ]);
         
         if (invoicesResult.status === 'rejected') {
