@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useNavigate } from 'react-router-dom';
@@ -23,13 +22,17 @@ import {
   Eye,
   UserCheck,
   Briefcase,
-  FilePlus
+  FilePlus,
+  FolderPlus
 } from 'lucide-react';
 import TaskFilters from '@/components/tasks/TaskFilters';
 import TaskTable from '@/components/tasks/TaskTable';
 import ExtendedTaskForm from '@/components/tasks/ExtendedTaskForm';
 import TaskKanbanView from '@/components/tasks/TaskKanbanView';
 import TaskDetailView from '@/components/tasks/TaskDetailView';
+import ProjectSidebar from '@/components/projects/ProjectSidebar';
+import ProjectForm from '@/components/projects/ProjectForm';
+import ProjectHeader from '@/components/projects/ProjectHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { startOfDay, endOfDay, isAfter, isBefore, isToday } from 'date-fns';
@@ -43,6 +46,7 @@ export default function AdminTasksPanel() {
   const [users, setUsers] = useState([]);
   const [clients, setClients] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -53,6 +57,13 @@ export default function AdminTasksPanel() {
   const [taskScope, setTaskScope] = useState('my_tasks'); // 'my_tasks', 'created_by_me', 'all_tasks'
   const [error, setError] = useState('');
   const { toast } = useToast();
+  
+  // Project states
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [editingProject, setEditingProject] = useState(null);
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
   
   // Estados de filtros
   const [filters, setFilters] = useState({
@@ -86,17 +97,19 @@ export default function AdminTasksPanel() {
 
       setUser(currentUser);
 
-      const [allTasks, allUsers, allClients, allSchedules] = await Promise.all([
+      const [allTasks, allUsers, allClients, allSchedules, allProjects] = await Promise.all([
         base44.entities.Task.list(),
         base44.entities.User.list(),
         base44.entities.Client.list(),
-        base44.entities.Schedule.list()
+        base44.entities.Schedule.list(),
+        base44.entities.Project.list()
       ]);
 
       setTasks(Array.isArray(allTasks) ? allTasks : []);
       setUsers(Array.isArray(allUsers) ? allUsers.filter(u => u.role === 'admin') : []);
       setClients(Array.isArray(allClients) ? allClients : []);
       setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
+      setProjects(Array.isArray(allProjects) ? allProjects : []);
 
     } catch (error) {
       console.error('[AdminTasksPanel] Error loading data:', error);
@@ -118,8 +131,100 @@ export default function AdminTasksPanel() {
   };
 
   const handleCreateTask = () => {
-    setSelectedTask(null);
+    // Pre-fill with selected project if one is selected
+    if (selectedProjectId && selectedProjectId !== 'none') {
+      setSelectedTask({ project_id: selectedProjectId });
+    } else {
+      setSelectedTask(null);
+    }
     setShowTaskForm(true);
+  };
+
+  // Project handlers
+  const handleCreateProject = () => {
+    setEditingProject(null);
+    setShowProjectForm(true);
+  };
+
+  const handleEditProject = () => {
+    const project = projects.find(p => p.id === selectedProjectId);
+    if (project) {
+      setEditingProject(project);
+      setShowProjectForm(true);
+    }
+  };
+
+  const handleSaveProject = async (projectData) => {
+    setSavingProject(true);
+    try {
+      if (editingProject?.id) {
+        await base44.entities.Project.update(editingProject.id, projectData);
+        toast({
+          title: "✅ Proyecto Actualizado",
+          description: "Los cambios se guardaron correctamente",
+          duration: 2000,
+        });
+      } else {
+        const newProject = await base44.entities.Project.create({
+          ...projectData,
+          created_by_user_id: user.id
+        });
+        setSelectedProjectId(newProject.id);
+        toast({
+          title: "✅ Proyecto Creado",
+          description: `Proyecto "${projectData.name}" creado exitosamente`,
+          duration: 2000,
+        });
+      }
+      setShowProjectForm(false);
+      setEditingProject(null);
+      await loadInitialData();
+    } catch (error) {
+      console.error('Error saving project:', error);
+      toast({
+        variant: "destructive",
+        title: "❌ Error",
+        description: "No se pudo guardar el proyecto",
+        duration: 3000,
+      });
+    } finally {
+      setSavingProject(false);
+    }
+  };
+
+  const handleArchiveProject = async () => {
+    if (!editingProject?.id) return;
+    try {
+      await base44.entities.Project.update(editingProject.id, { status: 'archived' });
+      setShowProjectForm(false);
+      setEditingProject(null);
+      setSelectedProjectId(null);
+      await loadInitialData();
+      toast({
+        title: "📦 Proyecto Archivado",
+        description: "El proyecto fue archivado correctamente",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error archiving project:', error);
+    }
+  };
+
+  const handleRestoreProject = async () => {
+    if (!editingProject?.id) return;
+    try {
+      await base44.entities.Project.update(editingProject.id, { status: 'active' });
+      setShowProjectForm(false);
+      setEditingProject(null);
+      await loadInitialData();
+      toast({
+        title: "✅ Proyecto Restaurado",
+        description: "El proyecto está activo nuevamente",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error('Error restoring project:', error);
+    }
   };
 
   const handleEditTask = (task) => {
@@ -576,23 +681,32 @@ export default function AdminTasksPanel() {
   const tasksWithScope = useMemo(() => {
     if (!user) return [];
     
+    let scopedTasks = [];
+    
     if (taskScope === 'all_tasks') {
       // Solo el Master Admin puede ver todas las tareas
-      return isMasterAdmin ? tasks : [];
-    }
-    
-    if (taskScope === 'created_by_me') {
+      scopedTasks = isMasterAdmin ? tasks : [];
+    } else if (taskScope === 'created_by_me') {
       // Tareas creadas por el usuario actual
-      return tasks.filter(task => task.created_by_user_id === user.id);
+      scopedTasks = tasks.filter(task => task.created_by_user_id === user.id);
+    } else {
+      // taskScope === 'my_tasks' (por defecto)
+      // Tareas asignadas al usuario actual
+      scopedTasks = tasks.filter(task => {
+        const isAssigned = task.assignee_user_ids && task.assignee_user_ids.includes(user.id);
+        return isAssigned;
+      });
     }
     
-    // taskScope === 'my_tasks' (por defecto)
-    // Tareas asignadas al usuario actual
-    return tasks.filter(task => {
-      const isAssigned = task.assignee_user_ids && task.assignee_user_ids.includes(user.id);
-      return isAssigned;
-    });
-  }, [tasks, user, isMasterAdmin, taskScope]);
+    // Apply project filter
+    if (selectedProjectId === 'none') {
+      return scopedTasks.filter(task => !task.project_id);
+    } else if (selectedProjectId) {
+      return scopedTasks.filter(task => task.project_id === selectedProjectId);
+    }
+    
+    return scopedTasks;
+  }, [tasks, user, isMasterAdmin, taskScope, selectedProjectId]);
 
   // Filtrado de tareas con scope aplicado
   const filteredTasks = useMemo(() => {
@@ -731,9 +845,26 @@ export default function AdminTasksPanel() {
     );
   }
 
+  const selectedProject = projects.find(p => p.id === selectedProjectId);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex">
       <Toaster />
+      
+      {/* Project Sidebar */}
+      <div className="w-64 flex-shrink-0 hidden lg:block">
+        <ProjectSidebar
+          projects={projects}
+          tasks={tasks}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={setSelectedProjectId}
+          onCreateProject={handleCreateProject}
+          showArchived={showArchivedProjects}
+          onToggleArchived={() => setShowArchivedProjects(!showArchivedProjects)}
+        />
+      </div>
+      
+      <div className="flex-1 p-4 md:p-6 overflow-auto">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header with Admin Badge */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -773,6 +904,14 @@ export default function AdminTasksPanel() {
               Actualizar
             </Button>
             <Button 
+              variant="outline"
+              onClick={handleCreateProject}
+              className="lg:hidden"
+            >
+              <FolderPlus className="w-5 h-5 mr-2" />
+              Proyecto
+            </Button>
+            <Button 
               onClick={handleCreateTask}
               size="lg"
               className="bg-blue-600 hover:bg-blue-700"
@@ -782,6 +921,16 @@ export default function AdminTasksPanel() {
             </Button>
           </div>
         </div>
+        
+        {/* Project Header */}
+        {(selectedProjectId || selectedProjectId === 'none') && (
+          <ProjectHeader
+            project={selectedProject}
+            tasks={tasks}
+            selectedProjectId={selectedProjectId}
+            onEditProject={handleEditProject}
+          />
+        )}
 
         {error && (
           <Alert variant="destructive">
@@ -1024,6 +1173,7 @@ export default function AdminTasksPanel() {
             users={users}
             clients={clients}
             schedules={schedules}
+            projects={projects}
             currentUser={user}
             onSave={handleSaveTask}
             onDelete={selectedTask?.id ? () => handleDeleteTask(selectedTask.id) : null}
@@ -1063,6 +1213,30 @@ export default function AdminTasksPanel() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Project Form Dialog */}
+      <Dialog open={showProjectForm} onOpenChange={setShowProjectForm}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderPlus className="w-5 h-5 text-blue-600" />
+              {editingProject?.id ? 'Editar Proyecto' : 'Nuevo Proyecto'}
+            </DialogTitle>
+          </DialogHeader>
+          <ProjectForm
+            project={editingProject}
+            onSave={handleSaveProject}
+            onCancel={() => {
+              setShowProjectForm(false);
+              setEditingProject(null);
+            }}
+            onArchive={editingProject?.id && editingProject?.status !== 'archived' ? handleArchiveProject : null}
+            onRestore={editingProject?.status === 'archived' ? handleRestoreProject : null}
+            saving={savingProject}
+          />
+        </DialogContent>
+      </Dialog>
+      </div>
     </div>
   );
 }
