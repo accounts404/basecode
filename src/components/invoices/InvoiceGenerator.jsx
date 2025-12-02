@@ -100,7 +100,6 @@ const generateInvoiceHTML = (user, invoiceNumber, workEntries, totalAmount) => {
     <div class="terms">
         <h3>TERMS:</h3>
         <p>1. Cleaning Service:</p>
-        <p style="margin-left: 20px;">Month/day: $value</p>
         <ul style="margin-left: 40px;">
             ${sortedDates.map(date => {
               const formattedDate = format(new Date(date), "d 'de' MMMM 'de' yyyy", { locale: es });

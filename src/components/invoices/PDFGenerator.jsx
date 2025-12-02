@@ -1,4 +1,3 @@
-
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -94,11 +93,7 @@ export const generateInvoicePDF = async (user, invoiceNumber, workEntries, total
     doc.text('1. Cleaning Service:', 20, y);
     y += 10;
     
-    // Service list
-    doc.text('Month/day: $value', 32, y);
-    y += 8;
-    
-    // Add services (removed the "ej." line)
+    // Add services
     sortedDates.forEach(date => {
       const formattedDate = format(new Date(date), "d 'de' MMMM 'de' yyyy", { locale: es });
       const amount = dailyTotals[date].toFixed(2); // Changed from toFixed(0) to toFixed(2)
