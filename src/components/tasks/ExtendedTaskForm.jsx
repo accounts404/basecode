@@ -27,7 +27,8 @@ import {
   Users,
   Building2,
   CalendarClock,
-  Info
+  Info,
+  FolderOpen
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -76,7 +77,7 @@ const DAYS_OF_WEEK = [
   { value: 0, label: 'Domingo' },
 ];
 
-export default function ExtendedTaskForm({ task, users, clients, schedules, currentUser, onSave, onDelete, onCancel }) {
+export default function ExtendedTaskForm({ task, users, clients, schedules, projects = [], currentUser, onSave, onDelete, onCancel }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -92,6 +93,7 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, curr
     related_schedule_id: null,
     task_category: 'general_admin',
     checklist_items: [],
+    project_id: null,
   });
 
   const [error, setError] = useState('');
@@ -115,8 +117,11 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, curr
         related_schedule_id: task.related_schedule_id || null,
         task_category: task.task_category || 'general_admin',
         checklist_items: task.checklist_items || [],
+        project_id: task.project_id || null,
       });
-      setSelectedDate(new Date(task.due_date));
+      if (task.due_date) {
+        setSelectedDate(new Date(task.due_date));
+      }
     }
   }, [task]);
 
@@ -257,6 +262,43 @@ export default function ExtendedTaskForm({ task, users, clients, schedules, curr
             required
           />
         </div>
+
+        {/* Project Selection */}
+        {projects.length > 0 && (
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <FolderOpen className="w-4 h-4" />
+              Proyecto
+            </Label>
+            <Select
+              value={formData.project_id || 'none'}
+              onValueChange={(value) => setFormData(prev => ({ 
+                ...prev, 
+                project_id: value === 'none' ? null : value 
+              }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Sin proyecto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-slate-500">Sin proyecto</span>
+                </SelectItem>
+                {projects.filter(p => p.status === 'active').map(project => (
+                  <SelectItem key={project.id} value={project.id}>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: project.color || '#3b82f6' }}
+                      />
+                      {project.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="description">Descripción</Label>
