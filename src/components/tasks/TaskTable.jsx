@@ -27,7 +27,8 @@ import {
     DollarSign,
     Car,
     Settings,
-    FileText
+    FileText,
+    FolderOpen
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -59,7 +60,8 @@ const categoryConfig = {
 
 export default function TaskTable({ 
     tasks, 
-    users, 
+    users,
+    projects = [], 
     onViewTask, 
     onEditTask, 
     onDeleteTask, 
@@ -249,6 +251,23 @@ export default function TaskTable({
                                     </TableCell>
                                     <TableCell>
                                         <div className="space-y-1">
+                                            {task.project_id && (() => {
+                                                const project = projects.find(p => p.id === task.project_id);
+                                                return project ? (
+                                                    <Badge 
+                                                        variant="outline" 
+                                                        className="text-xs"
+                                                        style={{ 
+                                                            borderColor: project.color,
+                                                            color: project.color,
+                                                            backgroundColor: `${project.color}10`
+                                                        }}
+                                                    >
+                                                        <FolderOpen className="w-3 h-3 mr-1" />
+                                                        {project.name}
+                                                    </Badge>
+                                                ) : null;
+                                            })()}
                                             {task.related_client_name && (
                                                 <Badge variant="outline" className="text-xs">
                                                     <Users className="w-3 h-3 mr-1" />
