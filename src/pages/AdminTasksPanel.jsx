@@ -1126,6 +1126,7 @@ export default function AdminTasksPanel() {
                 users={users}
                 clients={clients}
                 schedules={schedules}
+                projects={projects}
                 onViewTask={handleViewTaskDetail}
                 onEditTask={handleEditTask}
                 onDeleteTask={(task) => handleDeleteTask(task.id)}
