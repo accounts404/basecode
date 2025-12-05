@@ -41,6 +41,13 @@ const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   return date >= startDate && date <= endDate;
 };
 
+// Excluir agosto y septiembre de 2025 de análisis acumulados
+const isExcludedMonth = (dateString) => {
+  if (!dateString) return false;
+  const date = extractDateOnly(dateString);
+  return date.startsWith('2025-08') || date.startsWith('2025-09');
+};
+
 const calculateGST = (price, gstType) => {
     const numPrice = parseFloat(price) || 0;
     switch (gstType) {
@@ -632,6 +639,7 @@ export default function RentabilidadPage() {
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
             return isDateInRange(schedule.start_time, cumulativeStartDate, new Date()) && 
+                   !isExcludedMonth(schedule.start_time) &&
                    schedule.xero_invoiced === true &&
                    schedule.client_id !== trainingClientId &&
                    clientMap.has(schedule.client_id);
@@ -661,7 +669,8 @@ export default function RentabilidadPage() {
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
             if (entry.client_id === trainingClientId && 
-                isDateInRange(entry.work_date, cumulativeStartDate, new Date())) {
+                isDateInRange(entry.work_date, cumulativeStartDate, new Date()) &&
+                !isExcludedMonth(entry.work_date)) {
                 cumulativeTrainingHours += entry.hours || 0;
                 cumulativeTrainingAmount += entry.total_amount || 0;
             }
@@ -670,6 +679,7 @@ export default function RentabilidadPage() {
 
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
             return isDateInRange(entry.work_date, cumulativeStartDate, new Date()) && 
+                   !isExcludedMonth(entry.work_date) &&
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
                    entry.activity !== 'training';
@@ -744,7 +754,11 @@ export default function RentabilidadPage() {
         const periodMonths = [];
         let currentDate = new Date(startPeriod + '-01');
         while (format(currentDate, 'yyyy-MM') <= endPeriod) {
-            periodMonths.push(format(currentDate, 'yyyy-MM'));
+            const monthKey = format(currentDate, 'yyyy-MM');
+            // Excluir agosto y septiembre 2025
+            if (monthKey !== '2025-08' && monthKey !== '2025-09') {
+                periodMonths.push(monthKey);
+            }
             currentDate = addMonths(currentDate, 1);
         }
 
