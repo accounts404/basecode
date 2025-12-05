@@ -30,6 +30,13 @@ const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   return date >= startDate && date <= endDate;
 };
 
+// Excluir agosto y septiembre de 2025
+const isExcludedMonth = (dateString) => {
+  if (!dateString) return false;
+  const date = extractDateOnly(dateString);
+  return date.startsWith('2025-08') || date.startsWith('2025-09');
+};
+
 const calculateGST = (price, gstType) => {
     const numPrice = parseFloat(price) || 0;
     switch (gstType) {
@@ -199,6 +206,7 @@ export default function AumentoClientesPage() {
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
             return isDateInRange(schedule.start_time, startDate, endDate) && 
+                   !isExcludedMonth(schedule.start_time) &&
                    schedule.xero_invoiced === true &&
                    schedule.client_id !== trainingClientId &&
                    clientMap.has(schedule.client_id);
@@ -226,6 +234,7 @@ export default function AumentoClientesPage() {
 
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
             return isDateInRange(entry.work_date, startDate, endDate) && 
+                   !isExcludedMonth(entry.work_date) &&
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id);
         });
@@ -247,7 +256,8 @@ export default function AumentoClientesPage() {
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
             if (entry.client_id === trainingClientId && 
-                isDateInRange(entry.work_date, startDate, endDate)) {
+                isDateInRange(entry.work_date, startDate, endDate) &&
+                !isExcludedMonth(entry.work_date)) {
                 cumulativeTrainingAmount += entry.total_amount || 0;
             }
         });
@@ -308,7 +318,11 @@ export default function AumentoClientesPage() {
         const startPeriod = format(startDate, 'yyyy-MM');
         const endPeriod = format(endDate, 'yyyy-MM');
         const totalCumulativeFixedCosts = allFixedCosts.filter(fc => {
-            return fc.period >= startPeriod && fc.period <= endPeriod;
+            // Excluir agosto y septiembre 2025
+            return fc.period >= startPeriod && 
+                   fc.period <= endPeriod &&
+                   fc.period !== '2025-08' &&
+                   fc.period !== '2025-09';
         }).reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
