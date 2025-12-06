@@ -451,10 +451,10 @@ export default function HorarioPage() {
                 // CRÍTICO: Obtener ABSOLUTAMENTE TODOS sin límites
                 const { base44 } = await import('@/api/base44Client');
 
-                console.log('[Horario] 🔄 Cargando TODOS los schedules desde BD (sin límite)...');
+                console.log('[Horario] 🔄 Cargando TODOS los schedules desde BD (límite 200K)...');
                 const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
                     base44.entities.User.list(null, 10000),
-                    base44.entities.Schedule.list(null, 50000),
+                    base44.entities.Schedule.list(null, 200000),
                     base44.entities.Task.list(null, 10000),
                     base44.entities.DailyTeamAssignment.list(null, 10000)
                 ]);
@@ -564,7 +564,7 @@ export default function HorarioPage() {
                 // CRÍTICO: Obtener ABSOLUTAMENTE TODOS sin límites
                 const { base44 } = await import('@/api/base44Client');
                 const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                    base44.entities.Schedule.list(null, 50000),
+                    base44.entities.Schedule.list(null, 200000),
                     base44.entities.Task.list(null, 10000),
                     base44.entities.DailyTeamAssignment.list(null, 10000)
                 ]);
