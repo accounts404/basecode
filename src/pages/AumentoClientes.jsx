@@ -20,20 +20,8 @@ const extractDateOnly = (isoString) => {
   return isoString.substring(0, 10);
 };
 
-// CRÍTICO: Excluir agosto y septiembre 2025
-const isExcludedMonth = (dateString) => {
-  if (!dateString) return false;
-  const date = extractDateOnly(dateString);
-  if (!date) return false;
-  // Excluir 2025-08 y 2025-09
-  return date >= '2025-08-01' && date <= '2025-09-30';
-};
-
 const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   if (!dateString || !rangeStart || !rangeEnd) return false;
-  
-  // PRIMERO: Verificar si es un mes excluido
-  if (isExcludedMonth(dateString)) return false;
   
   const date = extractDateOnly(dateString);
   const startDate = format(rangeStart, 'yyyy-MM-dd');
@@ -173,8 +161,6 @@ export default function AumentoClientesPage() {
             setLoading(true);
             setError('');
             try {
-                console.log('[AumentoClientes] 📊 Cargando datos (excluyendo ago-sep 2025)...');
-                
                 const [clientsData, workEntriesData, schedulesData, fixedCostsData] = await Promise.all([
                     Client.list(),
                     WorkEntry.list("-work_date"),
@@ -182,19 +168,10 @@ export default function AumentoClientesPage() {
                     FixedCost.list(),
                 ]);
                 
-                // CRÍTICO: Filtrar datos excluyendo agosto-septiembre 2025
-                const filteredWorkEntries = (workEntriesData || []).filter(e => !isExcludedMonth(e.work_date));
-                const filteredSchedules = (schedulesData || []).filter(s => !isExcludedMonth(s.start_time));
-                
                 setClients(clientsData || []);
-                setAllWorkEntries(filteredWorkEntries);
-                setAllSchedules(filteredSchedules);
+                setAllWorkEntries(workEntriesData || []);
+                setAllSchedules(schedulesData || []);
                 setAllFixedCosts(fixedCostsData || []);
-                
-                console.log('[AumentoClientes] ✅ Datos cargados:', {
-                  entries: filteredWorkEntries.length,
-                  schedules: filteredSchedules.length
-                });
                 
                 const trainingClient = (clientsData || []).find(c => c.name === 'TRAINING' || c.client_type === 'training');
                 if (trainingClient) {
