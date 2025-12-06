@@ -561,10 +561,20 @@ export default function HorarioPage() {
 
         try {
             if (user.role === 'admin') {
-                // CRÍTICO: Obtener ABSOLUTAMENTE TODOS sin límites
+                // SOLUCIÓN: Cargar por rango de fechas
                 const { base44 } = await import('@/api/base44Client');
+
+                const now = new Date();
+                const startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+                const endDate = new Date(now.getFullYear(), now.getMonth() + 13, 0);
+
                 const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                    base44.entities.Schedule.list(null, 200000),
+                    base44.entities.Schedule.filter({
+                        start_time: {
+                            $gte: startDate.toISOString(),
+                            $lte: endDate.toISOString()
+                        }
+                    }, null, 50000),
                     base44.entities.Task.list(null, 10000),
                     base44.entities.DailyTeamAssignment.list(null, 10000)
                 ]);
