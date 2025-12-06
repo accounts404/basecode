@@ -219,8 +219,15 @@ const generateMonthOptions = () => {
     const currentDate = new Date();
     for (let i = 0; i < 12; i++) {
         const date = subMonths(currentDate, i);
+        const monthValue = format(date, 'yyyy-MM');
+        
+        // EXCLUIR agosto y septiembre 2025
+        if (monthValue === '2025-08' || monthValue === '2025-09') {
+            continue;
+        }
+        
         months.push({
-            value: format(date, 'yyyy-MM'),
+            value: monthValue,
             label: format(date, 'MMMM yyyy', { locale: es })
         });
     }
