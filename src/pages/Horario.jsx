@@ -448,14 +448,13 @@ export default function HorarioPage() {
             logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
             if (currentUser.role === 'admin') {
-                // CRÍTICO: Obtener TODOS los registros históricos SIN FILTROS
+                // CRÍTICO: Obtener TODOS los registros históricos SIN FILTROS DE FECHA
                 const { base44 } = await import('@/api/base44Client');
 
-                // Cargar absolutamente TODOS los schedules usando list con límite altísimo
-                console.log('[Horario] 🔄 Cargando TODOS los schedules desde BD...');
+                // Cargar absolutamente TODOS los schedules sin ningún filtro
                 const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
                     base44.entities.User.list('-created_date', 500),
-                    base44.entities.Schedule.list('-start_time', 100000),
+                    base44.entities.Schedule.filter({}, '-start_time', 50000),
                     base44.entities.Task.list('-created_date', 500),
                     base44.entities.DailyTeamAssignment.list('-date', 1000)
                 ]);
@@ -467,13 +466,6 @@ export default function HorarioPage() {
                     );
                     console.log('[Horario] 📅 Primer schedule:', sortedByDate[0]?.start_time, sortedByDate[0]?.client_name);
                     console.log('[Horario] 📅 Último schedule:', sortedByDate[sortedByDate.length-1]?.start_time, sortedByDate[sortedByDate.length-1]?.client_name);
-
-                    // DIAGNÓSTICO: Mostrar cuántos hay en abril-julio 2025
-                    const aprilToJuly = sortedByDate.filter(s => {
-                        const dateStr = s.start_time.slice(0, 7);
-                        return dateStr >= '2025-04' && dateStr <= '2025-07';
-                    });
-                    console.log('[Horario] 📊 Schedules abril-julio 2025:', aprilToJuly.length);
                 }
 
                 setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
@@ -562,10 +554,10 @@ export default function HorarioPage() {
 
         try {
             if (user.role === 'admin') {
-                // CRÍTICO: Obtener TODOS los registros usando list con límite altísimo
+                // CRÍTICO: Obtener TODOS los registros SIN FILTROS
                 const { base44 } = await import('@/api/base44Client');
                 const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                    base44.entities.Schedule.list('-start_time', 100000),
+                    base44.entities.Schedule.filter({}, '-start_time', 50000),
                     base44.entities.Task.list('-created_date', 500),
                     base44.entities.DailyTeamAssignment.list('-date', 1000)
                 ]);
@@ -1312,10 +1304,10 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // CRÍTICO: Obtener TODOS los registros usando list con límite altísimo
+                    // CRÍTICO: Obtener TODOS los registros SIN FILTROS
                     const { base44 } = await import('@/api/base44Client');
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        base44.entities.Schedule.list('-start_time', 100000),
+                        base44.entities.Schedule.filter({}, '-start_time', 50000),
                         base44.entities.Task.list('-created_date', 500),
                         base44.entities.DailyTeamAssignment.list('-date', 1000)
                     ]);
