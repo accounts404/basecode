@@ -462,25 +462,14 @@ export default function HorarioPage() {
             logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
             if (currentUser.role === 'admin') {
-                // CRÍTICO: Obtener TODOS los registros históricos SIN FILTROS DE FECHA
+                // CRÍTICO: Obtener TODOS los registros históricos sin límite de 50
                 const { base44 } = await import('@/api/base44Client');
-
-                // Cargar absolutamente TODOS los schedules sin ningún filtro
                 const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
                     base44.entities.User.list('-created_date', 500),
-                    base44.entities.Schedule.filter({}, '-start_time', 50000),
+                    base44.entities.Schedule.list('-start_time', 10000),
                     base44.entities.Task.list('-created_date', 500),
                     base44.entities.DailyTeamAssignment.list('-date', 1000)
                 ]);
-
-                console.log('[Horario] 📊 Schedules cargados desde BD:', cachedSchedules?.length || 0);
-                if (cachedSchedules && cachedSchedules.length > 0) {
-                    const sortedByDate = [...cachedSchedules].sort((a, b) => 
-                        new Date(a.start_time) - new Date(b.start_time)
-                    );
-                    console.log('[Horario] 📅 Primer schedule:', sortedByDate[0]?.start_time, sortedByDate[0]?.client_name);
-                    console.log('[Horario] 📅 Último schedule:', sortedByDate[sortedByDate.length-1]?.start_time, sortedByDate[sortedByDate.length-1]?.client_name);
-                }
 
                 setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
                 setSchedules(Array.isArray(cachedSchedules) ? cachedSchedules : []);
@@ -585,10 +574,10 @@ export default function HorarioPage() {
 
         try {
             if (user.role === 'admin') {
-                // CRÍTICO: Obtener TODOS los registros SIN FILTROS
+                // CRÍTICO: Obtener TODOS los registros históricos sin límite de 50
                 const { base44 } = await import('@/api/base44Client');
                 const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                    base44.entities.Schedule.filter({}, '-start_time', 50000),
+                    base44.entities.Schedule.list('-start_time', 10000),
                     base44.entities.Task.list('-created_date', 500),
                     base44.entities.DailyTeamAssignment.list('-date', 1000)
                 ]);
@@ -596,8 +585,6 @@ export default function HorarioPage() {
                 const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
                 const tasksArray = Array.isArray(allTasks) ? allTasks : [];
                 const assignmentsArray = Array.isArray(allAssignments) ? allAssignments : [];
-
-                console.log('[Horario-Refresh] 📊 Total schedules:', schedulesArray.length);
 
                 setSchedules(schedulesArray);
                 setTasks(tasksArray);
@@ -1335,10 +1322,10 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // CRÍTICO: Obtener TODOS los registros SIN FILTROS
+                    // CRÍTICO: Obtener TODOS los registros históricos sin límite de 50
                     const { base44 } = await import('@/api/base44Client');
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        base44.entities.Schedule.filter({}, '-start_time', 50000),
+                        base44.entities.Schedule.list('-start_time', 10000),
                         base44.entities.Task.list('-created_date', 500),
                         base44.entities.DailyTeamAssignment.list('-date', 1000)
                     ]);
