@@ -176,40 +176,18 @@ export default function ComparativeAnalysis({ workEntries }) {
         loadExtraData();
     }, []);
     
-    const allMonthlyCosts = useMemo(() => {
-        console.log('[ComparativeAnalysis] 📊 Procesando costos de work entries:', workEntries?.length || 0);
-        const result = processWorkEntryCosts(workEntries);
-        console.log('[ComparativeAnalysis] ✅ Costos mensuales procesados:', result.length, result);
-        return result;
-    }, [workEntries]);
-    
-    const allMonthlyRevenue = useMemo(() => {
-        console.log('[ComparativeAnalysis] 💰 Procesando ingresos de schedules:', schedules?.length || 0);
-        const result = processScheduleRevenue(schedules, clients);
-        console.log('[ComparativeAnalysis] ✅ Ingresos mensuales procesados:', result.length, result);
-        return result;
-    }, [schedules, clients]);
+    const allMonthlyCosts = useMemo(() => processWorkEntryCosts(workEntries), [workEntries]);
+    const allMonthlyRevenue = useMemo(() => processScheduleRevenue(schedules, clients), [schedules, clients]);
 
     const filteredMonthlyCosts = useMemo(() => {
-        if (!dateRange.start || !dateRange.end || allMonthlyCosts.length === 0) {
-            console.log('[ComparativeAnalysis] ⚠️ Filtro vacío:', {
-                hasStart: !!dateRange.start,
-                hasEnd: !!dateRange.end,
-                costsLength: allMonthlyCosts.length
-            });
-            return [];
-        }
+        if (!dateRange.start || !dateRange.end || allMonthlyCosts.length === 0) return [];
         const startMonth = format(dateRange.start, 'yyyy-MM');
         const endMonth = format(dateRange.end, 'yyyy-MM');
-        console.log('[ComparativeAnalysis] 📅 Rango de filtro:', { startMonth, endMonth });
-        
-        const filtered = allMonthlyCosts.filter(d => 
+        return allMonthlyCosts.filter(d => 
             d.month >= startMonth && 
             d.month <= endMonth && 
             !isExcludedMonth(d.month)
         );
-        console.log('[ComparativeAnalysis] ✅ Costos filtrados:', filtered.length, filtered);
-        return filtered;
     }, [allMonthlyCosts, dateRange]);
 
     const filteredMonthlyRevenue = useMemo(() => {
