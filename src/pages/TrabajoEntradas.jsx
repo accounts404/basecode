@@ -90,15 +90,42 @@ export default function TrabajoEntradasPage() {
     total_amount: ""
   });
 
+  // Helper para cargar TODOS los registros con paginación automática
+  const loadAllRecords = async (entityName, sortField = '-created_date') => {
+    const BATCH_SIZE = 5000;
+    let allRecords = [];
+    let skip = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+      const batchArray = Array.isArray(batch) ? batch : [];
+      
+      allRecords = [...allRecords, ...batchArray];
+      
+      if (batchArray.length < BATCH_SIZE) {
+        hasMore = false;
+      } else {
+        skip += BATCH_SIZE;
+      }
+    }
+
+    return allRecords;
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
+      console.log('[TrabajoEntradas] 📊 Iniciando carga paginada de TODAS las entradas...');
+      
       const [currentUser, entriesResult, cleanersResult, clientsResult] = await Promise.all([
         base44.auth.me(),
-        base44.entities.WorkEntry.list("-work_date", 10000).catch(() => []), // Added limit and catch
-        base44.entities.User.list().catch(() => []),
-        base44.entities.Client.list().catch(() => [])
+        loadAllRecords('WorkEntry', '-work_date'),
+        loadAllRecords('User', '-created_date'),
+        loadAllRecords('Client', '-created_date')
       ]);
+      
+      console.log('[TrabajoEntradas] ✅ Entradas cargadas:', entriesResult?.length || 0);
 
       const isAdminUser = currentUser.role === 'admin';
       setIsAdmin(isAdminUser);
@@ -162,7 +189,7 @@ export default function TrabajoEntradasPage() {
   const updateRelatedInvoice = async (entryId, updatedEntry = null) => {
     try {
       // Find invoices that contain this work entry
-      const invoices = await base44.entities.Invoice.list();
+      const invoices = await loadAllRecords('Invoice', '-created_date');
       const relatedInvoice = invoices.find(invoice => 
         invoice.work_entries && invoice.work_entries.includes(entryId)
       );
@@ -176,7 +203,7 @@ export default function TrabajoEntradasPage() {
         }
 
         // Fetch all work entries once to resolve all IDs efficiently
-        const allWorkEntries = await base44.entities.WorkEntry.list();
+        const allWorkEntries = await loadAllRecords('WorkEntry', '-work_date');
         
         const workEntriesData = updatedWorkEntriesIds.map(id => {
           // If we are updating the current entry, use the new data
