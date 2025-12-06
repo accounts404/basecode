@@ -56,16 +56,12 @@ const isExcludedMonth = (monthKey) => {
 
 // Procesar datos de costos de mano de obra (WorkEntry)
 const processWorkEntryCosts = (entries) => {
-  if (!entries || entries.length === 0) return [];
+  if (!entries || entries.length === 0) return [];  // CORREGIDO: retornar array vacío
   
   const monthlyData = {};
 
   entries.forEach(entry => {
-    if (!entry.work_date) return;
-    
-    // Extraer solo la fecha (YYYY-MM-DD) ignorando la hora
-    const dateOnly = entry.work_date.substring(0, 10);
-    const monthKey = dateOnly.substring(0, 7); // YYYY-MM
+    const monthKey = format(new Date(entry.work_date), 'yyyy-MM');
     
     // Excluir meses específicos
     if (isExcludedMonth(monthKey)) return;
@@ -80,14 +76,12 @@ const processWorkEntryCosts = (entries) => {
       };
     }
     
-    if (entry.activity !== 'entrenamiento' && entry.activity !== 'training') {
+    if (entry.activity !== 'entrenamiento') {
         monthlyData[monthKey].totalLaborCost += entry.total_amount || 0;
         monthlyData[monthKey].totalHours += entry.hours || 0;
-        if (entry.client_id) {
-            monthlyData[monthKey].clientIds.add(entry.client_id);
-            const serviceKey = `${entry.client_id}|${dateOnly}`;
-            monthlyData[monthKey].serviceIds.add(serviceKey);
-        }
+        monthlyData[monthKey].clientIds.add(entry.client_id);
+        const serviceKey = `${entry.client_id}|${entry.work_date.split('T')[0]}`;
+        monthlyData[monthKey].serviceIds.add(serviceKey);
     }
   });
 
@@ -239,20 +233,15 @@ export default function ComparativeAnalysis({ workEntries }) {
 
     periodTotals.clientsAttended = useMemo(() => {
         const clientSet = new Set();
-        const startDateString = format(dateRange.start, 'yyyy-MM-dd');
-        const endDateString = format(dateRange.end, 'yyyy-MM-dd');
-        
+        const start = dateRange.start;
+        const end = dateRange.end;
         workEntries.forEach(entry => {
-            if (!entry.work_date) return;
-            const dateOnly = entry.work_date.substring(0, 10);
-            const monthKey = dateOnly.substring(0, 7);
-            
-            if(dateOnly >= startDateString && 
-               dateOnly <= endDateString && 
+            const entryDate = new Date(entry.work_date);
+            const monthKey = format(entryDate, 'yyyy-MM');
+            if(entryDate >= start && 
+               entryDate <= end && 
                entry.activity !== 'entrenamiento' &&
-               entry.activity !== 'training' &&
-               !isExcludedMonth(monthKey) &&
-               entry.client_id) {
+               !isExcludedMonth(monthKey)) {
                 clientSet.add(entry.client_id);
             }
         });
@@ -284,20 +273,13 @@ export default function ComparativeAnalysis({ workEntries }) {
         
         totals.clientsAttended = (() => {
             const clientSet = new Set();
-            const prevStartString = format(prevStart, 'yyyy-MM-dd');
-            const prevEndString = format(prevEnd, 'yyyy-MM-dd');
-            
             workEntries.forEach(entry => {
-                if (!entry.work_date) return;
-                const dateOnly = entry.work_date.substring(0, 10);
-                const monthKey = dateOnly.substring(0, 7);
-                
-                if(dateOnly >= prevStartString && 
-                   dateOnly <= prevEndString && 
+                const entryDate = new Date(entry.work_date);
+                const monthKey = format(entryDate, 'yyyy-MM');
+                if(entryDate >= prevStart && 
+                   entryDate <= prevEnd && 
                    entry.activity !== 'entrenamiento' &&
-                   entry.activity !== 'training' &&
-                   !isExcludedMonth(monthKey) &&
-                   entry.client_id) {
+                   !isExcludedMonth(monthKey)) {
                     clientSet.add(entry.client_id);
                 }
             });
@@ -311,17 +293,12 @@ export default function ComparativeAnalysis({ workEntries }) {
     const cleanerAnalysis = useMemo(() => {
         const start = dateRange.start;
         const end = dateRange.end;
-        const startDateString = format(start, 'yyyy-MM-dd');
-        const endDateString = format(end, 'yyyy-MM-dd');
-        
         const filteredEntries = workEntries.filter(entry => {
-            if (!entry.work_date) return false;
-            const dateOnly = entry.work_date.substring(0, 10);
-            const monthKey = dateOnly.substring(0, 7);
-            return dateOnly >= startDateString && 
-                   dateOnly <= endDateString && 
+            const entryDate = new Date(entry.work_date);
+            const monthKey = format(entryDate, 'yyyy-MM');
+            return entryDate >= start && 
+                   entryDate <= end && 
                    entry.activity !== 'entrenamiento' &&
-                   entry.activity !== 'training' &&
                    !isExcludedMonth(monthKey);
         });
 
