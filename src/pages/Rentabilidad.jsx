@@ -31,6 +31,14 @@ const extractDateOnly = (isoString) => {
   return isoString.substring(0, 10);
 };
 
+// Función para verificar si una fecha está en agosto o septiembre 2025
+const isExcludedMonth = (dateString) => {
+  if (!dateString) return false;
+  const dateOnly = extractDateOnly(dateString);
+  // Excluir agosto 2025 (2025-08-XX) y septiembre 2025 (2025-09-XX)
+  return dateOnly && (dateOnly.startsWith('2025-08') || dateOnly.startsWith('2025-09'));
+};
+
 const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   if (!dateString || !rangeStart || !rangeEnd) return false;
   
@@ -331,6 +339,8 @@ export default function RentabilidadPage() {
         setLoading(true);
         setError('');
         try {
+            console.log('[Rentabilidad] 📊 Cargando datos...');
+            
             const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData, usersData] = await Promise.all([
                 Client.list(),
                 WorkEntry.list("-work_date"),
@@ -339,10 +349,20 @@ export default function RentabilidadPage() {
                 FixedCost.list(),
                 User.list(),
             ]);
+            
+            // FILTRAR agosto y septiembre 2025
+            const filteredWorkEntries = (workEntriesData || []).filter(e => !isExcludedMonth(e.work_date));
+            const filteredSchedules = (schedulesData || []).filter(s => !isExcludedMonth(s.start_time));
+            
+            console.log('[Rentabilidad] 🚫 Excluidos agosto y septiembre 2025:', {
+              workEntriesExcluded: (workEntriesData?.length || 0) - filteredWorkEntries.length,
+              schedulesExcluded: (schedulesData?.length || 0) - filteredSchedules.length
+            });
+            
             setClients(clientsData || []);
-            setAllWorkEntries(workEntriesData || []);
+            setAllWorkEntries(filteredWorkEntries);
             setPricingThresholds(thresholdsData || []);
-            setAllSchedules(schedulesData || []);
+            setAllSchedules(filteredSchedules);
             setAllFixedCosts(fixedCostsData || []);
             setUsers(usersData || []);
             

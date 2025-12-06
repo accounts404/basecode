@@ -51,6 +51,14 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState(null);
 
+  // Función para verificar si una fecha está en agosto o septiembre 2025
+  const isExcludedMonth = (dateString) => {
+    if (!dateString) return false;
+    const dateOnly = extractDateOnly(dateString);
+    // Excluir agosto 2025 (2025-08-XX) y septiembre 2025 (2025-09-XX)
+    return dateOnly && (dateOnly.startsWith('2025-08') || dateOnly.startsWith('2025-09'));
+  };
+
   // Helper para cargar TODOS los registros con paginación automática
   const loadAllRecords = async (entityName, sortField = '-created_date') => {
     const { base44 } = await import('@/api/base44Client');
@@ -96,11 +104,19 @@ export default function ReportesPage() {
           clients: allClientsRaw?.length || 0
         });
 
-        // Filtrar desde abril 2024 (no 2025 porque estamos en diciembre 2024)
+        // Filtrar desde abril 2024 Y EXCLUIR agosto y septiembre 2025
         const aprilCutoff = new Date('2024-04-01');
-        const allEntries = allEntriesRaw.filter(e => new Date(e.work_date) >= aprilCutoff);
-        const allSchedules = allSchedulesRaw.filter(s => new Date(s.start_time) >= aprilCutoff);
+        const allEntries = allEntriesRaw.filter(e => {
+          const workDate = new Date(e.work_date);
+          return workDate >= aprilCutoff && !isExcludedMonth(e.work_date);
+        });
+        const allSchedules = allSchedulesRaw.filter(s => {
+          const startTime = new Date(s.start_time);
+          return startTime >= aprilCutoff && !isExcludedMonth(s.start_time);
+        });
         setSchedules(allSchedules);
+        
+        console.log('[Reportes] 🚫 Datos de agosto y septiembre 2025 excluidos');
 
         const allClients = allClientsRaw.filter(c => c.active !== false);
         
