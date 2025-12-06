@@ -434,27 +434,19 @@ export default function RentabilidadPage() {
 
             let trainingHours = 0;
             let trainingAmount = 0;
-            const startStr = format(monthStart, 'yyyy-MM-dd');
-            const endStr = format(monthEnd, 'yyyy-MM-dd');
-            
             allWorkEntries.forEach(entry => {
-                if (!entry.work_date) return;
-                const dateOnly = entry.work_date.substring(0, 10);
                 if (entry.client_id === trainingClientId && 
-                    dateOnly >= startStr && dateOnly <= endStr) {
+                    isDateInRange(entry.work_date, monthStart, monthEnd)) {
                     trainingHours += entry.hours || 0;
                     trainingAmount += entry.total_amount || 0;
                 }
             });
             setMonthlyTrainingCost({ hours: trainingHours, amount: trainingAmount });
 
-            const monthlyWorkEntries = allWorkEntries.filter(e => {
-                if (!e.work_date) return false;
-                const dateOnly = e.work_date.substring(0, 10);
-                const startStr = format(monthStart, 'yyyy-MM-dd');
-                const endStr = format(monthEnd, 'yyyy-MM-dd');
-                return dateOnly >= startStr && dateOnly <= endStr && e.activity !== 'training' && e.activity !== 'entrenamiento';
-            });
+            const monthlyWorkEntries = allWorkEntries.filter(e => 
+                isDateInRange(e.work_date, monthStart, monthEnd) &&
+                e.activity !== 'training'
+            );
 
             monthlyWorkEntries.forEach(entry => {
                 const clientId = entry.client_id;
@@ -681,36 +673,22 @@ export default function RentabilidadPage() {
 
         let cumulativeTrainingHours = 0;
         let cumulativeTrainingAmount = 0;
-        const cumulativeStartStr = format(cumulativeStartDate, 'yyyy-MM-dd');
-        const cumulativeEndStr = format(new Date(), 'yyyy-MM-dd');
-        
         allWorkEntries.forEach(entry => {
-            if (!entry.work_date) return;
-            const dateOnly = entry.work_date.substring(0, 10);
-            const monthKey = dateOnly.substring(0, 7);
-            
             if (entry.client_id === trainingClientId && 
-                dateOnly >= cumulativeStartStr && 
-                dateOnly <= cumulativeEndStr &&
-                !isExcludedMonth(monthKey)) {
+                isDateInRange(entry.work_date, cumulativeStartDate, new Date()) &&
+                !isExcludedMonth(entry.work_date)) {
                 cumulativeTrainingHours += entry.hours || 0;
                 cumulativeTrainingAmount += entry.total_amount || 0;
             }
         });
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
-        
+
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
-            if (!entry.work_date) return false;
-            const dateOnly = entry.work_date.substring(0, 10);
-            const monthKey = dateOnly.substring(0, 7);
-            
-            return dateOnly >= cumulativeStartStr && 
-                   dateOnly <= cumulativeEndStr && 
-                   !isExcludedMonth(monthKey) &&
+            return isDateInRange(entry.work_date, cumulativeStartDate, new Date()) && 
+                   !isExcludedMonth(entry.work_date) &&
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training' &&
-                   entry.activity !== 'entrenamiento';
+                   entry.activity !== 'training';
         });
 
         const clientServiceDates = new Map();
