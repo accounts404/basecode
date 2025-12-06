@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { subMonths, startOfMonth, endOfMonth, format, eachMonthOfInterval, differenceInMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -121,16 +122,6 @@ const processScheduleRevenue = (schedules, clients) => {
 };
 
 export default function ComparativeAnalysis({ workEntries }) {
-    // Filtrar workEntries para excluir agosto y septiembre 2025
-    const filteredWorkEntries = useMemo(() => {
-        return workEntries.filter(e => {
-            const workDate = new Date(e.work_date);
-            const year = workDate.getFullYear();
-            const month = workDate.getMonth() + 1;
-            return !(year === 2025 && (month === 8 || month === 9));
-        });
-    }, [workEntries]);
-    
     const [dateRange, setDateRange] = useState({
         start: startOfMonth(subMonths(new Date(), 5)),
         end: endOfMonth(new Date()),
@@ -143,54 +134,17 @@ export default function ComparativeAnalysis({ workEntries }) {
     const [schedules, setSchedules] = useState([]);
     const [loadingExtraData, setLoadingExtraData] = useState(true);
 
-    // Helper para cargar TODOS los registros con paginación automática
-    const loadAllRecords = async (entityName, sortField = '-created_date') => {
-        const { base44 } = await import('@/api/base44Client');
-        const BATCH_SIZE = 5000;
-        let allRecords = [];
-        let skip = 0;
-        let hasMore = true;
-
-        while (hasMore) {
-            const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
-            const batchArray = Array.isArray(batch) ? batch : [];
-            
-            allRecords = [...allRecords, ...batchArray];
-            
-            if (batchArray.length < BATCH_SIZE) {
-                hasMore = false;
-            } else {
-                skip += BATCH_SIZE;
-            }
-        }
-
-        return allRecords;
-    };
-
     useEffect(() => {
         const loadExtraData = async () => {
             setLoadingExtraData(true);
             try {
-                console.log('[ComparativeAnalysis] 📊 Cargando TODOS los registros con paginación...');
-                
-                const [clientsData, usersData, fixedCostsData, thresholdsData, schedulesDataRaw] = await Promise.all([
-                    loadAllRecords('Client', '-created_date'),
-                    loadAllRecords('User', '-created_date'),
-                    loadAllRecords('FixedCost', '-created_date'),
-                    loadAllRecords('PricingThreshold', '-created_date'),
-                    loadAllRecords('Schedule', '-start_time')
+                const [clientsData, usersData, fixedCostsData, thresholdsData, schedulesData] = await Promise.all([
+                    Client.list(),
+                    User.list(),
+                    FixedCost.list(),
+                    PricingThreshold.list(),
+                    Schedule.list()
                 ]);
-                
-                // EXCLUIR agosto y septiembre 2025
-                const schedulesData = schedulesDataRaw.filter(s => {
-                    const scheduleDate = new Date(s.start_time);
-                    const year = scheduleDate.getFullYear();
-                    const month = scheduleDate.getMonth() + 1;
-                    return !(year === 2025 && (month === 8 || month === 9));
-                });
-                
-                console.log('[ComparativeAnalysis] ✅ Schedules filtrados (excluyendo ago-sep 2025):', schedulesData.length);
-                
                 setClients(clientsData);
                 setUsers(usersData.filter(u => u.role !== 'admin'));
                 setFixedCosts(fixedCostsData);
@@ -205,7 +159,7 @@ export default function ComparativeAnalysis({ workEntries }) {
         loadExtraData();
     }, []);
     
-    const allMonthlyCosts = useMemo(() => processWorkEntryCosts(filteredWorkEntries), [filteredWorkEntries]);
+    const allMonthlyCosts = useMemo(() => processWorkEntryCosts(workEntries), [workEntries]);
     const allMonthlyRevenue = useMemo(() => processScheduleRevenue(schedules, clients), [schedules, clients]);
 
     const filteredMonthlyCosts = useMemo(() => {
@@ -262,14 +216,14 @@ export default function ComparativeAnalysis({ workEntries }) {
         const clientSet = new Set();
         const start = dateRange.start;
         const end = dateRange.end;
-        filteredWorkEntries.forEach(entry => {
+        workEntries.forEach(entry => {
             const entryDate = new Date(entry.work_date);
             if(entryDate >= start && entryDate <= end && entry.activity !== 'entrenamiento') {
                 clientSet.add(entry.client_id);
             }
         });
         return clientSet.size;
-    }, [filteredWorkEntries, dateRange]);
+    }, [workEntries, dateRange]);
     
     const previousPeriodTotals = useMemo(() => {
         if (!dateRange.start || !dateRange.end) return null;
@@ -296,7 +250,7 @@ export default function ComparativeAnalysis({ workEntries }) {
         
         totals.clientsAttended = (() => {
             const clientSet = new Set();
-            filteredWorkEntries.forEach(entry => {
+            workEntries.forEach(entry => {
                 const entryDate = new Date(entry.work_date);
                 if(entryDate >= prevStart && entryDate <= prevEnd && entry.activity !== 'entrenamiento') {
                     clientSet.add(entry.client_id);
@@ -306,13 +260,13 @@ export default function ComparativeAnalysis({ workEntries }) {
         })();
 
         return totals;
-    }, [allMonthlyCosts, allMonthlyRevenue, dateRange, filteredWorkEntries]);
+    }, [allMonthlyCosts, allMonthlyRevenue, dateRange, workEntries]);
 
     // NUEVO: Análisis por Limpiador (usando costos de mano de obra)
     const cleanerAnalysis = useMemo(() => {
         const start = dateRange.start;
         const end = dateRange.end;
-        const filteredEntries = filteredWorkEntries.filter(entry => {
+        const filteredEntries = workEntries.filter(entry => {
             const entryDate = new Date(entry.work_date);
             return entryDate >= start && entryDate <= end && entry.activity !== 'entrenamiento';
         });
@@ -338,7 +292,7 @@ export default function ComparativeAnalysis({ workEntries }) {
                 avgHourlyRate: cleaner.totalHours > 0 ? cleaner.totalLaborCost / cleaner.totalHours : 0
             }))
             .sort((a, b) => b.totalLaborCost - a.totalLaborCost);
-    }, [filteredWorkEntries, dateRange]);
+    }, [workEntries, dateRange]);
 
     // NUEVO: Análisis por Tipo de Cliente (usando ingresos de schedules facturados)
     const clientTypeAnalysis = useMemo(() => {
