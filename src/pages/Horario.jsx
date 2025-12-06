@@ -454,36 +454,61 @@ export default function HorarioPage() {
         }
     }, [user, loadRequiredKeysForDate, loadVehicleAndTeamForDate]);
 
+    // Helper para cargar TODOS los registros con paginación automática
+    const loadAllRecords = async (entityName, sortField = '-created_date') => {
+        const { base44 } = await import('@/api/base44Client');
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+
+            allRecords = [...allRecords, ...batchArray];
+
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const loadInitialData = async () => {
-        try {
-            const currentUser = await User.me();
-            setUser(currentUser);
+          try {
+              const currentUser = await User.me();
+              setUser(currentUser);
 
-            logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
+              logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
-            if (currentUser.role === 'admin') {
-                // CRÍTICO: Obtener TODOS los registros sin límite de 50
-                const { base44 } = await import('@/api/base44Client');
-                const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
-                    base44.entities.User.list('-created_date', 500),
-                    base44.entities.Schedule.list('-start_time', 5000),
-                    base44.entities.Task.list('-created_date', 500),
-                    base44.entities.DailyTeamAssignment.list('-date', 500)
-                ]);
+              if (currentUser.role === 'admin') {
+                  // CRÍTICO: Obtener TODOS los registros con paginación automática
+                  logger.info('Horario', 'Iniciando carga paginada de datos...');
 
-                setUsers(Array.isArray(cachedUsers) ? cachedUsers : []);
-                setSchedules(Array.isArray(cachedSchedules) ? cachedSchedules : []);
-                setTasks(Array.isArray(cachedTasks) ? cachedTasks : []);
-                setDailyTeamAssignments(Array.isArray(cachedAssignments) ? cachedAssignments : []);
-                setLoading(false);
-                setInitialLoadComplete(true);
+                  const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
+                      loadAllRecords('User', '-created_date'),
+                      loadAllRecords('Schedule', '-start_time'),
+                      loadAllRecords('Task', '-created_date'),
+                      loadAllRecords('DailyTeamAssignment', '-date')
+                  ]);
 
-                logger.info('Horario', 'Admin - Datos cargados', { 
-                    users: cachedUsers?.length || 0, 
-                    schedules: cachedSchedules?.length || 0,
-                    tasks: cachedTasks?.length || 0,
-                    assignments: cachedAssignments?.length || 0
-                });
+                  setUsers(cachedUsers);
+                  setSchedules(cachedSchedules);
+                  setTasks(cachedTasks);
+                  setDailyTeamAssignments(cachedAssignments);
+                  setLoading(false);
+                  setInitialLoadComplete(true);
+
+                  logger.info('Horario', 'Admin - Datos cargados', { 
+                      users: cachedUsers?.length || 0, 
+                      schedules: cachedSchedules?.length || 0,
+                      tasks: cachedTasks?.length || 0,
+                      assignments: cachedAssignments?.length || 0
+                  });
             } else {
                 logger.debug('Horario', 'Limpiador detectado, cargando desde caché local');
                 const cachedSchedules = loadFromCache(LEGACY_CACHE_KEYS.SCHEDULES);
@@ -567,38 +592,35 @@ export default function HorarioPage() {
     }, [isCleanerView, user, startServiceTimer]);
 
     const handleRefresh = async () => {
-        if (!user) return;
-        
-        setRefreshing(true);
-        setError('');
+          if (!user) return;
 
-        try {
-            if (user.role === 'admin') {
-                // CRÍTICO: Obtener TODOS los registros sin límite de 50
-                const { base44 } = await import('@/api/base44Client');
-                const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                    base44.entities.Schedule.list('-start_time', 5000),
-                    base44.entities.Task.list('-created_date', 500),
-                    base44.entities.DailyTeamAssignment.list('-date', 500)
-                ]);
+          setRefreshing(true);
+          setError('');
 
-                const schedulesArray = Array.isArray(allSchedules) ? allSchedules : [];
-                const tasksArray = Array.isArray(allTasks) ? allTasks : [];
-                const assignmentsArray = Array.isArray(allAssignments) ? allAssignments : [];
+          try {
+              if (user.role === 'admin') {
+                  // CRÍTICO: Obtener TODOS los registros con paginación automática
+                  logger.info('Horario', 'Iniciando refresh con paginación...');
 
-                setSchedules(schedulesArray);
-                setTasks(tasksArray);
-                setDailyTeamAssignments(assignmentsArray);
+                  const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                      loadAllRecords('Schedule', '-start_time'),
+                      loadAllRecords('Task', '-created_date'),
+                      loadAllRecords('DailyTeamAssignment', '-date')
+                  ]);
 
-                // Actualizar caché
-                cacheManager.set(CACHE_KEYS.SCHEDULES('all'), schedulesArray, CACHE_TTL.SHORT);
-                cacheManager.set(CACHE_KEYS.TASKS('all'), tasksArray, CACHE_TTL.MEDIUM);
+                  setSchedules(allSchedules);
+                  setTasks(allTasks);
+                  setDailyTeamAssignments(allAssignments);
 
-                logger.info('Horario', 'Datos admin actualizados', { 
-                    schedules: schedulesArray.length, 
-                    tasks: tasksArray.length,
-                    assignments: assignmentsArray.length
-                });
+                  // Actualizar caché
+                  cacheManager.set(CACHE_KEYS.SCHEDULES('all'), allSchedules, CACHE_TTL.SHORT);
+                  cacheManager.set(CACHE_KEYS.TASKS('all'), allTasks, CACHE_TTL.MEDIUM);
+
+                  logger.info('Horario', 'Datos admin actualizados', { 
+                      schedules: allSchedules.length, 
+                      tasks: allTasks.length,
+                      assignments: allAssignments.length
+                  });
             } else {
                 await loadCleanerSpecificData(date, false);
                 logger.info('Horario', 'Datos limpiador actualizados');
@@ -1322,16 +1344,15 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // CRÍTICO: Obtener TODOS los registros sin límite de 50
-                    const { base44 } = await import('@/api/base44Client');
+                    // Obtener TODOS los registros con paginación automática
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        base44.entities.Schedule.list('-start_time', 5000),
-                        base44.entities.Task.list('-created_date', 500),
-                        base44.entities.DailyTeamAssignment.list('-date', 500)
+                        loadAllRecords('Schedule', '-start_time'),
+                        loadAllRecords('Task', '-created_date'),
+                        loadAllRecords('DailyTeamAssignment', '-date')
                     ]);
-                    setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
-                    setTasks(Array.isArray(allTasks) ? allTasks : []);
-                    setDailyTeamAssignments(Array.isArray(allAssignments) ? allAssignments : []);
+                    setSchedules(allSchedules);
+                    setTasks(allTasks);
+                    setDailyTeamAssignments(allAssignments);
                 } else {
                     await loadCleanerSpecificData(currentDateRef.current, true);
                 }
