@@ -95,9 +95,9 @@ export default function TrabajoEntradasPage() {
     try {
       const [currentUser, entriesResult, cleanersResult, clientsResult] = await Promise.all([
         base44.auth.me(),
-        base44.entities.WorkEntry.list().catch(() => []),
-        base44.entities.User.list().catch(() => []),
-        base44.entities.Client.list().catch(() => [])
+        base44.entities.WorkEntry.list(null, 50000).catch(() => []),
+        base44.entities.User.list(null, 10000).catch(() => []),
+        base44.entities.Client.list(null, 10000).catch(() => [])
       ]);
 
       const isAdminUser = currentUser.role === 'admin';
