@@ -28,9 +28,21 @@ const extractDateOnly = (isoString) => {
   return isoString.substring(0, 10);
 };
 
+// CRÍTICO: Excluir agosto y septiembre 2025
+const isExcludedMonth = (dateString) => {
+  if (!dateString) return false;
+  const date = extractDateOnly(dateString);
+  if (!date) return false;
+  // Excluir 2025-08 y 2025-09
+  return date >= '2025-08-01' && date <= '2025-09-30';
+};
+
 // NUEVA FUNCIÓN: Verifica si una fecha está dentro de un rango (solo comparando fechas, no horas)
 const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   if (!dateString || !rangeStart || !rangeEnd) return false;
+  
+  // PRIMERO: Verificar si es un mes excluido
+  if (isExcludedMonth(dateString)) return false;
   
   // Extraer solo la fecha (YYYY-MM-DD) del string
   const date = extractDateOnly(dateString);
@@ -96,10 +108,16 @@ export default function ReportesPage() {
           clients: allClientsRaw?.length || 0
         });
 
-        // Filtrar desde abril 2024 (no 2025 porque estamos en diciembre 2024)
+        // Filtrar desde abril 2024 Y excluir agosto-septiembre 2025
         const aprilCutoff = new Date('2024-04-01');
-        const allEntries = allEntriesRaw.filter(e => new Date(e.work_date) >= aprilCutoff);
-        const allSchedules = allSchedulesRaw.filter(s => new Date(s.start_time) >= aprilCutoff);
+        const allEntries = allEntriesRaw.filter(e => {
+          const workDate = new Date(e.work_date);
+          return workDate >= aprilCutoff && !isExcludedMonth(e.work_date);
+        });
+        const allSchedules = allSchedulesRaw.filter(s => {
+          const scheduleDate = new Date(s.start_time);
+          return scheduleDate >= aprilCutoff && !isExcludedMonth(s.start_time);
+        });
         setSchedules(allSchedules);
 
         const allClients = allClientsRaw.filter(c => c.active !== false);
