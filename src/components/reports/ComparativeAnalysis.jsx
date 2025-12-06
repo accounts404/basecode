@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { subMonths, startOfMonth, endOfMonth, format, eachMonthOfInterval, differenceInMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -19,6 +18,14 @@ import { PricingThreshold } from '@/entities/PricingThreshold';
 import { Schedule } from '@/entities/Schedule';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+
+// Función para verificar si una fecha está en agosto o septiembre 2025
+const isExcludedMonth = (dateString) => {
+  if (!dateString) return false;
+  const dateOnly = dateString.substring(0, 10);
+  // Excluir agosto 2025 (2025-08-XX) y septiembre 2025 (2025-09-XX)
+  return dateOnly && (dateOnly.startsWith('2025-08') || dateOnly.startsWith('2025-09'));
+};
 
 // Función para calcular el monto base (sin GST) de un schedule basado en reconciliation_items
 const calculateScheduleRevenue = (schedule, client) => {
@@ -52,11 +59,14 @@ const calculateScheduleRevenue = (schedule, client) => {
 
 // Procesar datos de costos de mano de obra (WorkEntry)
 const processWorkEntryCosts = (entries) => {
-  if (!entries || entries.length === 0) return [];  // CORREGIDO: retornar array vacío
+  if (!entries || entries.length === 0) return [];
   
   const monthlyData = {};
 
   entries.forEach(entry => {
+    // EXCLUIR agosto y septiembre 2025
+    if (isExcludedMonth(entry.work_date)) return;
+    
     const monthKey = format(new Date(entry.work_date), 'yyyy-MM');
     if (!monthlyData[monthKey]) {
       monthlyData[monthKey] = {
@@ -88,13 +98,16 @@ const processWorkEntryCosts = (entries) => {
 
 // Procesar ingresos desde Schedules facturados
 const processScheduleRevenue = (schedules, clients) => {
-    if (!schedules || schedules.length === 0) return [];  // CORREGIDO: retornar array vacío
+    if (!schedules || schedules.length === 0) return [];
     
     const clientsMap = new Map(clients.map(c => [c.id, c]));
     const monthlyData = {};
 
     schedules.forEach(schedule => {
         if (!schedule.xero_invoiced || !schedule.start_time) return;
+        
+        // EXCLUIR agosto y septiembre 2025
+        if (isExcludedMonth(schedule.start_time)) return;
         
         const scheduleDateString = schedule.start_time.slice(0, 10);
         const monthKey = scheduleDateString.slice(0, 7); // YYYY-MM
@@ -217,6 +230,9 @@ export default function ComparativeAnalysis({ workEntries }) {
         const start = dateRange.start;
         const end = dateRange.end;
         workEntries.forEach(entry => {
+            // EXCLUIR agosto y septiembre 2025
+            if (isExcludedMonth(entry.work_date)) return;
+            
             const entryDate = new Date(entry.work_date);
             if(entryDate >= start && entryDate <= end && entry.activity !== 'entrenamiento') {
                 clientSet.add(entry.client_id);
@@ -251,6 +267,9 @@ export default function ComparativeAnalysis({ workEntries }) {
         totals.clientsAttended = (() => {
             const clientSet = new Set();
             workEntries.forEach(entry => {
+                // EXCLUIR agosto y septiembre 2025
+                if (isExcludedMonth(entry.work_date)) return;
+                
                 const entryDate = new Date(entry.work_date);
                 if(entryDate >= prevStart && entryDate <= prevEnd && entry.activity !== 'entrenamiento') {
                     clientSet.add(entry.client_id);
@@ -267,6 +286,9 @@ export default function ComparativeAnalysis({ workEntries }) {
         const start = dateRange.start;
         const end = dateRange.end;
         const filteredEntries = workEntries.filter(entry => {
+            // EXCLUIR agosto y septiembre 2025
+            if (isExcludedMonth(entry.work_date)) return false;
+            
             const entryDate = new Date(entry.work_date);
             return entryDate >= start && entryDate <= end && entry.activity !== 'entrenamiento';
         });
@@ -303,6 +325,8 @@ export default function ComparativeAnalysis({ workEntries }) {
         
         const filteredSchedules = schedules.filter(s => {
             if (!s.xero_invoiced || !s.start_time) return false;
+            // EXCLUIR agosto y septiembre 2025
+            if (isExcludedMonth(s.start_time)) return false;
             const scheduleDateString = s.start_time.slice(0, 10);
             return scheduleDateString >= startDateString && scheduleDateString <= endDateString;
         });
@@ -342,6 +366,8 @@ export default function ComparativeAnalysis({ workEntries }) {
         
         const filteredSchedules = schedules.filter(s => {
             if (!s.xero_invoiced || !s.start_time) return false;
+            // EXCLUIR agosto y septiembre 2025
+            if (isExcludedMonth(s.start_time)) return false;
             const scheduleDateString = s.start_time.slice(0, 10);
             return scheduleDateString >= startDateString && scheduleDateString <= endDateString;
         });
@@ -441,6 +467,8 @@ export default function ComparativeAnalysis({ workEntries }) {
         
         const filteredSchedules = schedules.filter(s => {
             if (!s.start_time || !s.xero_invoiced) return false;
+            // EXCLUIR agosto y septiembre 2025
+            if (isExcludedMonth(s.start_time)) return false;
             const scheduleDateString = s.start_time.slice(0, 10);
             return scheduleDateString >= startDateString && scheduleDateString <= endDateString;
         });
