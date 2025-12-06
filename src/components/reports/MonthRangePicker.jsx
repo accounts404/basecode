@@ -6,12 +6,8 @@ import { es } from 'date-fns/locale';
 
 const getAvailableMonths = (workEntries) => {
     if (!workEntries || workEntries.length === 0) return [];
-    
-    // Forzar que abril 2025 sea la fecha mínima
-    const minAllowedDate = new Date('2025-04-01');
-    
     const dates = workEntries.map(e => new Date(e.work_date));
-    const minDate = new Date(Math.min(...dates, minAllowedDate));
+    const minDate = new Date(Math.min(...dates));
     const maxDate = new Date(Math.max(...dates));
 
     const months = eachMonthOfInterval({
