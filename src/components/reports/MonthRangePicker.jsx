@@ -14,14 +14,23 @@ const getAvailableMonths = (workEntries) => {
     
     // Si hay work entries, extender el rango si es necesario
     if (workEntries && workEntries.length > 0) {
-        const dates = workEntries.map(e => new Date(e.work_date));
-        const dataMinDate = new Date(Math.min(...dates));
-        const dataMaxDate = new Date(Math.max(...dates));
+        // Usar extracción directa de fecha string para evitar problemas de zona horaria
+        const dateStrings = workEntries
+            .filter(e => e.work_date)
+            .map(e => e.work_date.substring(0, 10)); // YYYY-MM-DD
         
-        // Tomar el mínimo entre abril 2025 y la fecha más antigua de los datos
-        minDate = dataMinDate < minAllowedDate ? dataMinDate : minAllowedDate;
-        // Tomar el máximo entre la fecha actual y la fecha más reciente de los datos
-        maxDate = dataMaxDate > currentDate ? dataMaxDate : currentDate;
+        if (dateStrings.length > 0) {
+            const minDateStr = dateStrings.reduce((min, d) => d < min ? d : min);
+            const maxDateStr = dateStrings.reduce((max, d) => d > max ? d : max);
+            
+            const dataMinDate = new Date(minDateStr + 'T12:00:00');
+            const dataMaxDate = new Date(maxDateStr + 'T12:00:00');
+            
+            // Tomar el mínimo entre abril 2025 y la fecha más antigua de los datos
+            minDate = dataMinDate < minAllowedDate ? dataMinDate : minAllowedDate;
+            // Tomar el máximo entre la fecha actual y la fecha más reciente de los datos
+            maxDate = dataMaxDate > currentDate ? dataMaxDate : currentDate;
+        }
     }
 
     const months = eachMonthOfInterval({
