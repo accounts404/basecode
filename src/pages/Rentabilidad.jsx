@@ -6,9 +6,11 @@ import { PricingThreshold } from '@/entities/PricingThreshold';
 import { Schedule } from '@/entities/Schedule';
 import { User } from '@/entities/User';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO, startOfDay, endOfDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, X, Search, Settings, ArrowRightSquare, Clock9, GraduationCap } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -332,6 +334,7 @@ export default function RentabilidadPage() {
     const [trainingClientId, setTrainingClientId] = useState(null);
 
     const cumulativeStartDate = useMemo(() => new Date('2025-04-01T00:00:00Z'), []);
+    const [cumulativeEndDate, setCumulativeEndDate] = useState(new Date());
 
     const frequencyOptions = [
         { value: "all", label: "Todas las Frecuencias" },
@@ -658,7 +661,7 @@ export default function RentabilidadPage() {
 
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
-            return isDateInRange(schedule.start_time, cumulativeStartDate, new Date()) && 
+            return isDateInRange(schedule.start_time, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
                    schedule.xero_invoiced === true &&
                    schedule.client_id !== trainingClientId &&
                    clientMap.has(schedule.client_id);
@@ -688,7 +691,7 @@ export default function RentabilidadPage() {
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
             if (entry.client_id === trainingClientId && 
-                isDateInRange(entry.work_date, cumulativeStartDate, new Date())) {
+                isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate))) {
                 cumulativeTrainingHours += entry.hours || 0;
                 cumulativeTrainingAmount += entry.total_amount || 0;
             }
@@ -696,7 +699,7 @@ export default function RentabilidadPage() {
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
 
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
-            return isDateInRange(entry.work_date, cumulativeStartDate, new Date()) && 
+            return isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
                    entry.activity !== 'training';
@@ -767,7 +770,7 @@ export default function RentabilidadPage() {
         });
 
         const startPeriod = format(cumulativeStartDate, 'yyyy-MM');
-        const endPeriod = format(new Date(), 'yyyy-MM');
+        const endPeriod = format(cumulativeEndDate, 'yyyy-MM');
         const periodMonths = [];
         let currentDate = new Date(startPeriod + '-01');
         while (format(currentDate, 'yyyy-MM') <= endPeriod) {
@@ -854,7 +857,7 @@ export default function RentabilidadPage() {
             summary: cumulativeSummary, 
             overallTotalFixedCosts: totalCumulativeFixedCosts 
         };
-    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection]);
+    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection]);
 
     if (loading) return <div className="p-8 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div></div>;
     if (error) return <div className="p-8 text-red-700 text-center font-medium">{error}</div>;
@@ -1286,18 +1289,70 @@ export default function RentabilidadPage() {
                                     <div className="flex items-center gap-3">
                                         <ArrowRightSquare className="w-6 h-6 text-slate-700"/>
                                         <span className="text-slate-900">
-                                            Rentabilidad Acumulada por Cliente (Desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })})
+                                            Rentabilidad Acumulada por Cliente (Desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} hasta {format(cumulativeEndDate, 'd MMM yyyy', { locale: es })})
                                         </span>
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
+                                    <Card className="mb-6 shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
+                                        <CardContent className="p-6">
+                                            <div className="flex items-center gap-6">
+                                                <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2 whitespace-nowrap">
+                                                    <Calendar className="w-4 h-4 text-blue-600" />
+                                                    Fecha Final:
+                                                </Label>
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="outline"
+                                                            className="h-12 px-4 justify-start text-left font-medium border-slate-300 hover:border-blue-600 hover:bg-slate-50 w-[280px]"
+                                                        >
+                                                            <Calendar className="mr-3 h-5 w-5 text-blue-600" />
+                                                            {format(cumulativeEndDate, 'd MMMM yyyy', { locale: es })}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0" align="start">
+                                                        <CalendarComponent
+                                                            mode="single"
+                                                            selected={cumulativeEndDate}
+                                                            onSelect={(date) => {
+                                                                if (date) {
+                                                                    setCumulativeEndDate(date);
+                                                                }
+                                                            }}
+                                                            disabled={(date) => {
+                                                                // No permitir fechas antes de abril 2025
+                                                                const minDate = new Date('2025-04-01');
+                                                                if (date < minDate) return true;
+                                                                
+                                                                // No permitir fechas futuras
+                                                                if (date > new Date()) return true;
+                                                                
+                                                                // EXCLUIR agosto y septiembre 2025
+                                                                const dateStr = format(date, 'yyyy-MM');
+                                                                if (dateStr === '2025-08' || dateStr === '2025-09') return true;
+                                                                
+                                                                return false;
+                                                            }}
+                                                            initialFocus
+                                                            locale={es}
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                                <div className="text-sm text-slate-600 bg-blue-50 px-4 py-3 rounded-lg border border-blue-200">
+                                                    <span className="font-medium">Período:</span> {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - {format(cumulativeEndDate, 'd MMM yyyy', { locale: es })}
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                    
                                     <TotalsCard 
                                         summary={cumulativeProfitabilityData.summary} 
-                                        title={`Totales Acumulados (Desde ${format(cumulativeStartDate, 'd MMM yyyy', { locale: es })})`}
+                                        title={`Totales Acumulados (${format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - ${format(cumulativeEndDate, 'd MMM yyyy', { locale: es })})`}
                                     />
                                     
                                     <p className="text-slate-600 mb-6 text-base font-light leading-relaxed">
-                                        Análisis acumulado de ingresos, costos y márgenes reales desde la fecha de inicio definida.
+                                        Análisis acumulado de ingresos, costos y márgenes reales para el período seleccionado. Excluye agosto y septiembre 2025.
                                         {clientSearchTerm && (
                                             <span className="ml-2 text-base font-medium text-blue-700">
                                                 (Filtrado: "{clientSearchTerm}")
