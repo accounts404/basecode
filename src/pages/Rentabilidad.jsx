@@ -345,20 +345,52 @@ export default function RentabilidadPage() {
         { value: "one_off", label: "Servicio Único" }
     ];
 
+    // Helper para cargar TODOS los registros con paginación automática
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await entity.list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const loadAllInitialData = async () => {
         setLoading(true);
         setError('');
         try {
-            console.log('[Rentabilidad] 📊 Cargando datos...');
+            console.log('[Rentabilidad] 📊 Cargando TODOS los registros con paginación...');
             
             const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData, usersData] = await Promise.all([
-                Client.list(),
-                WorkEntry.list("-work_date"),
-                PricingThreshold.list(),
-                Schedule.list(),
-                FixedCost.list(),
-                User.list(),
+                loadAllRecords(Client, '-created_date'),
+                loadAllRecords(WorkEntry, '-work_date'),
+                loadAllRecords(PricingThreshold, '-created_date'),
+                loadAllRecords(Schedule, '-start_time'),
+                loadAllRecords(FixedCost, '-created_date'),
+                loadAllRecords(User, '-created_date'),
             ]);
+            
+            console.log('[Rentabilidad] ✅ Registros cargados:', {
+                clients: clientsData?.length || 0,
+                workEntries: workEntriesData?.length || 0,
+                schedules: schedulesData?.length || 0,
+                thresholds: thresholdsData?.length || 0,
+                fixedCosts: fixedCostsData?.length || 0,
+                users: usersData?.length || 0
+            });
             
             // FILTRAR agosto y septiembre 2025
             const filteredWorkEntries = (workEntriesData || []).filter(e => !isExcludedMonth(e.work_date));
