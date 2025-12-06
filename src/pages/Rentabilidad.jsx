@@ -334,9 +334,9 @@ export default function RentabilidadPage() {
             const { base44 } = await import('@/api/base44Client');
             const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData, usersData] = await Promise.all([
                 base44.entities.Client.list('-created_date', 1000),
-                base44.entities.WorkEntry.list('-work_date', 10000),
+                base44.entities.WorkEntry.filter({}, '-work_date', 50000),
                 base44.entities.PricingThreshold.list('-created_date', 100),
-                base44.entities.Schedule.list('-start_time', 10000),
+                base44.entities.Schedule.filter({}, '-start_time', 50000),
                 base44.entities.FixedCost.list('-created_date', 200),
                 base44.entities.User.list('-created_date', 500),
             ]);
