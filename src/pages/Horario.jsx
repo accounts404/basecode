@@ -448,14 +448,15 @@ export default function HorarioPage() {
             logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
             if (currentUser.role === 'admin') {
-                // SOLUCIÓN AL LÍMITE DE 5000: Cargar por rango de fechas (2 años)
+                // SOLUCIÓN DINÁMICA: Cargar centrado en la fecha que el usuario está viendo
                 const { base44 } = await import('@/api/base44Client');
 
-                const now = new Date();
-                const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-                const endDate = new Date(now.getFullYear() + 1, now.getMonth() + 12, 0);
+                // Usar la fecha actual del state (fecha que el usuario está viendo)
+                const viewingDate = date;
+                const startDate = new Date(viewingDate.getFullYear(), viewingDate.getMonth() - 12, 1);
+                const endDate = new Date(viewingDate.getFullYear(), viewingDate.getMonth() + 12, 0);
                 
-                console.log(`[Horario] 🔄 Cargando schedules desde ${startDate.toISOString().slice(0,10)} hasta ${endDate.toISOString().slice(0,10)}...`);
+                console.log(`[Horario] 🔄 Cargando schedules centrado en ${viewingDate.toISOString().slice(0,10)}: desde ${startDate.toISOString().slice(0,10)} hasta ${endDate.toISOString().slice(0,10)}...`);
                 
                 const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
                     base44.entities.User.list(null, 10000),
@@ -571,12 +572,14 @@ export default function HorarioPage() {
 
         try {
             if (user.role === 'admin') {
-                // SOLUCIÓN: Cargar por rango de fechas
+                // SOLUCIÓN DINÁMICA: Cargar centrado en la fecha que el usuario está viendo
                 const { base44 } = await import('@/api/base44Client');
 
-                const now = new Date();
-                const startDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
-                const endDate = new Date(now.getFullYear(), now.getMonth() + 13, 0);
+                const viewingDate = date;
+                const startDate = new Date(viewingDate.getFullYear(), viewingDate.getMonth() - 12, 1);
+                const endDate = new Date(viewingDate.getFullYear(), viewingDate.getMonth() + 12, 0);
+
+                console.log(`[Horario-Refresh] 🔄 Cargando centrado en ${viewingDate.toISOString().slice(0,10)}: desde ${startDate.toISOString().slice(0,10)} hasta ${endDate.toISOString().slice(0,10)}...`);
 
                 const [allSchedules, allTasks, allAssignments] = await Promise.all([
                     base44.entities.Schedule.filter({
@@ -1331,12 +1334,14 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // SOLUCIÓN: Cargar por rango de fechas (2 años)
+                    // SOLUCIÓN DINÁMICA: Cargar centrado en la fecha que el usuario está viendo
                     const { base44 } = await import('@/api/base44Client');
                     
-                    const now = new Date();
-                    const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-                    const endDate = new Date(now.getFullYear() + 1, now.getMonth() + 12, 0);
+                    const viewingDate = currentDateRef.current;
+                    const startDate = new Date(viewingDate.getFullYear(), viewingDate.getMonth() - 12, 1);
+                    const endDate = new Date(viewingDate.getFullYear(), viewingDate.getMonth() + 12, 0);
+                    
+                    console.log(`[Horario-Polling] 🔄 Cargando centrado en ${viewingDate.toISOString().slice(0,10)}...`);
                     
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
                         base44.entities.Schedule.filter({
