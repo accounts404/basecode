@@ -58,10 +58,10 @@ export default function ReportesPage() {
         // CRÍTICO: Obtener ABSOLUTAMENTE TODO sin límites
         const { base44 } = await import('@/api/base44Client');
         const [entriesResult, usersResult, schedulesResult, clientsResult] = await Promise.allSettled([
-          base44.entities.WorkEntry.list(null, 50000),
-          base44.entities.User.list(null, 10000),
-          base44.entities.Schedule.list(null, 50000),
-          base44.entities.Client.list(null, 10000)
+          base44.entities.WorkEntry.list(),
+          base44.entities.User.list(),
+          base44.entities.Schedule.list(),
+          base44.entities.Client.list()
         ]);
         
         const allEntriesRaw = entriesResult.status === 'fulfilled' ? entriesResult.value : [];
