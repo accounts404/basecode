@@ -216,13 +216,19 @@ const ProfitabilityRow = ({ data }) => {
 const generateMonthOptions = () => {
     const months = [];
     const currentDate = new Date();
-    for (let i = 0; i < 12; i++) {
-        const date = subMonths(currentDate, i);
+    const startDate = new Date('2025-04-01'); // Abril 2025
+    
+    let tempDate = currentDate;
+    
+    // Generar meses desde ahora hacia atrás hasta abril 2025
+    while (tempDate >= startDate) {
         months.push({
-            value: format(date, 'yyyy-MM'),
-            label: format(date, 'MMMM yyyy', { locale: es })
+            value: format(tempDate, 'yyyy-MM'),
+            label: format(tempDate, 'MMMM yyyy', { locale: es })
         });
+        tempDate = subMonths(tempDate, 1);
     }
+    
     return months;
 };
 
