@@ -1294,21 +1294,14 @@ export default function HorarioPage() {
     useEffect(() => {
         if (!initialLoadComplete) return;
 
-        // CRÍTICO: DESHABILITAR polling para admin - causa pérdida de datos históricos
-        // Solo activar polling para limpiadores (necesitan actualización en tiempo real)
-        if (user?.role === 'admin') {
-            console.log('[Horario] ⏸️ Polling DESHABILITADO para admin (usa botón Actualizar manual)');
-            return;
-        }
-
         if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
         }
 
-        const pollingInterval = 15000; // Solo para limpiadores
+        const pollingInterval = user?.role === 'admin' ? 30000 : 15000;
 
-        console.log(`[Horario] 🔄 Polling cada ${pollingInterval/1000}s (solo limpiadores)`);
+        console.log(`[Horario] 🔄 Polling cada ${pollingInterval/1000}s`);
 
         pollingRef.current = setInterval(async () => {
             if (navigationInProgressRef.current || clockInProcessingRef.current) {
@@ -1317,7 +1310,20 @@ export default function HorarioPage() {
             }
 
             try {
-                await loadCleanerSpecificData(currentDateRef.current, true);
+                if (user?.role === 'admin') {
+                    // CRÍTICO: Obtener ABSOLUTAMENTE TODOS sin límites
+                    const { base44 } = await import('@/api/base44Client');
+                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                        base44.entities.Schedule.list(),
+                        base44.entities.Task.list(),
+                        base44.entities.DailyTeamAssignment.list()
+                    ]);
+                    setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
+                    setTasks(Array.isArray(allTasks) ? allTasks : []);
+                    setDailyTeamAssignments(Array.isArray(allAssignments) ? allAssignments : []);
+                } else {
+                    await loadCleanerSpecificData(currentDateRef.current, true);
+                }
             } catch (error) {
                 console.error('[Horario] ❌ Error en polling:', error);
             }
