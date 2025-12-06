@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -30,14 +31,10 @@ export default function MonthRangePicker({ onRangeChange, workEntries }) {
     const [endMonth, setEndMonth] = useState('');
 
     useEffect(() => {
-        // Set default range: desde abril 2025 o el mes más antiguo disponible, hasta el mes actual
+        // Set default range to last 6 months if available
         if (availableMonths.length > 0) {
-            const defaultEnd = availableMonths[0].value; // Mes más reciente
-            
-            // Buscar abril 2025 en los meses disponibles, o usar el más antiguo
-            const aprilMonth = availableMonths.find(m => m.value === '2025-04');
-            const defaultStart = aprilMonth ? aprilMonth.value : availableMonths[availableMonths.length - 1].value;
-            
+            const defaultEnd = availableMonths[0].value;
+            const defaultStart = availableMonths[Math.min(5, availableMonths.length - 1)].value;
             setStartMonth(defaultStart);
             setEndMonth(defaultEnd);
             onRangeChange({
@@ -45,7 +42,7 @@ export default function MonthRangePicker({ onRangeChange, workEntries }) {
                 end: endOfMonth(new Date(defaultEnd)),
             });
         }
-    }, [availableMonths, onRangeChange]);
+    }, [availableMonths, onRangeChange]); // Changed dependency array here
 
     const handleApply = () => {
         if (startMonth && endMonth) {
@@ -95,23 +92,6 @@ export default function MonthRangePicker({ onRangeChange, workEntries }) {
                 <Button variant="outline" size="sm" onClick={() => setPresetRange(3)}>Últimos 3 meses</Button>
                 <Button variant="outline" size="sm" onClick={() => setPresetRange(6)}>Últimos 6 meses</Button>
                 <Button variant="outline" size="sm" onClick={() => setPresetRange(12)}>Últimos 12 meses</Button>
-                <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                        const aprilMonth = availableMonths.find(m => m.value === '2025-04');
-                        if (aprilMonth) {
-                            setStartMonth(aprilMonth.value);
-                            setEndMonth(availableMonths[0].value);
-                            onRangeChange({
-                                start: startOfMonth(new Date(aprilMonth.value)),
-                                end: endOfMonth(new Date(availableMonths[0].value)),
-                            });
-                        }
-                    }}
-                >
-                    Desde Abril 2025
-                </Button>
                 <Button 
                     className="bg-blue-600 hover:bg-blue-700 text-white ml-auto" 
                     onClick={handleApply}
