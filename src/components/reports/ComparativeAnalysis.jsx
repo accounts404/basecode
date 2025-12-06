@@ -179,14 +179,16 @@ export default function ComparativeAnalysis({ workEntries }) {
     const allMonthlyCosts = useMemo(() => {
         console.log('[ComparativeAnalysis] 📊 Procesando costos de work entries:', workEntries?.length || 0);
         const result = processWorkEntryCosts(workEntries);
-        console.log('[ComparativeAnalysis] ✅ Costos mensuales procesados:', result.length, result);
+        console.log('[ComparativeAnalysis] ✅ Costos mensuales procesados:', result.length);
+        console.log('[ComparativeAnalysis] 📆 Meses de COSTOS:', result.map(r => `${r.month}: $${r.totalLaborCost.toFixed(2)}`));
         return result;
     }, [workEntries]);
     
     const allMonthlyRevenue = useMemo(() => {
         console.log('[ComparativeAnalysis] 💰 Procesando ingresos de schedules:', schedules?.length || 0);
         const result = processScheduleRevenue(schedules, clients);
-        console.log('[ComparativeAnalysis] ✅ Ingresos mensuales procesados:', result.length, result);
+        console.log('[ComparativeAnalysis] ✅ Ingresos mensuales procesados:', result.length);
+        console.log('[ComparativeAnalysis] 💵 Meses de INGRESOS:', result.map(r => `${r.month}: $${r.totalRevenue.toFixed(2)}`));
         return result;
     }, [schedules, clients]);
 
