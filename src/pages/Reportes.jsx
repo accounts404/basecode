@@ -71,17 +71,8 @@ export default function ReportesPage() {
         const allClientsRaw = clientsResult.status === 'fulfilled' ? clientsResult.value : [];
 
         // Filter entries on client side to ensure we have enough history
-        const twoYearsAgoStr = format(twoYearsAgo, 'yyyy-MM-dd');
-        const allEntries = allEntriesRaw.filter(e => {
-            if (!e.work_date) return false;
-            const dateOnly = e.work_date.substring(0, 10);
-            return dateOnly >= twoYearsAgoStr;
-        });
-        const allSchedules = allSchedulesRaw.filter(s => {
-            if (!s.start_time) return false;
-            const dateOnly = s.start_time.substring(0, 10);
-            return dateOnly >= twoYearsAgoStr;
-        });
+        const allEntries = allEntriesRaw.filter(e => new Date(e.work_date) >= twoYearsAgo);
+        const allSchedules = allSchedulesRaw.filter(s => new Date(s.start_time) >= twoYearsAgo);
         setSchedules(allSchedules);
 
         const allUsers = usersResult.status === 'fulfilled' ? usersResult.value : [];
