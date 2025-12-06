@@ -95,7 +95,7 @@ export default function TrabajoEntradasPage() {
     try {
       const [currentUser, entriesResult, cleanersResult, clientsResult] = await Promise.all([
         base44.auth.me(),
-        base44.entities.WorkEntry.filter({}, "-work_date", 50000).catch(() => []),
+        base44.entities.WorkEntry.list().catch(() => []),
         base44.entities.User.list('-created_date', 500).catch(() => []),
         base44.entities.Client.list('-created_date', 1000).catch(() => [])
       ]);
