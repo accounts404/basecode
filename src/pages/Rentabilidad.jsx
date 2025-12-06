@@ -667,11 +667,24 @@ export default function RentabilidadPage() {
                    clientMap.has(schedule.client_id);
         });
 
+        // NUEVO: Mapa para contar servicios únicos por cliente desde schedules
+        const clientServiceCountFromSchedules = new Map();
+        
         invoicedSchedulesCumulative.forEach(schedule => {
             const client = clientMap.get(schedule.client_id);
             if (!client) return;
 
             const clientId = client.id;
+            
+            // Contar servicios únicos
+            if (!clientServiceCountFromSchedules.has(clientId)) {
+                clientServiceCountFromSchedules.set(clientId, new Set());
+            }
+            const scheduleDateOnly = extractDateOnly(schedule.start_time);
+            if (scheduleDateOnly) {
+                clientServiceCountFromSchedules.get(clientId).add(scheduleDateOnly);
+            }
+            
             let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
 
             const priceData = getPriceForSchedule(schedule, client);
@@ -705,20 +718,6 @@ export default function RentabilidadPage() {
                    entry.activity !== 'training';
         });
 
-        const clientServiceDates = new Map();
-        cumulativeWorkEntries.forEach(entry => {
-            if (!entry.client_id || !entry.work_date) return;
-            
-            if (!clientServiceDates.has(entry.client_id)) {
-                clientServiceDates.set(entry.client_id, new Set());
-            }
-            
-            const dateOnly = extractDateOnly(entry.work_date);
-            if (dateOnly) {
-                clientServiceDates.get(entry.client_id).add(dateOnly);
-            }
-        });
-
         const cumulativeClientProfitability = cumulativeWorkEntries.reduce((acc, entry) => {
             if (!entry.client_id) return acc;
             const client = clientMap.get(entry.client_id);
@@ -747,13 +746,15 @@ export default function RentabilidadPage() {
                 cumulativeClientProfitability[clientId].revenueBreakdown = breakdown;
                 cumulativeClientProfitability[clientId].totalIncome = calculateTotalIncomeFromBreakdown(breakdown);
                 
-                const uniqueServiceDates = clientServiceDates.get(clientId);
+                // CORREGIDO: Usar el conteo de servicios desde schedules facturados
+                const uniqueServiceDates = clientServiceCountFromSchedules.get(clientId);
                 cumulativeClientProfitability[clientId].serviceCount = uniqueServiceDates ? uniqueServiceDates.size : 0;
 
             } else {
                 const client = clientMap.get(clientId);
                 if (client) {
-                    const uniqueServiceDates = clientServiceDates.get(clientId);
+                    // CORREGIDO: Usar el conteo de servicios desde schedules facturados
+                    const uniqueServiceDates = clientServiceCountFromSchedules.get(clientId);
                     cumulativeClientProfitability[clientId] = {
                         clientId: clientId,
                         clientName: client.name,
