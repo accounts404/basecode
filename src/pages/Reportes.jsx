@@ -77,12 +77,6 @@ export default function ReportesPage() {
             const dateOnly = e.work_date.substring(0, 10);
             return dateOnly >= twoYearsAgoStr;
         });
-
-        console.log('[Reportes] 📊 Total WorkEntries cargados:', allEntries.length);
-        console.log('[Reportes] 📅 Rango de fechas WorkEntry:', {
-            oldest: allEntries.length > 0 ? allEntries[allEntries.length - 1]?.work_date : 'N/A',
-            newest: allEntries.length > 0 ? allEntries[0]?.work_date : 'N/A'
-        });
         const allSchedules = allSchedulesRaw.filter(s => {
             if (!s.start_time) return false;
             const dateOnly = s.start_time.substring(0, 10);
