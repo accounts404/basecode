@@ -58,8 +58,6 @@ const isExcludedMonth = (monthKey) => {
 const processWorkEntryCosts = (entries) => {
   if (!entries || entries.length === 0) return [];
   
-  console.log('[processWorkEntryCosts] 🔍 Ejemplo de fechas de entrada:', entries.slice(0, 10).map(e => e.work_date));
-  
   const monthlyData = {};
 
   entries.forEach(entry => {
