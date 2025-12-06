@@ -330,8 +330,13 @@ export default function RentabilidadPage() {
     const [monthlyTrainingCost, setMonthlyTrainingCost] = useState({ hours: 0, amount: 0 });
     const [cumulativeTrainingCost, setCumulativeTrainingCost] = useState({ hours: 0, amount: 0 });
     const [trainingClientId, setTrainingClientId] = useState(null);
+    const [cumulativeEndMonth, setCumulativeEndMonth] = useState(format(new Date(), 'yyyy-MM'));
 
-    const cumulativeStartDate = useMemo(() => new Date('2025-04-01T00:00:00Z'), []);
+    const cumulativeStartDate = useMemo(() => new Date('2024-04-01T00:00:00Z'), []);
+    const cumulativeEndDate = useMemo(() => {
+        const [year, month] = cumulativeEndMonth.split('-');
+        return endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+    }, [cumulativeEndMonth]);
 
     const frequencyOptions = [
         { value: "all", label: "Todas las Frecuencias" },
@@ -650,7 +655,7 @@ export default function RentabilidadPage() {
 
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
-            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0 };
+            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0, includedMonths: [] };
         }
 
         const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
@@ -658,7 +663,7 @@ export default function RentabilidadPage() {
 
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
-            return isDateInRange(schedule.start_time, cumulativeStartDate, new Date()) && 
+            return isDateInRange(schedule.start_time, cumulativeStartDate, cumulativeEndDate) && 
                    schedule.xero_invoiced === true &&
                    schedule.client_id !== trainingClientId &&
                    clientMap.has(schedule.client_id);
@@ -687,19 +692,19 @@ export default function RentabilidadPage() {
         let cumulativeTrainingHours = 0;
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
-            if (entry.client_id === trainingClientId && 
-                isDateInRange(entry.work_date, cumulativeStartDate, new Date())) {
-                cumulativeTrainingHours += entry.hours || 0;
-                cumulativeTrainingAmount += entry.total_amount || 0;
-            }
+        if (entry.client_id === trainingClientId && 
+            isDateInRange(entry.work_date, cumulativeStartDate, cumulativeEndDate)) {
+            cumulativeTrainingHours += entry.hours || 0;
+            cumulativeTrainingAmount += entry.total_amount || 0;
+        }
         });
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
 
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
-            return isDateInRange(entry.work_date, cumulativeStartDate, new Date()) && 
-                   entry.client_id !== trainingClientId &&
-                   clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training';
+        return isDateInRange(entry.work_date, cumulativeStartDate, cumulativeEndDate) && 
+               entry.client_id !== trainingClientId &&
+               clientMap.has(entry.client_id) &&
+               entry.activity !== 'training';
         });
 
         const clientServiceDates = new Map();
@@ -767,11 +772,15 @@ export default function RentabilidadPage() {
         });
 
         const startPeriod = format(cumulativeStartDate, 'yyyy-MM');
-        const endPeriod = format(new Date(), 'yyyy-MM');
+        const endPeriod = format(cumulativeEndDate, 'yyyy-MM');
         const periodMonths = [];
         let currentDate = new Date(startPeriod + '-01');
         while (format(currentDate, 'yyyy-MM') <= endPeriod) {
-            periodMonths.push(format(currentDate, 'yyyy-MM'));
+            const monthKey = format(currentDate, 'yyyy-MM');
+            // EXCLUIR agosto y septiembre 2025
+            if (monthKey !== '2025-08' && monthKey !== '2025-09') {
+                periodMonths.push(monthKey);
+            }
             currentDate = addMonths(currentDate, 1);
         }
 
@@ -849,12 +858,19 @@ export default function RentabilidadPage() {
         const cumulativeTotalRealProfitPercentage = cumulativeSummary.totalIncome > 0 ? (cumulativeSummary.totalRealMargin / cumulativeSummary.totalIncome) * 100 : 0;
         cumulativeSummary.totalRealProfitPercentage = cumulativeTotalRealProfitPercentage;
 
+        // Generar lista de meses incluidos con nombres
+        const includedMonths = periodMonths.map(monthKey => ({
+            key: monthKey,
+            label: format(new Date(monthKey + '-01'), 'MMMM yyyy', { locale: es })
+        }));
+
         return { 
             clientAnalysis: filteredCumulativeAnalysis, 
             summary: cumulativeSummary, 
-            overallTotalFixedCosts: totalCumulativeFixedCosts 
+            overallTotalFixedCosts: totalCumulativeFixedCosts,
+            includedMonths
         };
-    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection]);
+    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection]);
 
     if (loading) return <div className="p-8 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div></div>;
     if (error) return <div className="p-8 text-red-700 text-center font-medium">{error}</div>;
@@ -1286,14 +1302,55 @@ export default function RentabilidadPage() {
                                     <div className="flex items-center gap-3">
                                         <ArrowRightSquare className="w-6 h-6 text-slate-700"/>
                                         <span className="text-slate-900">
-                                            Rentabilidad Acumulada por Cliente (Desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })})
+                                            Rentabilidad Acumulada por Cliente (Desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} hasta {format(cumulativeEndDate, 'd MMM yyyy', { locale: es })})
                                         </span>
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
+                                    <div className="mb-6 p-5 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
+                                            <div className="space-y-3">
+                                                <Label className="text-sm font-semibold text-blue-800 uppercase tracking-wide flex items-center gap-2">
+                                                    <Calendar className="w-4 h-4" />
+                                                    Fecha Hasta (Acumulado)
+                                                </Label>
+                                                <Select value={cumulativeEndMonth} onValueChange={setCumulativeEndMonth}>
+                                                    <SelectTrigger className="h-12 text-base border-blue-300 bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 font-medium">
+                                                        <SelectValue placeholder="Selecciona hasta qué mes" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {monthOptions.map((month) => (
+                                                            <SelectItem key={month.value} value={month.value} className="py-3 text-base">
+                                                                {month.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            
+                                            <div className="bg-white border-2 border-blue-300 rounded-lg p-4">
+                                                <p className="text-sm font-semibold text-blue-800 mb-2 uppercase tracking-wide">Meses Incluidos:</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {cumulativeProfitabilityData.includedMonths && cumulativeProfitabilityData.includedMonths.length > 0 ? (
+                                                        cumulativeProfitabilityData.includedMonths.map(month => (
+                                                            <span key={month.key} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                                                                {month.label}
+                                                            </span>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-slate-500 text-sm">No hay meses en el rango seleccionado</span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-blue-700 mt-2 font-medium">
+                                                    Total: {cumulativeProfitabilityData.includedMonths?.length || 0} meses
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
                                     <TotalsCard 
                                         summary={cumulativeProfitabilityData.summary} 
-                                        title={`Totales Acumulados (Desde ${format(cumulativeStartDate, 'd MMM yyyy', { locale: es })})`}
+                                        title={`Totales Acumulados (${format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - ${format(cumulativeEndDate, 'd MMM yyyy', { locale: es })})`}
                                     />
                                     
                                     <p className="text-slate-600 mb-6 text-base font-light leading-relaxed">
