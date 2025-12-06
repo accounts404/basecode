@@ -698,9 +698,6 @@ export default function RentabilidadPage() {
             }
         });
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
-
-        const cumulativeStartStr = format(cumulativeStartDate, 'yyyy-MM-dd');
-        const cumulativeEndStr = format(new Date(), 'yyyy-MM-dd');
         
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
             if (!entry.work_date) return false;
