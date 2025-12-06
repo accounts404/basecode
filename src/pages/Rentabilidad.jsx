@@ -327,18 +327,65 @@ export default function RentabilidadPage() {
         { value: "one_off", label: "Servicio Único" }
     ];
 
+    // Helper para cargar TODOS los registros con paginación automática
+    const loadAllRecords = async (entityName, sortField = '-created_date') => {
+        const { base44 } = await import('@/api/base44Client');
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const loadAllInitialData = async () => {
         setLoading(true);
         setError('');
         try {
-            const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData, usersData] = await Promise.all([
-                Client.list(),
-                WorkEntry.list("-work_date"),
-                PricingThreshold.list(),
-                Schedule.list(),
-                FixedCost.list(),
-                User.list(),
+            console.log('[Rentabilidad] 📊 Cargando TODOS los registros con paginación...');
+            
+            const [clientsData, workEntriesDataRaw, thresholdsData, schedulesDataRaw, fixedCostsData, usersData] = await Promise.all([
+                loadAllRecords('Client', '-created_date'),
+                loadAllRecords('WorkEntry', '-work_date'),
+                loadAllRecords('PricingThreshold', '-created_date'),
+                loadAllRecords('Schedule', '-start_time'),
+                loadAllRecords('FixedCost', '-created_date'),
+                loadAllRecords('User', '-created_date'),
             ]);
+            
+            // EXCLUIR agosto y septiembre 2025
+            const workEntriesData = workEntriesDataRaw.filter(e => {
+                const workDate = new Date(e.work_date);
+                const year = workDate.getFullYear();
+                const month = workDate.getMonth() + 1;
+                return !(year === 2025 && (month === 8 || month === 9));
+            });
+            
+            const schedulesData = schedulesDataRaw.filter(s => {
+                const scheduleDate = new Date(s.start_time);
+                const year = scheduleDate.getFullYear();
+                const month = scheduleDate.getMonth() + 1;
+                return !(year === 2025 && (month === 8 || month === 9));
+            });
+            
+            console.log('[Rentabilidad] ✅ Registros cargados (excluyendo ago-sep 2025):', {
+                workEntries: workEntriesData?.length || 0,
+                schedules: schedulesData?.length || 0
+            });
+            
             setClients(clientsData || []);
             setAllWorkEntries(workEntriesData || []);
             setPricingThresholds(thresholdsData || []);
