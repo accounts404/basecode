@@ -387,24 +387,8 @@ export default function HorarioPage() {
                 endUTC: endOfRangeUTC
             });
 
-            // Intentar obtener de caché primero
-            const cacheKey = CACHE_KEYS.SCHEDULES(dateRange);
-            const cachedSchedules = cacheManager.get(cacheKey);
-
-            if (cachedSchedules && !isSilentUpdate) {
-                logger.debug('Horario', 'Usando servicios desde caché', { count: cachedSchedules.length });
-                setSchedules(cachedSchedules);
-                loadingRef.current = false;
-                if (!isSilentUpdate) {
-                    setLoadingCleanerData(false);
-                }
-                
-                // Cargar en background para actualizar caché
-                setTimeout(() => {
-                    loadCleanerSpecificData(forDate, true);
-                }, 100);
-                return;
-            }
+            // NO usar caché para evitar problemas con datos antiguos
+            logger.debug('Horario', 'Cargando servicios frescos desde BD (sin caché)');
 
             // Consulta optimizada con índices y rangos UTC correctos
             const cleanerSchedules = await Schedule.filter({
@@ -437,9 +421,11 @@ export default function HorarioPage() {
 
             const currentCleanerSchedules = Array.isArray(cleanerSchedules) ? cleanerSchedules : [];
             setSchedules(currentCleanerSchedules);
-            
-            // Guardar en caché con TTL de 2 minutos para limpiadores
-            cacheManager.set(cacheKey, currentCleanerSchedules, CACHE_TTL.SHORT);
+
+            logger.info('Horario', 'Servicios cargados para limpiador', { 
+                count: currentCleanerSchedules.length,
+                dateRange
+            });
 
             await loadVehicleAndTeamForDate(forDate);
             await loadRequiredKeysForDate(currentCleanerSchedules, forDate);
@@ -496,32 +482,15 @@ export default function HorarioPage() {
                     assignments: cachedAssignments?.length || 0
                 });
             } else {
-                logger.debug('Horario', 'Limpiador detectado, cargando desde caché local');
-                const cachedSchedules = loadFromCache(LEGACY_CACHE_KEYS.SCHEDULES);
-                const cachedVehicle = loadFromCache(LEGACY_CACHE_KEYS.VEHICLE);
-                const cachedTeam = loadFromCache(LEGACY_CACHE_KEYS.TEAM);
-                const cachedKeys = loadFromCache(LEGACY_CACHE_KEYS.KEYS);
-
-                if (cachedSchedules) {
-                    logger.debug('Horario', 'Mostrando servicios desde caché', { count: cachedSchedules.length });
-                    setSchedules(cachedSchedules);
-                }
-                if (cachedVehicle) {
-                    setAssignedVehicle(cachedVehicle.vehicle);
-                    setMainDriverName(cachedVehicle.driver);
-                }
-                if (cachedTeam) setTeamMembers(cachedTeam);
-                if (cachedKeys) setRequiredKeys(cachedKeys);
+                logger.debug('Horario', 'Limpiador detectado, NO usando caché antiguo');
 
                 setUsers([currentUser]);
                 setIsCleanerView(true);
                 setLoading(false);
                 setInitialLoadComplete(true);
 
-                logger.debug('Horario', 'Iniciando actualización en background');
-                setTimeout(() => {
-                    loadCleanerSpecificData(new Date(), true);
-                }, 100);
+                logger.debug('Horario', 'Cargando datos del limpiador inmediatamente');
+                await loadCleanerSpecificData(new Date(), false);
             }
 
         } catch (error) {
