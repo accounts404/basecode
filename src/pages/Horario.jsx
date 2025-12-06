@@ -448,13 +448,23 @@ export default function HorarioPage() {
             logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
             if (currentUser.role === 'admin') {
-                // CRÍTICO: Obtener ABSOLUTAMENTE TODOS sin límites
+                // SOLUCIÓN AL LÍMITE DE 5000: Cargar por rango de fechas (2 años)
                 const { base44 } = await import('@/api/base44Client');
 
-                console.log('[Horario] 🔄 Cargando TODOS los schedules desde BD (límite 200K)...');
+                const now = new Date();
+                const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+                const endDate = new Date(now.getFullYear() + 1, now.getMonth() + 12, 0);
+                
+                console.log(`[Horario] 🔄 Cargando schedules desde ${startDate.toISOString().slice(0,10)} hasta ${endDate.toISOString().slice(0,10)}...`);
+                
                 const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
                     base44.entities.User.list(null, 10000),
-                    base44.entities.Schedule.list(null, 200000),
+                    base44.entities.Schedule.filter({
+                        start_time: {
+                            $gte: startDate.toISOString(),
+                            $lte: endDate.toISOString()
+                        }
+                    }, null, 50000),
                     base44.entities.Task.list(null, 10000),
                     base44.entities.DailyTeamAssignment.list(null, 10000)
                 ]);
@@ -1321,10 +1331,20 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // CRÍTICO: Obtener ABSOLUTAMENTE TODOS sin límites
+                    // SOLUCIÓN: Cargar por rango de fechas (2 años)
                     const { base44 } = await import('@/api/base44Client');
+                    
+                    const now = new Date();
+                    const startDate = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+                    const endDate = new Date(now.getFullYear() + 1, now.getMonth() + 12, 0);
+                    
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        base44.entities.Schedule.list(null, 50000),
+                        base44.entities.Schedule.filter({
+                            start_time: {
+                                $gte: startDate.toISOString(),
+                                $lte: endDate.toISOString()
+                            }
+                        }, null, 50000),
                         base44.entities.Task.list(null, 10000),
                         base44.entities.DailyTeamAssignment.list(null, 10000)
                     ]);
