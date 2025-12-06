@@ -5,24 +5,14 @@ import { format, startOfMonth, endOfMonth, subMonths, eachMonthOfInterval } from
 import { es } from 'date-fns/locale';
 
 const getAvailableMonths = (workEntries) => {
-    // Siempre incluir desde abril 2025 hasta el mes actual
+    if (!workEntries || workEntries.length === 0) return [];
+    
+    // Forzar que abril 2025 sea la fecha mínima
     const minAllowedDate = new Date('2025-04-01');
-    const currentDate = new Date();
     
-    let minDate = minAllowedDate;
-    let maxDate = currentDate;
-    
-    // Si hay work entries, extender el rango si es necesario
-    if (workEntries && workEntries.length > 0) {
-        const dates = workEntries.map(e => new Date(e.work_date));
-        const dataMinDate = new Date(Math.min(...dates));
-        const dataMaxDate = new Date(Math.max(...dates));
-        
-        // Tomar el mínimo entre abril 2025 y la fecha más antigua de los datos
-        minDate = dataMinDate < minAllowedDate ? dataMinDate : minAllowedDate;
-        // Tomar el máximo entre la fecha actual y la fecha más reciente de los datos
-        maxDate = dataMaxDate > currentDate ? dataMaxDate : currentDate;
-    }
+    const dates = workEntries.map(e => new Date(e.work_date));
+    const minDate = new Date(Math.min(...dates, minAllowedDate));
+    const maxDate = new Date(Math.max(...dates));
 
     const months = eachMonthOfInterval({
         start: startOfMonth(minDate),
