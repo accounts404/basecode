@@ -96,31 +96,10 @@ export default function ReportesPage() {
           clients: allClientsRaw?.length || 0
         });
 
-        // Filtrar desde abril 2024, EXCLUYENDO agosto y septiembre 2025
+        // Filtrar desde abril 2024 (no 2025 porque estamos en diciembre 2024)
         const aprilCutoff = new Date('2024-04-01');
-        const allEntries = allEntriesRaw.filter(e => {
-          const workDate = new Date(e.work_date);
-          if (workDate < aprilCutoff) return false;
-          
-          // Excluir agosto y septiembre 2025
-          const year = workDate.getFullYear();
-          const month = workDate.getMonth() + 1;
-          if (year === 2025 && (month === 8 || month === 9)) return false;
-          
-          return true;
-        });
-        
-        const allSchedules = allSchedulesRaw.filter(s => {
-          const scheduleDate = new Date(s.start_time);
-          if (scheduleDate < aprilCutoff) return false;
-          
-          // Excluir agosto y septiembre 2025
-          const year = scheduleDate.getFullYear();
-          const month = scheduleDate.getMonth() + 1;
-          if (year === 2025 && (month === 8 || month === 9)) return false;
-          
-          return true;
-        });
+        const allEntries = allEntriesRaw.filter(e => new Date(e.work_date) >= aprilCutoff);
+        const allSchedules = allSchedulesRaw.filter(s => new Date(s.start_time) >= aprilCutoff);
         setSchedules(allSchedules);
 
         const allClients = allClientsRaw.filter(c => c.active !== false);
