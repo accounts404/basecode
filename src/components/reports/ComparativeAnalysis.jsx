@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { subMonths, startOfMonth, endOfMonth, format, eachMonthOfInterval, differenceInMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -49,11 +50,6 @@ const calculateScheduleRevenue = (schedule, client) => {
     }
 };
 
-// Excluir agosto y septiembre de 2025
-const isExcludedMonth = (monthKey) => {
-  return monthKey === '2025-08' || monthKey === '2025-09';
-};
-
 // Procesar datos de costos de mano de obra (WorkEntry)
 const processWorkEntryCosts = (entries) => {
   if (!entries || entries.length === 0) return [];  // CORREGIDO: retornar array vacío
@@ -62,10 +58,6 @@ const processWorkEntryCosts = (entries) => {
 
   entries.forEach(entry => {
     const monthKey = format(new Date(entry.work_date), 'yyyy-MM');
-    
-    // Excluir meses específicos
-    if (isExcludedMonth(monthKey)) return;
-    
     if (!monthlyData[monthKey]) {
       monthlyData[monthKey] = {
         month: monthKey,
@@ -106,9 +98,6 @@ const processScheduleRevenue = (schedules, clients) => {
         
         const scheduleDateString = schedule.start_time.slice(0, 10);
         const monthKey = scheduleDateString.slice(0, 7); // YYYY-MM
-        
-        // Excluir meses específicos
-        if (isExcludedMonth(monthKey)) return;
         
         if (!monthlyData[monthKey]) {
             monthlyData[monthKey] = {
@@ -177,22 +166,14 @@ export default function ComparativeAnalysis({ workEntries }) {
         if (!dateRange.start || !dateRange.end || allMonthlyCosts.length === 0) return [];
         const startMonth = format(dateRange.start, 'yyyy-MM');
         const endMonth = format(dateRange.end, 'yyyy-MM');
-        return allMonthlyCosts.filter(d => 
-            d.month >= startMonth && 
-            d.month <= endMonth && 
-            !isExcludedMonth(d.month)
-        );
+        return allMonthlyCosts.filter(d => d.month >= startMonth && d.month <= endMonth);
     }, [allMonthlyCosts, dateRange]);
 
     const filteredMonthlyRevenue = useMemo(() => {
         if (!dateRange.start || !dateRange.end || allMonthlyRevenue.length === 0) return [];
         const startMonth = format(dateRange.start, 'yyyy-MM');
         const endMonth = format(dateRange.end, 'yyyy-MM');
-        return allMonthlyRevenue.filter(d => 
-            d.month >= startMonth && 
-            d.month <= endMonth && 
-            !isExcludedMonth(d.month)
-        );
+        return allMonthlyRevenue.filter(d => d.month >= startMonth && d.month <= endMonth);
     }, [allMonthlyRevenue, dateRange]);
 
     // Combinar datos de costos e ingresos por mes
@@ -237,11 +218,7 @@ export default function ComparativeAnalysis({ workEntries }) {
         const end = dateRange.end;
         workEntries.forEach(entry => {
             const entryDate = new Date(entry.work_date);
-            const monthKey = format(entryDate, 'yyyy-MM');
-            if(entryDate >= start && 
-               entryDate <= end && 
-               entry.activity !== 'entrenamiento' &&
-               !isExcludedMonth(monthKey)) {
+            if(entryDate >= start && entryDate <= end && entry.activity !== 'entrenamiento') {
                 clientSet.add(entry.client_id);
             }
         });
@@ -275,11 +252,7 @@ export default function ComparativeAnalysis({ workEntries }) {
             const clientSet = new Set();
             workEntries.forEach(entry => {
                 const entryDate = new Date(entry.work_date);
-                const monthKey = format(entryDate, 'yyyy-MM');
-                if(entryDate >= prevStart && 
-                   entryDate <= prevEnd && 
-                   entry.activity !== 'entrenamiento' &&
-                   !isExcludedMonth(monthKey)) {
+                if(entryDate >= prevStart && entryDate <= prevEnd && entry.activity !== 'entrenamiento') {
                     clientSet.add(entry.client_id);
                 }
             });
@@ -295,11 +268,7 @@ export default function ComparativeAnalysis({ workEntries }) {
         const end = dateRange.end;
         const filteredEntries = workEntries.filter(entry => {
             const entryDate = new Date(entry.work_date);
-            const monthKey = format(entryDate, 'yyyy-MM');
-            return entryDate >= start && 
-                   entryDate <= end && 
-                   entry.activity !== 'entrenamiento' &&
-                   !isExcludedMonth(monthKey);
+            return entryDate >= start && entryDate <= end && entry.activity !== 'entrenamiento';
         });
 
         const cleanerData = {};
@@ -335,10 +304,7 @@ export default function ComparativeAnalysis({ workEntries }) {
         const filteredSchedules = schedules.filter(s => {
             if (!s.xero_invoiced || !s.start_time) return false;
             const scheduleDateString = s.start_time.slice(0, 10);
-            const monthKey = scheduleDateString.slice(0, 7);
-            return scheduleDateString >= startDateString && 
-                   scheduleDateString <= endDateString &&
-                   !isExcludedMonth(monthKey);
+            return scheduleDateString >= startDateString && scheduleDateString <= endDateString;
         });
 
         const clientsMap = new Map(clients.map(c => [c.id, c]));
@@ -377,10 +343,7 @@ export default function ComparativeAnalysis({ workEntries }) {
         const filteredSchedules = schedules.filter(s => {
             if (!s.xero_invoiced || !s.start_time) return false;
             const scheduleDateString = s.start_time.slice(0, 10);
-            const monthKey = scheduleDateString.slice(0, 7);
-            return scheduleDateString >= startDateString && 
-                   scheduleDateString <= endDateString &&
-                   !isExcludedMonth(monthKey);
+            return scheduleDateString >= startDateString && scheduleDateString <= endDateString;
         });
 
         const clientsMap = new Map(clients.map(c => [c.id, c]));
@@ -421,30 +384,28 @@ export default function ComparativeAnalysis({ workEntries }) {
     const profitabilityAnalysis = useMemo(() => {
         const months = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
         
-        return months
-            .filter(month => !isExcludedMonth(format(month, 'yyyy-MM')))
-            .map(month => {
-                const monthKey = format(month, 'yyyy-MM');
-                const costData = combinedMonthlyData.find(d => d.month === monthKey) || { totalLaborCost: 0, totalRevenue: 0 };
-                const fixedCost = fixedCosts.find(fc => fc.period === monthKey);
-                
-                const revenue = costData.totalRevenue || 0;
-                const laborCost = costData.totalLaborCost || 0;
-                const fixedCostAmount = fixedCost?.amount || 0;
-                const totalCost = laborCost + fixedCostAmount;
-                const margin = revenue - totalCost;
-                const marginPercentage = revenue > 0 ? (margin / revenue) * 100 : 0;
+        return months.map(month => {
+            const monthKey = format(month, 'yyyy-MM');
+            const costData = combinedMonthlyData.find(d => d.month === monthKey) || { totalLaborCost: 0, totalRevenue: 0 };
+            const fixedCost = fixedCosts.find(fc => fc.period === monthKey);
+            
+            const revenue = costData.totalRevenue || 0;
+            const laborCost = costData.totalLaborCost || 0;
+            const fixedCostAmount = fixedCost?.amount || 0;
+            const totalCost = laborCost + fixedCostAmount;
+            const margin = revenue - totalCost;
+            const marginPercentage = revenue > 0 ? (margin / revenue) * 100 : 0;
 
-                return {
-                    month: format(month, 'MMM yyyy', { locale: es }),
-                    revenue,
-                    laborCost,
-                    fixedCost: fixedCostAmount,
-                    totalCost,
-                    margin,
-                    marginPercentage
-                };
-            });
+            return {
+                month: format(month, 'MMM yyyy', { locale: es }),
+                revenue,
+                laborCost,
+                fixedCost: fixedCostAmount,
+                totalCost,
+                margin,
+                marginPercentage
+            };
+        });
     }, [combinedMonthlyData, fixedCosts, dateRange]);
 
     // NUEVO: Clientes con Precio Bajo (por debajo del umbral)
@@ -481,10 +442,7 @@ export default function ComparativeAnalysis({ workEntries }) {
         const filteredSchedules = schedules.filter(s => {
             if (!s.start_time || !s.xero_invoiced) return false;
             const scheduleDateString = s.start_time.slice(0, 10);
-            const monthKey = scheduleDateString.slice(0, 7);
-            return scheduleDateString >= startDateString && 
-                   scheduleDateString <= endDateString &&
-                   !isExcludedMonth(monthKey);
+            return scheduleDateString >= startDateString && scheduleDateString <= endDateString;
         });
 
         const itemsData = {};
