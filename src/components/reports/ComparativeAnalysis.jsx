@@ -410,28 +410,34 @@ export default function ComparativeAnalysis({ workEntries }) {
     const profitabilityAnalysis = useMemo(() => {
         const months = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
         
-        return months.map(month => {
-            const monthKey = format(month, 'yyyy-MM');
-            const costData = combinedMonthlyData.find(d => d.month === monthKey) || { totalLaborCost: 0, totalRevenue: 0 };
-            const fixedCost = fixedCosts.find(fc => fc.period === monthKey);
-            
-            const revenue = costData.totalRevenue || 0;
-            const laborCost = costData.totalLaborCost || 0;
-            const fixedCostAmount = fixedCost?.amount || 0;
-            const totalCost = laborCost + fixedCostAmount;
-            const margin = revenue - totalCost;
-            const marginPercentage = revenue > 0 ? (margin / revenue) * 100 : 0;
+        return months
+            .filter(month => {
+                const monthKey = format(month, 'yyyy-MM');
+                // EXCLUIR agosto y septiembre 2025
+                return monthKey !== '2025-08' && monthKey !== '2025-09';
+            })
+            .map(month => {
+                const monthKey = format(month, 'yyyy-MM');
+                const costData = combinedMonthlyData.find(d => d.month === monthKey) || { totalLaborCost: 0, totalRevenue: 0 };
+                const fixedCost = fixedCosts.find(fc => fc.period === monthKey);
+                
+                const revenue = costData.totalRevenue || 0;
+                const laborCost = costData.totalLaborCost || 0;
+                const fixedCostAmount = fixedCost?.amount || 0;
+                const totalCost = laborCost + fixedCostAmount;
+                const margin = revenue - totalCost;
+                const marginPercentage = revenue > 0 ? (margin / revenue) * 100 : 0;
 
-            return {
-                month: format(month, 'MMM yyyy', { locale: es }),
-                revenue,
-                laborCost,
-                fixedCost: fixedCostAmount,
-                totalCost,
-                margin,
-                marginPercentage
-            };
-        });
+                return {
+                    month: format(month, 'MMM yyyy', { locale: es }),
+                    revenue,
+                    laborCost,
+                    fixedCost: fixedCostAmount,
+                    totalCost,
+                    margin,
+                    marginPercentage
+                };
+            });
     }, [combinedMonthlyData, fixedCosts, dateRange]);
 
     // NUEVO: Clientes con Precio Bajo (por debajo del umbral)
@@ -526,19 +532,24 @@ export default function ComparativeAnalysis({ workEntries }) {
 
     // NUEVO: Análisis de Eficiencia
     const efficiencyAnalysis = useMemo(() => {
-        return combinedMonthlyData.map(month => {
-            const revenuePerHour = month.totalHours > 0 ? month.totalRevenue / month.totalHours : 0;
-            const laborCostPerHour = month.totalHours > 0 ? month.totalLaborCost / month.totalHours : 0;
-            const marginPerHour = revenuePerHour - laborCostPerHour;
-            
-            return {
-                month: format(new Date(month.month + '-01'), 'MMM yyyy', { locale: es }),
-                revenuePerHour,
-                laborCostPerHour,
-                marginPerHour,
-                totalHours: month.totalHours,
-            };
-        });
+        return combinedMonthlyData
+            .filter(month => {
+                // EXCLUIR agosto y septiembre 2025
+                return month.month !== '2025-08' && month.month !== '2025-09';
+            })
+            .map(month => {
+                const revenuePerHour = month.totalHours > 0 ? month.totalRevenue / month.totalHours : 0;
+                const laborCostPerHour = month.totalHours > 0 ? month.totalLaborCost / month.totalHours : 0;
+                const marginPerHour = revenuePerHour - laborCostPerHour;
+                
+                return {
+                    month: format(new Date(month.month + '-01'), 'MMM yyyy', { locale: es }),
+                    revenuePerHour,
+                    laborCostPerHour,
+                    marginPerHour,
+                    totalHours: month.totalHours,
+                };
+            });
     }, [combinedMonthlyData]);
 
     if (workEntries.length === 0) {
