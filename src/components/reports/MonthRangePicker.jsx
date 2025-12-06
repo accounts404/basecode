@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -21,6 +20,10 @@ const getAvailableMonths = (workEntries) => {
             value: format(month, 'yyyy-MM'),
             label: format(month, 'MMMM yyyy', { locale: es }),
         }))
+        .filter(month => {
+            // EXCLUIR agosto y septiembre 2025
+            return month.value !== '2025-08' && month.value !== '2025-09';
+        })
         .reverse(); // Show most recent first
 };
 
