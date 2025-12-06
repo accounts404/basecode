@@ -677,9 +677,16 @@ export default function HorarioCalendario({
     const organizeOverlappingEvents = (dayEvents) => {
         if (dayEvents.length === 0) return [];
 
-        // CRÍTICO: NO filtrar eventos - mostrar TODOS independientemente de la hora
-        // El filtrado visual se hace en calculateEventPosition
-        const sortedEvents = [...dayEvents].sort((a, b) => 
+        // Filter out events that are entirely outside the visible range before sorting
+        const visibleDayEvents = dayEvents.filter(event => {
+            const eventStart = parseISOAsUTC(event.start_time);
+            const eventEnd = parseISOAsUTC(event.end_time);
+            const startInHours = eventStart.getUTCHours() + (eventStart.getUTCMonth() / 60);
+            const endInHours = eventEnd.getUTCHours() + (eventEnd.getUTCMinutes() / 60); 
+            return !(endInHours <= VISIBLE_START_HOUR || startInHours >= VISIBLE_END_HOUR);
+        });
+
+        const sortedEvents = [...visibleDayEvents].sort((a, b) => 
             parseISOAsUTC(a.start_time).getTime() - parseISOAsUTC(b.start_time).getTime()
         );
 
