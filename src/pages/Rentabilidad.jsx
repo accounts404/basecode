@@ -97,7 +97,11 @@ const getPriceForSchedule = (schedule, client) => {
             const type = item.type || 'other_extra';
             const amount = parseFloat(item.amount) || 0;
             tempRawBreakdown[type] = (tempRawBreakdown[type] || 0) + amount;
-            if (type !== 'discount') {
+            
+            // CORRECCIÓN: sumar todos los montos (incluidos descuentos que se restan en calculateTotalIncomeFromBreakdown)
+            if (type === 'discount') {
+                totalRawReconciledAmount -= amount;
+            } else {
                 totalRawReconciledAmount += amount;
             }
         });
@@ -401,6 +405,27 @@ export default function RentabilidadPage() {
               schedulesExcluded: (schedulesData?.length || 0) - filteredSchedules.length
             });
             
+            // DEBUG: Verificar schedules facturados de julio 2025
+            const july2025Schedules = (schedulesData || []).filter(s => {
+                const dateOnly = extractDateOnly(s.start_time);
+                return dateOnly && dateOnly.startsWith('2025-07') && s.xero_invoiced === true;
+            });
+            console.log('[Rentabilidad] 🔍 DEBUG - Schedules facturados julio 2025:', july2025Schedules.length);
+            if (july2025Schedules.length > 0) {
+                console.log('[Rentabilidad] 📋 Primeros 3 schedules julio 2025:', 
+                    july2025Schedules.slice(0, 3).map(s => ({
+                        client: s.client_name,
+                        date: extractDateOnly(s.start_time),
+                        hasReconciliation: !!s.reconciliation_items?.length,
+                        reconciliationTotal: s.reconciliation_items?.reduce((sum, item) => {
+                            const amt = parseFloat(item.amount) || 0;
+                            return item.type === 'discount' ? sum - amt : sum + amt;
+                        }, 0),
+                        snapshot: s.billed_price_snapshot
+                    }))
+                );
+            }
+            
             setClients(clientsData || []);
             setAllWorkEntries(filteredWorkEntries);
             setPricingThresholds(thresholdsData || []);
@@ -444,12 +469,28 @@ export default function RentabilidadPage() {
                 isDateInRange(s.start_time, monthStart, monthEnd) &&
                 s.xero_invoiced
             );
+            
+            console.log(`[Rentabilidad] 📅 Schedules facturados en ${monthValue}:`, monthlySchedules.length);
+            if (monthValue === '2025-07') {
+                console.log('[Rentabilidad] 🔍 DEBUG - Schedules julio 2025:', 
+                    monthlySchedules.map(s => ({
+                        id: s.id,
+                        client: s.client_name,
+                        date: extractDateOnly(s.start_time),
+                        hasReconciliation: !!s.reconciliation_items?.length,
+                        itemsCount: s.reconciliation_items?.length || 0
+                    }))
+                );
+            }
 
             monthlySchedules.forEach(schedule => {
                 if (schedule.client_id === trainingClientId) return;
 
                 const client = clientMap.get(schedule.client_id);
-                if (!client) return;
+                if (!client) {
+                    console.warn('[Rentabilidad] ⚠️ Cliente no encontrado para schedule:', schedule.id, schedule.client_name);
+                    return;
+                }
 
                 const clientId = client.id;
                 if (!clientData[clientId]) {
@@ -474,6 +515,17 @@ export default function RentabilidadPage() {
                 let netBreakdownForSchedule = {};
                 for (const type in priceData.breakdown) {
                     netBreakdownForSchedule[type] = priceData.breakdown[type] * gstFactor;
+                }
+                
+                if (monthValue === '2025-07' && client.name === 'David Muzverney') {
+                    console.log('[Rentabilidad] 🔍 DEBUG - David Muzverney julio 2025:', {
+                        scheduleId: schedule.id,
+                        priceData,
+                        netIncome,
+                        gstFactor,
+                        netBreakdown: netBreakdownForSchedule,
+                        totalFromBreakdown: calculateTotalIncomeFromBreakdown(netBreakdownForSchedule)
+                    });
                 }
 
                 clientData[clientId].revenueBreakdown = mergeRevenueBreakdowns(clientData[clientId].revenueBreakdown, netBreakdownForSchedule);
