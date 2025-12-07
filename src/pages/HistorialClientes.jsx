@@ -69,14 +69,13 @@ export default function HistorialClientes() {
     }, [selectedClientId]);
 
     const loadAllRecords = async (entity, sortField = '-created_date') => {
-        const { base44 } = await import('@/api/base44Client');
         const BATCH_SIZE = 5000;
         let allRecords = [];
         let skip = 0;
         let hasMore = true;
 
         while (hasMore) {
-            const batch = await base44.entities[entity.name].list(sortField, BATCH_SIZE, skip);
+            const batch = await entity.list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
             
             allRecords = [...allRecords, ...batchArray];
@@ -112,14 +111,13 @@ export default function HistorialClientes() {
     const loadClientSchedules = async (clientId) => {
         setLoading(true);
         try {
-            const { base44 } = await import('@/api/base44Client');
             const BATCH_SIZE = 5000;
             let allSchedules = [];
             let skip = 0;
             let hasMore = true;
 
             while (hasMore) {
-                const batch = await base44.entities.Schedule.filter({ client_id: clientId }, '-start_time', BATCH_SIZE, skip);
+                const batch = await Schedule.filter({ client_id: clientId }, '-start_time', BATCH_SIZE, skip);
                 const batchArray = Array.isArray(batch) ? batch : [];
                 
                 allSchedules = [...allSchedules, ...batchArray];
