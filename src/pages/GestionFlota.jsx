@@ -58,12 +58,34 @@ export default function GestionFlotaPage() {
         loadInitialData();
     }, []);
 
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await entity.list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const loadInitialData = async () => {
         setLoading(true);
         try {
             const [vehiclesData, usersData] = await Promise.all([
-                Vehicle.list('-created_date'),
-                User.list()
+                loadAllRecords(Vehicle, '-created_date'),
+                loadAllRecords(User, '-created_date')
             ]);
             setVehicles(vehiclesData);
             setUsers(usersData.filter(u => u.role !== 'admin' && u.active !== false));

@@ -56,25 +56,47 @@ export default function ReportesServicioPage() {
         loadInitialData();
     }, []);
 
+    const loadAllRecords = async (entityName, sortField = '-created_date', filterQuery = null) => {
+        const { base44 } = await import('@/api/base44Client');
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            let batch;
+            if (filterQuery) {
+                batch = await base44.entities[entityName].filter(filterQuery, sortField, BATCH_SIZE, skip);
+            } else {
+                batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+            }
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const loadInitialData = async () => {
         setLoading(true);
         try {
-            // CRÍTICO: Usar base44 directamente con límite alto para obtener TODOS los registros
-            const { base44 } = await import('@/api/base44Client');
-            // Cargar reportes, limpiadores y clientes en paralelo
-            const [reportsResult, cleanersResult, clientsResult] = await Promise.allSettled([
-                base44.entities.ServiceReport.list('-created_date', 1000),
-                base44.entities.User.filter({ role: 'user' }, '-created_date', 500),
-                base44.entities.Client.list('-created_date', 1000)
+            // Cargar reportes, limpiadores y clientes en paralelo con paginación
+            const [allReports, allCleaners, allClients] = await Promise.all([
+                loadAllRecords('ServiceReport', '-created_date'),
+                loadAllRecords('User', '-created_date', { role: 'user' }),
+                loadAllRecords('Client', '-created_date')
             ]);
 
-            const allReports = reportsResult.status === 'fulfilled' ? reportsResult.value || [] : [];
-            const allCleaners = cleanersResult.status === 'fulfilled' ? cleanersResult.value || [] : [];
-            const allClients = clientsResult.status === 'fulfilled' ? clientsResult.value || [] : [];
-
-            setReports(allReports);
-            setCleaners(allCleaners);
-            setClients(allClients);
+            setReports(allReports || []);
+            setCleaners(allCleaners || []);
+            setClients(allClients || []);
 
             // Establecer rango de fechas por defecto: último mes
             const lastMonth = subMonths(new Date(), 1);

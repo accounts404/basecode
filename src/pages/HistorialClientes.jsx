@@ -68,15 +68,36 @@ export default function HistorialClientes() {
         }
     }, [selectedClientId]);
 
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
+        const { base44 } = await import('@/api/base44Client');
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await base44.entities[entity.name].list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const loadData = async () => {
         setLoading(true);
         try {
-            // CRÍTICO: Usar base44 directamente con límite alto para obtener TODOS los registros
-            const { base44 } = await import('@/api/base44Client');
             const [clientsData, cleanersData, reportsData] = await Promise.all([
-                base44.entities.Client.list('-created_date', 1000),
-                base44.entities.User.list('-created_date', 500),
-                base44.entities.ServiceReport.list('-created_date', 1000)
+                loadAllRecords(Client, '-created_date'),
+                loadAllRecords(User, '-created_date'),
+                loadAllRecords(ServiceReport, '-created_date')
             ]);
             setClients((clientsData || []).filter(c => c.active !== false));
             setCleaners(cleanersData || []);
@@ -91,10 +112,26 @@ export default function HistorialClientes() {
     const loadClientSchedules = async (clientId) => {
         setLoading(true);
         try {
-            // CRÍTICO: Usar base44 directamente con límite alto
             const { base44 } = await import('@/api/base44Client');
-            const schedulesData = await base44.entities.Schedule.filter({ client_id: clientId }, '-start_time', 1000);
-            setSchedules(schedulesData || []);
+            const BATCH_SIZE = 5000;
+            let allSchedules = [];
+            let skip = 0;
+            let hasMore = true;
+
+            while (hasMore) {
+                const batch = await base44.entities.Schedule.filter({ client_id: clientId }, '-start_time', BATCH_SIZE, skip);
+                const batchArray = Array.isArray(batch) ? batch : [];
+                
+                allSchedules = [...allSchedules, ...batchArray];
+                
+                if (batchArray.length < BATCH_SIZE) {
+                    hasMore = false;
+                } else {
+                    skip += BATCH_SIZE;
+                }
+            }
+
+            setSchedules(allSchedules || []);
         } catch (error) {
             console.error('Error cargando horarios del cliente:', error);
         } finally {

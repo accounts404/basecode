@@ -35,14 +35,36 @@ export default function GestionCamisasPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("inventory");
 
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await entity.list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
             const [user, inventoryData, assignmentsData, usersData] = await Promise.all([
                 User.me(),
-                ShirtInventory.list(),
-                CleanerShirtAssignment.list(),
-                User.list()
+                loadAllRecords(ShirtInventory, '-created_date'),
+                loadAllRecords(CleanerShirtAssignment, '-created_date'),
+                loadAllRecords(User, '-created_date')
             ]);
 
             setCurrentUser(user);

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { User } from "@/entities/User";
 import { Card, CardContent } from "@/components/ui/card";
@@ -584,10 +583,32 @@ export default function LimpiadoresPage() {
   const [saving, setSaving] = useState(false);
   const [showInactive, setShowInactive] = useState(false); // New state for showing inactive cleaners
 
+  const loadAllRecords = async (entity, sortField = '-created_date') => {
+    const BATCH_SIZE = 5000;
+    let allRecords = [];
+    let skip = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const batch = await entity.list(sortField, BATCH_SIZE, skip);
+      const batchArray = Array.isArray(batch) ? batch : [];
+      
+      allRecords = [...allRecords, ...batchArray];
+      
+      if (batchArray.length < BATCH_SIZE) {
+        hasMore = false;
+      } else {
+        skip += BATCH_SIZE;
+      }
+    }
+
+    return allRecords;
+  };
+
   const loadCleaners = async () => {
     setLoading(true);
     try {
-      const allUsers = await User.list();
+      const allUsers = await loadAllRecords(User, '-created_date');
       setCleaners(allUsers.filter(u => u.role !== 'admin') || []);
     } catch (error) {
       console.error("Error cargando limpiadores:", error);

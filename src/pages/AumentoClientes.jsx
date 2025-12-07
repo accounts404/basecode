@@ -156,16 +156,38 @@ export default function AumentoClientesPage() {
         return endOfMonth(subMonths(today, 1));
     });
 
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await entity.list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             setError('');
             try {
                 const [clientsData, workEntriesData, schedulesData, fixedCostsData] = await Promise.all([
-                    Client.list(),
-                    WorkEntry.list("-work_date"),
-                    Schedule.list(),
-                    FixedCost.list(),
+                    loadAllRecords(Client, '-created_date'),
+                    loadAllRecords(WorkEntry, '-work_date'),
+                    loadAllRecords(Schedule, '-start_time'),
+                    loadAllRecords(FixedCost, '-created_date'),
                 ]);
                 
                 setClients(clientsData || []);

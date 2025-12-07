@@ -122,8 +122,9 @@ export default function GestionServiciosAdminPage() {
                 }
             };
             
-            // Obtener todos los schedules del mes
-            const schedules = await Schedule.filter(filterQuery);
+            // Obtener todos los schedules del mes con paginación
+            const { base44 } = await import('@/api/base44Client');
+            const schedules = await base44.entities.Schedule.filter(filterQuery, '-start_time', 5000);
             
             // Filtrar solo los que están fuera del horario visible
             const outOfRange = (schedules || []).filter(isOutOfVisibleHours);

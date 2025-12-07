@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { User } from "@/entities/User";
 import { Client } from "@/entities/Client";
@@ -73,6 +72,28 @@ export default function PuntuacionLimpiadoresPage() {
         loadRedOakClient();
     }, []);
 
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await entity.list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const loadMonthlyScores = useCallback(async () => {
         try {
             const scores = await MonthlyCleanerScore.filter({ month_period: selectedMonth });
@@ -97,7 +118,7 @@ export default function PuntuacionLimpiadoresPage() {
             setUser(userData);
 
             // Cargar todos los limpiadores activos
-            const allUsers = await User.list();
+            const allUsers = await loadAllRecords(User, '-created_date');
             const cleaners = allUsers.filter(u => u.role !== 'admin' && u.active !== false);
             setLimpiadores(cleaners);
 

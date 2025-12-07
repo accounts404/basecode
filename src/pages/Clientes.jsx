@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Client } from '@/entities/Client';
 import { Button } from '@/components/ui/button';
@@ -71,10 +70,32 @@ export default function ClientesPage() {
 
     const [formData, setFormData] = useState(defaultFormData);
 
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await entity.list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const fetchClients = useCallback(async () => {
         setLoading(true);
         try {
-            const clientsData = await Client.list();
+            const clientsData = await loadAllRecords(Client, '-created_date');
             setClients(clientsData);
         } catch (error) {
             console.error("Error fetching clients:", error);

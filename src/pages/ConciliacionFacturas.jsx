@@ -132,9 +132,31 @@ export default function ConciliacionFacturasPage() {
         return new Map(users.map(u => [u.id, u]));
     }, [users]);
 
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
+        const BATCH_SIZE = 5000;
+        let allRecords = [];
+        let skip = 0;
+        let hasMore = true;
+
+        while (hasMore) {
+            const batch = await entity.list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            
+            allRecords = [...allRecords, ...batchArray];
+            
+            if (batchArray.length < BATCH_SIZE) {
+                hasMore = false;
+            } else {
+                skip += BATCH_SIZE;
+            }
+        }
+
+        return allRecords;
+    };
+
     const fetchClients = useCallback(async () => {
         try {
-            const clientList = await Client.list();
+            const clientList = await loadAllRecords(Client, '-created_date');
             const clientMap = new Map();
             clientList.forEach(c => clientMap.set(c.id, c));
             setClients(clientMap);
@@ -146,7 +168,7 @@ export default function ConciliacionFacturasPage() {
 
     const fetchUsers = useCallback(async () => {
         try {
-            const userList = await User.list();
+            const userList = await loadAllRecords(User, '-created_date');
             setUsers(Array.isArray(userList) ? userList : []);
         } catch (e) {
             console.error("Failed to fetch users", e);
