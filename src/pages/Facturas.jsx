@@ -176,6 +176,29 @@ export default function FacturasPage() {
     }
   }, [user]);
 
+  const loadAllRecords = async (entityName, sortField = '-created_date') => {
+    const { base44 } = await import('@/api/base44Client');
+    const BATCH_SIZE = 5000;
+    let allRecords = [];
+    let skip = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+      const batchArray = Array.isArray(batch) ? batch : [];
+      
+      allRecords = [...allRecords, ...batchArray];
+      
+      if (batchArray.length < BATCH_SIZE) {
+        hasMore = false;
+      } else {
+        skip += BATCH_SIZE;
+      }
+    }
+
+    return allRecords;
+  };
+
   const loadData = async () => {
     setLoading(true);
     setError(""); // Reset error
@@ -183,27 +206,23 @@ export default function FacturasPage() {
       const userData = await User.me();
       setUser(userData);
       if (userData.role === 'admin') {
-        // CRÍTICO: Usar base44 directamente con límite alto para obtener TODOS los registros
-        const { base44 } = await import('@/api/base44Client');
-        const [invoicesResult, workEntriesResult, usersResult] = await Promise.allSettled([
-          base44.entities.Invoice.list("-created_date", 5000),
-          base44.entities.WorkEntry.list("-work_date", 10000),
-          base44.entities.User.list("-created_date", 500),
+        console.log('[Facturas] 📊 Cargando TODOS los registros con paginación...');
+        
+        const [invoicesData, workEntriesData, usersData] = await Promise.all([
+          loadAllRecords('Invoice', '-created_date'),
+          loadAllRecords('WorkEntry', '-work_date'),
+          loadAllRecords('User', '-created_date'),
         ]);
         
-        if (invoicesResult.status === 'rejected') {
-          throw new Error("Error al cargar las facturas. Revisa tu conexión e inténtalo de nuevo.");
-        }
-        if (workEntriesResult.status === 'rejected') {
-          throw new Error("Error al cargar los trabajos. Revisa tu conexión e inténtalo de nuevo.");
-        }
-        if (usersResult.status === 'rejected') {
-          throw new Error("Error al cargar los usuarios. Revisa tu conexión e inténtalo de nuevo.");
-        }
+        console.log('[Facturas] ✅ Registros cargados:', {
+          invoices: invoicesData?.length || 0,
+          workEntries: workEntriesData?.length || 0,
+          users: usersData?.length || 0
+        });
 
-        setInvoices(invoicesResult.value || []);
-        setWorkEntries(workEntriesResult.value || []);
-        setUsers(usersResult.value || []);
+        setInvoices(invoicesData || []);
+        setWorkEntries(workEntriesData || []);
+        setUsers(usersData || []);
       }
     } catch (err) {
       console.error("Error loading data:", err);

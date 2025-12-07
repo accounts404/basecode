@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { User } from '@/entities/User';
@@ -165,6 +164,31 @@ export default function AdminDashboard() {
             const lastMonthStart = new Date(Date.UTC(lastMonthNow.getUTCFullYear(), lastMonthNow.getUTCMonth(), 1, 0, 0, 0, 0));
             const lastMonthEnd = new Date(Date.UTC(lastMonthNow.getUTCFullYear(), lastMonthNow.getUTCMonth() + 1, 0, 23, 59, 59, 999));
 
+            // Helper para cargar TODOS los registros con paginación
+            const loadAllRecords = async (entity, sortField = '-created_date') => {
+                const BATCH_SIZE = 5000;
+                let allRecords = [];
+                let skip = 0;
+                let hasMore = true;
+
+                while (hasMore) {
+                    const batch = await entity.list(sortField, BATCH_SIZE, skip);
+                    const batchArray = Array.isArray(batch) ? batch : [];
+                    
+                    allRecords = [...allRecords, ...batchArray];
+                    
+                    if (batchArray.length < BATCH_SIZE) {
+                        hasMore = false;
+                    } else {
+                        skip += BATCH_SIZE;
+                    }
+                }
+
+                return allRecords;
+            };
+
+            console.log('[AdminDashboard] 📊 Cargando TODOS los registros con paginación...');
+            
             // Cargar todos los datos necesarios
             const [
                 allClients,
@@ -175,18 +199,27 @@ export default function AdminDashboard() {
                 allReports,
                 allVehicles,
                 allTasks,
-                // Removed allScores as it's no longer needed for Quality & Satisfaction
             ] = await Promise.all([
-                Client.list(),
-                User.list(),
-                WorkEntry.list('-work_date'),
-                Schedule.list('-start_time'),
-                Invoice.list('-created_date'),
-                ServiceReport.list('-created_date'),
-                Vehicle.list(),
-                Task.list(),
-                // Removed MonthlyCleanerScore.list()
+                loadAllRecords(Client, '-created_date'),
+                loadAllRecords(User, '-created_date'),
+                loadAllRecords(WorkEntry, '-work_date'),
+                loadAllRecords(Schedule, '-start_time'),
+                loadAllRecords(Invoice, '-created_date'),
+                loadAllRecords(ServiceReport, '-created_date'),
+                loadAllRecords(Vehicle, '-created_date'),
+                loadAllRecords(Task, '-created_date'),
             ]);
+            
+            console.log('[AdminDashboard] ✅ Registros cargados:', {
+                clients: allClients?.length || 0,
+                users: allUsers?.length || 0,
+                workEntries: allWorkEntries?.length || 0,
+                schedules: allSchedules?.length || 0,
+                invoices: allInvoices?.length || 0,
+                reports: allReports?.length || 0,
+                vehicles: allVehicles?.length || 0,
+                tasks: allTasks?.length || 0
+            });
 
             // Identificar el cliente TRAINING
             const trainingClient = allClients.find(c =>

@@ -57,6 +57,28 @@ export default function AuditoriaWorkEntriesPage() {
     loadInitialData();
   }, []);
 
+  const loadAllRecords = async (entityName, sortField = '-created_date') => {
+    const BATCH_SIZE = 5000;
+    let allRecords = [];
+    let skip = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+      const batchArray = Array.isArray(batch) ? batch : [];
+      
+      allRecords = [...allRecords, ...batchArray];
+      
+      if (batchArray.length < BATCH_SIZE) {
+        hasMore = false;
+      } else {
+        skip += BATCH_SIZE;
+      }
+    }
+
+    return allRecords;
+  };
+
   const loadInitialData = async () => {
     setLoading(true);
     setError("");
@@ -69,11 +91,19 @@ export default function AuditoriaWorkEntriesPage() {
       }
       setUser(currentUser);
 
+      console.log('[AuditoriaWorkEntries] 📊 Cargando TODOS los registros con paginación...');
+      
       const [schedulesResult, workEntriesResult, usersResult] = await Promise.all([
-        base44.entities.Schedule.list("-start_time", 10000),
-        base44.entities.WorkEntry.list("-work_date", 10000),
-        base44.entities.User.list("-created_date", 500)
+        loadAllRecords('Schedule', '-start_time'),
+        loadAllRecords('WorkEntry', '-work_date'),
+        loadAllRecords('User', '-created_date')
       ]);
+
+      console.log('[AuditoriaWorkEntries] ✅ Registros cargados:', {
+        schedules: schedulesResult?.length || 0,
+        workEntries: workEntriesResult?.length || 0,
+        users: usersResult?.length || 0
+      });
 
       setSchedules(schedulesResult || []);
       setWorkEntries(workEntriesResult || []);

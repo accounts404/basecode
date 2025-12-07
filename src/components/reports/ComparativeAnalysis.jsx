@@ -148,16 +148,46 @@ export default function ComparativeAnalysis({ workEntries }) {
     const [loadingExtraData, setLoadingExtraData] = useState(true);
 
     useEffect(() => {
+        const loadAllRecords = async (entity, sortField = '-created_date') => {
+            const BATCH_SIZE = 5000;
+            let allRecords = [];
+            let skip = 0;
+            let hasMore = true;
+
+            while (hasMore) {
+                const batch = await entity.list(sortField, BATCH_SIZE, skip);
+                const batchArray = Array.isArray(batch) ? batch : [];
+                
+                allRecords = [...allRecords, ...batchArray];
+                
+                if (batchArray.length < BATCH_SIZE) {
+                    hasMore = false;
+                } else {
+                    skip += BATCH_SIZE;
+                }
+            }
+
+            return allRecords;
+        };
+
         const loadExtraData = async () => {
             setLoadingExtraData(true);
             try {
+                console.log('[ComparativeAnalysis] 📊 Cargando datos con paginación...');
+                
                 const [clientsData, usersData, fixedCostsData, thresholdsData, schedulesData] = await Promise.all([
-                    Client.list(),
-                    User.list(),
-                    FixedCost.list(),
-                    PricingThreshold.list(),
-                    Schedule.list()
+                    loadAllRecords(Client, '-created_date'),
+                    loadAllRecords(User, '-created_date'),
+                    loadAllRecords(FixedCost, '-created_date'),
+                    loadAllRecords(PricingThreshold, '-created_date'),
+                    loadAllRecords(Schedule, '-start_time')
                 ]);
+                
+                console.log('[ComparativeAnalysis] ✅ Datos cargados:', {
+                    clients: clientsData?.length || 0,
+                    schedules: schedulesData?.length || 0
+                });
+                
                 setClients(clientsData);
                 setUsers(usersData.filter(u => u.role !== 'admin'));
                 setFixedCosts(fixedCostsData);
