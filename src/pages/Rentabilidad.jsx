@@ -510,6 +510,12 @@ export default function RentabilidadPage() {
                 const priceData = getPriceForSchedule(schedule, client);
                 const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
                 
+                // DEBUG: Log para octubre 2025
+                if (monthValue === '2025-10') {
+                    const dateStr = extractDateOnly(schedule.start_time);
+                    console.log(`[Rentabilidad] ${dateStr} - ${client.name}: raw=${priceData.rawAmount.toFixed(2)}, base=${netIncome.toFixed(2)}, gstType=${priceData.gstType}`);
+                }
+                
                 const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
                 
                 let netBreakdownForSchedule = {};
@@ -619,6 +625,15 @@ export default function RentabilidadPage() {
             }).filter(data => data.totalHours > 0 || data.totalIncome > 0);
 
             setMonthlyProcessedClientAnalysis(profitData);
+            
+            // DEBUG: Total del mes
+            if (monthValue === '2025-10') {
+                const totalIncome = profitData.reduce((sum, c) => sum + c.totalIncome, 0);
+                const totalServices = profitData.reduce((sum, c) => sum + c.serviceCount, 0);
+                console.log(`[Rentabilidad] Total Base octubre 2025: $${totalIncome.toFixed(2)}`);
+                console.log(`[Rentabilidad] Total servicios octubre 2025: ${totalServices}`);
+                console.log(`[Rentabilidad] Total schedules facturados encontrados: ${monthlySchedules.length}`);
+            }
 
         } catch (err) {
             console.error("Error loading month specific data:", err);

@@ -232,6 +232,26 @@ export default function ConciliacionFacturasPage() {
                 });
                 
                 const totals = calculateDayTotals(daySchedules);
+                
+                // DEBUG: Log para octubre 2025
+                if (dateStr.startsWith('2025-10')) {
+                    daySchedules.forEach(s => {
+                        const client = clients.get(s.client_id);
+                        let rawAmount = 0;
+                        if (s.reconciliation_items?.length > 0) {
+                            rawAmount = s.reconciliation_items.reduce((sum, item) => {
+                                const amt = parseFloat(item.amount) || 0;
+                                return item.type === 'discount' ? sum - amt : sum + amt;
+                            }, 0);
+                        } else if (s.billed_price_snapshot !== undefined && s.billed_price_snapshot !== null) {
+                            rawAmount = s.billed_price_snapshot;
+                        } else {
+                            const priceForDate = getPriceForDate(client, s.start_time);
+                            rawAmount = priceForDate.price;
+                        }
+                        console.log(`[Conciliación] ${dateStr} - ${client?.name}: raw=${rawAmount.toFixed(2)}, gstType=${s.billed_gst_type_snapshot || client?.gst_type}`);
+                    });
+                }
                 const reconciliation = reconMap.get(dateStr);
                 
                 return {
@@ -247,6 +267,13 @@ export default function ConciliacionFacturasPage() {
             });
             
             setMonthlyData(dailyData);
+            
+            // DEBUG: Total del mes
+            if (format(monthStart, 'yyyy-MM') === '2025-10') {
+                const totalBase = dailyData.reduce((sum, day) => sum + day.totalBase, 0);
+                console.log(`[Conciliación] Total Base octubre 2025: $${totalBase.toFixed(2)}`);
+                console.log(`[Conciliación] Total servicios octubre 2025: ${dailyData.reduce((sum, day) => sum + day.serviceCount, 0)}`);
+            }
         } catch (err) {
             console.error("Error loading monthly data:", err);
         } finally {
