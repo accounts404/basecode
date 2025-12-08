@@ -645,7 +645,12 @@ export default function ConciliacionFacturasPage() {
         let totalBase = 0;
         let totalConGST = 0;
         
-        schedules.filter(s => s.client_id !== trainingClientId).forEach(service => {
+        // CRÍTICO: Usar los MISMOS filtros que calculateDayTotals para la vista mensual
+        schedules.filter(s => 
+            s.status !== 'cancelled' && 
+            s.xero_invoiced === true &&
+            s.client_id !== trainingClientId
+        ).forEach(service => {
             const client = clients.get(service.client_id);
             let gstType, rawAmount;
             
