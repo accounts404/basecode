@@ -225,33 +225,13 @@ export default function ConciliacionFacturasPage() {
             
             const dailyData = days.map(day => {
                 const dateStr = format(day, 'yyyy-MM-dd');
-                const allDaySchedules = schedulesData.filter(s => {
+                const daySchedules = schedulesData.filter(s => {
                     const scheduleDate = format(parseISO(s.start_time), 'yyyy-MM-dd');
-                    return scheduleDate === dateStr;
+                    return scheduleDate === dateStr && 
+                           s.status !== 'cancelled' && 
+                           s.xero_invoiced === true &&
+                           s.client_id !== trainingClientId;
                 });
-                
-                const daySchedules = allDaySchedules.filter(s => 
-                    s.status !== 'cancelled' && 
-                    s.xero_invoiced === true &&
-                    s.client_id !== trainingClientId
-                );
-                
-                // DEBUG: Log para 4 de noviembre 2025
-                if (dateStr === '2025-11-04') {
-                    console.log(`[Conciliación] 🔍 ${dateStr}:`, {
-                        totalSchedules: allDaySchedules.length,
-                        facturados: allDaySchedules.filter(s => s.xero_invoiced === true).length,
-                        cancelados: allDaySchedules.filter(s => s.status === 'cancelled').length,
-                        training: allDaySchedules.filter(s => s.client_id === trainingClientId).length,
-                        afterFilter: daySchedules.length,
-                        schedules: allDaySchedules.map(s => ({
-                            client: s.client_name,
-                            status: s.status,
-                            invoiced: s.xero_invoiced,
-                            isTraining: s.client_id === trainingClientId
-                        }))
-                    });
-                }
                 
                 const totals = calculateDayTotals(daySchedules);
                 const reconciliation = reconMap.get(dateStr);
