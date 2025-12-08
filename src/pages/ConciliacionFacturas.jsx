@@ -11,10 +11,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { format, startOfDay, endOfDay, isEqual, parseISO, addDays, subDays } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format, startOfDay, endOfDay, isEqual, parseISO, addDays, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon, Edit, CheckCircle, Clock, DollarSign, FileCheck, Circle, Send, Landmark, Loader2, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, Eye, X, Trash2, AlertCircle } from 'lucide-react';
+import { CalendarIcon, Edit, CheckCircle, Clock, DollarSign, FileCheck, Circle, Send, Landmark, Loader2, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, Eye, X, Trash2, AlertCircle, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { processScheduleForWorkEntries } from '@/functions/processScheduleForWorkEntries';
 
 // Función para extraer hora UTC
@@ -116,7 +118,9 @@ const getPriceForDate = (client, serviceDate) => {
 
 export default function ConciliacionFacturasPage() {
     const [selectedDate, setSelectedDate] = useState(new Date());
+    const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [schedules, setSchedules] = useState([]);
+    const [monthlySchedules, setMonthlySchedules] = useState([]);
     const [clients, setClients] = useState(new Map());
     const [users, setUsers] = useState([]);
     const [dailyReconciliation, setDailyReconciliation] = useState(null);
@@ -239,6 +243,37 @@ export default function ConciliacionFacturasPage() {
             fetchDataForDate(selectedDate);
         }
     }, [selectedDate, clients, users, fetchDataForDate]);
+
+    useEffect(() => {
+        if (clients.size > 0) {
+            fetchMonthlyData(selectedMonth);
+        }
+    }, [selectedMonth, clients]);
+
+    const fetchMonthlyData = useCallback(async (date) => {
+        try {
+            const monthStart = startOfMonth(date);
+            const monthEnd = endOfMonth(date);
+
+            const monthStartUTC = new Date(Date.UTC(monthStart.getFullYear(), monthStart.getMonth(), monthStart.getDate(), 0, 0, 0, 0));
+            const monthEndUTC = new Date(Date.UTC(monthEnd.getFullYear(), monthEnd.getMonth(), monthEnd.getDate(), 23, 59, 59, 999));
+
+            const schedulesData = await Schedule.filter({
+                start_time: {
+                    $gte: monthStartUTC.toISOString(),
+                    $lte: monthEndUTC.toISOString()
+                }
+            }, '-start_time');
+
+            const activeSchedules = schedulesData.filter(schedule =>
+                schedule.status !== 'cancelled'
+            );
+
+            setMonthlySchedules(activeSchedules);
+        } catch (err) {
+            console.error("Error fetching monthly data:", err);
+        }
+    }, []);
 
     const handleSaveReconciliation = async (serviceId, items) => {
         try {
@@ -653,39 +688,81 @@ export default function ConciliacionFacturasPage() {
             .filter(Boolean);
     };
 
+    // Calcular totales del mes
+    const monthlyStats = useMemo(() => {
+        const invoiced = monthlySchedules.filter(s => s.xero_invoiced === true);
+        const pending = monthlySchedules.filter(s => s.xero_invoiced !== true);
+
+        const calculateTotals = (schedulesList) => {
+            return schedulesList.reduce((acc, service) => {
+                let amount = 0;
+                let gstType = 'inclusive';
+
+                if (service.reconciliation_items && service.reconciliation_items.length > 0) {
+                    amount = service.reconciliation_items.reduce((itemTotal, item) => {
+                        const itemAmount = parseFloat(item.amount) || 0;
+                        return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
+                    }, 0);
+
+                    if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                        gstType = service.billed_gst_type_snapshot;
+                    } else {
+                        const client = clients.get(service.client_id);
+                        const priceForDate = getPriceForDate(client, service.start_time);
+                        gstType = priceForDate.gstType;
+                    }
+                } else {
+                    if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                        amount = service.billed_price_snapshot;
+                        gstType = service.billed_gst_type_snapshot || 'inclusive';
+                    } else {
+                        const client = clients.get(service.client_id);
+                        const priceForDate = getPriceForDate(client, service.start_time);
+                        amount = priceForDate.price;
+                        gstType = priceForDate.gstType;
+                    }
+                }
+
+                let baseAmount = amount;
+                let gstAmount = 0;
+                let totalAmount = amount;
+
+                if (gstType === 'inclusive') {
+                    baseAmount = amount / 1.1;
+                    gstAmount = amount - baseAmount;
+                } else if (gstType === 'exclusive') {
+                    gstAmount = amount * 0.1;
+                    totalAmount = amount + gstAmount;
+                }
+
+                return {
+                    base: acc.base + baseAmount,
+                    gst: acc.gst + gstAmount,
+                    total: acc.total + totalAmount
+                };
+            }, { base: 0, gst: 0, total: 0 });
+        };
+
+        return {
+            invoiced: calculateTotals(invoiced),
+            pending: calculateTotals(pending),
+            invoicedCount: invoiced.length,
+            pendingCount: pending.length
+        };
+    }, [monthlySchedules, clients]);
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 p-6 md:p-8">
             <div className="max-w-[1800px] mx-auto space-y-6">
                 {/* Header */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
-                                <Landmark className="w-8 h-8 text-white" />
-                            </div>
-                            <div>
-                                <h1 className="text-3xl font-bold text-slate-900">Conciliación para Facturación</h1>
-                                <p className="text-slate-600 mt-1">Gestiona y verifica los servicios antes de facturar</p>
-                            </div>
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
+                            <Landmark className="w-8 h-8 text-white" />
                         </div>
-                        <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                            <Button variant="outline" size="icon" onClick={() => setSelectedDate(subDays(selectedDate, 1))} className="hover:bg-white">
-                                <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-[280px] justify-start text-left font-medium hover:bg-white">
-                                        <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
-                                        {format(selectedDate, "PPP", { locale: es })}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
-                                </PopoverContent>
-                            </Popover>
-                            <Button variant="outline" size="icon" onClick={() => setSelectedDate(addDays(selectedDate, 1))} className="hover:bg-white">
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
+                        <div>
+                            <h1 className="text-3xl font-bold text-slate-900">Conciliación para Facturación</h1>
+                            <p className="text-slate-600 mt-1">Gestiona y verifica los servicios antes de facturar</p>
                         </div>
                     </div>
                 </div>
@@ -697,6 +774,36 @@ export default function ConciliacionFacturasPage() {
                         <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
+
+                <Tabs defaultValue="daily" className="space-y-6">
+                    <TabsList className="grid w-full max-w-md grid-cols-2">
+                        <TabsTrigger value="daily">Vista Diaria</TabsTrigger>
+                        <TabsTrigger value="monthly">Resumen Mensual</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="daily" className="space-y-6">
+                        {/* Date Selector */}
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                            <div className="flex items-center justify-center gap-2">
+                                <Button variant="outline" size="icon" onClick={() => setSelectedDate(subDays(selectedDate, 1))} className="hover:bg-white">
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-[280px] justify-start text-left font-medium hover:bg-white">
+                                            <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
+                                            {format(selectedDate, "PPP", { locale: es })}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
+                                    </PopoverContent>
+                                </Popover>
+                                <Button variant="outline" size="icon" onClick={() => setSelectedDate(addDays(selectedDate, 1))} className="hover:bg-white">
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
 
                 {/* Status Card */}
                 <div className={`rounded-xl shadow-lg border-2 ${config.borderColor} ${config.bgColor} overflow-hidden`}>
@@ -1019,6 +1126,193 @@ export default function ConciliacionFacturasPage() {
                         </Table>
                     </div>
                 </div>
+                    </TabsContent>
+
+                    <TabsContent value="monthly" className="space-y-6">
+                        {/* Month Selector */}
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                            <div className="flex items-center justify-center gap-2">
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-[280px] justify-start text-left font-medium hover:bg-white">
+                                            <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
+                                            {format(selectedMonth, "MMMM yyyy", { locale: es })}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar 
+                                            mode="single" 
+                                            selected={selectedMonth} 
+                                            onSelect={setSelectedMonth}
+                                            disabled={(date) => date > new Date()}
+                                            initialFocus 
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                        </div>
+
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <Card className="shadow-lg border border-green-200 bg-gradient-to-br from-green-50 to-white">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-semibold text-green-700 uppercase tracking-wide flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4" />
+                                        Facturado Base
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-3xl font-bold text-green-900">${monthlyStats.invoiced.base.toFixed(2)}</p>
+                                    <p className="text-xs text-green-600 mt-1">{monthlyStats.invoicedCount} servicios</p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="shadow-lg border border-green-200 bg-gradient-to-br from-green-50 to-white">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-semibold text-green-700 uppercase tracking-wide flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4" />
+                                        Facturado con GST
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-3xl font-bold text-green-900">${monthlyStats.invoiced.total.toFixed(2)}</p>
+                                    <p className="text-xs text-green-600 mt-1">GST: ${monthlyStats.invoiced.gst.toFixed(2)}</p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="shadow-lg border border-orange-200 bg-gradient-to-br from-orange-50 to-white">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-semibold text-orange-700 uppercase tracking-wide flex items-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                        Pendiente Base
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-3xl font-bold text-orange-900">${monthlyStats.pending.base.toFixed(2)}</p>
+                                    <p className="text-xs text-orange-600 mt-1">{monthlyStats.pendingCount} servicios</p>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="shadow-lg border border-orange-200 bg-gradient-to-br from-orange-50 to-white">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-sm font-semibold text-orange-700 uppercase tracking-wide flex items-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                        Pendiente con GST
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-3xl font-bold text-orange-900">${monthlyStats.pending.total.toFixed(2)}</p>
+                                    <p className="text-xs text-orange-600 mt-1">GST: ${monthlyStats.pending.gst.toFixed(2)}</p>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Monthly Services Table */}
+                        <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                            <div className="p-6 border-b border-slate-200">
+                                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                                    <FileText className="w-6 h-6 text-blue-600" />
+                                    Detalle de Servicios del Mes
+                                </h2>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader className="bg-slate-100">
+                                        <TableRow>
+                                            <TableHead className="font-bold text-slate-700">Fecha</TableHead>
+                                            <TableHead className="font-bold text-slate-700">Cliente</TableHead>
+                                            <TableHead className="text-right font-bold text-slate-700">Base</TableHead>
+                                            <TableHead className="text-right font-bold text-slate-700">GST</TableHead>
+                                            <TableHead className="text-right font-bold text-slate-700">Total</TableHead>
+                                            <TableHead className="text-center font-bold text-slate-700">GST Type</TableHead>
+                                            <TableHead className="text-center font-bold text-slate-700">Estado</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {monthlySchedules.map((service) => {
+                                            const client = clients.get(service.client_id);
+                                            let amount = 0;
+                                            let gstType = 'inclusive';
+
+                                            if (service.reconciliation_items && service.reconciliation_items.length > 0) {
+                                                amount = service.reconciliation_items.reduce((itemTotal, item) => {
+                                                    const itemAmount = parseFloat(item.amount) || 0;
+                                                    return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
+                                                }, 0);
+
+                                                if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                                                    gstType = service.billed_gst_type_snapshot;
+                                                } else {
+                                                    const priceForDate = getPriceForDate(client, service.start_time);
+                                                    gstType = priceForDate.gstType;
+                                                }
+                                            } else {
+                                                if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                                                    amount = service.billed_price_snapshot;
+                                                    gstType = service.billed_gst_type_snapshot || 'inclusive';
+                                                } else {
+                                                    const priceForDate = getPriceForDate(client, service.start_time);
+                                                    amount = priceForDate.price;
+                                                    gstType = priceForDate.gstType;
+                                                }
+                                            }
+
+                                            let baseAmount = amount;
+                                            let gstAmount = 0;
+                                            let totalAmount = amount;
+
+                                            if (gstType === 'inclusive') {
+                                                baseAmount = amount / 1.1;
+                                                gstAmount = amount - baseAmount;
+                                            } else if (gstType === 'exclusive') {
+                                                gstAmount = amount * 0.1;
+                                                totalAmount = amount + gstAmount;
+                                            }
+
+                                            return (
+                                                <TableRow key={service.id} className={service.xero_invoiced ? 'bg-green-50/50' : 'hover:bg-slate-50'}>
+                                                    <TableCell className="font-medium">
+                                                        {format(parseISO(service.start_time), "d MMM", { locale: es })}
+                                                    </TableCell>
+                                                    <TableCell className="font-semibold text-slate-900">
+                                                        {client?.name || 'Desconocido'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium">
+                                                        ${baseAmount.toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-slate-600">
+                                                        ${gstAmount.toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-slate-900">
+                                                        ${totalAmount.toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Badge className={gstTypeBadgeColors[gstType] || gstTypeBadgeColors.inclusive}>
+                                                            {gstTypeLabels[gstType] || 'Incluido'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {service.xero_invoiced ? (
+                                                            <Badge className="bg-green-500 text-white">
+                                                                <CheckCircle className="w-3 h-3 mr-1" />
+                                                                Facturado
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge className="bg-orange-500 text-white">
+                                                                <Clock className="w-3 h-3 mr-1" />
+                                                                Pendiente
+                                                            </Badge>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    </TabsContent>
+                </Tabs>
             </div>
 
             {editingService && (
