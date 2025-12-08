@@ -467,8 +467,7 @@ export default function RentabilidadPage() {
 
             const monthlySchedules = allSchedules.filter(s => 
                 isDateInRange(s.start_time, monthStart, monthEnd) &&
-                s.xero_invoiced &&
-                s.status !== 'cancelled'
+                s.xero_invoiced
             );
             
             console.log(`[Rentabilidad] 📅 Schedules facturados en ${monthValue}:`, monthlySchedules.length);
@@ -763,7 +762,6 @@ export default function RentabilidadPage() {
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
             return isDateInRange(schedule.start_time, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
                    schedule.xero_invoiced === true &&
-                   schedule.status !== 'cancelled' &&
                    schedule.client_id !== trainingClientId &&
                    clientMap.has(schedule.client_id);
         });
