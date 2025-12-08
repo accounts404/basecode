@@ -20,6 +20,14 @@ const extractDateOnly = (isoString) => {
   return isoString.substring(0, 10);
 };
 
+// Función para verificar si una fecha está en agosto o septiembre 2025
+const isExcludedMonth = (dateString) => {
+  if (!dateString) return false;
+  const dateOnly = extractDateOnly(dateString);
+  // Excluir agosto 2025 (2025-08-XX) y septiembre 2025 (2025-09-XX)
+  return dateOnly && (dateOnly.startsWith('2025-08') || dateOnly.startsWith('2025-09'));
+};
+
 const isDateInRange = (dateString, rangeStart, rangeEnd) => {
   if (!dateString || !rangeStart || !rangeEnd) return false;
   
@@ -76,7 +84,11 @@ const getPriceForSchedule = (schedule, client) => {
             const type = item.type || 'other_extra';
             const amount = parseFloat(item.amount) || 0;
             tempRawBreakdown[type] = (tempRawBreakdown[type] || 0) + amount;
-            if (type !== 'discount') {
+
+            // CORRECCIÓN: sumar todos los montos (incluidos descuentos que se restan en calculateTotalIncomeFromBreakdown)
+            if (type === 'discount') {
+                totalRawReconciledAmount -= amount;
+            } else {
                 totalRawReconciledAmount += amount;
             }
         });
@@ -190,9 +202,18 @@ export default function AumentoClientesPage() {
                     loadAllRecords(FixedCost, '-created_date'),
                 ]);
                 
+                // FILTRAR agosto y septiembre 2025
+                const filteredWorkEntries = (workEntriesData || []).filter(e => !isExcludedMonth(e.work_date));
+                const filteredSchedules = (schedulesData || []).filter(s => !isExcludedMonth(s.start_time));
+                
+                console.log('[AumentoClientes] 🚫 Excluidos agosto y septiembre 2025:', {
+                  workEntriesExcluded: (workEntriesData?.length || 0) - filteredWorkEntries.length,
+                  schedulesExcluded: (schedulesData?.length || 0) - filteredSchedules.length
+                });
+                
                 setClients(clientsData || []);
-                setAllWorkEntries(workEntriesData || []);
-                setAllSchedules(schedulesData || []);
+                setAllWorkEntries(filteredWorkEntries);
+                setAllSchedules(filteredSchedules);
                 setAllFixedCosts(fixedCostsData || []);
                 
                 const trainingClient = (clientsData || []).find(c => c.name === 'TRAINING' || c.client_type === 'training');
@@ -236,6 +257,7 @@ export default function AumentoClientesPage() {
             const priceData = getPriceForSchedule(schedule, client);
             const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
             
+            // CORRECCIÓN: Calcular gstFactor correctamente cuando rawAmount es cero
             const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
             
             let netBreakdownForService = {};
@@ -330,6 +352,10 @@ export default function AumentoClientesPage() {
         const startPeriod = format(startDate, 'yyyy-MM');
         const endPeriod = format(endDate, 'yyyy-MM');
         const totalCumulativeFixedCosts = allFixedCosts.filter(fc => {
+            // EXCLUIR agosto y septiembre 2025
+            if (fc.period === '2025-08' || fc.period === '2025-09') {
+                return false;
+            }
             return fc.period >= startPeriod && fc.period <= endPeriod;
         }).reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
@@ -493,7 +519,15 @@ export default function AumentoClientesPage() {
                                                     mode="single"
                                                     selected={endDate}
                                                     onSelect={(date) => date && setEndDate(date)}
-                                                    disabled={(date) => date > new Date() || date < startDate}
+                                                    disabled={(date) => {
+                                                        if (date > new Date() || date < startDate) return true;
+
+                                                        // EXCLUIR agosto y septiembre 2025
+                                                        const dateStr = format(date, 'yyyy-MM');
+                                                        if (dateStr === '2025-08' || dateStr === '2025-09') return true;
+
+                                                        return false;
+                                                    }}
                                                     initialFocus
                                                     locale={es}
                                                 />
