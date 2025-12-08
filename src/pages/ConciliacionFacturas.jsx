@@ -1355,6 +1355,118 @@ export default function ConciliacionFacturasPage() {
                                 </Table>
                             </div>
                         </div>
+
+                        {/* Monthly Services Table - Cash */}
+                        {cashSchedules.length > 0 && (
+                            <div className="bg-white rounded-xl shadow-lg border border-green-200 overflow-hidden">
+                                <div className="p-6 border-b border-green-200 bg-green-50">
+                                    <h2 className="text-2xl font-bold text-green-900 flex items-center gap-2">
+                                        <DollarSign className="w-6 h-6 text-green-600" />
+                                        Servicios Cash
+                                    </h2>
+                                    <p className="text-sm text-green-700 mt-1">Servicios con pago en efectivo</p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader className="bg-green-100">
+                                            <TableRow>
+                                                <TableHead className="font-bold text-green-800">Fecha</TableHead>
+                                                <TableHead className="font-bold text-green-800">Cliente</TableHead>
+                                                <TableHead className="text-right font-bold text-green-800">Base</TableHead>
+                                                <TableHead className="text-right font-bold text-green-800">GST</TableHead>
+                                                <TableHead className="text-right font-bold text-green-800">Total</TableHead>
+                                                <TableHead className="text-center font-bold text-green-800">GST Type</TableHead>
+                                                <TableHead className="text-center font-bold text-green-800">Estado</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {cashSchedules.map((service) => {
+                                                const client = clients.get(service.client_id);
+                                                let amount = 0;
+                                                let gstType = 'inclusive';
+
+                                                if (service.reconciliation_items && service.reconciliation_items.length > 0) {
+                                                    amount = service.reconciliation_items.reduce((itemTotal, item) => {
+                                                        const itemAmount = parseFloat(item.amount) || 0;
+                                                        return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
+                                                    }, 0);
+
+                                                    if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                                                        gstType = service.billed_gst_type_snapshot;
+                                                    } else {
+                                                        const priceForDate = getPriceForDate(client, service.start_time);
+                                                        gstType = priceForDate.gstType;
+                                                    }
+                                                } else {
+                                                    if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                                                        amount = service.billed_price_snapshot;
+                                                        gstType = service.billed_gst_type_snapshot || 'inclusive';
+                                                    } else {
+                                                        const priceForDate = getPriceForDate(client, service.start_time);
+                                                        amount = priceForDate.price;
+                                                        gstType = priceForDate.gstType;
+                                                    }
+                                                }
+
+                                                let baseAmount = amount;
+                                                let gstAmount = 0;
+                                                let totalAmount = amount;
+
+                                                if (gstType === 'inclusive') {
+                                                    baseAmount = amount / 1.1;
+                                                    gstAmount = amount - baseAmount;
+                                                } else if (gstType === 'exclusive') {
+                                                    gstAmount = amount * 0.1;
+                                                    totalAmount = amount + gstAmount;
+                                                }
+
+                                                const serviceDateStr = service.start_time ? service.start_time.slice(0, 10) : '';
+                                                const [serviceYear, serviceMonth, serviceDay] = serviceDateStr.split('-').map(Number);
+                                                const serviceDate = new Date(serviceYear, serviceMonth - 1, serviceDay);
+
+                                                return (
+                                                    <TableRow key={service.id} className={service.xero_invoiced ? 'bg-green-100/50' : 'hover:bg-green-50'}>
+                                                        <TableCell className="font-medium">
+                                                            {format(serviceDate, "d MMM", { locale: es })}
+                                                        </TableCell>
+                                                        <TableCell className="font-semibold text-slate-900">
+                                                            {client?.name || 'Desconocido'}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-medium">
+                                                            ${baseAmount.toFixed(2)}
+                                                        </TableCell>
+                                                        <TableCell className="text-right text-slate-600">
+                                                            ${gstAmount.toFixed(2)}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-bold text-slate-900">
+                                                            ${totalAmount.toFixed(2)}
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <Badge className={gstTypeBadgeColors[gstType] || gstTypeBadgeColors.inclusive}>
+                                                                {gstTypeLabels[gstType] || 'Incluido'}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            {service.xero_invoiced ? (
+                                                                <Badge className="bg-green-500 text-white">
+                                                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                                                    Facturado
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge className="bg-orange-500 text-white">
+                                                                    <Clock className="w-3 h-3 mr-1" />
+                                                                    Pendiente
+                                                                </Badge>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+                        )}
                     </TabsContent>
                 </Tabs>
             </div>
