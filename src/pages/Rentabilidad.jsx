@@ -487,6 +487,13 @@ export default function RentabilidadPage() {
                 if (schedule.client_id === trainingClientId) return;
 
                 const client = clientMap.get(schedule.client_id);
+                
+                // Calcular monto para verificar si es > 0
+                const priceData = getPriceForSchedule(schedule, client);
+                if (!priceData || priceData.rawAmount <= 0) {
+                    console.log(`[Rentabilidad] ⚠️ Servicio excluido por monto $0: ${client?.name || 'Unknown'}, fecha: ${extractDateOnly(schedule.start_time)}`);
+                    return;
+                }
                 if (!client) {
                     console.warn('[Rentabilidad] ⚠️ Cliente no encontrado para schedule:', schedule.id, schedule.client_name);
                     return;
@@ -507,14 +514,7 @@ export default function RentabilidadPage() {
                     };
                 }
 
-                const priceData = getPriceForSchedule(schedule, client);
                 const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
-                
-                // DEBUG: Log para octubre 2025
-                if (monthValue === '2025-10') {
-                    const dateStr = extractDateOnly(schedule.start_time);
-                    console.log(`[Rentabilidad] ${dateStr} - ${client.name}: raw=${priceData.rawAmount.toFixed(2)}, base=${netIncome.toFixed(2)}, gstType=${priceData.gstType}`);
-                }
                 
                 const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
                 
