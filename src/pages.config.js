@@ -26,6 +26,7 @@ import HistorialClientes from './pages/HistorialClientes';
 import ServicioActivo from './pages/ServicioActivo';
 import AdminTasksPanel from './pages/AdminTasksPanel';
 import AuditoriaWorkEntries from './pages/AuditoriaWorkEntries';
+import RevisionPrecios from './pages/RevisionPrecios';
 import __Layout from './Layout.jsx';
 
 
@@ -58,6 +59,7 @@ export const PAGES = {
     "ServicioActivo": ServicioActivo,
     "AdminTasksPanel": AdminTasksPanel,
     "AuditoriaWorkEntries": AuditoriaWorkEntries,
+    "RevisionPrecios": RevisionPrecios,
 }
 
 export const pagesConfig = {

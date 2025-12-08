@@ -71,6 +71,7 @@ const adminMenuItems = [
   { name: 'Reportes', path: 'Reportes', icon: BarChart3 },
   { name: 'Rentabilidad', path: 'Rentabilidad', icon: TrendingUp },
   { name: 'Aumento Clientes', path: 'AumentoClientes', icon: ArrowRightSquare },
+  { name: 'Revisión Precios', path: 'RevisionPrecios', icon: FileText },
   { name: 'Puntuación Limpiadores', path: 'PuntuacionLimpiadores', icon: Trophy },
   { name: 'Gestión de Uniformes', path: 'GestionCamisas', icon: Shirt },
   { name: 'Historial Clientes', path: 'HistorialClientes', icon: History },

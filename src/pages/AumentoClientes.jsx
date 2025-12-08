@@ -3,17 +3,22 @@ import { Client } from '@/entities/Client';
 import { WorkEntry } from '@/entities/WorkEntry';
 import { FixedCost } from '@/entities/FixedCost';
 import { Schedule } from '@/entities/Schedule';
+import { ClientPriceReviewList } from '@/entities/ClientPriceReviewList';
+import { User } from '@/entities/User';
 import { format, startOfMonth, endOfMonth, subMonths, parseISO, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, DollarSign, Target, AlertCircle, ArrowUpCircle, Percent, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, AlertCircle, ArrowUpCircle, Percent, Calendar, FileText, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useNavigate } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 
 const extractDateOnly = (isoString) => {
   if (!isoString) return null;
@@ -151,6 +156,7 @@ const getPriceForSchedule = (schedule, client) => {
 };
 
 export default function AumentoClientesPage() {
+    const navigate = useNavigate();
     const [clients, setClients] = useState([]);
     const [allWorkEntries, setAllWorkEntries] = useState([]);
     const [allSchedules, setAllSchedules] = useState([]);
@@ -161,6 +167,10 @@ export default function AumentoClientesPage() {
     const [trainingClientId, setTrainingClientId] = useState(null);
     const [sortColumn, setSortColumn] = useState('adjustmentNeeded');
     const [sortDirection, setSortDirection] = useState('desc');
+    const [currentUser, setCurrentUser] = useState(null);
+    const [createListDialogOpen, setCreateListDialogOpen] = useState(false);
+    const [newListName, setNewListName] = useState('');
+    const [creating, setCreating] = useState(false);
 
     const [startDate] = useState(new Date('2025-04-01T00:00:00Z'));
     const [endDate, setEndDate] = useState(() => {
@@ -195,12 +205,15 @@ export default function AumentoClientesPage() {
             setLoading(true);
             setError('');
             try {
-                const [clientsData, workEntriesData, schedulesData, fixedCostsData] = await Promise.all([
+                const [clientsData, workEntriesData, schedulesData, fixedCostsData, user] = await Promise.all([
                     loadAllRecords(Client, '-created_date'),
                     loadAllRecords(WorkEntry, '-work_date'),
                     loadAllRecords(Schedule, '-start_time'),
                     loadAllRecords(FixedCost, '-created_date'),
+                    User.me()
                 ]);
+                
+                setCurrentUser(user);
                 
                 // FILTRAR agosto y septiembre 2025
                 const filteredWorkEntries = (workEntriesData || []).filter(e => !isExcludedMonth(e.work_date));
@@ -460,6 +473,59 @@ export default function AumentoClientesPage() {
             <TrendingDown className="w-4 h-4 text-blue-700" />;
     };
 
+    const handleCreateListClick = () => {
+        const suggestedName = `Revisión ${format(new Date(), "MMMM yyyy", { locale: es })}`;
+        setNewListName(suggestedName);
+        setCreateListDialogOpen(true);
+    };
+
+    const handleCreateList = async () => {
+        if (!newListName.trim()) {
+            setError('Por favor ingresa un nombre para la lista');
+            return;
+        }
+
+        setCreating(true);
+        try {
+            const clientsData = sortedClients.map(client => ({
+                client_id: client.clientId,
+                client_name: client.clientName,
+                service_count: client.serviceCount,
+                total_hours: client.totalHours,
+                current_real_profit_percentage: client.currentRealProfitPercentage,
+                current_price_base: client.currentPriceBase,
+                suggested_new_price: client.newServicePriceBase,
+                adjustment_per_service: client.adjustmentPerService,
+                adjustment_percentage: client.adjustmentPerServicePercentage,
+                notes: '',
+                excluded: false,
+                gst_type: client.gstType
+            }));
+
+            const newList = await ClientPriceReviewList.create({
+                list_name: newListName,
+                review_date: format(new Date(), 'yyyy-MM-dd'),
+                status: 'draft',
+                created_by_user_id: currentUser.id,
+                created_by_user_name: currentUser.full_name,
+                target_profit_percentage: targetProfitPercentage,
+                period_start: format(startDate, 'yyyy-MM-dd'),
+                period_end: format(endDate, 'yyyy-MM-dd'),
+                clients_to_review: clientsData,
+                notes: `Lista creada automáticamente desde análisis de Aumento de Clientes. Período: ${format(startDate, "d 'de' MMMM", { locale: es })} al ${format(endDate, "d 'de' MMMM 'de' yyyy", { locale: es })}.`
+            });
+
+            setCreateListDialogOpen(false);
+            setNewListName('');
+            navigate(createPageUrl('RevisionPrecios'));
+        } catch (err) {
+            console.error('Error creating list:', err);
+            setError('Error al crear la lista de revisión');
+        } finally {
+            setCreating(false);
+        }
+    };
+
     if (loading) return (
         <div className="p-8 flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
@@ -474,15 +540,37 @@ export default function AumentoClientesPage() {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
             <div className="max-w-[1920px] mx-auto">
                 <div className="mb-10">
-                    <div className="flex items-center gap-4 mb-3">
-                        <div className="p-3 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl shadow-lg">
-                            <ArrowUpCircle className="w-7 h-7 text-white" />
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl shadow-lg">
+                                <ArrowUpCircle className="w-7 h-7 text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Aumento de Clientes</h1>
+                                <p className="text-slate-600 mt-1 text-lg font-light">
+                                    Identifica qué clientes necesitan ajuste de precio para alcanzar tu rentabilidad objetivo
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Aumento de Clientes</h1>
-                            <p className="text-slate-600 mt-1 text-lg font-light">
-                                Identifica qué clientes necesitan ajuste de precio para alcanzar tu rentabilidad objetivo
-                            </p>
+                        <div className="flex gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => navigate(createPageUrl('RevisionPrecios'))}
+                                className="hover:bg-purple-50 hover:border-purple-300"
+                            >
+                                <FileText className="w-5 h-5 mr-2" />
+                                Ver Listas Guardadas
+                            </Button>
+                            {sortedClients.length > 0 && (
+                                <Button
+                                    onClick={handleCreateListClick}
+                                    className="bg-purple-600 hover:bg-purple-700 shadow-lg"
+                                    size="lg"
+                                >
+                                    <Plus className="w-5 h-5 mr-2" />
+                                    Crear Lista de Revisión
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -748,6 +836,67 @@ export default function AumentoClientesPage() {
                         </CardContent>
                     </Card>
                 )}
+
+                {/* Create List Dialog */}
+                <Dialog open={createListDialogOpen} onOpenChange={setCreateListDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-purple-700">
+                                <FileText className="w-5 h-5" />
+                                Crear Lista de Revisión de Precios
+                            </DialogTitle>
+                            <DialogDescription>
+                                Esta lista incluirá los {sortedClients.length} clientes que actualmente están por debajo del objetivo de rentabilidad del {targetProfitPercentage}%.
+                                Podrás gestionar y editar esta lista más adelante.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="list-name">Nombre de la Lista</Label>
+                                <Input
+                                    id="list-name"
+                                    value={newListName}
+                                    onChange={(e) => setNewListName(e.target.value)}
+                                    placeholder="Ej: Revisión Enero 2026"
+                                />
+                            </div>
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <p className="text-sm text-blue-800">
+                                    <strong>Período de análisis:</strong> {format(startDate, "d 'de' MMMM", { locale: es })} al {format(endDate, "d 'de' MMMM 'de' yyyy", { locale: es })}
+                                </p>
+                                <p className="text-sm text-blue-800 mt-1">
+                                    <strong>Total de clientes:</strong> {sortedClients.length}
+                                </p>
+                                <p className="text-sm text-blue-800 mt-1">
+                                    <strong>Aumento total potencial:</strong> ${sortedClients.reduce((sum, c) => sum + Math.max(0, c.adjustmentNeeded), 0).toFixed(2)}
+                                </p>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => setCreateListDialogOpen(false)}
+                                disabled={creating}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleCreateList}
+                                disabled={creating || !newListName.trim()}
+                                className="bg-purple-600 hover:bg-purple-700"
+                            >
+                                {creating ? (
+                                    <>Creando...</>
+                                ) : (
+                                    <>
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Crear Lista
+                                    </>
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     );
