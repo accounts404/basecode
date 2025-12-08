@@ -131,7 +131,6 @@ export default function ConciliacionFacturasPage() {
     const [monthlyViewDate, setMonthlyViewDate] = useState(new Date());
     const [monthlyData, setMonthlyData] = useState([]);
     const [loadingMonthly, setLoadingMonthly] = useState(false);
-    const [trainingClientId, setTrainingClientId] = useState(null);
 
     const usersMap = useMemo(() => {
         return new Map(users.map(u => [u.id, u]));
@@ -229,11 +228,30 @@ export default function ConciliacionFacturasPage() {
                     const scheduleDate = format(parseISO(s.start_time), 'yyyy-MM-dd');
                     return scheduleDate === dateStr && 
                            s.status !== 'cancelled' && 
-                           s.xero_invoiced === true &&
-                           s.client_id !== trainingClientId;
+                           s.xero_invoiced === true;
                 });
                 
                 const totals = calculateDayTotals(daySchedules);
+                
+                // DEBUG: Log para octubre 2025
+                if (dateStr.startsWith('2025-10')) {
+                    daySchedules.forEach(s => {
+                        const client = clients.get(s.client_id);
+                        let rawAmount = 0;
+                        if (s.reconciliation_items?.length > 0) {
+                            rawAmount = s.reconciliation_items.reduce((sum, item) => {
+                                const amt = parseFloat(item.amount) || 0;
+                                return item.type === 'discount' ? sum - amt : sum + amt;
+                            }, 0);
+                        } else if (s.billed_price_snapshot !== undefined && s.billed_price_snapshot !== null) {
+                            rawAmount = s.billed_price_snapshot;
+                        } else {
+                            const priceForDate = getPriceForDate(client, s.start_time);
+                            rawAmount = priceForDate.price;
+                        }
+                        console.log(`[Conciliación] ${dateStr} - ${client?.name}: raw=${rawAmount.toFixed(2)}, gstType=${s.billed_gst_type_snapshot || client?.gst_type}`);
+                    });
+                }
                 const reconciliation = reconMap.get(dateStr);
                 
                 return {
@@ -253,13 +271,8 @@ export default function ConciliacionFacturasPage() {
             // DEBUG: Total del mes
             if (format(monthStart, 'yyyy-MM') === '2025-10') {
                 const totalBase = dailyData.reduce((sum, day) => sum + day.totalBase, 0);
-                const totalServices = dailyData.reduce((sum, day) => sum + day.serviceCount, 0);
                 console.log(`[Conciliación] Total Base octubre 2025: $${totalBase.toFixed(2)}`);
-                console.log(`[Conciliación] Total servicios octubre 2025: ${totalServices}`);
-                console.log(`[Conciliación] Schedules facturados encontrados (sin TRAINING): ${schedulesData.filter(s => {
-                    const dateStr = format(parseISO(s.start_time), 'yyyy-MM-dd');
-                    return dateStr.startsWith('2025-10') && s.xero_invoiced === true && s.client_id !== trainingClientId;
-                }).length}`);
+                console.log(`[Conciliación] Total servicios octubre 2025: ${dailyData.reduce((sum, day) => sum + day.serviceCount, 0)}`);
             }
         } catch (err) {
             console.error("Error loading monthly data:", err);
@@ -302,13 +315,6 @@ export default function ConciliacionFacturasPage() {
             const clientMap = new Map();
             clientList.forEach(c => clientMap.set(c.id, c));
             setClients(clientMap);
-            
-            // Identificar cliente TRAINING
-            const trainingClient = clientList.find(c => c.name === 'TRAINING' || c.client_type === 'training');
-            if (trainingClient) {
-                setTrainingClientId(trainingClient.id);
-                console.log('[Conciliación] 🎓 Cliente TRAINING identificado:', trainingClient.id);
-            }
         } catch (e) {
             console.error("Failed to fetch clients", e);
             setError("No se pudieron cargar los clientes.");
@@ -348,8 +354,7 @@ export default function ConciliacionFacturasPage() {
             ]);
 
             const activeSchedules = schedulesData.filter(schedule =>
-                schedule.status !== 'cancelled' &&
-                schedule.client_id !== trainingClientId
+                schedule.status !== 'cancelled'
             );
 
             const sortedSchedules = activeSchedules.sort((a, b) => {
@@ -623,7 +628,7 @@ export default function ConciliacionFacturasPage() {
         let totalBase = 0;
         let totalConGST = 0;
         
-        schedules.filter(s => s.client_id !== trainingClientId).forEach(service => {
+        schedules.forEach(service => {
             const client = clients.get(service.client_id);
             let gstType, rawAmount;
             
