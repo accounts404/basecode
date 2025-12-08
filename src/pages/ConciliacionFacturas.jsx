@@ -238,20 +238,18 @@ export default function ConciliacionFacturasPage() {
                 
                 // DEBUG: Log para 4 de noviembre 2025
                 if (dateStr === '2025-11-04') {
-                    console.log(`[Conciliación] 🔍 ${dateStr} - TODOS los schedules:`, allDaySchedules.map(s => ({
-                        id: s.id.substring(0, 8),
-                        client: s.client_name,
-                        status: s.status,
-                        xero_invoiced: s.xero_invoiced,
-                        isTraining: s.client_id === trainingClientId,
-                        passesFilter: s.status !== 'cancelled' && s.xero_invoiced === true && s.client_id !== trainingClientId
-                    })));
-                    console.log(`[Conciliación] 🔍 ${dateStr} - Resumen:`, {
+                    console.log(`[Conciliación] 🔍 ${dateStr}:`, {
                         totalSchedules: allDaySchedules.length,
+                        facturados: allDaySchedules.filter(s => s.xero_invoiced === true).length,
                         cancelados: allDaySchedules.filter(s => s.status === 'cancelled').length,
-                        facturadosYnoCancelados: allDaySchedules.filter(s => s.xero_invoiced === true && s.status !== 'cancelled').length,
-                        facturadosYcancelados: allDaySchedules.filter(s => s.xero_invoiced === true && s.status === 'cancelled').length,
-                        afterFilter: daySchedules.length
+                        training: allDaySchedules.filter(s => s.client_id === trainingClientId).length,
+                        afterFilter: daySchedules.length,
+                        schedules: allDaySchedules.map(s => ({
+                            client: s.client_name,
+                            status: s.status,
+                            invoiced: s.xero_invoiced,
+                            isTraining: s.client_id === trainingClientId
+                        }))
                     });
                 }
                 
