@@ -131,6 +131,7 @@ export default function ConciliacionFacturasPage() {
     const [monthlyViewDate, setMonthlyViewDate] = useState(new Date());
     const [monthlyData, setMonthlyData] = useState([]);
     const [loadingMonthly, setLoadingMonthly] = useState(false);
+    const [monthlyGroupBy, setMonthlyGroupBy] = useState('day'); // 'day' o 'client'
 
     const usersMap = useMemo(() => {
         return new Map(users.map(u => [u.id, u]));
@@ -220,6 +221,7 @@ export default function ConciliacionFacturasPage() {
             
             const reconMap = new Map(reconciliationData.map(r => [r.date, r]));
             
+            // Datos agrupados por día
             const dailyData = days.map(day => {
                 const dateStr = format(day, 'yyyy-MM-dd');
                 const daySchedules = schedulesData.filter(s => {
@@ -241,7 +243,79 @@ export default function ConciliacionFacturasPage() {
                 };
             });
             
-            setMonthlyData(dailyData);
+            // Datos agrupados por cliente
+            const clientDataMap = new Map();
+            schedulesData.filter(s => s.status !== 'cancelled').forEach(service => {
+                const client = clients.get(service.client_id);
+                if (!client) return;
+                
+                if (!clientDataMap.has(service.client_id)) {
+                    clientDataMap.set(service.client_id, {
+                        clientId: service.client_id,
+                        clientName: client.name,
+                        services: [],
+                        totalBase: 0,
+                        totalConGST: 0,
+                        serviceCount: 0
+                    });
+                }
+                
+                const clientData = clientDataMap.get(service.client_id);
+                clientData.services.push(service);
+                clientData.serviceCount++;
+                
+                // Calcular totales
+                let gstType, rawAmount;
+                
+                if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                    gstType = service.billed_gst_type_snapshot;
+                } else {
+                    const priceForDate = getPriceForDate(client, service.start_time);
+                    gstType = priceForDate.gstType;
+                }
+                
+                if (service.reconciliation_items && service.reconciliation_items.length > 0) {
+                    rawAmount = service.reconciliation_items.reduce((itemTotal, item) => {
+                        const itemAmount = parseFloat(item.amount) || 0;
+                        return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
+                    }, 0);
+                } else {
+                    if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                        rawAmount = service.billed_price_snapshot;
+                    } else {
+                        const priceForDate = getPriceForDate(client, service.start_time);
+                        rawAmount = priceForDate.price;
+                    }
+                }
+                
+                let base, withGST;
+                switch (gstType) {
+                    case 'inclusive':
+                        base = rawAmount / 1.1;
+                        withGST = rawAmount;
+                        break;
+                    case 'exclusive':
+                        base = rawAmount;
+                        withGST = rawAmount * 1.1;
+                        break;
+                    case 'no_tax':
+                        base = rawAmount;
+                        withGST = rawAmount;
+                        break;
+                    default:
+                        base = rawAmount;
+                        withGST = rawAmount;
+                }
+                
+                clientData.totalBase += base;
+                clientData.totalConGST += withGST;
+            });
+            
+            const clientData = Array.from(clientDataMap.values()).sort((a, b) => 
+                b.totalConGST - a.totalConGST
+            );
+            
+            setMonthlyData({ daily: dailyData, byClient: clientData });
         } catch (err) {
             console.error("Error loading monthly data:", err);
         } finally {
@@ -852,27 +926,48 @@ export default function ConciliacionFacturasPage() {
                         </AccordionTrigger>
                         <AccordionContent className="px-6 pb-6">
                             <div className="space-y-4">
-                                {/* Selector de Mes */}
-                                <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                    <Button 
-                                        variant="outline" 
-                                        size="icon" 
-                                        onClick={() => setMonthlyViewDate(subDays(startOfMonth(monthlyViewDate), 1))}
-                                        className="hover:bg-white"
-                                    >
-                                        <ChevronLeft className="h-4 w-4" />
-                                    </Button>
-                                    <h4 className="text-xl font-bold text-slate-900">
-                                        {format(monthlyViewDate, "MMMM yyyy", { locale: es })}
-                                    </h4>
-                                    <Button 
-                                        variant="outline" 
-                                        size="icon" 
-                                        onClick={() => setMonthlyViewDate(addDays(endOfMonth(monthlyViewDate), 1))}
-                                        className="hover:bg-white"
-                                    >
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Button>
+                                {/* Selector de Mes y Modo de Agrupación */}
+                                <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                    <div className="flex items-center gap-2">
+                                        <Button 
+                                            variant="outline" 
+                                            size="icon" 
+                                            onClick={() => setMonthlyViewDate(subDays(startOfMonth(monthlyViewDate), 1))}
+                                            className="hover:bg-white"
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                        </Button>
+                                        <h4 className="text-xl font-bold text-slate-900">
+                                            {format(monthlyViewDate, "MMMM yyyy", { locale: es })}
+                                        </h4>
+                                        <Button 
+                                            variant="outline" 
+                                            size="icon" 
+                                            onClick={() => setMonthlyViewDate(addDays(endOfMonth(monthlyViewDate), 1))}
+                                            className="hover:bg-white"
+                                        >
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    
+                                    <div className="flex gap-1 bg-white p-1 rounded-lg border border-slate-200">
+                                        <Button
+                                            variant={monthlyGroupBy === 'day' ? 'default' : 'ghost'}
+                                            size="sm"
+                                            onClick={() => setMonthlyGroupBy('day')}
+                                            className={monthlyGroupBy === 'day' ? 'bg-purple-600' : ''}
+                                        >
+                                            Por Día
+                                        </Button>
+                                        <Button
+                                            variant={monthlyGroupBy === 'client' ? 'default' : 'ghost'}
+                                            size="sm"
+                                            onClick={() => setMonthlyGroupBy('client')}
+                                            className={monthlyGroupBy === 'client' ? 'bg-purple-600' : ''}
+                                        >
+                                            Por Cliente
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 {/* Tabla de Totales Mensuales */}
@@ -887,84 +982,134 @@ export default function ConciliacionFacturasPage() {
                                             <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 rounded-lg border border-emerald-200">
                                                 <p className="text-sm font-semibold text-emerald-700 mb-1">Total Base (sin GST)</p>
                                                 <p className="text-3xl font-bold text-emerald-900">
-                                                    ${monthlyData.reduce((sum, day) => sum + day.totalBase, 0).toFixed(2)}
+                                                    ${(monthlyGroupBy === 'day' 
+                                                        ? monthlyData.daily?.reduce((sum, day) => sum + day.totalBase, 0) 
+                                                        : monthlyData.byClient?.reduce((sum, c) => sum + c.totalBase, 0) || 0
+                                                    ).toFixed(2)}
                                                 </p>
                                             </div>
                                             <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
                                                 <p className="text-sm font-semibold text-blue-700 mb-1">Total con GST</p>
                                                 <p className="text-3xl font-bold text-blue-900">
-                                                    ${monthlyData.reduce((sum, day) => sum + day.totalConGST, 0).toFixed(2)}
+                                                    ${(monthlyGroupBy === 'day' 
+                                                        ? monthlyData.daily?.reduce((sum, day) => sum + day.totalConGST, 0) 
+                                                        : monthlyData.byClient?.reduce((sum, c) => sum + c.totalConGST, 0) || 0
+                                                    ).toFixed(2)}
                                                 </p>
                                             </div>
                                             <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
                                                 <p className="text-sm font-semibold text-purple-700 mb-1">Total Servicios</p>
                                                 <p className="text-3xl font-bold text-purple-900">
-                                                    {monthlyData.reduce((sum, day) => sum + day.serviceCount, 0)}
+                                                    {monthlyGroupBy === 'day' 
+                                                        ? monthlyData.daily?.reduce((sum, day) => sum + day.serviceCount, 0) 
+                                                        : monthlyData.byClient?.reduce((sum, c) => sum + c.serviceCount, 0) || 0}
                                                 </p>
                                             </div>
                                         </div>
 
                                         {/* Tabla Detallada */}
                                         <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[600px] overflow-y-auto">
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow className="bg-slate-100">
-                                                        <TableHead className="font-bold">Fecha</TableHead>
-                                                        <TableHead className="font-bold text-center">Servicios</TableHead>
-                                                        <TableHead className="font-bold text-right">Base (sin GST)</TableHead>
-                                                        <TableHead className="font-bold text-right">Total con GST</TableHead>
-                                                        <TableHead className="font-bold text-center">Estado</TableHead>
-                                                        <TableHead className="text-center">Acción</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {monthlyData.filter(day => day.hasServices).map((day) => (
-                                                        <TableRow key={day.dateStr} className="hover:bg-slate-50">
-                                                            <TableCell className="font-medium">
-                                                                {format(day.date, "EEEE, d 'de' MMMM", { locale: es })}
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                <Badge variant="outline">{day.serviceCount}</Badge>
-                                                            </TableCell>
-                                                            <TableCell className="text-right font-semibold text-emerald-700">
-                                                                ${day.totalBase.toFixed(2)}
-                                                            </TableCell>
-                                                            <TableCell className="text-right font-semibold text-blue-700">
-                                                                ${day.totalConGST.toFixed(2)}
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                {day.status === 'completed' && (
-                                                                    <Badge className="bg-green-500">Facturado</Badge>
-                                                                )}
-                                                                {day.status === 'horario_reviewed' && (
-                                                                    <Badge className="bg-blue-500">Revisado</Badge>
-                                                                )}
-                                                                {day.status === 'pending' && (
-                                                                    <Badge variant="outline" className="border-red-500 text-red-700">Pendiente</Badge>
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    onClick={() => setSelectedDate(day.date)}
-                                                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                                                                >
-                                                                    <Eye className="w-4 h-4 mr-1" />
-                                                                    Ver Día
-                                                                </Button>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                    {monthlyData.filter(day => day.hasServices).length === 0 && (
+                                            {monthlyGroupBy === 'day' ? (
+                                                <Table>
+                                                    <TableHeader className="sticky top-0 bg-slate-100 z-10">
                                                         <TableRow>
-                                                            <TableCell colSpan="6" className="text-center py-8 text-slate-500">
-                                                                No hay servicios registrados en este mes
-                                                            </TableCell>
+                                                            <TableHead className="font-bold">Fecha</TableHead>
+                                                            <TableHead className="font-bold text-center">Servicios</TableHead>
+                                                            <TableHead className="font-bold text-right">Base (sin GST)</TableHead>
+                                                            <TableHead className="font-bold text-right">Total con GST</TableHead>
+                                                            <TableHead className="font-bold text-center">Estado</TableHead>
+                                                            <TableHead className="text-center">Acción</TableHead>
                                                         </TableRow>
-                                                    )}
-                                                </TableBody>
-                                            </Table>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {monthlyData.daily?.filter(day => day.hasServices).map((day) => (
+                                                            <TableRow key={day.dateStr} className="hover:bg-slate-50">
+                                                                <TableCell className="font-medium">
+                                                                    {format(day.date, "EEEE, d 'de' MMMM", { locale: es })}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    <Badge variant="outline">{day.serviceCount}</Badge>
+                                                                </TableCell>
+                                                                <TableCell className="text-right font-semibold text-emerald-700">
+                                                                    ${day.totalBase.toFixed(2)}
+                                                                </TableCell>
+                                                                <TableCell className="text-right font-semibold text-blue-700">
+                                                                    ${day.totalConGST.toFixed(2)}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    {day.status === 'completed' && (
+                                                                        <Badge className="bg-green-500">Facturado</Badge>
+                                                                    )}
+                                                                    {day.status === 'horario_reviewed' && (
+                                                                        <Badge className="bg-blue-500">Revisado</Badge>
+                                                                    )}
+                                                                    {day.status === 'pending' && (
+                                                                        <Badge variant="outline" className="border-red-500 text-red-700">Pendiente</Badge>
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        onClick={() => setSelectedDate(day.date)}
+                                                                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                                    >
+                                                                        <Eye className="w-4 h-4 mr-1" />
+                                                                        Ver Día
+                                                                    </Button>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                        {(!monthlyData.daily || monthlyData.daily.filter(day => day.hasServices).length === 0) && (
+                                                            <TableRow>
+                                                                <TableCell colSpan="6" className="text-center py-8 text-slate-500">
+                                                                    No hay servicios registrados en este mes
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </TableBody>
+                                                </Table>
+                                            ) : (
+                                                <Table>
+                                                    <TableHeader className="sticky top-0 bg-slate-100 z-10">
+                                                        <TableRow>
+                                                            <TableHead className="font-bold">Cliente</TableHead>
+                                                            <TableHead className="font-bold text-center">Servicios</TableHead>
+                                                            <TableHead className="font-bold text-right">Base (sin GST)</TableHead>
+                                                            <TableHead className="font-bold text-right">Total con GST</TableHead>
+                                                            <TableHead className="font-bold text-right">Promedio/Servicio</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {monthlyData.byClient?.map((clientData) => (
+                                                            <TableRow key={clientData.clientId} className="hover:bg-slate-50">
+                                                                <TableCell className="font-medium">
+                                                                    {clientData.clientName}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    <Badge variant="outline">{clientData.serviceCount}</Badge>
+                                                                </TableCell>
+                                                                <TableCell className="text-right font-semibold text-emerald-700">
+                                                                    ${clientData.totalBase.toFixed(2)}
+                                                                </TableCell>
+                                                                <TableCell className="text-right font-semibold text-blue-700">
+                                                                    ${clientData.totalConGST.toFixed(2)}
+                                                                </TableCell>
+                                                                <TableCell className="text-right text-slate-600">
+                                                                    ${(clientData.totalConGST / clientData.serviceCount).toFixed(2)}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                        {(!monthlyData.byClient || monthlyData.byClient.length === 0) && (
+                                                            <TableRow>
+                                                                <TableCell colSpan="5" className="text-center py-8 text-slate-500">
+                                                                    No hay servicios registrados en este mes
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </TableBody>
+                                                </Table>
+                                            )}
                                         </div>
                                     </div>
                                 )}
