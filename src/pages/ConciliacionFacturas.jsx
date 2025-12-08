@@ -227,29 +227,10 @@ export default function ConciliacionFacturasPage() {
                 const dateStr = format(day, 'yyyy-MM-dd');
                 const daySchedules = schedulesData.filter(s => {
                     const scheduleDate = format(parseISO(s.start_time), 'yyyy-MM-dd');
-                    if (scheduleDate !== dateStr || s.status === 'cancelled' || !s.xero_invoiced) {
-                        return false;
-                    }
-                    
-                    // Excluir TRAINING
-                    if (s.client_id === trainingClientId) return false;
-                    
-                    // Excluir servicios con monto 0
-                    const client = clients.get(s.client_id);
-                    let rawAmount = 0;
-                    if (s.reconciliation_items?.length > 0) {
-                        rawAmount = s.reconciliation_items.reduce((sum, item) => {
-                            const amt = parseFloat(item.amount) || 0;
-                            return item.type === 'discount' ? sum - amt : sum + amt;
-                        }, 0);
-                    } else if (s.billed_price_snapshot !== undefined && s.billed_price_snapshot !== null) {
-                        rawAmount = s.billed_price_snapshot;
-                    } else {
-                        const priceForDate = getPriceForDate(client, s.start_time);
-                        rawAmount = priceForDate.price;
-                    }
-                    
-                    return rawAmount > 0;
+                    return scheduleDate === dateStr && 
+                           s.status !== 'cancelled' && 
+                           s.xero_invoiced === true &&
+                           s.client_id !== trainingClientId;
                 });
                 
                 const totals = calculateDayTotals(daySchedules);
@@ -366,28 +347,10 @@ export default function ConciliacionFacturasPage() {
                 DailyReconciliation.filter({ date: dateStr })
             ]);
 
-            const activeSchedules = schedulesData.filter(schedule => {
-                if (schedule.status === 'cancelled' || schedule.client_id === trainingClientId) {
-                    return false;
-                }
-                
-                // Excluir servicios con monto 0
-                const client = clients.get(schedule.client_id);
-                let rawAmount = 0;
-                if (schedule.reconciliation_items?.length > 0) {
-                    rawAmount = schedule.reconciliation_items.reduce((sum, item) => {
-                        const amt = parseFloat(item.amount) || 0;
-                        return item.type === 'discount' ? sum - amt : sum + amt;
-                    }, 0);
-                } else if (schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
-                    rawAmount = schedule.billed_price_snapshot;
-                } else {
-                    const priceForDate = getPriceForDate(client, schedule.start_time);
-                    rawAmount = priceForDate.price;
-                }
-                
-                return rawAmount > 0;
-            });
+            const activeSchedules = schedulesData.filter(schedule =>
+                schedule.status !== 'cancelled' &&
+                schedule.client_id !== trainingClientId
+            );
 
             const sortedSchedules = activeSchedules.sort((a, b) => {
                 if (a.xero_invoiced !== b.xero_invoiced) {
