@@ -255,7 +255,12 @@ export default function ConciliacionFacturasPage() {
             const year = date.getFullYear();
             const month = date.getMonth();
             
-            // Traer todos los schedules del mes y los días adyacentes para cubrir diferencias de zona horaria
+            // Construir el prefijo del mes objetivo: "YYYY-MM"
+            const targetMonthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+            
+            console.log('[ConciliacionFacturas] 🔍 Buscando servicios para mes:', targetMonthPrefix);
+            
+            // Traer un rango amplio para cubrir diferencias de zona horaria
             const monthStartUTC = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
             const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
             const monthEndUTC = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
@@ -267,19 +272,24 @@ export default function ConciliacionFacturasPage() {
                 }
             }, '-start_time');
 
-            // FILTRO ADICIONAL: Verificar que la fecha UTC del servicio esté realmente en el mes
+            // FILTRO ADICIONAL: Verificar que la fecha del servicio (primeros 10 chars) coincida con el mes
             const activeSchedules = schedulesData.filter(schedule => {
                 if (schedule.status === 'cancelled') return false;
                 
-                // Extraer la fecha UTC del servicio
-                const serviceDate = new Date(schedule.start_time.endsWith('Z') ? schedule.start_time : `${schedule.start_time}Z`);
-                const serviceYear = serviceDate.getUTCFullYear();
-                const serviceMonth = serviceDate.getUTCMonth();
+                // Extraer YYYY-MM-DD de start_time (primeros 10 caracteres)
+                const serviceDateStr = schedule.start_time ? schedule.start_time.slice(0, 10) : '';
                 
-                // Verificar que coincida con el mes seleccionado
-                return serviceYear === year && serviceMonth === month;
+                // Verificar que comience con el mes objetivo (YYYY-MM)
+                const isInTargetMonth = serviceDateStr.startsWith(targetMonthPrefix);
+                
+                if (!isInTargetMonth) {
+                    console.log(`[ConciliacionFacturas] ❌ Excluido: ${schedule.client_name} - Fecha: ${serviceDateStr} (no pertenece a ${targetMonthPrefix})`);
+                }
+                
+                return isInTargetMonth;
             });
 
+            console.log(`[ConciliacionFacturas] ✅ Servicios del mes ${targetMonthPrefix}: ${activeSchedules.length}`);
             setMonthlySchedules(activeSchedules);
         } catch (err) {
             console.error("Error fetching monthly data:", err);
