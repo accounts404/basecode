@@ -802,10 +802,31 @@ export default function AumentoClientesPage() {
                                                     {targetProfitPercentage.toFixed(1)}%
                                                 </TableCell>
                                                 <TableCell className="text-right font-medium text-slate-700">
-                                                    ${client.currentPriceBase.toFixed(2)}
+                                                    <div className="space-y-1">
+                                                        <div className="font-bold">${client.currentPriceBase.toFixed(2)}</div>
+                                                        {client.gstType !== 'no_tax' && (
+                                                            <div className="text-xs text-slate-500">
+                                                                con GST: ${calculateGST(client.currentServicePrice || 0, client.gstType).total.toFixed(2)}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-right font-bold text-emerald-700 bg-emerald-50 text-lg">
-                                                    ${client.newServicePriceBase.toFixed(2)}
+                                                    <div className="space-y-1">
+                                                        <div>${client.newServicePriceBase.toFixed(2)}</div>
+                                                        {client.gstType !== 'no_tax' && (
+                                                            <div className="text-xs text-emerald-600">
+                                                                con GST: ${(() => {
+                                                                    if (client.gstType === 'inclusive') {
+                                                                        return (client.newServicePriceBase * 1.1).toFixed(2);
+                                                                    } else if (client.gstType === 'exclusive') {
+                                                                        return (client.newServicePriceBase * 1.1).toFixed(2);
+                                                                    }
+                                                                    return client.newServicePriceBase.toFixed(2);
+                                                                })()}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-right font-bold text-orange-700 bg-orange-50 text-lg">
                                                     +${client.adjustmentPerService.toFixed(2)}
