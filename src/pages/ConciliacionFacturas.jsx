@@ -470,25 +470,61 @@ export default function ConciliacionFacturasPage() {
     };
 
     const totalDelDia = useMemo(() => {
-        return schedules.reduce((total, service) => {
-            let amount = 0;
+        let totalBase = 0;
+        let totalConGST = 0;
+        
+        schedules.forEach(service => {
+            const client = clients.get(service.client_id);
+            let gstType, rawAmount;
+            
+            // Determinar el tipo de GST y monto bruto
+            if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                gstType = service.billed_gst_type_snapshot;
+            } else {
+                const priceForDate = getPriceForDate(client, service.start_time);
+                gstType = priceForDate.gstType;
+            }
+            
+            // Calcular el monto bruto (con GST si aplica)
             if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-                amount = service.reconciliation_items.reduce((itemTotal, item) => {
+                rawAmount = service.reconciliation_items.reduce((itemTotal, item) => {
                     const itemAmount = parseFloat(item.amount) || 0;
                     return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
                 }, 0);
             } else {
-                // CRÍTICO: Usar snapshot si está facturado
                 if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                    amount = service.billed_price_snapshot;
+                    rawAmount = service.billed_price_snapshot;
                 } else {
-                    const client = clients.get(service.client_id);
                     const priceForDate = getPriceForDate(client, service.start_time);
-                    amount = priceForDate.price;
+                    rawAmount = priceForDate.price;
                 }
             }
-            return total + amount;
-        }, 0);
+            
+            // Calcular base y total con GST según el tipo
+            let base, withGST;
+            switch (gstType) {
+                case 'inclusive':
+                    base = rawAmount / 1.1;
+                    withGST = rawAmount;
+                    break;
+                case 'exclusive':
+                    base = rawAmount;
+                    withGST = rawAmount * 1.1;
+                    break;
+                case 'no_tax':
+                    base = rawAmount;
+                    withGST = rawAmount;
+                    break;
+                default:
+                    base = rawAmount;
+                    withGST = rawAmount;
+            }
+            
+            totalBase += base;
+            totalConGST += withGST;
+        });
+        
+        return { totalBase, totalConGST };
     }, [schedules, clients]);
 
     const renderReconciledAmountBreakdown = (service) => {
@@ -980,12 +1016,27 @@ export default function ConciliacionFacturasPage() {
                                         </TableCell>
                                         <TableCell className="py-4">
                                             <div className="space-y-2">
-                                                <div className="font-bold text-2xl text-blue-700">
-                                                    ${totalDelDia.toFixed(2)}
+                                                <div className="space-y-1">
+                                                    <div className="font-bold text-2xl text-emerald-700">
+                                                        ${totalDelDia.totalBase.toFixed(2)}
+                                                    </div>
+                                                    <div className="text-xs text-emerald-600 font-semibold">
+                                                        Base (sin GST)
+                                                    </div>
                                                 </div>
-                                                <span className="text-xs text-blue-600 font-semibold">
-                                                    {schedules.length} servicio{schedules.length !== 1 ? 's' : ''}
-                                                </span>
+                                                <div className="border-t border-blue-200 pt-2 space-y-1">
+                                                    <div className="font-bold text-xl text-blue-700">
+                                                        ${totalDelDia.totalConGST.toFixed(2)}
+                                                    </div>
+                                                    <div className="text-xs text-blue-600 font-semibold">
+                                                        Total con GST
+                                                    </div>
+                                                </div>
+                                                <div className="border-t border-blue-200 pt-2">
+                                                    <span className="text-xs text-slate-600 font-semibold">
+                                                        {schedules.length} servicio{schedules.length !== 1 ? 's' : ''}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </TableCell>
                                         <TableCell colSpan="4"></TableCell>
