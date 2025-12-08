@@ -252,11 +252,15 @@ export default function ConciliacionFacturasPage() {
 
     const fetchMonthlyData = useCallback(async (date) => {
         try {
-            const monthStart = startOfMonth(date);
-            const monthEnd = endOfMonth(date);
-
-            const monthStartUTC = new Date(Date.UTC(monthStart.getFullYear(), monthStart.getMonth(), monthStart.getDate(), 0, 0, 0, 0));
-            const monthEndUTC = new Date(Date.UTC(monthEnd.getFullYear(), monthEnd.getMonth(), monthEnd.getDate(), 23, 59, 59, 999));
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            
+            // Primer día del mes
+            const monthStartUTC = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+            
+            // Último día del mes (día 0 del mes siguiente)
+            const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+            const monthEndUTC = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
 
             const schedulesData = await Schedule.filter({
                 start_time: {
