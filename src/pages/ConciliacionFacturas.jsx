@@ -255,10 +255,8 @@ export default function ConciliacionFacturasPage() {
             const year = date.getFullYear();
             const month = date.getMonth();
             
-            // Primer día del mes
+            // Traer todos los schedules del mes y los días adyacentes para cubrir diferencias de zona horaria
             const monthStartUTC = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-            
-            // Último día del mes (día 0 del mes siguiente)
             const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
             const monthEndUTC = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
 
@@ -269,9 +267,18 @@ export default function ConciliacionFacturasPage() {
                 }
             }, '-start_time');
 
-            const activeSchedules = schedulesData.filter(schedule =>
-                schedule.status !== 'cancelled'
-            );
+            // FILTRO ADICIONAL: Verificar que la fecha UTC del servicio esté realmente en el mes
+            const activeSchedules = schedulesData.filter(schedule => {
+                if (schedule.status === 'cancelled') return false;
+                
+                // Extraer la fecha UTC del servicio
+                const serviceDate = new Date(schedule.start_time.endsWith('Z') ? schedule.start_time : `${schedule.start_time}Z`);
+                const serviceYear = serviceDate.getUTCFullYear();
+                const serviceMonth = serviceDate.getUTCMonth();
+                
+                // Verificar que coincida con el mes seleccionado
+                return serviceYear === year && serviceMonth === month;
+            });
 
             setMonthlySchedules(activeSchedules);
         } catch (err) {
