@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ClientPriceReviewList } from '@/entities/ClientPriceReviewList';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -22,7 +22,8 @@ import {
     AlertCircle,
     Edit2,
     CheckCircle,
-    X
+    X,
+    Search
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -57,11 +58,64 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
     const [editedClient, setEditedClient] = useState(null);
     const [deleteClientDialog, setDeleteClientDialog] = useState(false);
     const [clientToDelete, setClientToDelete] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortColumn, setSortColumn] = useState('client_name');
+    const [sortDirection, setSortDirection] = useState('asc');
 
-    const activeClients = (editedList.clients_to_review || []).filter(c => !c.excluded);
+    const filteredAndSortedClients = useMemo(() => {
+        let clients = [...(editedList.clients_to_review || [])];
+        
+        // Filtrar por búsqueda
+        if (searchTerm) {
+            clients = clients.filter(c => 
+                c.client_name.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+        
+        // Ordenar
+        clients.sort((a, b) => {
+            let aValue = a[sortColumn];
+            let bValue = b[sortColumn];
+            
+            if (sortColumn === 'client_name') {
+                aValue = aValue?.toLowerCase() || '';
+                bValue = bValue?.toLowerCase() || '';
+                return sortDirection === 'asc' ? 
+                    aValue.localeCompare(bValue) : 
+                    bValue.localeCompare(aValue);
+            }
+            
+            aValue = parseFloat(aValue) || 0;
+            bValue = parseFloat(bValue) || 0;
+            
+            return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        });
+        
+        return clients;
+    }, [editedList.clients_to_review, searchTerm, sortColumn, sortDirection]);
+
+    const activeClients = filteredAndSortedClients.filter(c => !c.excluded);
     const totalPotentialIncrease = activeClients.reduce((sum, c) => 
         sum + (c.adjustment_per_service * c.service_count), 0
     );
+
+    const handleSort = (column) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
+    const getSortIcon = (column) => {
+        if (sortColumn !== column) {
+            return <TrendingUp className="w-4 h-4 text-slate-400 opacity-50" />;
+        }
+        return sortDirection === 'asc' ? 
+            <TrendingUp className="w-4 h-4 text-purple-700" /> : 
+            <TrendingDown className="w-4 h-4 text-purple-700" />;
+    };
 
     const handleSave = async () => {
         setSaving(true);
@@ -278,27 +332,112 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
                 {/* Clients Table */}
                 <Card className="shadow-lg border border-slate-200">
                     <CardHeader>
-                        <CardTitle className="text-xl font-bold text-slate-900">Clientes en esta Lista</CardTitle>
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <CardTitle className="text-xl font-bold text-slate-900">Clientes en esta Lista</CardTitle>
+                            <div className="relative w-full md:w-80">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <Input
+                                    placeholder="Buscar cliente..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-10"
+                                />
+                            </div>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto">
                             <Table>
                                 <TableHeader className="bg-slate-100">
                                     <TableRow>
-                                        <TableHead className="font-bold text-slate-700">Cliente</TableHead>
-                                        <TableHead className="text-center font-bold text-slate-700">Servicios</TableHead>
-                                        <TableHead className="text-center font-bold text-slate-700">Horas</TableHead>
-                                        <TableHead className="text-right font-bold text-slate-700">Rent. Actual</TableHead>
-                                        <TableHead className="text-right font-bold text-slate-700">Precio Actual</TableHead>
-                                        <TableHead className="text-right font-bold text-slate-700 bg-emerald-50">Precio Sugerido</TableHead>
-                                        <TableHead className="text-right font-bold text-slate-700 bg-orange-50">Aumento ($)</TableHead>
-                                        <TableHead className="text-right font-bold text-slate-700 bg-orange-50">Aumento (%)</TableHead>
+                                        <TableHead 
+                                            className="font-bold text-slate-700 cursor-pointer hover:bg-slate-200/50"
+                                            onClick={() => handleSort('client_name')}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                Cliente
+                                                {getSortIcon('client_name')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead 
+                                            className="text-center font-bold text-slate-700 cursor-pointer hover:bg-slate-200/50"
+                                            onClick={() => handleSort('service_count')}
+                                        >
+                                            <div className="flex items-center justify-center gap-2">
+                                                Servicios
+                                                {getSortIcon('service_count')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead 
+                                            className="text-center font-bold text-slate-700 cursor-pointer hover:bg-slate-200/50"
+                                            onClick={() => handleSort('total_hours')}
+                                        >
+                                            <div className="flex items-center justify-center gap-2">
+                                                Horas
+                                                {getSortIcon('total_hours')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead 
+                                            className="text-right font-bold text-slate-700 cursor-pointer hover:bg-slate-200/50"
+                                            onClick={() => handleSort('current_real_profit_percentage')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                Rent. Actual
+                                                {getSortIcon('current_real_profit_percentage')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead 
+                                            className="text-right font-bold text-slate-700 cursor-pointer hover:bg-slate-200/50"
+                                            onClick={() => handleSort('current_price_base')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                Precio Actual
+                                                {getSortIcon('current_price_base')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead 
+                                            className="text-right font-bold text-slate-700 bg-emerald-50 cursor-pointer hover:bg-emerald-100"
+                                            onClick={() => handleSort('suggested_new_price')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                Precio Sugerido
+                                                {getSortIcon('suggested_new_price')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead 
+                                            className="text-right font-bold text-slate-700 bg-orange-50 cursor-pointer hover:bg-orange-100"
+                                            onClick={() => handleSort('adjustment_per_service')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                Aumento ($)
+                                                {getSortIcon('adjustment_per_service')}
+                                            </div>
+                                        </TableHead>
+                                        <TableHead 
+                                            className="text-right font-bold text-slate-700 bg-orange-50 cursor-pointer hover:bg-orange-100"
+                                            onClick={() => handleSort('adjustment_percentage')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                Aumento (%)
+                                                {getSortIcon('adjustment_percentage')}
+                                            </div>
+                                        </TableHead>
                                         <TableHead className="text-right font-bold text-slate-700">Notas</TableHead>
                                         <TableHead className="text-right font-bold text-slate-700">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {editedList.clients_to_review.map((client) => {
+                                    {filteredAndSortedClients.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan="10" className="text-center py-12 text-slate-500">
+                                                {searchTerm ? 
+                                                    `No se encontraron clientes que coincidan con "${searchTerm}"` : 
+                                                    'No hay clientes en esta lista'
+                                                }
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        filteredAndSortedClients.map((client) => {
                                         const isEditing = editingClientId === client.client_id;
                                         const displayClient = isEditing ? editedClient : client;
                                         
@@ -424,7 +563,7 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
                                                 </TableCell>
                                             </TableRow>
                                         );
-                                    })}
+                                    }))}
                                 </TableBody>
                             </Table>
                         </div>
