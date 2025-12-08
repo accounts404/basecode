@@ -72,8 +72,14 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
             );
         }
         
-        // Ordenar
+        // Ordenar: primero por excluded (excluidos al final), luego por el campo seleccionado
         clients.sort((a, b) => {
+            // Primero ordenar por excluded
+            if (a.excluded !== b.excluded) {
+                return a.excluded ? 1 : -1;
+            }
+            
+            // Luego ordenar por el campo seleccionado
             let aValue = a[sortColumn];
             let bValue = b[sortColumn];
             
