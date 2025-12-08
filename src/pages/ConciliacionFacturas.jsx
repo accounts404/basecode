@@ -905,7 +905,7 @@ export default function ConciliacionFacturasPage() {
                                         </div>
 
                                         {/* Tabla Detallada */}
-                                        <div className="border border-slate-200 rounded-lg overflow-hidden max-h-[600px] overflow-y-auto">
+                                        <div className="border border-slate-200 rounded-lg overflow-hidden">
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow className="bg-slate-100">
