@@ -469,7 +469,20 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
                                                     {client.current_real_profit_percentage?.toFixed(1)}%
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    ${client.current_price_base?.toFixed(2)}
+                                                    <div className="space-y-1">
+                                                        <div className="font-bold">${client.current_price_base?.toFixed(2)}</div>
+                                                        {client.gst_type !== 'no_tax' && (
+                                                            <div className="text-xs text-slate-500">
+                                                                con GST: ${(() => {
+                                                                    const base = client.current_price_base || 0;
+                                                                    if (client.gst_type === 'inclusive' || client.gst_type === 'exclusive') {
+                                                                        return (base * 1.1).toFixed(2);
+                                                                    }
+                                                                    return base.toFixed(2);
+                                                                })()}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-right bg-emerald-50">
                                                     {isEditing ? (
@@ -484,9 +497,22 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
                                                             className="w-24 text-right"
                                                         />
                                                     ) : (
-                                                        <span className="font-bold text-emerald-700">
-                                                            ${displayClient.suggested_new_price?.toFixed(2)}
-                                                        </span>
+                                                        <div className="space-y-1">
+                                                            <div className="font-bold text-emerald-700">
+                                                                ${displayClient.suggested_new_price?.toFixed(2)}
+                                                            </div>
+                                                            {displayClient.gst_type !== 'no_tax' && (
+                                                                <div className="text-xs text-emerald-600">
+                                                                    con GST: ${(() => {
+                                                                        const base = displayClient.suggested_new_price || 0;
+                                                                        if (displayClient.gst_type === 'inclusive' || displayClient.gst_type === 'exclusive') {
+                                                                            return (base * 1.1).toFixed(2);
+                                                                        }
+                                                                        return base.toFixed(2);
+                                                                    })()}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-right bg-orange-50 font-bold text-orange-700">
