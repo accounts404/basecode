@@ -226,9 +226,7 @@ export default function ConciliacionFacturasPage() {
                 const dateStr = format(day, 'yyyy-MM-dd');
                 const daySchedules = schedulesData.filter(s => {
                     const scheduleDate = format(parseISO(s.start_time), 'yyyy-MM-dd');
-                    return scheduleDate === dateStr && 
-                           s.status !== 'cancelled' && 
-                           s.xero_invoiced === true;
+                    return scheduleDate === dateStr && s.status !== 'cancelled';
                 });
                 
                 const totals = calculateDayTotals(daySchedules);
