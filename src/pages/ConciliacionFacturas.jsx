@@ -472,22 +472,43 @@ export default function ConciliacionFacturasPage() {
     const totalDelDia = useMemo(() => {
         return schedules.reduce((total, service) => {
             let amount = 0;
+            let gstType = 'inclusive'; // default
+            
             if (service.reconciliation_items && service.reconciliation_items.length > 0) {
                 amount = service.reconciliation_items.reduce((itemTotal, item) => {
                     const itemAmount = parseFloat(item.amount) || 0;
                     return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
                 }, 0);
+                
+                // Determinar GST type
+                if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                    gstType = service.billed_gst_type_snapshot;
+                } else {
+                    const client = clients.get(service.client_id);
+                    const priceForDate = getPriceForDate(client, service.start_time);
+                    gstType = priceForDate.gstType;
+                }
             } else {
                 // CRÍTICO: Usar snapshot si está facturado
                 if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
                     amount = service.billed_price_snapshot;
+                    gstType = service.billed_gst_type_snapshot || 'inclusive';
                 } else {
                     const client = clients.get(service.client_id);
                     const priceForDate = getPriceForDate(client, service.start_time);
                     amount = priceForDate.price;
+                    gstType = priceForDate.gstType;
                 }
             }
-            return total + amount;
+            
+            // Convertir a base sin GST
+            let baseAmount = amount;
+            if (gstType === 'inclusive') {
+                baseAmount = amount / 1.1; // Extraer base sin GST
+            }
+            // Si es 'exclusive' o 'no_tax', el amount ya es la base
+            
+            return total + baseAmount;
         }, 0);
     }, [schedules, clients]);
 
@@ -976,7 +997,10 @@ export default function ConciliacionFacturasPage() {
                                 <tfoot>
                                     <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 font-bold">
                                         <TableCell colSpan="3" className="text-right py-4">
-                                            <span className="text-lg text-blue-900">Total del Día:</span>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className="text-lg text-blue-900">Total del Día (Base sin GST):</span>
+                                                <span className="text-xs text-blue-600 font-normal">* Monto base excl. impuestos</span>
+                                            </div>
                                         </TableCell>
                                         <TableCell className="py-4">
                                             <div className="space-y-2">
