@@ -709,7 +709,7 @@ export default function ConciliacionFacturasPage() {
             .filter(Boolean);
     };
 
-    // Calcular totales del mes
+    // Calcular totales del mes separando cash y no-cash
     const monthlyStats = useMemo(() => {
         const invoiced = monthlySchedules.filter(s => s.xero_invoiced === true);
         const pending = monthlySchedules.filter(s => s.xero_invoiced !== true);
@@ -770,6 +770,23 @@ export default function ConciliacionFacturasPage() {
             invoicedCount: invoiced.length,
             pendingCount: pending.length
         };
+    }, [monthlySchedules, clients]);
+
+    // Separar servicios cash y no-cash
+    const { cashSchedules, nonCashSchedules } = useMemo(() => {
+        const cash = [];
+        const nonCash = [];
+        
+        monthlySchedules.forEach(service => {
+            const client = clients.get(service.client_id);
+            if (client?.payment_method === 'cash') {
+                cash.push(service);
+            } else {
+                nonCash.push(service);
+            }
+        });
+        
+        return { cashSchedules: cash, nonCashSchedules: nonCash };
     }, [monthlySchedules, clients]);
 
     return (
