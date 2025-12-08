@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -694,7 +693,16 @@ export default function CrearServicioForm({
             if (schedule?.id) {
                 if (schedule.clock_in_data) serviceData.clock_in_data = schedule.clock_in_data;
                 if (schedule.reconciliation_items) serviceData.reconciliation_items = schedule.reconciliation_items;
-                if (schedule.xero_invoiced) serviceData.xero_invoiced = schedule.xero_invoiced;
+                
+                // CRÍTICO: Si el servicio se cancela, desmarcar xero_invoiced automáticamente
+                if (formData.status === 'cancelled') {
+                    serviceData.xero_invoiced = false;
+                    serviceData.billed_price_snapshot = null;
+                    serviceData.billed_gst_type_snapshot = null;
+                    serviceData.billed_at = null;
+                } else if (schedule.xero_invoiced) {
+                    serviceData.xero_invoiced = schedule.xero_invoiced;
+                }
             }
 
             // IMPORTANT: If clientDefaultNotes were modified, update the client
