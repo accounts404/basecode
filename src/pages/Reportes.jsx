@@ -157,60 +157,14 @@ export default function ReportesPage() {
   // MODIFICADO: Filtrar schedules solo por fecha (ignorando hora)
   const filteredSchedules = selectedPeriod
     ? schedules.filter(schedule => {
-        return isDateInRange(schedule.start_time, selectedPeriod.start, selectedPeriod.end) &&
-               schedule.status !== 'cancelled';
+        return isDateInRange(schedule.start_time, selectedPeriod.start, selectedPeriod.end);
       })
     : [];
     
   const clientFacingEntries = filteredEntries.filter(entry => entry.activity !== 'entrenamiento');
     
-  // CRÍTICO: Calcular ingresos desde schedules facturados, no desde work entries (que son costos)
-  const invoicedSchedules = filteredSchedules.filter(s => s.xero_invoiced === true);
-  
-  const calculateScheduleIncome = (schedule) => {
-    const client = clients.find(c => c.id === schedule.client_id);
-    if (!client) return 0;
-    
-    // PRIORIDAD 1: reconciliation_items
-    if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
-      return schedule.reconciliation_items.reduce((sum, item) => {
-        const amount = parseFloat(item.amount) || 0;
-        return item.type === 'discount' ? sum - amount : sum + amount;
-      }, 0);
-    }
-    
-    // PRIORIDAD 2: snapshot inmutable
-    if (schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
-      return schedule.billed_price_snapshot;
-    }
-    
-    // PRIORIDAD 3: precio actual
-    return client.current_service_price || 0;
-  };
-  
-  const calculateGSTBase = (rawAmount, gstType) => {
-    const num = parseFloat(rawAmount) || 0;
-    switch (gstType) {
-      case 'inclusive':
-        return num / 1.1;
-      case 'exclusive':
-      case 'no_tax':
-      default:
-        return num;
-    }
-  };
-  
-  // Calcular ingresos reales (base sin GST) desde schedules facturados
-  const totalRevenue = invoicedSchedules.reduce((sum, schedule) => {
-    const client = clients.find(c => c.id === schedule.client_id);
-    const rawAmount = calculateScheduleIncome(schedule);
-    const gstType = schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive';
-    const baseAmount = calculateGSTBase(rawAmount, gstType);
-    return sum + baseAmount;
-  }, 0);
-    
   const periodStats = {
-    totalRevenue: totalRevenue,
+    totalRevenue: clientFacingEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0),
     totalHours: clientFacingEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0),
     totalJobs: clientFacingEntries.length,
   };
@@ -284,13 +238,12 @@ export default function ReportesPage() {
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                       <Card className="shadow-lg border-0 bg-blue-50 border-blue-200">
-                       <CardHeader>
-                         <CardTitle className="text-sm font-medium text-blue-700 flex items-center gap-2"><DollarSign className="w-5 h-5"/> Ingresos del Período (Base sin GST)</CardTitle>
-                       </CardHeader>
-                       <CardContent>
-                         <p className="text-3xl font-bold text-blue-900">${periodStats.totalRevenue.toFixed(2)}</p>
-                         <p className="text-xs text-blue-700 mt-1">Desde schedules facturados</p>
-                       </CardContent>
+                        <CardHeader>
+                          <CardTitle className="text-sm font-medium text-blue-700 flex items-center gap-2"><DollarSign className="w-5 h-5"/> Costo del Período</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-3xl font-bold text-blue-900">${periodStats.totalRevenue.toFixed(2)}</p>
+                        </CardContent>
                       </Card>
                       <Card className="shadow-lg border-0 bg-green-50 border-green-200">
                         <CardHeader>
