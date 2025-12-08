@@ -697,7 +697,12 @@ export default function AumentoClientesPage() {
                             <p className="text-4xl font-bold text-emerald-900 tracking-tight">
                                 ${sortedClients.reduce((sum, c) => sum + Math.max(0, c.adjustmentNeeded), 0).toFixed(2)}
                             </p>
-                            <p className="text-xs text-emerald-700 mt-1 font-medium">Si todos los clientes ajustan</p>
+                            <p className="text-xs text-emerald-700 mt-2 font-medium">
+                                Ingresos adicionales en el período analizado
+                            </p>
+                            <p className="text-xs text-emerald-600 mt-1">
+                                {format(startDate, "MMM yyyy", { locale: es })} - {format(endDate, "MMM yyyy", { locale: es })}
+                            </p>
                         </CardContent>
                     </Card>
                 </div>

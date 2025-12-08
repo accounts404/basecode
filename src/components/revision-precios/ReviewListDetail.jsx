@@ -259,14 +259,21 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
                         <CardHeader className="pb-3">
                             <CardTitle className="text-sm font-semibold text-green-700 uppercase tracking-wide flex items-center gap-2">
                                 <DollarSign className="w-4 h-4" />
-                                Aumento Total
+                                Aumento Total Potencial
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold text-green-900">
                                 ${totalPotentialIncrease.toFixed(2)}
                             </p>
-                            <p className="text-xs text-green-600 mt-1">Potencial acumulado</p>
+                            <p className="text-xs text-green-700 mt-2 font-medium">
+                                Ingresos adicionales en el período
+                            </p>
+                            {editedList.period_start && editedList.period_end && (
+                                <p className="text-xs text-green-600 mt-1">
+                                    {format(new Date(editedList.period_start), "MMM yyyy", { locale: es })} - {format(new Date(editedList.period_end), "MMM yyyy", { locale: es })}
+                                </p>
+                            )}
                         </CardContent>
                     </Card>
 
