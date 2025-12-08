@@ -1210,7 +1210,17 @@ export default function ConciliacionFacturasPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-3xl font-bold text-green-900">${monthlyStats.invoiced.base.toFixed(2)}</p>
-                                    <p className="text-xs text-green-600 mt-1">{monthlyStats.invoicedCount} servicios</p>
+                                    <div className="mt-3 space-y-1 pt-3 border-t border-green-200">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-green-700 font-medium">💵 Cash:</span>
+                                            <span className="text-sm font-bold text-green-800">${monthlyStats.invoiced.cashBase.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-green-700 font-medium">📄 Factura:</span>
+                                            <span className="text-sm font-bold text-green-800">${monthlyStats.invoiced.nonCashBase.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-green-600 mt-2">{monthlyStats.invoicedCount} servicios</p>
                                 </CardContent>
                             </Card>
 
