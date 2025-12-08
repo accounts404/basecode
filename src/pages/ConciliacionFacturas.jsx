@@ -715,7 +715,12 @@ export default function ConciliacionFacturasPage() {
         const pending = monthlySchedules.filter(s => s.xero_invoiced !== true);
 
         const calculateTotals = (schedulesList) => {
-            return schedulesList.reduce((acc, service) => {
+            const totals = { base: 0, gst: 0, total: 0, cashBase: 0, nonCashBase: 0 };
+            
+            schedulesList.forEach(service => {
+                const client = clients.get(service.client_id);
+                const isCash = client?.payment_method === 'cash';
+                
                 let amount = 0;
                 let gstType = 'inclusive';
 
@@ -728,7 +733,6 @@ export default function ConciliacionFacturasPage() {
                     if (service.xero_invoiced && service.billed_gst_type_snapshot) {
                         gstType = service.billed_gst_type_snapshot;
                     } else {
-                        const client = clients.get(service.client_id);
                         const priceForDate = getPriceForDate(client, service.start_time);
                         gstType = priceForDate.gstType;
                     }
@@ -737,7 +741,6 @@ export default function ConciliacionFacturasPage() {
                         amount = service.billed_price_snapshot;
                         gstType = service.billed_gst_type_snapshot || 'inclusive';
                     } else {
-                        const client = clients.get(service.client_id);
                         const priceForDate = getPriceForDate(client, service.start_time);
                         amount = priceForDate.price;
                         gstType = priceForDate.gstType;
@@ -756,12 +759,18 @@ export default function ConciliacionFacturasPage() {
                     totalAmount = amount + gstAmount;
                 }
 
-                return {
-                    base: acc.base + baseAmount,
-                    gst: acc.gst + gstAmount,
-                    total: acc.total + totalAmount
-                };
-            }, { base: 0, gst: 0, total: 0 });
+                totals.base += baseAmount;
+                totals.gst += gstAmount;
+                totals.total += totalAmount;
+                
+                if (isCash) {
+                    totals.cashBase += baseAmount;
+                } else {
+                    totals.nonCashBase += baseAmount;
+                }
+            });
+            
+            return totals;
         };
 
         return {
