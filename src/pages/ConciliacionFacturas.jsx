@@ -1290,10 +1290,15 @@ export default function ConciliacionFacturasPage() {
                                                 totalAmount = amount + gstAmount;
                                             }
 
+                                            // Extraer fecha directamente de los primeros 10 caracteres (YYYY-MM-DD)
+                                            const serviceDateStr = service.start_time ? service.start_time.slice(0, 10) : '';
+                                            const [serviceYear, serviceMonth, serviceDay] = serviceDateStr.split('-').map(Number);
+                                            const serviceDate = new Date(serviceYear, serviceMonth - 1, serviceDay);
+                                            
                                             return (
                                                 <TableRow key={service.id} className={service.xero_invoiced ? 'bg-green-50/50' : 'hover:bg-slate-50'}>
                                                     <TableCell className="font-medium">
-                                                        {format(parseISO(service.start_time), "d MMM", { locale: es })}
+                                                        {format(serviceDate, "d MMM", { locale: es })}
                                                     </TableCell>
                                                     <TableCell className="font-semibold text-slate-900">
                                                         {client?.name || 'Desconocido'}
