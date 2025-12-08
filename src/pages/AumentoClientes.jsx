@@ -3,17 +3,24 @@ import { Client } from '@/entities/Client';
 import { WorkEntry } from '@/entities/WorkEntry';
 import { FixedCost } from '@/entities/FixedCost';
 import { Schedule } from '@/entities/Schedule';
+import { PriceIncreaseProposal } from '@/entities/PriceIncreaseProposal';
+import { User } from '@/entities/User';
 import { format, startOfMonth, endOfMonth, subMonths, parseISO, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, DollarSign, Target, AlertCircle, ArrowUpCircle, Percent, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, AlertCircle, ArrowUpCircle, Percent, Calendar, Send, CheckCircle, XCircle, Mail, Edit, Trash2, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 const extractDateOnly = (isoString) => {
   if (!isoString) return null;
@@ -161,6 +168,13 @@ export default function AumentoClientesPage() {
     const [trainingClientId, setTrainingClientId] = useState(null);
     const [sortColumn, setSortColumn] = useState('adjustmentNeeded');
     const [sortDirection, setSortDirection] = useState('desc');
+    
+    const [activeTab, setActiveTab] = useState('analysis');
+    const [selectedClients, setSelectedClients] = useState(new Set());
+    const [proposals, setProposals] = useState([]);
+    const [editingProposal, setEditingProposal] = useState(null);
+    const [currentUser, setCurrentUser] = useState(null);
+    const [proposalFormOpen, setProposalFormOpen] = useState(false);
 
     const [startDate] = useState(new Date('2025-04-01T00:00:00Z'));
     const [endDate, setEndDate] = useState(() => {
@@ -195,11 +209,13 @@ export default function AumentoClientesPage() {
             setLoading(true);
             setError('');
             try {
-                const [clientsData, workEntriesData, schedulesData, fixedCostsData] = await Promise.all([
+                const [clientsData, workEntriesData, schedulesData, fixedCostsData, proposalsData, userData] = await Promise.all([
                     loadAllRecords(Client, '-created_date'),
                     loadAllRecords(WorkEntry, '-work_date'),
                     loadAllRecords(Schedule, '-start_time'),
                     loadAllRecords(FixedCost, '-created_date'),
+                    loadAllRecords(PriceIncreaseProposal, '-created_date'),
+                    User.me(),
                 ]);
                 
                 // FILTRAR agosto y septiembre 2025
@@ -215,6 +231,8 @@ export default function AumentoClientesPage() {
                 setAllWorkEntries(filteredWorkEntries);
                 setAllSchedules(filteredSchedules);
                 setAllFixedCosts(fixedCostsData || []);
+                setProposals(proposalsData || []);
+                setCurrentUser(userData);
                 
                 const trainingClient = (clientsData || []).find(c => c.name === 'TRAINING' || c.client_type === 'training');
                 if (trainingClient) {
@@ -460,6 +478,111 @@ export default function AumentoClientesPage() {
             <TrendingDown className="w-4 h-4 text-blue-700" />;
     };
 
+    const handleSelectClient = (clientId, checked) => {
+        const newSelected = new Set(selectedClients);
+        if (checked) {
+            newSelected.add(clientId);
+        } else {
+            newSelected.delete(clientId);
+        }
+        setSelectedClients(newSelected);
+    };
+
+    const handleCreateProposals = () => {
+        const newProposals = sortedClients
+            .filter(c => selectedClients.has(c.clientId))
+            .map(c => ({
+                client_id: c.clientId,
+                client_name: c.clientName,
+                current_price: c.currentPriceBase,
+                proposed_price: c.newServicePriceBase,
+                increase_amount: c.adjustmentPerService,
+                increase_percentage: c.adjustmentPerServicePercentage,
+                current_profit_percentage: c.currentRealProfitPercentage,
+                target_profit_percentage: targetProfitPercentage,
+                justification: '',
+                status: 'draft',
+                analysis_period_start: format(startDate, 'yyyy-MM-dd'),
+                analysis_period_end: format(endDate, 'yyyy-MM-dd'),
+            }));
+        
+        if (newProposals.length > 0) {
+            setEditingProposal(newProposals[0]);
+            setProposalFormOpen(true);
+        }
+    };
+
+    const handleSaveProposal = async (proposalData) => {
+        try {
+            if (proposalData.id) {
+                await PriceIncreaseProposal.update(proposalData.id, proposalData);
+            } else {
+                await PriceIncreaseProposal.create(proposalData);
+            }
+            const updatedProposals = await loadAllRecords(PriceIncreaseProposal, '-created_date');
+            setProposals(updatedProposals);
+            setProposalFormOpen(false);
+            setEditingProposal(null);
+        } catch (err) {
+            console.error('Error saving proposal:', err);
+            setError('Error al guardar la propuesta');
+        }
+    };
+
+    const handleSendProposal = async (proposal) => {
+        try {
+            await PriceIncreaseProposal.update(proposal.id, {
+                status: 'sent',
+                email_sent_at: new Date().toISOString(),
+                email_sent_by: currentUser?.id,
+            });
+            const updatedProposals = await loadAllRecords(PriceIncreaseProposal, '-created_date');
+            setProposals(updatedProposals);
+        } catch (err) {
+            console.error('Error sending proposal:', err);
+            setError('Error al enviar la propuesta');
+        }
+    };
+
+    const handleUpdateProposalStatus = async (proposalId, status, notes = '') => {
+        try {
+            const updateData = { status };
+            if (status === 'accepted' || status === 'rejected') {
+                updateData.client_response_date = new Date().toISOString();
+                updateData.client_response_notes = notes;
+            }
+            if (status === 'applied') {
+                updateData.applied_at = new Date().toISOString();
+                updateData.applied_by = currentUser?.id;
+            }
+            await PriceIncreaseProposal.update(proposalId, updateData);
+            const updatedProposals = await loadAllRecords(PriceIncreaseProposal, '-created_date');
+            setProposals(updatedProposals);
+        } catch (err) {
+            console.error('Error updating proposal status:', err);
+            setError('Error al actualizar el estado');
+        }
+    };
+
+    const handleDeleteProposal = async (proposalId) => {
+        try {
+            await PriceIncreaseProposal.delete(proposalId);
+            const updatedProposals = await loadAllRecords(PriceIncreaseProposal, '-created_date');
+            setProposals(updatedProposals);
+        } catch (err) {
+            console.error('Error deleting proposal:', err);
+            setError('Error al eliminar la propuesta');
+        }
+    };
+
+    const statusConfig = {
+        draft: { label: 'Borrador', color: 'bg-slate-100 text-slate-700', icon: Edit },
+        sent: { label: 'Enviada', color: 'bg-blue-100 text-blue-700', icon: Mail },
+        accepted: { label: 'Aceptada', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+        rejected: { label: 'Rechazada', color: 'bg-red-100 text-red-700', icon: XCircle },
+        applied: { label: 'Aplicada', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
+    };
+
     if (loading) return (
         <div className="p-8 flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div>
@@ -473,19 +596,27 @@ export default function AumentoClientesPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
             <div className="max-w-[1920px] mx-auto">
-                <div className="mb-10">
-                    <div className="flex items-center gap-4 mb-3">
-                        <div className="p-3 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl shadow-lg">
-                            <ArrowUpCircle className="w-7 h-7 text-white" />
-                        </div>
-                        <div>
-                            <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Aumento de Clientes</h1>
-                            <p className="text-slate-600 mt-1 text-lg font-light">
-                                Identifica qué clientes necesitan ajuste de precio para alcanzar tu rentabilidad objetivo
-                            </p>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <div className="mb-10">
+                        <div className="flex items-center gap-4 mb-3">
+                            <div className="p-3 bg-gradient-to-br from-orange-600 to-orange-700 rounded-xl shadow-lg">
+                                <ArrowUpCircle className="w-7 h-7 text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Aumento de Clientes</h1>
+                                <p className="text-slate-600 mt-1 text-lg font-light">
+                                    Identifica qué clientes necesitan ajuste de precio para alcanzar tu rentabilidad objetivo
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
+
+                    <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+                        <TabsTrigger value="analysis">Análisis</TabsTrigger>
+                        <TabsTrigger value="proposals">Propuestas Enviadas ({proposals.length})</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="analysis">
 
                 <Card className="mb-8 shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                     <CardContent className="p-8">
@@ -617,16 +748,38 @@ export default function AumentoClientesPage() {
                 {sortedClients.length > 0 ? (
                     <Card className="shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                         <CardHeader>
-                            <CardTitle className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                                <ArrowUpCircle className="w-6 h-6 text-orange-600" />
-                                Clientes que Requieren Ajuste de Precio
-                            </CardTitle>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                                    <ArrowUpCircle className="w-6 h-6 text-orange-600" />
+                                    Clientes que Requieren Ajuste de Precio
+                                </CardTitle>
+                                <Button
+                                    onClick={handleCreateProposals}
+                                    disabled={selectedClients.size === 0}
+                                    className="bg-orange-600 hover:bg-orange-700"
+                                >
+                                    <Send className="w-4 h-4 mr-2" />
+                                    Crear Propuesta ({selectedClients.size})
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader className="bg-slate-100/95 sticky top-0 z-10">
                                         <TableRow>
+                                            <TableHead className="w-12">
+                                                <Checkbox
+                                                    checked={selectedClients.size === sortedClients.length && sortedClients.length > 0}
+                                                    onCheckedChange={(checked) => {
+                                                        if (checked) {
+                                                            setSelectedClients(new Set(sortedClients.map(c => c.clientId)));
+                                                        } else {
+                                                            setSelectedClients(new Set());
+                                                        }
+                                                    }}
+                                                />
+                                            </TableHead>
                                             <TableHead 
                                                 className="cursor-pointer hover:bg-slate-200/50 font-bold text-slate-700"
                                                 onClick={() => handleSort('clientName')}
@@ -698,6 +851,12 @@ export default function AumentoClientesPage() {
                                                 key={client.clientId}
                                                 className="hover:bg-slate-50/50 transition-colors border-b border-slate-100"
                                             >
+                                                <TableCell>
+                                                    <Checkbox
+                                                        checked={selectedClients.has(client.clientId)}
+                                                        onCheckedChange={(checked) => handleSelectClient(client.clientId, checked)}
+                                                    />
+                                                </TableCell>
                                                 <TableCell className="font-semibold text-slate-900">
                                                     {client.clientName}
                                                 </TableCell>
@@ -748,6 +907,172 @@ export default function AumentoClientesPage() {
                         </CardContent>
                     </Card>
                 )}
+                    </TabsContent>
+
+                    <TabsContent value="proposals">
+                        <Card className="shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
+                            <CardHeader>
+                                <CardTitle className="text-2xl font-bold text-slate-900">Propuestas de Aumento</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {proposals.length > 0 ? (
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Cliente</TableHead>
+                                                    <TableHead className="text-right">Precio Actual</TableHead>
+                                                    <TableHead className="text-right">Precio Propuesto</TableHead>
+                                                    <TableHead className="text-right">Aumento</TableHead>
+                                                    <TableHead>Fecha Envío</TableHead>
+                                                    <TableHead>Estado</TableHead>
+                                                    <TableHead className="text-right">Acciones</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {proposals.map((proposal) => {
+                                                    const config = statusConfig[proposal.status];
+                                                    const Icon = config?.icon;
+                                                    return (
+                                                        <TableRow key={proposal.id}>
+                                                            <TableCell className="font-semibold">{proposal.client_name}</TableCell>
+                                                            <TableCell className="text-right">${proposal.current_price.toFixed(2)}</TableCell>
+                                                            <TableCell className="text-right font-bold text-emerald-700">${proposal.proposed_price.toFixed(2)}</TableCell>
+                                                            <TableCell className="text-right font-bold text-orange-700">+{proposal.increase_percentage.toFixed(1)}%</TableCell>
+                                                            <TableCell>
+                                                                {proposal.email_sent_at ? format(parseISO(proposal.email_sent_at), "d MMM yyyy", { locale: es }) : '-'}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge className={config?.color}>
+                                                                    {Icon && <Icon className="w-3 h-3 mr-1" />}
+                                                                    {config?.label}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                <div className="flex items-center justify-end gap-2">
+                                                                    <Button variant="ghost" size="sm" onClick={() => { setEditingProposal(proposal); setProposalFormOpen(true); }}>
+                                                                        <Eye className="w-4 h-4" />
+                                                                    </Button>
+                                                                    {proposal.status === 'draft' && (
+                                                                        <>
+                                                                            <Button variant="outline" size="sm" onClick={() => handleSendProposal(proposal)}>
+                                                                                <Send className="w-4 h-4 mr-1" /> Enviar
+                                                                            </Button>
+                                                                            <Button variant="ghost" size="sm" onClick={() => handleDeleteProposal(proposal.id)}>
+                                                                                <Trash2 className="w-4 h-4 text-red-600" />
+                                                                            </Button>
+                                                                        </>
+                                                                    )}
+                                                                    {proposal.status === 'sent' && (
+                                                                        <>
+                                                                            <Button variant="outline" size="sm" onClick={() => handleUpdateProposalStatus(proposal.id, 'accepted')}>
+                                                                                <CheckCircle className="w-4 h-4 mr-1 text-green-600" /> Aceptada
+                                                                            </Button>
+                                                                            <Button variant="outline" size="sm" onClick={() => handleUpdateProposalStatus(proposal.id, 'rejected')}>
+                                                                                <XCircle className="w-4 h-4 mr-1 text-red-600" /> Rechazada
+                                                                            </Button>
+                                                                        </>
+                                                                    )}
+                                                                    {proposal.status === 'accepted' && (
+                                                                        <Button variant="default" size="sm" onClick={() => handleUpdateProposalStatus(proposal.id, 'applied')} className="bg-green-600 hover:bg-green-700">
+                                                                            <CheckCircle className="w-4 h-4 mr-1" /> Aplicar al Cliente
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <Mail className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                                        <p className="text-slate-600">No hay propuestas creadas aún</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+
+                <Dialog open={proposalFormOpen} onOpenChange={setProposalFormOpen}>
+                    <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {editingProposal?.id ? 'Editar' : 'Crear'} Propuesta - {editingProposal?.client_name}
+                            </DialogTitle>
+                        </DialogHeader>
+                        {editingProposal && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Precio Actual (base)</Label>
+                                        <Input type="number" step="0.01" value={editingProposal.current_price} onChange={(e) => setEditingProposal({...editingProposal, current_price: parseFloat(e.target.value)})} />
+                                    </div>
+                                    <div>
+                                        <Label>Precio Propuesto (base)</Label>
+                                        <Input type="number" step="0.01" value={editingProposal.proposed_price} onChange={(e) => {
+                                            const newPrice = parseFloat(e.target.value);
+                                            const increase = newPrice - editingProposal.current_price;
+                                            const percentage = editingProposal.current_price > 0 ? (increase / editingProposal.current_price) * 100 : 0;
+                                            setEditingProposal({...editingProposal, proposed_price: newPrice, increase_amount: increase, increase_percentage: percentage});
+                                        }} />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Aumento ($)</Label>
+                                        <Input type="number" step="0.01" value={editingProposal.increase_amount?.toFixed(2)} disabled />
+                                    </div>
+                                    <div>
+                                        <Label>Aumento (%)</Label>
+                                        <Input type="number" step="0.1" value={editingProposal.increase_percentage?.toFixed(1)} disabled />
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label>Fecha Vigencia</Label>
+                                    <Input type="date" value={editingProposal.effective_date || ''} onChange={(e) => setEditingProposal({...editingProposal, effective_date: e.target.value})} />
+                                </div>
+                                <div>
+                                    <Label>Justificación para el Cliente</Label>
+                                    <Textarea 
+                                        value={editingProposal.justification || ''} 
+                                        onChange={(e) => setEditingProposal({...editingProposal, justification: e.target.value})}
+                                        placeholder="Explica las razones del aumento..."
+                                        rows={4}
+                                    />
+                                </div>
+                                {editingProposal.status !== 'draft' && (
+                                    <div className="bg-slate-50 p-4 rounded-lg space-y-2">
+                                        <div className="grid grid-cols-2 gap-2 text-sm">
+                                            {editingProposal.email_sent_at && (
+                                                <div>
+                                                    <span className="font-semibold">Enviado:</span> {format(parseISO(editingProposal.email_sent_at), "d MMM yyyy HH:mm", { locale: es })}
+                                                </div>
+                                            )}
+                                            {editingProposal.client_response_date && (
+                                                <div>
+                                                    <span className="font-semibold">Respuesta:</span> {format(parseISO(editingProposal.client_response_date), "d MMM yyyy", { locale: es })}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {editingProposal.client_response_notes && (
+                                            <div className="text-sm">
+                                                <span className="font-semibold">Notas:</span> {editingProposal.client_response_notes}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setProposalFormOpen(false)}>Cancelar</Button>
+                            <Button onClick={() => handleSaveProposal(editingProposal)}>Guardar</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     );
