@@ -11,10 +11,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { format, startOfDay, endOfDay, isEqual, parseISO, addDays, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay, isEqual, parseISO, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon, Edit, CheckCircle, Clock, DollarSign, FileCheck, Circle, Send, Landmark, Loader2, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, Eye, X, Trash2, AlertCircle } from 'lucide-react';
+import { CalendarIcon, Edit, CheckCircle, Clock, DollarSign, FileCheck, Circle, Send, Landmark, Loader2, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, Eye, X, Trash2, AlertCircle, BarChart3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { processScheduleForWorkEntries } from '@/functions/processScheduleForWorkEntries';
 
 // Función para extraer hora UTC
@@ -127,10 +128,132 @@ export default function ConciliacionFacturasPage() {
 
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [serviceToDelete, setServiceToDelete] = useState(null);
+    const [monthlyViewDate, setMonthlyViewDate] = useState(new Date());
+    const [monthlyData, setMonthlyData] = useState([]);
+    const [loadingMonthly, setLoadingMonthly] = useState(false);
 
     const usersMap = useMemo(() => {
         return new Map(users.map(u => [u.id, u]));
     }, [users]);
+
+    const calculateDayTotals = useCallback((schedulesForDay) => {
+        let totalBase = 0;
+        let totalConGST = 0;
+        
+        schedulesForDay.forEach(service => {
+            const client = clients.get(service.client_id);
+            let gstType, rawAmount;
+            
+            if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                gstType = service.billed_gst_type_snapshot;
+            } else {
+                const priceForDate = getPriceForDate(client, service.start_time);
+                gstType = priceForDate.gstType;
+            }
+            
+            if (service.reconciliation_items && service.reconciliation_items.length > 0) {
+                rawAmount = service.reconciliation_items.reduce((itemTotal, item) => {
+                    const itemAmount = parseFloat(item.amount) || 0;
+                    return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
+                }, 0);
+            } else {
+                if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                    rawAmount = service.billed_price_snapshot;
+                } else {
+                    const priceForDate = getPriceForDate(client, service.start_time);
+                    rawAmount = priceForDate.price;
+                }
+            }
+            
+            let base, withGST;
+            switch (gstType) {
+                case 'inclusive':
+                    base = rawAmount / 1.1;
+                    withGST = rawAmount;
+                    break;
+                case 'exclusive':
+                    base = rawAmount;
+                    withGST = rawAmount * 1.1;
+                    break;
+                case 'no_tax':
+                    base = rawAmount;
+                    withGST = rawAmount;
+                    break;
+                default:
+                    base = rawAmount;
+                    withGST = rawAmount;
+            }
+            
+            totalBase += base;
+            totalConGST += withGST;
+        });
+        
+        return { totalBase, totalConGST };
+    }, [clients]);
+
+    const loadMonthlyData = useCallback(async (date) => {
+        if (clients.size === 0) return;
+        
+        setLoadingMonthly(true);
+        try {
+            const monthStart = startOfMonth(date);
+            const monthEnd = endOfMonth(date);
+            const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+            
+            const monthStartUTC = new Date(Date.UTC(monthStart.getFullYear(), monthStart.getMonth(), monthStart.getDate(), 0, 0, 0, 0));
+            const monthEndUTC = new Date(Date.UTC(monthEnd.getFullYear(), monthEnd.getMonth(), monthEnd.getDate(), 23, 59, 59, 999));
+            
+            const [schedulesData, reconciliationData] = await Promise.all([
+                Schedule.filter({
+                    start_time: {
+                        $gte: monthStartUTC.toISOString(),
+                        $lte: monthEndUTC.toISOString()
+                    }
+                }, '-start_time'),
+                DailyReconciliation.filter({
+                    date: {
+                        $gte: format(monthStart, 'yyyy-MM-dd'),
+                        $lte: format(monthEnd, 'yyyy-MM-dd')
+                    }
+                })
+            ]);
+            
+            const reconMap = new Map(reconciliationData.map(r => [r.date, r]));
+            
+            const dailyData = days.map(day => {
+                const dateStr = format(day, 'yyyy-MM-dd');
+                const daySchedules = schedulesData.filter(s => {
+                    const scheduleDate = format(parseISO(s.start_time), 'yyyy-MM-dd');
+                    return scheduleDate === dateStr && s.status !== 'cancelled';
+                });
+                
+                const totals = calculateDayTotals(daySchedules);
+                const reconciliation = reconMap.get(dateStr);
+                
+                return {
+                    date: day,
+                    dateStr,
+                    serviceCount: daySchedules.length,
+                    totalBase: totals.totalBase,
+                    totalConGST: totals.totalConGST,
+                    status: reconciliation?.status || 'pending',
+                    hasServices: daySchedules.length > 0
+                };
+            });
+            
+            setMonthlyData(dailyData);
+        } catch (err) {
+            console.error("Error loading monthly data:", err);
+        } finally {
+            setLoadingMonthly(false);
+        }
+    }, [clients, calculateDayTotals]);
+
+    useEffect(() => {
+        if (clients.size > 0) {
+            loadMonthlyData(monthlyViewDate);
+        }
+    }, [monthlyViewDate, clients, loadMonthlyData]);
 
     const loadAllRecords = async (entity, sortField = '-created_date') => {
         const BATCH_SIZE = 5000;
@@ -712,6 +835,143 @@ export default function ConciliacionFacturasPage() {
                         <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 )}
+
+                {/* Vista Mensual */}
+                <Accordion type="single" collapsible className="bg-white rounded-xl shadow-lg border border-slate-200">
+                    <AccordionItem value="monthly-view" className="border-0">
+                        <AccordionTrigger className="px-6 py-4 hover:no-underline">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+                                    <BarChart3 className="w-5 h-5 text-white" />
+                                </div>
+                                <div className="text-left">
+                                    <h3 className="text-lg font-bold text-slate-900">Vista Mensual - Totales por Día</h3>
+                                    <p className="text-sm text-slate-600">Ver resumen de facturación del mes completo</p>
+                                </div>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-6 pb-6">
+                            <div className="space-y-4">
+                                {/* Selector de Mes */}
+                                <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        onClick={() => setMonthlyViewDate(subDays(startOfMonth(monthlyViewDate), 1))}
+                                        className="hover:bg-white"
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+                                    <h4 className="text-xl font-bold text-slate-900">
+                                        {format(monthlyViewDate, "MMMM yyyy", { locale: es })}
+                                    </h4>
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        onClick={() => setMonthlyViewDate(addDays(endOfMonth(monthlyViewDate), 1))}
+                                        className="hover:bg-white"
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+
+                                {/* Tabla de Totales Mensuales */}
+                                {loadingMonthly ? (
+                                    <div className="flex justify-center py-8">
+                                        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* Resumen del Mes */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 rounded-lg border border-emerald-200">
+                                                <p className="text-sm font-semibold text-emerald-700 mb-1">Total Base (sin GST)</p>
+                                                <p className="text-3xl font-bold text-emerald-900">
+                                                    ${monthlyData.reduce((sum, day) => sum + day.totalBase, 0).toFixed(2)}
+                                                </p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                                                <p className="text-sm font-semibold text-blue-700 mb-1">Total con GST</p>
+                                                <p className="text-3xl font-bold text-blue-900">
+                                                    ${monthlyData.reduce((sum, day) => sum + day.totalConGST, 0).toFixed(2)}
+                                                </p>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                                                <p className="text-sm font-semibold text-purple-700 mb-1">Total Servicios</p>
+                                                <p className="text-3xl font-bold text-purple-900">
+                                                    {monthlyData.reduce((sum, day) => sum + day.serviceCount, 0)}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Tabla Detallada */}
+                                        <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow className="bg-slate-100">
+                                                        <TableHead className="font-bold">Fecha</TableHead>
+                                                        <TableHead className="font-bold text-center">Servicios</TableHead>
+                                                        <TableHead className="font-bold text-right">Base (sin GST)</TableHead>
+                                                        <TableHead className="font-bold text-right">Total con GST</TableHead>
+                                                        <TableHead className="font-bold text-center">Estado</TableHead>
+                                                        <TableHead className="text-center">Acción</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {monthlyData.filter(day => day.hasServices).map((day) => (
+                                                        <TableRow key={day.dateStr} className="hover:bg-slate-50">
+                                                            <TableCell className="font-medium">
+                                                                {format(day.date, "EEEE, d 'de' MMMM", { locale: es })}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Badge variant="outline">{day.serviceCount}</Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-semibold text-emerald-700">
+                                                                ${day.totalBase.toFixed(2)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-semibold text-blue-700">
+                                                                ${day.totalConGST.toFixed(2)}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                {day.status === 'completed' && (
+                                                                    <Badge className="bg-green-500">Facturado</Badge>
+                                                                )}
+                                                                {day.status === 'horario_reviewed' && (
+                                                                    <Badge className="bg-blue-500">Revisado</Badge>
+                                                                )}
+                                                                {day.status === 'pending' && (
+                                                                    <Badge variant="outline" className="border-red-500 text-red-700">Pendiente</Badge>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => setSelectedDate(day.date)}
+                                                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                                                >
+                                                                    <Eye className="w-4 h-4 mr-1" />
+                                                                    Ver Día
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    {monthlyData.filter(day => day.hasServices).length === 0 && (
+                                                        <TableRow>
+                                                            <TableCell colSpan="6" className="text-center py-8 text-slate-500">
+                                                                No hay servicios registrados en este mes
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
 
                 {/* Status Card */}
                 <div className={`rounded-xl shadow-lg border-2 ${config.borderColor} ${config.bgColor} overflow-hidden`}>
