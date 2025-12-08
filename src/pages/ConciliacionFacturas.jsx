@@ -1245,13 +1245,14 @@ export default function ConciliacionFacturasPage() {
                             </Card>
                         </div>
 
-                        {/* Monthly Services Table */}
+                        {/* Monthly Services Table - Non-Cash */}
                         <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
                             <div className="p-6 border-b border-slate-200">
                                 <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                                     <FileText className="w-6 h-6 text-blue-600" />
-                                    Detalle de Servicios del Mes
+                                    Servicios con Factura
                                 </h2>
+                                <p className="text-sm text-slate-600 mt-1">Servicios con pago por transferencia, tarjeta u otros métodos</p>
                             </div>
                             <div className="overflow-x-auto">
                                 <Table>
@@ -1267,7 +1268,7 @@ export default function ConciliacionFacturasPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {monthlySchedules.map((service) => {
+                                        {nonCashSchedules.map((service) => {
                                             const client = clients.get(service.client_id);
                                             let amount = 0;
                                             let gstType = 'inclusive';
