@@ -138,7 +138,6 @@ export default function ConciliacionFacturasPage() {
 
     const calculateDayTotals = useCallback((schedulesForDay) => {
         let totalBase = 0;
-        let totalGST = 0;
         let totalConGST = 0;
         
         schedulesForDay.forEach(service => {
@@ -166,31 +165,30 @@ export default function ConciliacionFacturasPage() {
                 }
             }
             
-            let base, gst;
+            let base, withGST;
             switch (gstType) {
                 case 'inclusive':
                     base = rawAmount / 1.1;
-                    gst = rawAmount - base;
+                    withGST = rawAmount;
                     break;
                 case 'exclusive':
                     base = rawAmount;
-                    gst = rawAmount * 0.1;
+                    withGST = rawAmount * 1.1;
                     break;
                 case 'no_tax':
                     base = rawAmount;
-                    gst = 0;
+                    withGST = rawAmount;
                     break;
                 default:
                     base = rawAmount;
-                    gst = 0;
+                    withGST = rawAmount;
             }
             
             totalBase += base;
-            totalGST += gst;
-            totalConGST += (base + gst);
+            totalConGST += withGST;
         });
         
-        return { totalBase, totalGST, totalConGST };
+        return { totalBase, totalConGST };
     }, [clients]);
 
     const loadMonthlyData = useCallback(async (date) => {
@@ -237,7 +235,6 @@ export default function ConciliacionFacturasPage() {
                     dateStr,
                     serviceCount: daySchedules.length,
                     totalBase: totals.totalBase,
-                    totalGST: totals.totalGST,
                     totalConGST: totals.totalConGST,
                     status: reconciliation?.status || 'pending',
                     hasServices: daySchedules.length > 0
@@ -886,17 +883,11 @@ export default function ConciliacionFacturasPage() {
                                 ) : (
                                     <div className="space-y-4">
                                         {/* Resumen del Mes */}
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 rounded-lg border border-emerald-200">
                                                 <p className="text-sm font-semibold text-emerald-700 mb-1">Total Base (sin GST)</p>
                                                 <p className="text-3xl font-bold text-emerald-900">
                                                     ${monthlyData.reduce((sum, day) => sum + day.totalBase, 0).toFixed(2)}
-                                                </p>
-                                            </div>
-                                            <div className="bg-gradient-to-br from-amber-50 to-amber-100 p-4 rounded-lg border border-amber-200">
-                                                <p className="text-sm font-semibold text-amber-700 mb-1">Total GST</p>
-                                                <p className="text-3xl font-bold text-amber-900">
-                                                    ${monthlyData.reduce((sum, day) => sum + day.totalGST, 0).toFixed(2)}
                                                 </p>
                                             </div>
                                             <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
@@ -921,7 +912,6 @@ export default function ConciliacionFacturasPage() {
                                                         <TableHead className="font-bold">Fecha</TableHead>
                                                         <TableHead className="font-bold text-center">Servicios</TableHead>
                                                         <TableHead className="font-bold text-right">Base (sin GST)</TableHead>
-                                                        <TableHead className="font-bold text-right">GST</TableHead>
                                                         <TableHead className="font-bold text-right">Total con GST</TableHead>
                                                         <TableHead className="font-bold text-center">Estado</TableHead>
                                                         <TableHead className="text-center">Acción</TableHead>
@@ -938,9 +928,6 @@ export default function ConciliacionFacturasPage() {
                                                             </TableCell>
                                                             <TableCell className="text-right font-semibold text-emerald-700">
                                                                 ${day.totalBase.toFixed(2)}
-                                                            </TableCell>
-                                                            <TableCell className="text-right font-semibold text-amber-700">
-                                                                ${day.totalGST.toFixed(2)}
                                                             </TableCell>
                                                             <TableCell className="text-right font-semibold text-blue-700">
                                                                 ${day.totalConGST.toFixed(2)}
@@ -971,7 +958,7 @@ export default function ConciliacionFacturasPage() {
                                                     ))}
                                                     {monthlyData.filter(day => day.hasServices).length === 0 && (
                                                         <TableRow>
-                                                            <TableCell colSpan="7" className="text-center py-8 text-slate-500">
+                                                            <TableCell colSpan="6" className="text-center py-8 text-slate-500">
                                                                 No hay servicios registrados en este mes
                                                             </TableCell>
                                                         </TableRow>
