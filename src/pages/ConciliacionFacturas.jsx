@@ -642,67 +642,20 @@ export default function ConciliacionFacturasPage() {
     };
 
     const totalDelDia = useMemo(() => {
-        let totalBase = 0;
-        let totalConGST = 0;
-        
-        // CRÍTICO: Usar los MISMOS filtros que calculateDayTotals para la vista mensual
-        schedules.filter(s => 
+        // CRÍTICO: Usar la MISMA función que la vista mensual para garantizar consistencia
+        const filteredSchedules = schedules.filter(s => 
             s.status !== 'cancelled' && 
             s.xero_invoiced === true &&
             s.client_id !== trainingClientId
-        ).forEach(service => {
-            const client = clients.get(service.client_id);
-            let gstType, rawAmount;
-            
-            // Determinar el tipo de GST y monto bruto
-            if (service.xero_invoiced && service.billed_gst_type_snapshot) {
-                gstType = service.billed_gst_type_snapshot;
-            } else {
-                const priceForDate = getPriceForDate(client, service.start_time);
-                gstType = priceForDate.gstType;
-            }
-            
-            // Calcular el monto bruto (con GST si aplica)
-            if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-                rawAmount = service.reconciliation_items.reduce((itemTotal, item) => {
-                    const itemAmount = parseFloat(item.amount) || 0;
-                    return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
-                }, 0);
-            } else {
-                if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                    rawAmount = service.billed_price_snapshot;
-                } else {
-                    const priceForDate = getPriceForDate(client, service.start_time);
-                    rawAmount = priceForDate.price;
-                }
-            }
-            
-            // Calcular base y total con GST según el tipo
-            let base, withGST;
-            switch (gstType) {
-                case 'inclusive':
-                    base = rawAmount / 1.1;
-                    withGST = rawAmount;
-                    break;
-                case 'exclusive':
-                    base = rawAmount;
-                    withGST = rawAmount * 1.1;
-                    break;
-                case 'no_tax':
-                    base = rawAmount;
-                    withGST = rawAmount;
-                    break;
-                default:
-                    base = rawAmount;
-                    withGST = rawAmount;
-            }
-            
-            totalBase += base;
-            totalConGST += withGST;
-        });
+        );
         
-        return { totalBase, totalConGST };
-    }, [schedules, clients]);
+        const totals = calculateDayTotals(filteredSchedules);
+        
+        return { 
+            totalBase: totals.totalBase, 
+            totalConGST: totals.totalConGST 
+        };
+    }, [schedules, trainingClientId, calculateDayTotals]);
 
     const renderReconciledAmountBreakdown = (service) => {
         const client = clients.get(service.client_id);
