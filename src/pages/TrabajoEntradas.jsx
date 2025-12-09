@@ -129,6 +129,25 @@ export default function TrabajoEntradasPage() {
       ]);
       
       console.log('[TrabajoEntradas] ✅ Entradas cargadas:', entriesResult?.length || 0);
+      
+      // DEBUGGING: Verificar WorkEntries de Yuly en agosto 2025
+      const yulyAugustEntries = entriesResult.filter(e => {
+        const isYuly = e.cleaner_name?.includes('Yuly') || e.cleaner_name?.includes('Ramirez');
+        const isAugust = e.work_date?.startsWith('2025-08');
+        return isYuly && isAugust;
+      });
+      if (yulyAugustEntries.length > 0) {
+        console.log('[TrabajoEntradas] 🔍 WorkEntries de Yuly en Agosto 2025:', yulyAugustEntries.length);
+        yulyAugustEntries.slice(0, 3).forEach(we => {
+          console.log('  • WE:', {
+            id: we.id,
+            date: we.work_date,
+            client: we.client_name,
+            hours: we.hours,
+            schedule_id: we.schedule_id || 'SIN SCHEDULE_ID'
+          });
+        });
+      }
 
       const isAdminUser = currentUser.role === 'admin';
       setIsAdmin(isAdminUser);
@@ -531,6 +550,25 @@ export default function TrabajoEntradasPage() {
   };
 
   const filteredEntries = applyAllFilters();
+  
+  // DEBUGGING: Log de filtros aplicados y resultados
+  React.useEffect(() => {
+    console.log('[TrabajoEntradas] 📊 Estado de filtros:', {
+      filterMode,
+      selectedPeriod: selectedPeriod ? {
+        start: format(selectedPeriod.start, 'yyyy-MM-dd'),
+        end: format(selectedPeriod.end, 'yyyy-MM-dd')
+      } : null,
+      selectedMonthRanges: selectedMonthRanges.map(r => ({
+        start: format(r.start, 'yyyy-MM-dd'),
+        end: format(r.end, 'yyyy-MM-dd')
+      })),
+      selectedCleaner,
+      clientSearch,
+      totalWorkEntries: workEntries.length,
+      filteredWorkEntries: filteredEntries.length
+    });
+  }, [filterMode, selectedPeriod, selectedMonthRanges, selectedCleaner, clientSearch, workEntries.length, filteredEntries.length]);
 
   // Get unique client names for the dropdown
   const uniqueClientNames = [...new Set(workEntries.map(entry => entry.client_name).filter(Boolean))];
