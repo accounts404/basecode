@@ -213,13 +213,19 @@ export default function AuditoriaWorkEntriesPage() {
             relatedWorkEntries = manualSearch;
             searchMethod = 'manual_fallback';
             console.warn(`[Auditoría] ⚠️ WorkEntry encontrada solo con búsqueda manual para ${cleanerName} en ${scheduleDate}:`, {
+              workEntry_id: manualSearch[0].id,
               schedule_id: schedule.id,
-              we_schedule_id: manualSearch[0].schedule_id,
+              we_schedule_id: manualSearch[0].schedule_id || 'SIN SCHEDULE_ID',
               we_client_id: manualSearch[0].client_id,
               schedule_client_id: schedule.client_id,
               we_client_name: manualSearch[0].client_name,
-              schedule_client_name: schedule.client_name
+              schedule_client_name: schedule.client_name,
+              we_hours: manualSearch[0].hours,
+              we_total: manualSearch[0].total_amount
             });
+          } else {
+            // Log si realmente no existe
+            console.log(`[Auditoría] 🔍 NO hay WorkEntry para ${cleanerName} en ${scheduleDate}, schedule ${schedule.id}`);
           }
         }
 
