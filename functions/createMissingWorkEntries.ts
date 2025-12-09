@@ -26,28 +26,50 @@ Deno.serve(async (req) => {
 
         for (const entry of entries_to_create) {
             try {
-                const totalAmount = entry.expected_hours * entry.hourly_rate;
+                const totalAmount = parseFloat((entry.expected_hours * entry.hourly_rate).toFixed(2));
 
-                const newEntry = await base44.asServiceRole.entities.WorkEntry.create({
+                // Generar period basado en la fecha (YYYY-MM-1st o YYYY-MM-2nd)
+                const workDate = new Date(entry.work_date);
+                const day = workDate.getDate();
+                const month = workDate.getMonth() + 1;
+                const year = workDate.getFullYear();
+                const periodSuffix = day <= 15 ? '1st' : '2nd';
+                const period = `${year}-${String(month).padStart(2, '0')}-${periodSuffix}`;
+
+                const workEntryData = {
                     cleaner_id: entry.cleaner_id,
                     cleaner_name: entry.cleaner_name,
                     client_id: entry.client_id,
                     client_name: entry.client_name,
                     work_date: entry.work_date,
-                    hours: entry.expected_hours,
+                    hours: parseFloat(entry.expected_hours),
                     activity: entry.activity || 'domestic',
-                    hourly_rate: entry.hourly_rate,
+                    hourly_rate: parseFloat(entry.hourly_rate),
                     total_amount: totalAmount,
+                    period: period,
                     invoiced: false
-                });
+                };
 
-                results.created.push(newEntry);
-                console.log(`[CreateMissingWorkEntries] ✅ Creada entrada para ${entry.cleaner_name} - ${entry.client_name}`);
+                console.log(`[CreateMissingWorkEntries] 📝 Intentando crear:`, JSON.stringify(workEntryData, null, 2));
+
+                const newEntry = await base44.asServiceRole.entities.WorkEntry.create(workEntryData);
+
+                console.log(`[CreateMissingWorkEntries] ✅ Creada entrada ID: ${newEntry.id} para ${entry.cleaner_name} - ${entry.client_name}`);
+                
+                results.created.push({
+                    id: newEntry.id,
+                    cleaner_name: entry.cleaner_name,
+                    client_name: entry.client_name,
+                    work_date: entry.work_date,
+                    total_amount: totalAmount
+                });
             } catch (error) {
                 console.error(`[CreateMissingWorkEntries] ❌ Error creando entrada para ${entry.cleaner_name}:`, error);
+                console.error(`[CreateMissingWorkEntries] Error completo:`, error.stack);
                 results.failed.push({
                     entry,
-                    error: error.message
+                    error: error.message,
+                    stack: error.stack
                 });
             }
         }
