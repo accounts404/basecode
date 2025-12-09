@@ -17,6 +17,7 @@ import PeriodSelector from "../components/reports/PeriodSelector";
 import ClientSearchDropdown from "../components/work/ClientSearchDropdown"; // Unused but keeping for now if not explicitly removed
 import SimpleClientSearch from "../components/work/SimpleClientSearch";
 import WorkEntryAuditModal from '../components/work/WorkEntryAuditModal';
+import ScheduleAuditModal from '../components/work/ScheduleAuditModal';
 import MonthMultiSelector from '../components/work/MonthMultiSelector';
 
 const activityLabels = {
@@ -80,6 +81,11 @@ export default function TrabajoEntradasPage() {
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditData, setAuditData] = useState(null);
   const [auditLoading, setAuditLoading] = useState(false);
+  
+  // Schedule audit state (para detectar WorkEntries faltantes)
+  const [showScheduleAuditModal, setShowScheduleAuditModal] = useState(false);
+  const [scheduleAuditData, setScheduleAuditData] = useState(null);
+  const [scheduleAuditLoading, setScheduleAuditLoading] = useState(false);
 
   // Form data for editing
   const [editFormData, setEditFormData] = useState({
@@ -449,8 +455,8 @@ export default function TrabajoEntradasPage() {
 
   const handleAuditWorkEntries = async () => {
     setAuditLoading(true);
-    setAuditData(null); // Clear previous audit data
-    setNotification({ type: "", message: "" }); // Clear previous notification
+    setAuditData(null);
+    setNotification({ type: "", message: "" });
     try {
         const response = await base44.functions.invoke('auditWorkEntries', {
             period_start: selectedPeriod?.start ? format(selectedPeriod.start, 'yyyy-MM-dd') : null,
@@ -471,7 +477,42 @@ export default function TrabajoEntradasPage() {
     } finally {
         setAuditLoading(false);
     }
-};
+  };
+
+  const handleScheduleAudit = async () => {
+    if (!selectedPeriod) {
+      setNotification({ type: "error", message: "Por favor selecciona un período primero" });
+      return;
+    }
+
+    setScheduleAuditLoading(true);
+    setScheduleAuditData(null);
+    setNotification({ type: "", message: "" });
+    try {
+        const response = await base44.functions.invoke('auditSchedulesVsWorkEntries', {
+            period_start: format(selectedPeriod.start, 'yyyy-MM-dd'),
+            period_end: format(selectedPeriod.end, 'yyyy-MM-dd'),
+            cleaner_id: selectedCleaner !== 'all' ? selectedCleaner : null
+        });
+
+        if (response.data && response.data.success) {
+            setScheduleAuditData(response.data);
+            setShowScheduleAuditModal(true);
+            setNotification({ 
+              type: "success", 
+              message: `Auditoría completada: ${response.data.stats.missing} WorkEntries faltantes encontradas.` 
+            });
+        } else {
+            const errorMessage = response.data?.error || 'Error desconocido';
+            setNotification({ type: "error", message: `Error en la auditoría: ${errorMessage}` });
+        }
+    } catch (error) {
+        console.error('Error running schedule audit:', error);
+        setNotification({ type: "error", message: `Error: ${error.message}` });
+    } finally {
+        setScheduleAuditLoading(false);
+    }
+  };
 
   // Apply all filters: period, cleaner, and client search
   const applyAllFilters = () => {
@@ -630,26 +671,47 @@ export default function TrabajoEntradasPage() {
           <div className="flex items-center flex-wrap gap-4">
             <p className="text-slate-600">Registro detallado de todo el trabajo realizado por los limpiadores.</p>
             
-            {/* Botón de Auditoría */}
+            {/* Botones de Auditoría */}
             {isAdmin && (
-              <Button 
-                onClick={handleAuditWorkEntries}
-                disabled={auditLoading}
-                variant="outline"
-                className="border-purple-600 text-purple-700 hover:bg-purple-50"
-              >
-                {auditLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analizando...
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4 mr-2" />
-                    Auditoría de Entradas
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleScheduleAudit}
+                  disabled={scheduleAuditLoading || !selectedPeriod}
+                  className="bg-green-600 hover:bg-green-700"
+                  title="Detecta WorkEntries faltantes comparando con Schedules completados"
+                >
+                  {scheduleAuditLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Buscando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Detectar Faltantes
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  onClick={handleAuditWorkEntries}
+                  disabled={auditLoading}
+                  variant="outline"
+                  className="border-purple-600 text-purple-700 hover:bg-purple-50"
+                  title="Detecta duplicados e irregularidades en WorkEntries"
+                >
+                  {auditLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Analizando...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4 mr-2" />
+                      Auditoría Calidad
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -1459,14 +1521,24 @@ export default function TrabajoEntradasPage() {
         </Dialog>
       </div>
 
-      {/* Audit Modal */}
+      {/* Audit Modals */}
       <WorkEntryAuditModal
           isOpen={showAuditModal}
           onClose={() => {
             setShowAuditModal(false);
-            setAuditData(null); // Clear audit data on close
+            setAuditData(null);
           }}
           auditData={auditData}
+          onRefresh={loadData}
+      />
+
+      <ScheduleAuditModal
+          isOpen={showScheduleAuditModal}
+          onClose={() => {
+            setShowScheduleAuditModal(false);
+            setScheduleAuditData(null);
+          }}
+          auditData={scheduleAuditData}
           onRefresh={loadData}
       />
     </div>
