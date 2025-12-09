@@ -255,36 +255,20 @@ export default function AuditoriaWorkEntriesPage() {
     setError("");
     setSuccess("");
     try {
-      console.log('[CreateWorkEntry] 🚀 Creando entrada para:', result.cleanerName);
       const { data } = await processScheduleForWorkEntries({
         scheduleId: result.schedule.id,
         mode: 'create'
       });
 
-      console.log('[CreateWorkEntry] Respuesta:', data);
-
       if (data.success) {
-        let message = `✅ WorkEntry creada para ${result.cleanerName}`;
-        
-        if (data.created_entries > 0) {
-          message = `✅ ${data.created_entries} WorkEntry(s) creadas`;
-        }
-        if (data.skipped_entries > 0) {
-          message += ` (${data.skipped_entries} ya existían)`;
-        }
-        if (data.skipped_details && data.skipped_details.length > 0) {
-          console.log('[CreateWorkEntry] ⚠️ Entradas omitidas:', data.skipped_details);
-          message += '\n\n⚠️ Problemas:\n' + data.skipped_details.map(d => `${d.cleaner_name}: ${d.reason}`).join('\n');
-        }
-        
-        setSuccess(message);
+        setSuccess(`WorkEntry creada exitosamente para ${result.cleanerName}`);
         await handleRefresh();
         setSelectedSchedule(null);
       } else {
         throw new Error(data.error || "Error al crear WorkEntry");
       }
     } catch (err) {
-      console.error("[CreateWorkEntry] Error:", err);
+      console.error("Error creating work entry:", err);
       setError("Error al crear WorkEntry: " + (err.message || "Error desconocido"));
     } finally {
       setCreatingEntry(false);
@@ -301,69 +285,32 @@ export default function AuditoriaWorkEntriesPage() {
 
     let successCount = 0;
     let errorCount = 0;
-    let skippedCount = 0;
-    let errorDetails = [];
 
     // Get unique schedule IDs from selected items
     const uniqueScheduleIds = [...new Set(selectedItems.map(key => key.split('_')[0]))];
 
-    console.log('[BatchCreate] 🚀 Procesando', uniqueScheduleIds.length, 'servicios...');
-
     for (const scheduleId of uniqueScheduleIds) {
       try {
-        console.log('[BatchCreate] 📝 Procesando schedule:', scheduleId);
         const { data } = await processScheduleForWorkEntries({
           scheduleId,
           mode: 'create'
         });
-        
-        console.log('[BatchCreate] Respuesta:', data);
-        
         if (data.success) {
-          const created = data.created_entries || 0;
-          const skipped = data.skipped_entries || 0;
-          
-          successCount += created;
-          skippedCount += skipped;
-          
-          if (data.skipped_details && data.skipped_details.length > 0) {
-            data.skipped_details.forEach(detail => {
-              errorDetails.push(`${detail.cleaner_name}: ${detail.reason}`);
-            });
-          }
+          successCount += data.created_entries || 1;
         } else {
           errorCount++;
-          errorDetails.push(data.error || 'Error desconocido');
         }
       } catch (err) {
-        console.error("[BatchCreate] Error:", err);
+        console.error("Error in batch create:", err);
         errorCount++;
-        errorDetails.push(err.message || 'Error desconocido');
       }
     }
 
-    let message = '';
     if (successCount > 0) {
-      message += `✅ ${successCount} WorkEntries creadas exitosamente. `;
-    }
-    if (skippedCount > 0) {
-      message += `⚠️ ${skippedCount} ya existían. `;
+      setSuccess(`${successCount} WorkEntries creadas exitosamente`);
     }
     if (errorCount > 0) {
-      message += `❌ ${errorCount} errores. `;
-    }
-    
-    if (errorDetails.length > 0) {
-      console.log('[BatchCreate] ⚠️ Detalles de problemas:', errorDetails);
-      message += '\n\nDetalles:\n' + errorDetails.slice(0, 5).join('\n');
-    }
-
-    if (successCount > 0) {
-      setSuccess(message);
-    } else if (skippedCount > 0 && errorCount === 0) {
-      setSuccess(message);
-    } else {
-      setError(message || 'No se pudo crear ninguna entrada');
+      setError(`${errorCount} errores al crear WorkEntries`);
     }
 
     setSelectedItems([]);
@@ -451,13 +398,13 @@ export default function AuditoriaWorkEntriesPage() {
         {error && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="whitespace-pre-wrap">{error}</AlertDescription>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
         {success && (
           <Alert className="bg-green-50 border-green-200">
             <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800 whitespace-pre-wrap">{success}</AlertDescription>
+            <AlertDescription className="text-green-800">{success}</AlertDescription>
           </Alert>
         )}
 
