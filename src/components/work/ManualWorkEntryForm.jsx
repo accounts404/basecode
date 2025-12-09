@@ -60,39 +60,36 @@ export default function ManualWorkEntryForm({ isOpen, onClose, entryData, onSucc
 
         setCreating(true);
         try {
-            // Generar period
-            const workDate = new Date(formData.work_date);
-            const day = workDate.getDate();
-            const month = workDate.getMonth() + 1;
-            const year = workDate.getFullYear();
-            const periodSuffix = day <= 15 ? '1st' : '2nd';
-            const period = `${year}-${String(month).padStart(2, '0')}-${periodSuffix}`;
-
             const dataToCreate = {
                 cleaner_id: formData.cleaner_id,
                 cleaner_name: formData.cleaner_name,
                 client_id: formData.client_id,
                 client_name: formData.client_name,
                 work_date: formData.work_date,
-                hours: parseFloat(formData.hours),
+                hours: formData.hours,
                 activity: formData.activity,
-                other_activity: formData.activity === 'otros' ? (formData.other_activity || '') : undefined,
-                hourly_rate: parseFloat(formData.hourly_rate),
-                total_amount: parseFloat(formData.total_amount),
-                period: period,
-                invoiced: false
+                other_activity: formData.activity === 'otros' ? formData.other_activity : undefined,
+                hourly_rate: formData.hourly_rate,
+                schedule_id: entryData?.schedule_id
             };
 
-            console.log('[ManualWorkEntryForm] Creando entrada:', dataToCreate);
+            console.log('[ManualWorkEntryForm] 📤 Enviando a crear:', dataToCreate);
 
-            const newEntry = await base44.entities.WorkEntry.create(dataToCreate);
+            const { data } = await base44.functions.invoke('createSingleWorkEntry', {
+                entry_data: dataToCreate
+            });
 
-            console.log('[ManualWorkEntryForm] ✅ Entrada creada:', newEntry);
+            console.log('[ManualWorkEntryForm] 📥 Respuesta:', data);
 
-            onSuccess();
-            onClose();
+            if (data.success) {
+                console.log('[ManualWorkEntryForm] ✅ Entrada creada exitosamente:', data.entry);
+                onSuccess();
+                onClose();
+            } else {
+                throw new Error(data.error || 'Error desconocido al crear entrada');
+            }
         } catch (error) {
-            console.error('[ManualWorkEntryForm] Error:', error);
+            console.error('[ManualWorkEntryForm] ❌ Error:', error);
             setError('Error al crear entrada: ' + error.message);
         } finally {
             setCreating(false);
