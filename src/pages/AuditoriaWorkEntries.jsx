@@ -145,15 +145,27 @@ export default function AuditoriaWorkEntriesPage() {
       return scheduleDate >= startDate && scheduleDate <= endDate;
     });
 
-    // Create a map of work entries by schedule_id and cleaner_id
-    const workEntryMap = new Map();
+    // MEJORADO: Crear mapas de work entries tanto por schedule_id como por fecha+cliente+limpiador
+    const workEntryByScheduleMap = new Map();
+    const workEntryByDateClientCleanerMap = new Map();
+    
     workEntries.forEach(we => {
+      // Mapa por schedule_id (método principal)
       if (we.schedule_id) {
-        const key = `${we.schedule_id}_${we.cleaner_id}`;
-        if (!workEntryMap.has(key)) {
-          workEntryMap.set(key, []);
+        const keyBySchedule = `${we.schedule_id}_${we.cleaner_id}`;
+        if (!workEntryByScheduleMap.has(keyBySchedule)) {
+          workEntryByScheduleMap.set(keyBySchedule, []);
         }
-        workEntryMap.get(key).push(we);
+        workEntryByScheduleMap.get(keyBySchedule).push(we);
+      }
+      
+      // Mapa por fecha + cliente + limpiador (método alternativo)
+      if (we.work_date && we.client_id && we.cleaner_id) {
+        const keyByDetails = `${we.work_date}_${we.client_id}_${we.cleaner_id}`;
+        if (!workEntryByDateClientCleanerMap.has(keyByDetails)) {
+          workEntryByDateClientCleanerMap.set(keyByDetails, []);
+        }
+        workEntryByDateClientCleanerMap.get(keyByDetails).push(we);
       }
     });
 
@@ -170,9 +182,20 @@ export default function AuditoriaWorkEntriesPage() {
         const cleaner = users.find(u => u.id === cleanerId);
         const cleanerName = cleaner?.invoice_name || cleaner?.full_name || 'Desconocido';
 
-        // Get work entries for this schedule and cleaner
-        const key = `${schedule.id}_${cleanerId}`;
-        const relatedWorkEntries = workEntryMap.get(key) || [];
+        // MEJORADO: Buscar work entries primero por schedule_id, luego por fecha+cliente+limpiador
+        const keyBySchedule = `${schedule.id}_${cleanerId}`;
+        let relatedWorkEntries = workEntryByScheduleMap.get(keyBySchedule) || [];
+        
+        // Si no se encontró por schedule_id, buscar por fecha + cliente + limpiador
+        if (relatedWorkEntries.length === 0 && schedule.start_time && schedule.client_id) {
+          const scheduleDate = schedule.start_time.slice(0, 10);
+          const keyByDetails = `${scheduleDate}_${schedule.client_id}_${cleanerId}`;
+          relatedWorkEntries = workEntryByDateClientCleanerMap.get(keyByDetails) || [];
+          
+          if (relatedWorkEntries.length > 0) {
+            console.log(`[Auditoría] ℹ️ WorkEntry encontrada por fecha+cliente+limpiador para ${cleanerName} en ${scheduleDate}`);
+          }
+        }
 
         // Calculate expected hours from cleaner_schedules or general schedule
         let expectedHours = 0;
