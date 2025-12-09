@@ -130,22 +130,21 @@ export default function TrabajoEntradasPage() {
       
       console.log('[TrabajoEntradas] ✅ Entradas cargadas:', entriesResult?.length || 0);
       
-      // DEBUGGING DETALLADO: Verificar WorkEntries problemáticas
-      const august2025Entries = entriesResult.filter(e => e.work_date?.startsWith('2025-08-01'));
-      if (august2025Entries.length > 0) {
-        console.log('[TrabajoEntradas] 🔍 TODAS las WorkEntries del 2025-08-01:', august2025Entries.length);
-        august2025Entries.forEach(we => {
-          console.log('  • WE completa:', {
+      // DEBUGGING: Verificar WorkEntries de Yuly en agosto 2025
+      const yulyAugustEntries = entriesResult.filter(e => {
+        const isYuly = e.cleaner_name?.includes('Yuly') || e.cleaner_name?.includes('Ramirez');
+        const isAugust = e.work_date?.startsWith('2025-08');
+        return isYuly && isAugust;
+      });
+      if (yulyAugustEntries.length > 0) {
+        console.log('[TrabajoEntradas] 🔍 WorkEntries de Yuly en Agosto 2025:', yulyAugustEntries.length);
+        yulyAugustEntries.slice(0, 3).forEach(we => {
+          console.log('  • WE:', {
             id: we.id,
             date: we.work_date,
-            cleaner_id: we.cleaner_id,
-            cleaner_name: we.cleaner_name,
-            client_id: we.client_id,
-            client_name: we.client_name,
+            client: we.client_name,
             hours: we.hours,
-            total: we.total_amount,
-            schedule_id: we.schedule_id || 'SIN SCHEDULE_ID',
-            activity: we.activity
+            schedule_id: we.schedule_id || 'SIN SCHEDULE_ID'
           });
         });
       }

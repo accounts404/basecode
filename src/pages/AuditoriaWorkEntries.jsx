@@ -199,52 +199,33 @@ export default function AuditoriaWorkEntriesPage() {
           }
         }
         
-        // BÚSQUEDA EXHAUSTIVA: Intentar múltiples criterios
+        // DEBUGGING: Si aún no se encuentra, buscar manualmente
         if (relatedWorkEntries.length === 0 && schedule.start_time) {
           const scheduleDate = schedule.start_time.slice(0, 10);
-          
-          // Búsqueda SUPER PERMISIVA: solo fecha + limpiador (sin cliente)
-          const broadSearch = workEntries.filter(we => {
+          const manualSearch = workEntries.filter(we => {
             const weDate = we.work_date?.slice(0, 10);
-            return we.cleaner_id === cleanerId && weDate === scheduleDate;
+            return we.cleaner_id === cleanerId && 
+                   weDate === scheduleDate &&
+                   (we.client_id === schedule.client_id || we.client_name === schedule.client_name);
           });
           
-          console.log(`[Auditoría] 🔍 Búsqueda exhaustiva para ${cleanerName} en ${scheduleDate}:`, {
-            schedule_id: schedule.id,
-            schedule_client_id: schedule.client_id,
-            schedule_client_name: schedule.client_name,
-            broadSearch_count: broadSearch.length,
-            broadSearch_details: broadSearch.map(we => ({
-              id: we.id,
-              schedule_id: we.schedule_id || 'SIN SCHEDULE_ID',
-              client_id: we.client_id,
-              client_name: we.client_name,
-              hours: we.hours,
-              total: we.total_amount
-            }))
-          });
-          
-          if (broadSearch.length > 0) {
-            // Priorizar: primero con schedule_id, luego con mismo cliente, luego cualquiera
-            const withScheduleId = broadSearch.filter(we => we.schedule_id === schedule.id);
-            const withSameClient = broadSearch.filter(we => 
-              we.client_id === schedule.client_id || we.client_name === schedule.client_name
-            );
-            
-            if (withScheduleId.length > 0) {
-              relatedWorkEntries = withScheduleId;
-              searchMethod = 'broad_with_schedule_id';
-            } else if (withSameClient.length > 0) {
-              relatedWorkEntries = withSameClient;
-              searchMethod = 'broad_with_client';
-            } else {
-              relatedWorkEntries = broadSearch;
-              searchMethod = 'broad_date_cleaner_only';
-            }
-            
-            console.warn(`[Auditoría] ✅ WorkEntry encontrada (método: ${searchMethod}):`, relatedWorkEntries[0].id);
+          if (manualSearch.length > 0) {
+            relatedWorkEntries = manualSearch;
+            searchMethod = 'manual_fallback';
+            console.warn(`[Auditoría] ⚠️ WorkEntry encontrada solo con búsqueda manual para ${cleanerName} en ${scheduleDate}:`, {
+              workEntry_id: manualSearch[0].id,
+              schedule_id: schedule.id,
+              we_schedule_id: manualSearch[0].schedule_id || 'SIN SCHEDULE_ID',
+              we_client_id: manualSearch[0].client_id,
+              schedule_client_id: schedule.client_id,
+              we_client_name: manualSearch[0].client_name,
+              schedule_client_name: schedule.client_name,
+              we_hours: manualSearch[0].hours,
+              we_total: manualSearch[0].total_amount
+            });
           } else {
-            console.error(`[Auditoría] ❌ NO existe WorkEntry para ${cleanerName} en ${scheduleDate}`);
+            // Log si realmente no existe
+            console.log(`[Auditoría] 🔍 NO hay WorkEntry para ${cleanerName} en ${scheduleDate}, schedule ${schedule.id}`);
           }
         }
 
