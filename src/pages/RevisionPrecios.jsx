@@ -17,12 +17,14 @@ import {
     AlertCircle,
     Archive,
     CheckCircle,
-    Clock
+    Clock,
+    Download
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import ReviewListDetail from '@/components/revision-precios/ReviewListDetail';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { exportPriceReviewList } from '@/functions/exportPriceReviewList';
 import {
     Dialog,
     DialogContent,
@@ -63,6 +65,7 @@ export default function RevisionPreciosPage() {
     const [selectedList, setSelectedList] = useState(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [listToDelete, setListToDelete] = useState(null);
+    const [exportingListId, setExportingListId] = useState(null);
     const navigate = useNavigate();
 
     const loadLists = async () => {
@@ -118,6 +121,29 @@ export default function RevisionPreciosPage() {
     const handleBackToLists = async () => {
         setSelectedList(null);
         await loadLists();
+    };
+
+    const handleExportList = async (listId) => {
+        setExportingListId(listId);
+        try {
+            const response = await exportPriceReviewList({ listId });
+            
+            // Crear blob y descargar
+            const blob = new Blob([response.data], { type: 'text/csv; charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `revision_precios_${listId}_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        } catch (err) {
+            console.error('Error exporting list:', err);
+            setError('Error al exportar la lista');
+        } finally {
+            setExportingListId(null);
+        }
     };
 
     if (loading && !currentUser) {
@@ -306,14 +332,29 @@ export default function RevisionPreciosPage() {
                                             )}
                                         </div>
 
-                                        <Button
-                                            onClick={() => handleViewList(list)}
-                                            className="w-full bg-slate-700 hover:bg-slate-800"
-                                            size="sm"
-                                        >
-                                            <Eye className="w-4 h-4 mr-2" />
-                                            Ver Detalles
-                                        </Button>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                onClick={() => handleViewList(list)}
+                                                className="flex-1 bg-slate-700 hover:bg-slate-800"
+                                                size="sm"
+                                            >
+                                                <Eye className="w-4 h-4 mr-2" />
+                                                Ver Detalles
+                                            </Button>
+                                            <Button
+                                                onClick={() => handleExportList(list.id)}
+                                                disabled={exportingListId === list.id}
+                                                variant="outline"
+                                                size="sm"
+                                                className="hover:bg-green-50 hover:border-green-600 hover:text-green-700"
+                                            >
+                                                {exportingListId === list.id ? (
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                                                ) : (
+                                                    <Download className="w-4 h-4" />
+                                                )}
+                                            </Button>
+                                        </div>
                                     </CardContent>
                                 </Card>
                             );
