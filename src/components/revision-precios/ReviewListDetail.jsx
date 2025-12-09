@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { ClientPriceReviewList } from '@/entities/ClientPriceReviewList';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { exportPriceReviewList } from '@/functions/exportPriceReviewList';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,8 @@ import {
     Edit2,
     CheckCircle,
     X,
-    Search
+    Search,
+    Download
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -61,6 +63,7 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortColumn, setSortColumn] = useState('client_name');
     const [sortDirection, setSortDirection] = useState('asc');
+    const [exporting, setExporting] = useState(false);
 
     const filteredAndSortedClients = useMemo(() => {
         let clients = [...(editedList.clients_to_review || [])];
@@ -180,6 +183,29 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
         setEditedClient(null);
     };
 
+    const handleExportList = async () => {
+        setExporting(true);
+        try {
+            const response = await exportPriceReviewList({ listId: editedList.id });
+            
+            // Crear blob y descargar
+            const blob = new Blob([response.data], { type: 'text/csv; charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `revision_precios_${editedList.list_name.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        } catch (err) {
+            console.error('Error exporting list:', err);
+            setError('Error al exportar la lista');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50 p-6 md:p-10">
             <div className="max-w-[1800px] mx-auto space-y-6">
@@ -199,15 +225,36 @@ export default function ReviewListDetail({ list, onBack, currentUser }) {
                             Gestiona los clientes de esta lista de revisión
                         </p>
                     </div>
-                    <Button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="bg-purple-600 hover:bg-purple-700"
-                        size="lg"
-                    >
-                        <Save className="w-5 h-5 mr-2" />
-                        {saving ? 'Guardando...' : 'Guardar Cambios'}
-                    </Button>
+                    <div className="flex gap-3">
+                        <Button
+                            onClick={handleExportList}
+                            disabled={exporting}
+                            variant="outline"
+                            size="lg"
+                            className="hover:bg-green-50 hover:border-green-600 hover:text-green-700"
+                        >
+                            {exporting ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600 mr-2"></div>
+                                    Exportando...
+                                </>
+                            ) : (
+                                <>
+                                    <Download className="w-5 h-5 mr-2" />
+                                    Exportar CSV
+                                </>
+                            )}
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="bg-purple-600 hover:bg-purple-700"
+                            size="lg"
+                        >
+                            <Save className="w-5 h-5 mr-2" />
+                            {saving ? 'Guardando...' : 'Guardar Cambios'}
+                        </Button>
+                    </div>
                 </div>
 
                 {error && (
