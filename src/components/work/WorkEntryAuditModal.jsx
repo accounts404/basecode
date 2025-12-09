@@ -5,10 +5,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertTriangle, Copy, Edit, Trash2, Sparkles, X } from 'lucide-react';
+import { Loader2, AlertTriangle, Copy, Edit, Trash2, Sparkles, X, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { base44 } from '@/api/base44Client';
+import ManualWorkEntryForm from './ManualWorkEntryForm';
 
 export default function WorkEntryAuditModal({ isOpen, onClose, auditData, onRefresh }) {
     const [analyzing, setAnalyzing] = useState(null);
@@ -16,6 +17,8 @@ export default function WorkEntryAuditModal({ isOpen, onClose, auditData, onRefr
     const [deleting, setDeleting] = useState(null);
     const [selectedMissing, setSelectedMissing] = useState(new Set());
     const [creating, setCreating] = useState(false);
+    const [showManualForm, setShowManualForm] = useState(false);
+    const [currentEntryToCreate, setCurrentEntryToCreate] = useState(null);
 
     if (!auditData) return null;
 
@@ -37,49 +40,47 @@ export default function WorkEntryAuditModal({ isOpen, onClose, auditData, onRefr
         }
     };
 
-    const handleCreateMissingEntries = async () => {
+    const handleCreateMissingEntries = () => {
         if (selectedMissing.size === 0) {
             alert('Por favor selecciona al menos una entrada para crear');
             return;
         }
 
-        if (!confirm(`¿Estás seguro de crear ${selectedMissing.size} entradas de trabajo?`)) {
-            return;
+        // Tomar la primera entrada seleccionada
+        const firstSelectedIdx = Array.from(selectedMissing)[0];
+        const entry = auditData.missing_entries[firstSelectedIdx];
+        
+        setCurrentEntryToCreate(entry);
+        setShowManualForm(true);
+    };
+
+    const handleManualCreateSuccess = () => {
+        // Remover la entrada creada de la selección
+        const selectedArray = Array.from(selectedMissing);
+        const currentIdx = auditData.missing_entries.findIndex(e => e === currentEntryToCreate);
+        
+        if (currentIdx !== -1) {
+            const newSelected = new Set(selectedMissing);
+            newSelected.delete(currentIdx);
+            setSelectedMissing(newSelected);
         }
 
-        setCreating(true);
-        try {
-            const entriesToCreate = Array.from(selectedMissing).map(idx => auditData.missing_entries[idx]);
-            
-            console.log('[WorkEntryAuditModal] Enviando para crear:', entriesToCreate);
-            
-            const { data } = await base44.functions.invoke('createMissingWorkEntries', {
-                entries_to_create: entriesToCreate
-            });
-            
-            console.log('[WorkEntryAuditModal] Respuesta:', data);
-            
-            if (data.success) {
-                if (data.failed_count > 0) {
-                    console.error('[WorkEntryAuditModal] Entradas fallidas:', data.failed);
-                    alert(`⚠️ ${data.created_count} entradas creadas exitosamente. ${data.failed_count} fallaron.\n\nVerifica la consola para más detalles.`);
-                } else {
-                    alert(`✅ ${data.created_count} entradas creadas exitosamente`);
+        setShowManualForm(false);
+        setCurrentEntryToCreate(null);
+        
+        // Refrescar datos
+        onRefresh();
+
+        // Si quedan más seleccionadas, abrir el formulario para la siguiente
+        if (selectedMissing.size > 1) {
+            setTimeout(() => {
+                const remainingSelected = Array.from(selectedMissing).filter(idx => idx !== currentIdx);
+                if (remainingSelected.length > 0) {
+                    const nextEntry = auditData.missing_entries[remainingSelected[0]];
+                    setCurrentEntryToCreate(nextEntry);
+                    setShowManualForm(true);
                 }
-                setSelectedMissing(new Set());
-                
-                // Esperar 1 segundo antes de refrescar para que la DB se actualice
-                setTimeout(() => {
-                    onRefresh();
-                }, 1000);
-            } else {
-                alert('Error: ' + (data.error || 'No se pudo crear las entradas'));
-            }
-        } catch (error) {
-            console.error('Error creating entries:', error);
-            alert('Error al crear entradas: ' + error.message);
-        } finally {
-            setCreating(false);
+            }, 500);
         }
     };
 
@@ -230,17 +231,11 @@ export default function WorkEntryAuditModal({ isOpen, onClose, auditData, onRefr
                                                 variant="default"
                                                 size="sm"
                                                 onClick={handleCreateMissingEntries}
-                                                disabled={creating || selectedMissing.size === 0}
+                                                disabled={selectedMissing.size === 0}
                                                 className="bg-purple-600 hover:bg-purple-700"
                                             >
-                                                {creating ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                        Creando...
-                                                    </>
-                                                ) : (
-                                                    `Crear ${selectedMissing.size} Entradas`
-                                                )}
+                                                <Plus className="w-4 h-4 mr-2" />
+                                                Crear {selectedMissing.size} Entrada{selectedMissing.size !== 1 ? 's' : ''}
                                             </Button>
                                         </div>
                                     </div>
@@ -544,6 +539,17 @@ export default function WorkEntryAuditModal({ isOpen, onClose, auditData, onRefr
                     <Button onClick={onClose}>Cerrar</Button>
                 </div>
             </DialogContent>
+
+            {/* Manual Entry Form */}
+            <ManualWorkEntryForm
+                isOpen={showManualForm}
+                onClose={() => {
+                    setShowManualForm(false);
+                    setCurrentEntryToCreate(null);
+                }}
+                entryData={currentEntryToCreate}
+                onSuccess={handleManualCreateSuccess}
+            />
         </Dialog>
     );
 }
