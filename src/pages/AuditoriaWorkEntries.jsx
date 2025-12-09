@@ -182,9 +182,10 @@ export default function AuditoriaWorkEntriesPage() {
         const cleaner = users.find(u => u.id === cleanerId);
         const cleanerName = cleaner?.invoice_name || cleaner?.full_name || 'Desconocido';
 
-        // MEJORADO: Buscar work entries primero por schedule_id, luego por fecha+cliente+limpiador
+        // MEJORADO: Buscar work entries de tres formas para máxima cobertura
         const keyBySchedule = `${schedule.id}_${cleanerId}`;
         let relatedWorkEntries = workEntryByScheduleMap.get(keyBySchedule) || [];
+        let searchMethod = 'schedule_id';
         
         // Si no se encontró por schedule_id, buscar por fecha + cliente + limpiador
         if (relatedWorkEntries.length === 0 && schedule.start_time && schedule.client_id) {
@@ -193,7 +194,32 @@ export default function AuditoriaWorkEntriesPage() {
           relatedWorkEntries = workEntryByDateClientCleanerMap.get(keyByDetails) || [];
           
           if (relatedWorkEntries.length > 0) {
+            searchMethod = 'date_client_cleaner';
             console.log(`[Auditoría] ℹ️ WorkEntry encontrada por fecha+cliente+limpiador para ${cleanerName} en ${scheduleDate}`);
+          }
+        }
+        
+        // DEBUGGING: Si aún no se encuentra, buscar manualmente
+        if (relatedWorkEntries.length === 0 && schedule.start_time) {
+          const scheduleDate = schedule.start_time.slice(0, 10);
+          const manualSearch = workEntries.filter(we => {
+            const weDate = we.work_date?.slice(0, 10);
+            return we.cleaner_id === cleanerId && 
+                   weDate === scheduleDate &&
+                   (we.client_id === schedule.client_id || we.client_name === schedule.client_name);
+          });
+          
+          if (manualSearch.length > 0) {
+            relatedWorkEntries = manualSearch;
+            searchMethod = 'manual_fallback';
+            console.warn(`[Auditoría] ⚠️ WorkEntry encontrada solo con búsqueda manual para ${cleanerName} en ${scheduleDate}:`, {
+              schedule_id: schedule.id,
+              we_schedule_id: manualSearch[0].schedule_id,
+              we_client_id: manualSearch[0].client_id,
+              schedule_client_id: schedule.client_id,
+              we_client_name: manualSearch[0].client_name,
+              schedule_client_name: schedule.client_name
+            });
           }
         }
 
@@ -238,6 +264,7 @@ export default function AuditoriaWorkEntriesPage() {
           workEntries: relatedWorkEntries,
           status,
           statusLabel,
+          searchMethod,
           key: `${schedule.id}_${cleanerId}`
         });
       });
@@ -736,6 +763,27 @@ export default function AuditoriaWorkEntriesPage() {
                     <p className="text-yellow-800 text-sm mt-1">{selectedSchedule.schedule.notes_public}</p>
                   </div>
                 )}
+
+                {/* Debugging info para admin */}
+                <div className="p-4 bg-slate-100 rounded-lg border border-slate-300 text-xs">
+                  <p className="font-semibold mb-1">Información de Debugging:</p>
+                  <p>Schedule ID: {selectedSchedule.schedule.id}</p>
+                  <p>Método de búsqueda: {selectedSchedule.searchMethod}</p>
+                  <p>WorkEntries encontradas: {selectedSchedule.workEntries.length}</p>
+                  {selectedSchedule.workEntries.length > 0 && (
+                    <div className="mt-2">
+                      <p className="font-semibold">Datos de WorkEntry:</p>
+                      {selectedSchedule.workEntries.map(we => (
+                        <div key={we.id} className="ml-2 mt-1">
+                          <p>• ID: {we.id}</p>
+                          <p>• schedule_id: {we.schedule_id || 'NO TIENE'}</p>
+                          <p>• client_id: {we.client_id}</p>
+                          <p>• cleaner_id: {we.cleaner_id}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             <DialogFooter>
