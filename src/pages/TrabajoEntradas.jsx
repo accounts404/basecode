@@ -17,6 +17,7 @@ import PeriodSelector from "../components/reports/PeriodSelector";
 import ClientSearchDropdown from "../components/work/ClientSearchDropdown"; // Unused but keeping for now if not explicitly removed
 import SimpleClientSearch from "../components/work/SimpleClientSearch";
 import WorkEntryAuditModal from '../components/work/WorkEntryAuditModal';
+import MonthMultiSelector from '../components/work/MonthMultiSelector';
 
 const activityLabels = {
   domestic: "Doméstico", commercial: "Comercial", windows: "Ventanas",
@@ -70,6 +71,8 @@ export default function TrabajoEntradasPage() {
   const [updating, setUpdating] = useState(false);
   const [notification, setNotification] = useState({ type: "", message: "" });
   const [selectedPeriod, setSelectedPeriod] = useState(null);
+  const [selectedMonthRanges, setSelectedMonthRanges] = useState([]);
+  const [filterMode, setFilterMode] = useState("periods"); // "periods", "current_month", "custom_months"
   const [expandedCleaner, setExpandedCleaner] = useState(null);
   const [clientSearch, setClientSearch] = useState("");
 
@@ -414,6 +417,26 @@ export default function TrabajoEntradasPage() {
 
   const handlePeriodChange = (period) => {
     setSelectedPeriod(period);
+    setFilterMode("periods");
+  };
+
+  const handleMonthRangesChange = (ranges) => {
+    setSelectedMonthRanges(ranges);
+    setFilterMode("custom_months");
+  };
+
+  const handleCurrentMonth = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    setSelectedPeriod({ start, end, label: "Mes Actual" });
+    setFilterMode("current_month");
+  };
+
+  const clearAllFilters = () => {
+    setSelectedPeriod(null);
+    setSelectedMonthRanges([]);
+    setFilterMode("periods");
   };
 
   const handleToggleExpand = (cleanerId) => {
@@ -454,13 +477,38 @@ export default function TrabajoEntradasPage() {
   const applyAllFilters = () => {
     let entriesToFilter = workEntries; // Start with all fetched entries
 
-    // Filter by period first
-    if (selectedPeriod) {
+    // Filter by date range based on mode
+    if (filterMode === "periods" && selectedPeriod) {
+      // Usar el período seleccionado de PeriodSelector
       entriesToFilter = entriesToFilter.filter(entry => {
         if (!entry.work_date) return false;
         try {
           const workDate = new Date(entry.work_date);
           return workDate >= selectedPeriod.start && workDate <= selectedPeriod.end;
+        } catch {
+          return false;
+        }
+      });
+    } else if (filterMode === "current_month" && selectedPeriod) {
+      // Usar mes actual
+      entriesToFilter = entriesToFilter.filter(entry => {
+        if (!entry.work_date) return false;
+        try {
+          const workDate = new Date(entry.work_date);
+          return workDate >= selectedPeriod.start && workDate <= selectedPeriod.end;
+        } catch {
+          return false;
+        }
+      });
+    } else if (filterMode === "custom_months" && selectedMonthRanges.length > 0) {
+      // Filtrar por meses seleccionados (pueden ser no consecutivos)
+      entriesToFilter = entriesToFilter.filter(entry => {
+        if (!entry.work_date) return false;
+        try {
+          const workDate = new Date(entry.work_date);
+          return selectedMonthRanges.some(range => 
+            workDate >= range.start && workDate <= range.end
+          );
         } catch {
           return false;
         }
@@ -620,21 +668,76 @@ export default function TrabajoEntradasPage() {
           </Alert>
         )}
 
-        {/* Period Selector (moved outside card as per outline) */}
-        <div className="mb-6">
-          <PeriodSelector onPeriodChange={handlePeriodChange} />
-          {selectedPeriod && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setSelectedPeriod(null)}
-              className="mt-2 text-slate-500"
-            >
-              <X className="h-4 w-4 mr-1" />
-              Limpiar selección de período
-            </Button>
-          )}
-        </div>
+        {/* Filter Mode Selector */}
+        <Card className="mb-6 shadow-md border-slate-200">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap gap-2 mb-4">
+              <Button
+                variant={filterMode === "periods" ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setFilterMode("periods");
+                  setSelectedMonthRanges([]);
+                }}
+                className="flex-1 sm:flex-none"
+              >
+                Períodos Facturados
+              </Button>
+              <Button
+                variant={filterMode === "current_month" ? "default" : "outline"}
+                size="sm"
+                onClick={handleCurrentMonth}
+                className="flex-1 sm:flex-none"
+              >
+                Mes Actual
+              </Button>
+              <Button
+                variant={filterMode === "custom_months" ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setFilterMode("custom_months");
+                  setSelectedPeriod(null);
+                }}
+                className="flex-1 sm:flex-none"
+              >
+                Seleccionar Meses
+              </Button>
+              {(selectedPeriod || selectedMonthRanges.length > 0) && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={clearAllFilters}
+                  className="text-slate-500 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Limpiar todo
+                </Button>
+              )}
+            </div>
+
+            {/* Period Selector - solo mostrar si el modo es "periods" */}
+            {filterMode === "periods" && (
+              <PeriodSelector onPeriodChange={handlePeriodChange} />
+            )}
+
+            {/* Month Multi Selector - solo mostrar si el modo es "custom_months" */}
+            {filterMode === "custom_months" && (
+              <MonthMultiSelector onSelectionChange={handleMonthRangesChange} />
+            )}
+
+            {/* Current Month Display */}
+            {filterMode === "current_month" && selectedPeriod && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-blue-900">
+                  {selectedPeriod.label}
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  {format(selectedPeriod.start, "d 'de' MMMM", { locale: es })} - {format(selectedPeriod.end, "d 'de' MMMM 'de' yyyy", { locale: es })}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Filters and Controls */}
         <Card className="mb-6 shadow-lg border-0">
