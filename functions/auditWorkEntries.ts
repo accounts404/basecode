@@ -178,8 +178,6 @@ Deno.serve(async (req) => {
                     entry.work_date === serviceDate
                 );
 
-                console.log(`[AuditWorkEntries] Verificando ${cleanerId} - ${schedule.client_name} - ${serviceDate}: ${existingEntry ? 'EXISTE' : 'FALTA'}`);
-
                 if (!existingEntry) {
                     const cleaner = users.find(u => u.id === cleanerId);
                     const client = clients.find(c => c.id === schedule.client_id);

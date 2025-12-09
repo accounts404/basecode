@@ -51,29 +51,14 @@ export default function WorkEntryAuditModal({ isOpen, onClose, auditData, onRefr
         try {
             const entriesToCreate = Array.from(selectedMissing).map(idx => auditData.missing_entries[idx]);
             
-            console.log('[WorkEntryAuditModal] Enviando para crear:', entriesToCreate);
-            
             const { data } = await base44.functions.invoke('createMissingWorkEntries', {
                 entries_to_create: entriesToCreate
             });
             
-            console.log('[WorkEntryAuditModal] Respuesta:', data);
-            
             if (data.success) {
-                if (data.failed_count > 0) {
-                    console.error('[WorkEntryAuditModal] Entradas fallidas:', data.failed);
-                    alert(`⚠️ ${data.created_count} entradas creadas exitosamente. ${data.failed_count} fallaron.\n\nVerifica la consola para más detalles.`);
-                } else {
-                    alert(`✅ ${data.created_count} entradas creadas exitosamente`);
-                }
+                alert(`✅ ${data.created_count} entradas creadas exitosamente${data.failed_count > 0 ? `. ${data.failed_count} fallaron.` : ''}`);
                 setSelectedMissing(new Set());
-                
-                // Esperar 1 segundo antes de refrescar para que la DB se actualice
-                setTimeout(() => {
-                    onRefresh();
-                }, 1000);
-            } else {
-                alert('Error: ' + (data.error || 'No se pudo crear las entradas'));
+                onRefresh();
             }
         } catch (error) {
             console.error('Error creating entries:', error);

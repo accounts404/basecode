@@ -44,21 +44,17 @@ Deno.serve(async (req) => {
                     work_date: entry.work_date,
                     hours: parseFloat(entry.expected_hours),
                     activity: entry.activity || 'domestic',
-                    other_activity: entry.activity === 'otros' ? 'Servicio regular' : undefined,
                     hourly_rate: parseFloat(entry.hourly_rate),
                     total_amount: totalAmount,
                     period: period,
-                    invoiced: false,
-                    schedule_id: entry.schedule_id || undefined,
-                    modified_by_cleaner: false
+                    invoiced: false
                 };
 
-                console.log(`[CreateMissingWorkEntries] 📝 Datos a crear:`, JSON.stringify(workEntryData, null, 2));
+                console.log(`[CreateMissingWorkEntries] 📝 Intentando crear:`, JSON.stringify(workEntryData, null, 2));
 
                 const newEntry = await base44.asServiceRole.entities.WorkEntry.create(workEntryData);
 
-                console.log(`[CreateMissingWorkEntries] ✅ CREADA CON ÉXITO - ID: ${newEntry.id}`);
-                console.log(`[CreateMissingWorkEntries] Verificación: cleaner_id=${newEntry.cleaner_id}, client_id=${newEntry.client_id}, work_date=${newEntry.work_date}`);
+                console.log(`[CreateMissingWorkEntries] ✅ Creada entrada ID: ${newEntry.id} para ${entry.cleaner_name} - ${entry.client_name}`);
                 
                 results.created.push({
                     id: newEntry.id,
