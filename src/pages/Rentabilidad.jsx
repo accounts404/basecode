@@ -746,7 +746,7 @@ export default function RentabilidadPage() {
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
             return isDateInRange(schedule.start_time, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
-                   schedule.status === 'completed' &&
+                   schedule.xero_invoiced === true &&
                    schedule.client_id !== trainingClientId &&
                    clientMap.has(schedule.client_id);
         });
