@@ -720,12 +720,12 @@ export default function ConciliacionFacturasPage() {
                 const user = usersMap.get(cs.cleaner_id);
                 const name = user?.display_name || user?.full_name || 'Desconocido';
                 
-                // Calcular horas trabajadas
+                // Calcular horas trabajadas (sin aproximar)
                 const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
                 const end = new Date(cs.end_time.endsWith('Z') ? cs.end_time : `${cs.end_time}Z`);
                 const hours = (end - start) / (1000 * 60 * 60);
                 
-                return { name, hours: hours.toFixed(1) };
+                return { name, hours };
             }).filter(Boolean);
         }
 
@@ -737,7 +737,7 @@ export default function ConciliacionFacturasPage() {
         return service.cleaner_ids.map(id => {
             const user = usersMap.get(id);
             const name = user?.display_name || user?.full_name || 'Desconocido';
-            return { name, hours: totalHours.toFixed(1) };
+            return { name, hours: totalHours };
         }).filter(Boolean);
     };
 
