@@ -27,6 +27,7 @@ import {
 
 import ThresholdManager from '../components/rentabilidad/ThresholdManager';
 import PricingAnalysisTable from '../components/rentabilidad/PricingAnalysisTable';
+import ClientMultiSelect from '../components/work/ClientMultiSelect';
 
 const extractDateOnly = (isoString) => {
   if (!isoString) return null;
@@ -325,6 +326,7 @@ export default function RentabilidadPage() {
     const [savingFixedCosts, setSavingFixedCosts] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [clientSearchTerm, setClientSearchTerm] = useState("");
+    const [selectedClients, setSelectedClients] = useState([]);
     const [sortColumn, setSortColumn] = useState('realMargin');
     const [sortDirection, setSortDirection] = useState('desc');
     const [pricingThresholds, setPricingThresholds] = useState([]);
@@ -715,8 +717,16 @@ export default function RentabilidadPage() {
         });
 
         const filteredClientAnalysis = sortedClientAnalysis.filter(data => {
-            if (!clientSearchTerm.trim()) return true;
-            return data.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase());
+            // Prioridad 1: Si hay clientes seleccionados en multi-select, usar eso
+            if (selectedClients.length > 0) {
+                return selectedClients.includes(data.clientName);
+            }
+            // Prioridad 2: Si hay búsqueda de texto, usar eso
+            if (clientSearchTerm.trim()) {
+                return data.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase());
+            }
+            // Sin filtros: mostrar todos
+            return true;
         });
         
         const summary = filteredClientAnalysis.reduce((acc, client) => {
@@ -921,8 +931,16 @@ export default function RentabilidadPage() {
         });
 
         const filteredCumulativeAnalysis = sortedCumulativeAnalysis.filter(data => {
-            if (!clientSearchTerm.trim()) return true;
-            return data.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase());
+            // Prioridad 1: Si hay clientes seleccionados en multi-select, usar eso
+            if (selectedClients.length > 0) {
+                return selectedClients.includes(data.clientName);
+            }
+            // Prioridad 2: Si hay búsqueda de texto, usar eso
+            if (clientSearchTerm.trim()) {
+                return data.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase());
+            }
+            // Sin filtros: mostrar todos
+            return true;
         });
 
         const cumulativeSummary = filteredCumulativeAnalysis.reduce((acc, client) => {
@@ -949,7 +967,18 @@ export default function RentabilidadPage() {
 
     const clearSearch = () => {
         setClientSearchTerm("");
+        setSelectedClients([]);
     };
+
+    const handleMultiClientSelect = (clients) => {
+        setSelectedClients(clients);
+    };
+
+    // Obtener lista única de nombres de clientes para el selector
+    const uniqueClientNames = useMemo(() => {
+        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
+        return [...new Set(activeClients.map(c => c.name))].sort();
+    }, [clients, trainingClientId]);
 
     const handleThresholdsSaved = () => {
         setIsThresholdModalOpen(false);
@@ -1087,32 +1116,33 @@ export default function RentabilidadPage() {
                                 <div className="flex items-center gap-5">
                                     <Search className="w-6 h-6 text-blue-600 flex-shrink-0" />
                                     <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide whitespace-nowrap">
-                                        Buscar Cliente:
+                                        Filtrar Cliente(s):
                                     </Label>
-                                    <div className="flex-1 relative">
-                                        <Input
-                                            placeholder="Buscar cliente por nombre..."
-                                            value={clientSearchTerm}
-                                            onChange={(e) => setClientSearchTerm(e.target.value)}
-                                            className="h-12 text-base pl-5 pr-12 border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                                    <div className="flex-1">
+                                        <ClientMultiSelect
+                                            clients={uniqueClientNames}
+                                            selectedClients={selectedClients}
+                                            onSelectionChange={handleMultiClientSelect}
+                                            maxSelections={5}
                                         />
-                                        {clientSearchTerm && (
+                                    </div>
+                                    {(selectedClients.length > 0 || clientSearchTerm) && (
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-2 text-sm bg-blue-50 px-4 py-3 rounded-lg border border-blue-200">
+                                                <Search className="w-4 h-4 text-blue-700" />
+                                                <span className="font-semibold text-blue-900">
+                                                    {profitabilityData.clientAnalysis.length} resultado{profitabilityData.clientAnalysis.length !== 1 ? 's' : ''}
+                                                </span>
+                                            </div>
                                             <Button
-                                                variant="ghost"
+                                                variant="outline"
                                                 size="sm"
                                                 onClick={clearSearch}
-                                                className="absolute right-2 top-2 h-8 w-8 p-0 hover:bg-slate-100 rounded-lg"
+                                                className="hover:bg-red-50 hover:border-red-300 hover:text-red-700"
                                             >
-                                                <X className="h-4 w-4" />
+                                                <X className="h-4 w-4 mr-1" />
+                                                Limpiar
                                             </Button>
-                                        )}
-                                    </div>
-                                    {clientSearchTerm && (
-                                        <div className="flex items-center gap-2 text-sm bg-blue-50 px-4 py-3 rounded-lg border border-blue-200">
-                                            <Search className="w-4 h-4 text-blue-700" />
-                                            <span className="font-semibold text-blue-900">
-                                                {profitabilityData.clientAnalysis.length} resultado{profitabilityData.clientAnalysis.length !== 1 ? 's' : ''}
-                                            </span>
                                         </div>
                                     )}
                                 </div>
@@ -1229,9 +1259,9 @@ export default function RentabilidadPage() {
                                         <Briefcase className="w-6 h-6 text-slate-700"/>
                                         <span className="text-slate-900">
                                             Rentabilidad Detallada por Cliente - {format(selectedPeriod.start, 'MMMM yyyy', { locale: es })}
-                                            {clientSearchTerm && (
+                                            {(selectedClients.length > 0 || clientSearchTerm) && (
                                                 <span className="text-base font-normal text-blue-700 ml-3">
-                                                    (Filtrado: "{clientSearchTerm}")
+                                                    (Filtrado: {selectedClients.length > 0 ? `${selectedClients.length} cliente${selectedClients.length > 1 ? 's' : ''}` : `"${clientSearchTerm}"`})
                                                 </span>
                                             )}
                                         </span>
@@ -1438,9 +1468,9 @@ export default function RentabilidadPage() {
                                     
                                     <p className="text-slate-600 mb-6 text-base font-light leading-relaxed">
                                         Análisis acumulado de ingresos, costos y márgenes reales para el período seleccionado. Excluye agosto y septiembre 2025.
-                                        {clientSearchTerm && (
+                                        {(selectedClients.length > 0 || clientSearchTerm) && (
                                             <span className="ml-2 text-base font-medium text-blue-700">
-                                                (Filtrado: "{clientSearchTerm}")
+                                                (Filtrado: {selectedClients.length > 0 ? `${selectedClients.length} cliente${selectedClients.length > 1 ? 's' : ''}` : `"${clientSearchTerm}"`})
                                             </span>
                                         )}
                                     </p>
