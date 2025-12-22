@@ -930,7 +930,7 @@ export default function HorarioPage() {
                 if (workEntry && (workEntry.invoiced === false || workEntry.invoiced === undefined)) {
                     const startTime = new Date(newSchedule.start_time);
                     const endTime = new Date(newSchedule.end_time);
-                    const newHours = Math.round(((endTime - startTime) / (1000 * 60 * 60)) * 4) / 4;
+                    const newHours = (endTime - startTime) / (1000 * 60 * 60);
                     const newTotalAmount = newHours * workEntry.hourly_rate;
 
                     await WorkEntry.update(workEntry.id, {
