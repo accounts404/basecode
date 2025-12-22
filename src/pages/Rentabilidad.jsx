@@ -351,6 +351,12 @@ export default function RentabilidadPage() {
         { value: "one_off", label: "Servicio Único" }
     ];
 
+    // Obtener lista única de nombres de clientes para el selector
+    const uniqueClientNames = useMemo(() => {
+        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
+        return [...new Set(activeClients.map(c => c.name))].sort();
+    }, [clients, trainingClientId]);
+
     // Helper para cargar TODOS los registros con paginación automática
     const loadAllRecords = async (entity, sortField = '-created_date') => {
         const BATCH_SIZE = 5000;
@@ -973,12 +979,6 @@ export default function RentabilidadPage() {
     const handleMultiClientSelect = (clients) => {
         setSelectedClients(clients);
     };
-
-    // Obtener lista única de nombres de clientes para el selector
-    const uniqueClientNames = useMemo(() => {
-        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
-        return [...new Set(activeClients.map(c => c.name))].sort();
-    }, [clients, trainingClientId]);
 
     const handleThresholdsSaved = () => {
         setIsThresholdModalOpen(false);
