@@ -749,7 +749,7 @@ export default function RentabilidadPage() {
 
         return { clientAnalysis: filteredClientAnalysis, summary };
 
-    }, [selectedPeriod, monthlyProcessedClientAnalysis, clientSearchTerm, sortColumn, sortDirection]);
+    }, [selectedPeriod, monthlyProcessedClientAnalysis, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
 
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
@@ -966,7 +966,7 @@ export default function RentabilidadPage() {
             summary: cumulativeSummary, 
             overallTotalFixedCosts: totalCumulativeFixedCosts 
         };
-    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, sortColumn, sortDirection]);
+    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
 
     if (loading) return <div className="p-8 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div></div>;
     if (error) return <div className="p-8 text-red-700 text-center font-medium">{error}</div>;
