@@ -1,65 +1,67 @@
-import Dashboard from './pages/Dashboard';
-import RegistrarTrabajo from './pages/RegistrarTrabajo';
-import Clientes from './pages/Clientes';
-import MisHoras from './pages/MisHoras';
-import TrabajoEntradas from './pages/TrabajoEntradas';
-import Facturas from './pages/Facturas';
-import MisFacturas from './pages/MisFacturas';
-import Reportes from './pages/Reportes';
-import MiPerfil from './pages/MiPerfil';
-import Limpiadores from './pages/Limpiadores';
-import ConciliacionHoras from './pages/ConciliacionHoras';
-import Rentabilidad from './pages/Rentabilidad';
-import Horario from './pages/Horario';
-import Vehiculos from './pages/Vehiculos';
-import GestionFlota from './pages/GestionFlota';
-import ReportesServicio from './pages/ReportesServicio';
-import Configuracion from './pages/Configuracion';
-import ConciliacionFacturas from './pages/ConciliacionFacturas';
-import PuntuacionLimpiadores from './pages/PuntuacionLimpiadores';
-import MiPuntuacion from './pages/MiPuntuacion';
-import GestionServiciosAdmin from './pages/GestionServiciosAdmin';
-import TVDashboard from './pages/TVDashboard';
-import AumentoClientes from './pages/AumentoClientes';
-import GestionCamisas from './pages/GestionCamisas';
-import HistorialClientes from './pages/HistorialClientes';
-import ServicioActivo from './pages/ServicioActivo';
 import AdminTasksPanel from './pages/AdminTasksPanel';
 import AuditoriaWorkEntries from './pages/AuditoriaWorkEntries';
+import AumentoClientes from './pages/AumentoClientes';
+import Clientes from './pages/Clientes';
+import ConciliacionFacturas from './pages/ConciliacionFacturas';
+import ConciliacionHoras from './pages/ConciliacionHoras';
+import Configuracion from './pages/Configuracion';
+import Dashboard from './pages/Dashboard';
+import Facturas from './pages/Facturas';
+import GestionCamisas from './pages/GestionCamisas';
+import GestionFlota from './pages/GestionFlota';
+import GestionServiciosAdmin from './pages/GestionServiciosAdmin';
+import HistorialClientes from './pages/HistorialClientes';
+import Home from './pages/Home';
+import Horario from './pages/Horario';
+import Limpiadores from './pages/Limpiadores';
+import MiPerfil from './pages/MiPerfil';
+import MiPuntuacion from './pages/MiPuntuacion';
+import MisFacturas from './pages/MisFacturas';
+import MisHoras from './pages/MisHoras';
+import PuntuacionLimpiadores from './pages/PuntuacionLimpiadores';
+import RegistrarTrabajo from './pages/RegistrarTrabajo';
+import Rentabilidad from './pages/Rentabilidad';
+import Reportes from './pages/Reportes';
+import ReportesServicio from './pages/ReportesServicio';
 import RevisionPrecios from './pages/RevisionPrecios';
+import ServicioActivo from './pages/ServicioActivo';
+import TVDashboard from './pages/TVDashboard';
+import TrabajoEntradas from './pages/TrabajoEntradas';
+import Vehiculos from './pages/Vehiculos';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Dashboard": Dashboard,
-    "RegistrarTrabajo": RegistrarTrabajo,
-    "Clientes": Clientes,
-    "MisHoras": MisHoras,
-    "TrabajoEntradas": TrabajoEntradas,
-    "Facturas": Facturas,
-    "MisFacturas": MisFacturas,
-    "Reportes": Reportes,
-    "MiPerfil": MiPerfil,
-    "Limpiadores": Limpiadores,
-    "ConciliacionHoras": ConciliacionHoras,
-    "Rentabilidad": Rentabilidad,
-    "Horario": Horario,
-    "Vehiculos": Vehiculos,
-    "GestionFlota": GestionFlota,
-    "ReportesServicio": ReportesServicio,
-    "Configuracion": Configuracion,
-    "ConciliacionFacturas": ConciliacionFacturas,
-    "PuntuacionLimpiadores": PuntuacionLimpiadores,
-    "MiPuntuacion": MiPuntuacion,
-    "GestionServiciosAdmin": GestionServiciosAdmin,
-    "TVDashboard": TVDashboard,
-    "AumentoClientes": AumentoClientes,
-    "GestionCamisas": GestionCamisas,
-    "HistorialClientes": HistorialClientes,
-    "ServicioActivo": ServicioActivo,
     "AdminTasksPanel": AdminTasksPanel,
     "AuditoriaWorkEntries": AuditoriaWorkEntries,
+    "AumentoClientes": AumentoClientes,
+    "Clientes": Clientes,
+    "ConciliacionFacturas": ConciliacionFacturas,
+    "ConciliacionHoras": ConciliacionHoras,
+    "Configuracion": Configuracion,
+    "Dashboard": Dashboard,
+    "Facturas": Facturas,
+    "GestionCamisas": GestionCamisas,
+    "GestionFlota": GestionFlota,
+    "GestionServiciosAdmin": GestionServiciosAdmin,
+    "HistorialClientes": HistorialClientes,
+    "Home": Home,
+    "Horario": Horario,
+    "Limpiadores": Limpiadores,
+    "MiPerfil": MiPerfil,
+    "MiPuntuacion": MiPuntuacion,
+    "MisFacturas": MisFacturas,
+    "MisHoras": MisHoras,
+    "PuntuacionLimpiadores": PuntuacionLimpiadores,
+    "RegistrarTrabajo": RegistrarTrabajo,
+    "Rentabilidad": Rentabilidad,
+    "Reportes": Reportes,
+    "ReportesServicio": ReportesServicio,
     "RevisionPrecios": RevisionPrecios,
+    "ServicioActivo": ServicioActivo,
+    "TVDashboard": TVDashboard,
+    "TrabajoEntradas": TrabajoEntradas,
+    "Vehiculos": Vehiculos,
 }
 
 export const pagesConfig = {

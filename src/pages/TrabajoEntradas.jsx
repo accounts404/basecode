@@ -16,6 +16,7 @@ import { es } from "date-fns/locale";
 import PeriodSelector from "../components/reports/PeriodSelector";
 import ClientSearchDropdown from "../components/work/ClientSearchDropdown"; // Unused but keeping for now if not explicitly removed
 import SimpleClientSearch from "../components/work/SimpleClientSearch";
+import ClientMultiSelect from "../components/work/ClientMultiSelect";
 import WorkEntryAuditModal from '../components/work/WorkEntryAuditModal';
 import MonthMultiSelector from '../components/work/MonthMultiSelector';
 
@@ -75,6 +76,7 @@ export default function TrabajoEntradasPage() {
   const [filterMode, setFilterMode] = useState("periods"); // "periods", "current_month", "custom_months"
   const [expandedCleaner, setExpandedCleaner] = useState(null);
   const [clientSearch, setClientSearch] = useState("");
+  const [selectedClients, setSelectedClients] = useState([]);
 
   // Audit state
   const [showAuditModal, setShowAuditModal] = useState(false);
@@ -447,6 +449,10 @@ export default function TrabajoEntradasPage() {
     setClientSearch(clientName);
   };
 
+  const handleMultiClientSelect = (clients) => {
+    setSelectedClients(clients);
+  };
+
   const handleAuditWorkEntries = async () => {
     setAuditLoading(true);
     setAuditData(null); // Clear previous audit data
@@ -520,8 +526,13 @@ export default function TrabajoEntradasPage() {
       entriesToFilter = entriesToFilter.filter(entry => entry.cleaner_id === selectedCleaner);
     }
     
-    // Filter by client search
-    if (clientSearch.trim() !== "") {
+    // Filter by multi-client selection (priority over single search)
+    if (selectedClients.length > 0) {
+      entriesToFilter = entriesToFilter.filter(entry => 
+        selectedClients.includes(entry.client_name)
+      );
+    } else if (clientSearch.trim() !== "") {
+      // Fallback to single client search if no multi-selection
       entriesToFilter = entriesToFilter.filter(entry => 
         entry.client_name?.toLowerCase().includes(clientSearch.toLowerCase())
       );
@@ -761,11 +772,12 @@ export default function TrabajoEntradasPage() {
               </div>
 
               <div className="flex-1 space-y-2">
-                <Label className="text-sm font-medium text-slate-700">Buscar por cliente:</Label>
-                <ClientSearchDropdown
+                <Label className="text-sm font-medium text-slate-700">Buscar por cliente(s):</Label>
+                <ClientMultiSelect
                   clients={uniqueClientNames}
-                  selectedClient={clientSearch}
-                  onClientSelect={handleClientSelect}
+                  selectedClients={selectedClients}
+                  onSelectionChange={handleMultiClientSelect}
+                  maxSelections={5}
                 />
               </div>
               
