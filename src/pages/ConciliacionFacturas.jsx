@@ -709,6 +709,30 @@ export default function ConciliacionFacturasPage() {
             .filter(Boolean);
     };
 
+    const getCleanerNamesWithTimes = (service) => {
+        if (!service.cleaner_ids || !Array.isArray(service.cleaner_ids) || service.cleaner_ids.length === 0) {
+            return [];
+        }
+
+        // Si tiene cleaner_schedules, usarlos para mostrar horarios individuales
+        if (service.cleaner_schedules && Array.isArray(service.cleaner_schedules) && service.cleaner_schedules.length > 0) {
+            return service.cleaner_schedules.map(cs => {
+                const user = usersMap.get(cs.cleaner_id);
+                const name = user?.display_name || user?.full_name || 'Desconocido';
+                const startTime = formatTimeUTC(cs.start_time);
+                const endTime = formatTimeUTC(cs.end_time);
+                return { name, startTime, endTime };
+            }).filter(Boolean);
+        }
+
+        // Si no tiene cleaner_schedules, mostrar solo nombres sin horarios
+        return service.cleaner_ids.map(id => {
+            const user = usersMap.get(id);
+            const name = user?.display_name || user?.full_name || 'Desconocido';
+            return { name, startTime: null, endTime: null };
+        }).filter(Boolean);
+    };
+
     // Calcular totales del mes separando cash y no-cash
     const monthlyStats = useMemo(() => {
         const invoiced = monthlySchedules.filter(s => s.xero_invoiced === true);
@@ -944,7 +968,7 @@ export default function ConciliacionFacturasPage() {
                                             originalGstType = priceForDate.gstType;
                                         }
 
-                                        const cleanerNames = getCleanerNames(service.cleaner_ids);
+                                        const cleanerNamesWithTimes = getCleanerNamesWithTimes(service);
 
                                         return (
                                         <TableRow
@@ -960,11 +984,16 @@ export default function ConciliacionFacturasPage() {
                                                     <span className="text-sm font-bold">
                                                         {formatTimeUTC(service.start_time)} - {formatTimeUTC(service.end_time)}
                                                     </span>
-                                                    {cleanerNames.length > 0 ? (
+                                                    {cleanerNamesWithTimes.length > 0 ? (
                                                         <div className="flex flex-col gap-0.5 mt-1">
-                                                            {cleanerNames.map((name, idx) => (
+                                                            {cleanerNamesWithTimes.map((cleaner, idx) => (
                                                                 <span key={idx} className="text-xs text-slate-600">
-                                                                    • {name}
+                                                                    • {cleaner.name}
+                                                                    {cleaner.startTime && cleaner.endTime && (
+                                                                        <span className="text-[10px] text-blue-600 ml-1.5 font-medium">
+                                                                            ({cleaner.startTime}-{cleaner.endTime})
+                                                                        </span>
+                                                                    )}
                                                                 </span>
                                                             ))}
                                                         </div>
