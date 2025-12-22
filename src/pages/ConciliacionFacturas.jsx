@@ -723,7 +723,7 @@ export default function ConciliacionFacturasPage() {
                 // Calcular horas trabajadas (sin aproximar)
                 const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
                 const end = new Date(cs.end_time.endsWith('Z') ? cs.end_time : `${cs.end_time}Z`);
-                const hours = (end - start) / (1000 * 60 * 60);
+                const hours = ((end - start) / (1000 * 60 * 60)).toFixed(2);
                 
                 return { name, hours };
             }).filter(Boolean);
@@ -732,7 +732,7 @@ export default function ConciliacionFacturasPage() {
         // Si no tiene cleaner_schedules, calcular horas del servicio general
         const start = new Date(service.start_time.endsWith('Z') ? service.start_time : `${service.start_time}Z`);
         const end = new Date(service.end_time.endsWith('Z') ? service.end_time : `${service.end_time}Z`);
-        const totalHours = (end - start) / (1000 * 60 * 60);
+        const totalHours = ((end - start) / (1000 * 60 * 60)).toFixed(2);
         
         return service.cleaner_ids.map(id => {
             const user = usersMap.get(id);
