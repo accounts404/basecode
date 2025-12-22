@@ -719,17 +719,25 @@ export default function ConciliacionFacturasPage() {
             return service.cleaner_schedules.map(cs => {
                 const user = usersMap.get(cs.cleaner_id);
                 const name = user?.display_name || user?.full_name || 'Desconocido';
-                const startTime = formatTimeUTC(cs.start_time);
-                const endTime = formatTimeUTC(cs.end_time);
-                return { name, startTime, endTime };
+                
+                // Calcular horas trabajadas
+                const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
+                const end = new Date(cs.end_time.endsWith('Z') ? cs.end_time : `${cs.end_time}Z`);
+                const hours = (end - start) / (1000 * 60 * 60);
+                
+                return { name, hours: hours.toFixed(1) };
             }).filter(Boolean);
         }
 
-        // Si no tiene cleaner_schedules, mostrar solo nombres sin horarios
+        // Si no tiene cleaner_schedules, calcular horas del servicio general
+        const start = new Date(service.start_time.endsWith('Z') ? service.start_time : `${service.start_time}Z`);
+        const end = new Date(service.end_time.endsWith('Z') ? service.end_time : `${service.end_time}Z`);
+        const totalHours = (end - start) / (1000 * 60 * 60);
+        
         return service.cleaner_ids.map(id => {
             const user = usersMap.get(id);
             const name = user?.display_name || user?.full_name || 'Desconocido';
-            return { name, startTime: null, endTime: null };
+            return { name, hours: totalHours.toFixed(1) };
         }).filter(Boolean);
     };
 
@@ -989,11 +997,9 @@ export default function ConciliacionFacturasPage() {
                                                             {cleanerNamesWithTimes.map((cleaner, idx) => (
                                                                 <span key={idx} className="text-xs text-slate-600">
                                                                     • {cleaner.name}
-                                                                    {cleaner.startTime && cleaner.endTime && (
-                                                                        <span className="text-[10px] text-blue-600 ml-1.5 font-medium">
-                                                                            ({cleaner.startTime}-{cleaner.endTime})
-                                                                        </span>
-                                                                    )}
+                                                                    <span className="text-[10px] text-blue-600 ml-1.5 font-bold">
+                                                                        {cleaner.hours}h
+                                                                    </span>
                                                                 </span>
                                                             ))}
                                                         </div>
