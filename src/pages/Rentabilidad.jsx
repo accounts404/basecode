@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, X, Search, Settings, ArrowRightSquare, Clock9, GraduationCap } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, X, Search, Settings, ArrowRightSquare, Clock9, GraduationCap, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -967,6 +967,41 @@ export default function RentabilidadPage() {
             overallTotalFixedCosts: totalCumulativeFixedCosts 
         };
     }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
+
+    // PÁGINA EN MANTENIMIENTO - No permitir acceso
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-6">
+            <div className="max-w-2xl w-full">
+                <Card className="shadow-2xl border-2 border-orange-300">
+                    <CardContent className="p-12 text-center">
+                        <div className="mb-6">
+                            <Settings className="w-24 h-24 text-orange-600 mx-auto animate-spin" style={{ animationDuration: '3s' }} />
+                        </div>
+                        <h1 className="text-4xl font-bold text-slate-900 mb-4">
+                            🚧 Página en Mantenimiento
+                        </h1>
+                        <p className="text-xl text-slate-700 mb-6 leading-relaxed">
+                            Estamos realizando mejoras importantes en el sistema de rentabilidad para brindarte información más precisa.
+                        </p>
+                        <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-6 mb-6">
+                            <p className="text-lg font-semibold text-orange-900">
+                                ⚠️ Esta página estará disponible muy pronto
+                            </p>
+                            <p className="text-sm text-orange-700 mt-2">
+                                Por favor, vuelve más tarde. Disculpa las molestias.
+                            </p>
+                        </div>
+                        <Alert className="bg-blue-50 border-blue-300">
+                            <AlertCircle className="h-5 w-5 text-blue-600" />
+                            <AlertDescription className="text-blue-900">
+                                Las demás funcionalidades del sistema siguen operativas.
+                            </AlertDescription>
+                        </Alert>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
 
     if (loading) return <div className="p-8 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div></div>;
     if (error) return <div className="p-8 text-red-700 text-center font-medium">{error}</div>;
