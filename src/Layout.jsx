@@ -300,43 +300,6 @@ function LayoutContent({ children, currentPageName }) {
     return <div className="min-h-screen w-full">{children}</div>;
   }
 
-  if (loading && !user) {
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
-              <div className="flex items-center gap-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-                  <span className="text-slate-600">Cargando...</span>
-              </div>
-          </div>
-      );
-  }
-
-  if (!user) {
-      return (
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
-              <div className="max-w-md w-full mx-4">
-                  <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-                      <div className="w-32 h-16 mx-auto mb-6 flex items-center justify-center">
-                          <img
-                              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png"
-                              alt="RedOak Cleaning Solutions"
-                              className="max-w-full max-h-full object-contain"
-                          />
-                      </div>
-                      <h1 className="text-2xl font-bold text-slate-900 mb-2">RedOak Cleaning Solutions</h1>
-                      <p className="text-slate-600 mb-6">Sistema de seguimiento de horas de limpieza</p>
-                      <Button
-                          onClick={() => base44.auth.login()}
-                          className="w-full bg-blue-600 hover:bg-blue-700"
-                      >
-                          Iniciar Sesión
-                      </Button>
-                  </div>
-              </div>
-          </div>
-      );
-  }
-
   // 🚧 SISTEMA EN MANTENIMIENTO - Mostrar aviso grande
   return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-6">
@@ -366,21 +329,48 @@ function LayoutContent({ children, currentPageName }) {
                               Si tienes alguna urgencia, contacta al administrador del sistema.
                           </AlertDescription>
                       </Alert>
-                      <div className="mt-8">
-                          <Button
-                              onClick={handleLogout}
-                              variant="outline"
-                              className="gap-2"
-                          >
-                              <LogOut className="w-5 h-5" />
-                              Cerrar Sesión
-                          </Button>
-                      </div>
                   </CardContent>
               </Card>
           </div>
       </div>
   );
+
+  if (loading && !user) {
+      return (
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
+              <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                  <span className="text-slate-600">Cargando...</span>
+              </div>
+          </div>
+      );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
+        <div className="max-w-md w-full mx-4">
+          <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+            <div className="w-32 h-16 mx-auto mb-6 flex items-center justify-center">
+              <img
+                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png"
+                alt="RedOak Cleaning Solutions"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">RedOak Cleaning Solutions</h1>
+            <p className="text-slate-600 mb-6">Sistema de seguimiento de horas de limpieza</p>
+            <Button
+              onClick={() => base44.auth.login()}
+              className="w-full bg-blue-600 hover:bg-blue-700"
+            >
+              Iniciar Sesión
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Si es limpiador, usar layout móvil
   if (user.role !== 'admin') {
