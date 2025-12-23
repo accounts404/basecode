@@ -505,6 +505,55 @@ function LayoutContent({ children, currentPageName }) {
 }
 
 export default function Layout({ children, currentPageName }) {
+  // MODO MANTENIMIENTO - Activar/desactivar cambiando este valor
+  const isMaintenanceMode = true;
+  
+  if (isMaintenanceMode) {
+    return (
+      <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
+        <div className="max-w-2xl w-full bg-white rounded-3xl shadow-2xl p-12 text-center">
+          <div className="mb-8">
+            <div className="w-32 h-32 mx-auto mb-6 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-16 h-16 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div className="w-24 h-16 mx-auto mb-6 flex items-center justify-center">
+              <img
+                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png"
+                alt="RedOak Cleaning Solutions"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          </div>
+          
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
+            Sistema en Mantenimiento
+          </h1>
+          
+          <p className="text-xl text-slate-600 mb-8 leading-relaxed">
+            Estamos realizando mejoras en el sistema para brindarte un mejor servicio.
+          </p>
+          
+          <div className="bg-gradient-to-r from-orange-50 to-orange-100 border-2 border-orange-200 rounded-2xl p-6 mb-8">
+            <p className="text-2xl font-bold text-orange-900 mb-2">
+              Estará disponible pronto
+            </p>
+            <p className="text-orange-700 text-lg">
+              Por favor, inténtalo de nuevo en unos minutos.
+            </p>
+          </div>
+          
+          <div className="flex items-center justify-center gap-2 text-slate-500">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
+            <span className="text-sm font-medium">Trabajando en las actualizaciones...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <ThemeProvider>
       <LayoutContent children={children} currentPageName={currentPageName} />
