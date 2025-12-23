@@ -7,33 +7,34 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeProvider, { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
 import ChristmasDecoration from '@/components/theme/ChristmasDecoration';
 import {
-  LayoutDashboard,
-  Clock,
-  Users,
-  FileText,
-  BarChart3,
-  Menu,
-  LogOut,
-  UserCog,
-  CalendarClock,
-  TrendingUp,
-  BarChart,
-  Calendar,
-  UserCheck,
-  Car,
-  MapPin,
-  GitCompare,
-  CheckCircle,
-  AlertTriangle,
-  Landmark,
-  Settings,
-  Trophy,
-  Search,
-  Activity,
-  ArrowRightSquare,
-  Shirt,
-  History,
-  ListChecks,
+    LayoutDashboard,
+    Clock,
+    Users,
+    FileText,
+    BarChart3,
+    Menu,
+    LogOut,
+    UserCog,
+    CalendarClock,
+    TrendingUp,
+    BarChart,
+    Calendar,
+    UserCheck,
+    Car,
+    MapPin,
+    GitCompare,
+    CheckCircle,
+    AlertTriangle,
+    Landmark,
+    Settings,
+    Trophy,
+    Search,
+    Activity,
+    ArrowRightSquare,
+    Shirt,
+    History,
+    ListChecks,
+    AlertCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -299,15 +300,50 @@ function LayoutContent({ children, currentPageName }) {
     return <div className="min-h-screen w-full">{children}</div>;
   }
 
-  if (loading && !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-          <span className="text-slate-600">Cargando...</span>
-        </div>
+  // 🚧 SISTEMA EN MANTENIMIENTO - Mostrar aviso grande
+  return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-6">
+          <div className="max-w-3xl w-full">
+              <Card className="shadow-2xl border-2 border-orange-300">
+                  <CardContent className="p-12 text-center">
+                      <div className="mb-6">
+                          <Settings className="w-32 h-32 text-orange-600 mx-auto animate-spin" style={{ animationDuration: '3s' }} />
+                      </div>
+                      <h1 className="text-5xl font-bold text-slate-900 mb-6">
+                          🚧 Sistema en Mantenimiento
+                      </h1>
+                      <p className="text-2xl text-slate-700 mb-8 leading-relaxed">
+                          Estamos realizando mejoras importantes en el sistema para brindarte un mejor servicio.
+                      </p>
+                      <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-8 mb-8">
+                          <p className="text-2xl font-bold text-orange-900 mb-3">
+                              ⚠️ El sistema estará disponible muy pronto
+                          </p>
+                          <p className="text-lg text-orange-700">
+                              Por favor, vuelve más tarde. Disculpa las molestias.
+                          </p>
+                      </div>
+                      <Alert className="bg-blue-50 border-blue-300">
+                          <AlertCircle className="h-6 w-6 text-blue-600" />
+                          <AlertDescription className="text-blue-900 text-lg">
+                              Si tienes alguna urgencia, contacta al administrador del sistema.
+                          </AlertDescription>
+                      </Alert>
+                  </CardContent>
+              </Card>
+          </div>
       </div>
-    );
+  );
+
+  if (loading && !user) {
+      return (
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
+              <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                  <span className="text-slate-600">Cargando...</span>
+              </div>
+          </div>
+      );
   }
 
   if (!user) {
