@@ -20,6 +20,7 @@ import MisFacturas from './pages/MisFacturas';
 import MisHoras from './pages/MisHoras';
 import PuntuacionLimpiadores from './pages/PuntuacionLimpiadores';
 import RegistrarTrabajo from './pages/RegistrarTrabajo';
+import Rentabilidad from './pages/Rentabilidad';
 import Reportes from './pages/Reportes';
 import ReportesServicio from './pages/ReportesServicio';
 import RevisionPrecios from './pages/RevisionPrecios';
@@ -27,7 +28,6 @@ import ServicioActivo from './pages/ServicioActivo';
 import TVDashboard from './pages/TVDashboard';
 import TrabajoEntradas from './pages/TrabajoEntradas';
 import Vehiculos from './pages/Vehiculos';
-import Rentabilidad from './pages/Rentabilidad';
 import __Layout from './Layout.jsx';
 
 
@@ -54,6 +54,7 @@ export const PAGES = {
     "MisHoras": MisHoras,
     "PuntuacionLimpiadores": PuntuacionLimpiadores,
     "RegistrarTrabajo": RegistrarTrabajo,
+    "Rentabilidad": Rentabilidad,
     "Reportes": Reportes,
     "ReportesServicio": ReportesServicio,
     "RevisionPrecios": RevisionPrecios,
@@ -61,7 +62,6 @@ export const PAGES = {
     "TVDashboard": TVDashboard,
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
-    "Rentabilidad": Rentabilidad,
 }
 
 export const pagesConfig = {
