@@ -902,6 +902,7 @@ export default function RentabilidadPage() {
             const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
             const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
             const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
+            const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
 
             return {
                 ...data,
@@ -914,7 +915,8 @@ export default function RentabilidadPage() {
                 laborCostPerHour,
                 marginPerHour,
                 fixedCostPerHour,
-                realMarginPerHour
+                realMarginPerHour,
+                totalCostPerHour
             };
         }).filter(data => data.totalHours > 0 || data.totalIncome > 0);
 
@@ -1148,6 +1150,40 @@ export default function RentabilidadPage() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {(selectedClients.length > 0 || clientSearchTerm) && profitabilityData.clientAnalysis.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <Card className="shadow-lg border border-blue-200/60 bg-gradient-to-br from-blue-50 to-white">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-sm font-semibold text-blue-800 uppercase tracking-wide flex items-center gap-2">
+                                            <TrendingUp className="w-4 h-4" />
+                                            Valor Venta por Hora
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-4xl font-bold text-blue-900 tracking-tight">
+                                            ${(profitabilityData.summary.totalHours > 0 ? profitabilityData.summary.totalIncome / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                        </p>
+                                        <p className="text-xs text-blue-700 mt-1 font-medium">Ingresos / Horas Totales</p>
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="shadow-lg border border-orange-200/60 bg-gradient-to-br from-orange-50 to-white">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-sm font-semibold text-orange-800 uppercase tracking-wide flex items-center gap-2">
+                                            <TrendingDown className="w-4 h-4" />
+                                            Costo Total por Hora
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-4xl font-bold text-orange-900 tracking-tight">
+                                            ${(profitabilityData.summary.totalHours > 0 ? (profitabilityData.summary.totalLaborCost + Math.abs(profitabilityData.summary.totalMargin - profitabilityData.summary.totalRealMargin)) / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                        </p>
+                                        <p className="text-xs text-orange-700 mt-1 font-medium">Mano de Obra + Gastos Fijos</p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <Card className="shadow-lg border border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white">
