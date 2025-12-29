@@ -339,7 +339,7 @@ export default function RentabilidadPage() {
     const [cumulativeTrainingCost, setCumulativeTrainingCost] = useState({ hours: 0, amount: 0 });
     const [trainingClientId, setTrainingClientId] = useState(null);
 
-    const cumulativeStartDate = useMemo(() => new Date('2025-04-01T00:00:00Z'), []);
+    const [cumulativeStartDate, setCumulativeStartDate] = useState(new Date('2025-04-01T00:00:00Z'));
     const [cumulativeEndDate, setCumulativeEndDate] = useState(new Date());
 
     const frequencyOptions = [
@@ -1413,52 +1413,102 @@ export default function RentabilidadPage() {
                                 <AccordionContent className="px-8 pb-8 pt-6">
                                     <Card className="mb-6 shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                                         <CardContent className="p-6">
-                                            <div className="flex items-center gap-6">
-                                                <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2 whitespace-nowrap">
-                                                    <Calendar className="w-4 h-4 text-blue-600" />
-                                                    Fecha Final:
-                                                </Label>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            className="h-12 px-4 justify-start text-left font-medium border-slate-300 hover:border-blue-600 hover:bg-slate-50 w-[280px]"
-                                                        >
-                                                            <Calendar className="mr-3 h-5 w-5 text-blue-600" />
-                                                            {format(cumulativeEndDate, 'd MMMM yyyy', { locale: es })}
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0" align="start">
-                                                        <CalendarComponent
-                                                            mode="single"
-                                                            selected={cumulativeEndDate}
-                                                            onSelect={(date) => {
-                                                                if (date) {
-                                                                    setCumulativeEndDate(date);
-                                                                }
-                                                            }}
-                                                            disabled={(date) => {
-                                                                // No permitir fechas antes de abril 2025
-                                                                const minDate = new Date('2025-04-01');
-                                                                if (date < minDate) return true;
-                                                                
-                                                                // No permitir fechas futuras
-                                                                if (date > new Date()) return true;
-                                                                
-                                                                // EXCLUIR agosto y septiembre 2025
-                                                                const dateStr = format(date, 'yyyy-MM');
-                                                                if (dateStr === '2025-08' || dateStr === '2025-09') return true;
-                                                                
-                                                                return false;
-                                                            }}
-                                                            initialFocus
-                                                            locale={es}
-                                                        />
-                                                    </PopoverContent>
-                                                </Popover>
-                                                <div className="text-sm text-slate-600 bg-blue-50 px-4 py-3 rounded-lg border border-blue-200">
-                                                    <span className="font-medium">Período:</span> {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - {format(cumulativeEndDate, 'd MMM yyyy', { locale: es })}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                                        <Calendar className="w-4 h-4 text-green-600" />
+                                                        Fecha Inicial:
+                                                    </Label>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                variant="outline"
+                                                                className="h-12 px-4 justify-start text-left font-medium border-slate-300 hover:border-green-600 hover:bg-slate-50 w-full"
+                                                            >
+                                                                <Calendar className="mr-3 h-5 w-5 text-green-600" />
+                                                                {format(cumulativeStartDate, 'd MMMM yyyy', { locale: es })}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0" align="start">
+                                                            <CalendarComponent
+                                                                mode="single"
+                                                                selected={cumulativeStartDate}
+                                                                onSelect={(date) => {
+                                                                    if (date) {
+                                                                        setCumulativeStartDate(date);
+                                                                    }
+                                                                }}
+                                                                disabled={(date) => {
+                                                                    // No permitir fechas antes de abril 2025
+                                                                    const minDate = new Date('2025-04-01');
+                                                                    if (date < minDate) return true;
+                                                                    
+                                                                    // No permitir fechas futuras
+                                                                    if (date > new Date()) return true;
+                                                                    
+                                                                    // No permitir fechas después de la fecha final
+                                                                    if (date > cumulativeEndDate) return true;
+                                                                    
+                                                                    // EXCLUIR agosto y septiembre 2025
+                                                                    const dateStr = format(date, 'yyyy-MM');
+                                                                    if (dateStr === '2025-08' || dateStr === '2025-09') return true;
+                                                                    
+                                                                    return false;
+                                                                }}
+                                                                initialFocus
+                                                                locale={es}
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
                                                 </div>
+
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                                        <Calendar className="w-4 h-4 text-blue-600" />
+                                                        Fecha Final:
+                                                    </Label>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                variant="outline"
+                                                                className="h-12 px-4 justify-start text-left font-medium border-slate-300 hover:border-blue-600 hover:bg-slate-50 w-full"
+                                                            >
+                                                                <Calendar className="mr-3 h-5 w-5 text-blue-600" />
+                                                                {format(cumulativeEndDate, 'd MMMM yyyy', { locale: es })}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0" align="start">
+                                                            <CalendarComponent
+                                                                mode="single"
+                                                                selected={cumulativeEndDate}
+                                                                onSelect={(date) => {
+                                                                    if (date) {
+                                                                        setCumulativeEndDate(date);
+                                                                    }
+                                                                }}
+                                                                disabled={(date) => {
+                                                                    // No permitir fechas antes de la fecha inicial
+                                                                    if (date < cumulativeStartDate) return true;
+                                                                    
+                                                                    // No permitir fechas futuras
+                                                                    if (date > new Date()) return true;
+                                                                    
+                                                                    // EXCLUIR agosto y septiembre 2025
+                                                                    const dateStr = format(date, 'yyyy-MM');
+                                                                    if (dateStr === '2025-08' || dateStr === '2025-09') return true;
+                                                                    
+                                                                    return false;
+                                                                }}
+                                                                initialFocus
+                                                                locale={es}
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="mt-4 text-sm text-slate-600 bg-blue-50 px-4 py-3 rounded-lg border border-blue-200">
+                                                <span className="font-medium">Período seleccionado:</span> {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - {format(cumulativeEndDate, 'd MMM yyyy', { locale: es })}
                                             </div>
                                         </CardContent>
                                     </Card>
