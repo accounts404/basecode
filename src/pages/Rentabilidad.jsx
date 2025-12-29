@@ -902,6 +902,7 @@ export default function RentabilidadPage() {
             const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
             const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
             const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
+            const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
 
             return {
                 ...data,
@@ -914,7 +915,8 @@ export default function RentabilidadPage() {
                 laborCostPerHour,
                 marginPerHour,
                 fixedCostPerHour,
-                realMarginPerHour
+                realMarginPerHour,
+                totalCostPerHour
             };
         }).filter(data => data.totalHours > 0 || data.totalIncome > 0);
 
@@ -1508,6 +1510,24 @@ export default function RentabilidadPage() {
                                                             </div>
                                                         </TableHead>
                                                         <TableHead 
+                                                            className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700 bg-blue-50"
+                                                            onClick={() => handleSort('incomePerHour')}
+                                                        >
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                Valor Venta/Hora
+                                                                {getSortIcon('incomePerHour')}
+                                                            </div>
+                                                        </TableHead>
+                                                        <TableHead 
+                                                            className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700 bg-orange-50"
+                                                            onClick={() => handleSort('totalCostPerHour')}
+                                                        >
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                Costo Total/Hora
+                                                                {getSortIcon('totalCostPerHour')}
+                                                            </div>
+                                                        </TableHead>
+                                                        <TableHead 
                                                             className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700"
                                                             onClick={() => handleSort('totalIncome')}
                                                         >
@@ -1569,6 +1589,8 @@ export default function RentabilidadPage() {
                                                             <TableCell className="font-semibold text-slate-900 py-4">{data.clientName}</TableCell>
                                                             <TableCell className="text-center text-slate-700">{data.serviceCount}</TableCell>
                                                             <TableCell className="text-center font-medium text-slate-800">{data.totalHours.toFixed(2)}h</TableCell>
+                                                            <TableCell className="text-right font-bold text-blue-700 bg-blue-50">${data.incomePerHour.toFixed(2)}/h</TableCell>
+                                                            <TableCell className="text-right font-bold text-orange-700 bg-orange-50">${data.totalCostPerHour.toFixed(2)}/h</TableCell>
                                                             <TableCell className="text-right font-semibold text-emerald-700">${data.totalIncome.toFixed(2)}</TableCell>
                                                             <TableCell className="text-right font-semibold text-rose-700">${data.totalLaborCost.toFixed(2)}</TableCell>
                                                             <TableCell className={`text-right font-semibold ${data.margin > 0 ? 'text-blue-700' : 'text-orange-700'}`}>${data.margin.toFixed(2)}</TableCell>
@@ -1587,6 +1609,12 @@ export default function RentabilidadPage() {
                                                     <TableRow className="bg-gradient-to-r from-slate-100 to-slate-50 font-bold text-slate-900 sticky bottom-0 border-t-2 border-slate-300">
                                                         <TableCell colSpan="2" className="text-right text-xl py-5">TOTAL ACUMULADO</TableCell>
                                                         <TableCell className="text-center text-xl">{cumulativeProfitabilityData.summary.totalHours.toFixed(2)}h</TableCell>
+                                                        <TableCell className="text-right text-xl text-blue-800 bg-blue-50">
+                                                            ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.summary.totalIncome / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                        </TableCell>
+                                                        <TableCell className="text-right text-xl text-orange-800 bg-orange-50">
+                                                            ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                        </TableCell>
                                                         <TableCell className="text-right text-xl text-emerald-800">${cumulativeProfitabilityData.summary.totalIncome.toFixed(2)}</TableCell>
                                                         <TableCell className="text-right text-xl text-rose-800">${cumulativeProfitabilityData.summary.totalLaborCost.toFixed(2)}</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalMargin > 0 ? 'text-blue-800' : 'text-orange-800'}`}>${cumulativeProfitabilityData.summary.totalMargin.toFixed(2)}</TableCell>
