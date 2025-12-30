@@ -374,12 +374,19 @@ export default function HorarioPage() {
             const dayBefore = subDays(forDate, 2);
             const dayAfter = addDays(forDate, 2);
 
-            // CORRECCIÓN DE ZONA HORARIA: Calcula los límites UTC correctos para el rango de fechas LOCALES
-            // Esto asegura que los eventos registrados en un día local se capturen correctamente
-            // sin importar la zona horaria del usuario
-            const startOfRangeUTC = startOfDay(dayBefore).toISOString();
-            const endOfRangeUTC = endOfDay(dayAfter).toISOString();
-            const dateRange = `${dayBefore.toISOString().slice(0, 10)}_${dayAfter.toISOString().slice(0, 10)}`;
+            // CORRECCIÓN DE ZONA HORARIA: Construir fechas UTC manualmente desde la fecha LOCAL
+            // Esto garantiza que los servicios del día se carguen correctamente independientemente de la hora
+            const startYear = dayBefore.getFullYear();
+            const startMonth = String(dayBefore.getMonth() + 1).padStart(2, '0');
+            const startDay = String(dayBefore.getDate()).padStart(2, '0');
+            const startOfRangeUTC = `${startYear}-${startMonth}-${startDay}T00:00:00.000Z`;
+            
+            const endYear = dayAfter.getFullYear();
+            const endMonth = String(dayAfter.getMonth() + 1).padStart(2, '0');
+            const endDay = String(dayAfter.getDate()).padStart(2, '0');
+            const endOfRangeUTC = `${endYear}-${endMonth}-${endDay}T23:59:59.999Z`;
+            
+            const dateRange = `${startYear}-${startMonth}-${startDay}_${endYear}-${endMonth}-${endDay}`;
 
             logger.info('Horario', `${isSilentUpdate ? 'Actualización silenciosa' : 'Cargando servicios'}`, { 
                 dateRange,
@@ -418,8 +425,17 @@ export default function HorarioPage() {
                 logger.warn('Horario', 'Filtro optimizado falló, usando fallback', filterError);
                 const monthStart = startOfMonth(forDate);
                 const monthEnd = endOfMonth(forDate);
-                const monthStartUTC = startOfDay(monthStart).toISOString();
-                const monthEndUTC = endOfDay(monthEnd).toISOString();
+                
+                // Construir fechas UTC manualmente desde fechas locales
+                const fallbackStartYear = monthStart.getFullYear();
+                const fallbackStartMonth = String(monthStart.getMonth() + 1).padStart(2, '0');
+                const monthStartUTC = `${fallbackStartYear}-${fallbackStartMonth}-01T00:00:00.000Z`;
+                
+                const fallbackEndYear = monthEnd.getFullYear();
+                const fallbackEndMonth = String(monthEnd.getMonth() + 1).padStart(2, '0');
+                const fallbackEndDay = String(monthEnd.getDate()).padStart(2, '0');
+                const monthEndUTC = `${fallbackEndYear}-${fallbackEndMonth}-${fallbackEndDay}T23:59:59.999Z`;
+                
                 return Schedule.filter({
                     start_time: {
                         $gte: monthStartUTC,
