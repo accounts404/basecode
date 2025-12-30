@@ -77,9 +77,9 @@ export default function CleanerDayListView({
 
     // Filtrar eventos del día seleccionado
     const eventsForDate = useMemo(() => {
-        const year = selectedDate.getFullYear();
-        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const year = selectedDate.getUTCFullYear();
+        const month = String(selectedDate.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getUTCDate()).padStart(2, '0');
         const dateString = `${year}-${month}-${day}`;
         
         return events
