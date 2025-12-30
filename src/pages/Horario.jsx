@@ -219,9 +219,9 @@ export default function HorarioPage() {
 
         const schedulesArray = Array.isArray(currentSchedules) ? currentSchedules : [];
         
-        const year = forDate.getFullYear();
-        const month = String(forDate.getMonth() + 1).padStart(2, '0');
-        const day = String(forDate.getDate()).padStart(2, '0');
+        const year = forDate.getUTCFullYear();
+        const month = String(forDate.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(forDate.getUTCDate()).padStart(2, '0');
         const selectedDateStr = `${year}-${month}-${day}`;
         
         console.log('[Horario] 🔑 Filtrando llaves para la fecha:', selectedDateStr);
@@ -294,9 +294,9 @@ export default function HorarioPage() {
         }
 
         try {
-            const year = forDate.getFullYear();
-            const month = String(forDate.getMonth() + 1).padStart(2, '0');
-            const day = String(forDate.getDate()).padStart(2, '0');
+            const year = forDate.getUTCFullYear();
+            const month = String(forDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(forDate.getUTCDate()).padStart(2, '0');
             const selectedDateStr = `${year}-${month}-${day}`;
             
             console.log('[Horario] 🚗 Buscando vehículo y equipo para:', selectedDateStr);
