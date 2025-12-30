@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1019,6 +1018,27 @@ export default function CrearServicioForm({
 
     const formatTimeOnly = (isoString) => isoString ? format(parseISO(isoString), 'HH:mm', { locale: es }) : 'N/A';
     const formatDateWithTime = (isoString) => isoString ? format(parseISO(isoString), 'dd/MM/yyyy HH:mm', { locale: es }) : 'N/A';
+    
+    // Función para formatear fecha y hora directamente desde ISO string (UTC)
+    const formatUTCDate = (isoString) => {
+        if (!isoString) return 'N/A';
+        const date = new Date(isoString);
+        const year = date.getUTCFullYear();
+        const month = date.getUTCMonth();
+        const day = date.getUTCDate();
+        const weekday = date.getUTCDay();
+        const weekdayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        const monthNames = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        return `${weekdayNames[weekday]}, ${day} ${monthNames[month]} ${year}`;
+    };
+    
+    const formatUTCTime = (isoString) => {
+        if (!isoString) return 'N/A';
+        const date = new Date(isoString);
+        const hours = String(date.getUTCHours()).padStart(2, '0');
+        const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+    };
 
     const handleOpenClientProfile = (clientId) => {
         if (!clientId) return;
@@ -1111,10 +1131,10 @@ export default function CrearServicioForm({
                                         Horario del Servicio
                                     </h3>
                                     <p className="text-sm text-blue-700">
-                                        <strong>Fecha:</strong> {format(parseISO(schedule.start_time), 'EEEE, dd MMMM yyyy', { locale: es })}
+                                        <strong>Fecha:</strong> {formatUTCDate(schedule.start_time)}
                                     </p>
                                     <p className="text-sm text-blue-700">
-                                        <strong>Hora:</strong> {format(parseISO(schedule.start_time), 'HH:mm')} - {format(parseISO(schedule.end_time), 'HH:mm')}
+                                        <strong>Hora:</strong> {formatUTCTime(schedule.start_time)} - {formatUTCTime(schedule.end_time)}
                                     </p>
                                 </div>
 
