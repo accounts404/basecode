@@ -218,10 +218,10 @@ export default function HorarioPage() {
         }
 
         const schedulesArray = Array.isArray(currentSchedules) ? currentSchedules : [];
-        
-        const year = forDate.getUTCFullYear();
-        const month = String(forDate.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(forDate.getUTCDate()).padStart(2, '0');
+
+        const year = forDate.getFullYear();
+        const month = String(forDate.getMonth() + 1).padStart(2, '0');
+        const day = String(forDate.getDate()).padStart(2, '0');
         const selectedDateStr = `${year}-${month}-${day}`;
         
         console.log('[Horario] 🔑 Filtrando llaves para la fecha:', selectedDateStr);
@@ -294,9 +294,9 @@ export default function HorarioPage() {
         }
 
         try {
-            const year = forDate.getUTCFullYear();
-            const month = String(forDate.getUTCMonth() + 1).padStart(2, '0');
-            const day = String(forDate.getUTCDate()).padStart(2, '0');
+            const year = forDate.getFullYear();
+            const month = String(forDate.getMonth() + 1).padStart(2, '0');
+            const day = String(forDate.getDate()).padStart(2, '0');
             const selectedDateStr = `${year}-${month}-${day}`;
             
             console.log('[Horario] 🚗 Buscando vehículo y equipo para:', selectedDateStr);
@@ -374,13 +374,12 @@ export default function HorarioPage() {
             const dayBefore = subDays(forDate, 2);
             const dayAfter = addDays(forDate, 2);
 
-            // CORRECCIÓN DE ZONA HORARIA: Construir fechas UTC manualmente desde la fecha LOCAL
-            // Esto garantiza que los servicios del día se carguen correctamente independientemente de la hora
+            // Construir fechas UTC desde la fecha LOCAL seleccionada
             const startYear = dayBefore.getFullYear();
             const startMonth = String(dayBefore.getMonth() + 1).padStart(2, '0');
             const startDay = String(dayBefore.getDate()).padStart(2, '0');
             const startOfRangeUTC = `${startYear}-${startMonth}-${startDay}T00:00:00.000Z`;
-            
+
             const endYear = dayAfter.getFullYear();
             const endMonth = String(dayAfter.getMonth() + 1).padStart(2, '0');
             const endDay = String(dayAfter.getDate()).padStart(2, '0');
