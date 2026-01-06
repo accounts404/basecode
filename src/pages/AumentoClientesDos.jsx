@@ -63,10 +63,27 @@ export default function AumentoClientesDosPage() {
                 FixedCost.list()
             ]);
             
+            // Filtrar agosto y septiembre 2025
+            const filteredWorkEntries = workEntriesData.filter(we => {
+                if (!we.work_date) return true;
+                const weDate = new Date(we.work_date);
+                const year = weDate.getFullYear();
+                const month = weDate.getMonth();
+                return !(year === 2025 && (month === 7 || month === 8));
+            });
+            
+            const filteredSchedules = schedulesData.filter(s => {
+                if (!s.start_time) return true;
+                const sDate = new Date(s.start_time);
+                const year = sDate.getFullYear();
+                const month = sDate.getMonth();
+                return !(year === 2025 && (month === 7 || month === 8));
+            });
+            
             setUser(currentUser);
             setClients(clientsData.filter(c => c.active !== false));
-            setWorkEntries(workEntriesData);
-            setSchedules(schedulesData);
+            setWorkEntries(filteredWorkEntries);
+            setSchedules(filteredSchedules);
             setFixedCosts(fixedCostsData);
             
         } catch (err) {
