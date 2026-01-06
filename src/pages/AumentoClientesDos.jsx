@@ -148,7 +148,7 @@ export default function AumentoClientesDosPage() {
                 );
                 
                 // Calcular porcentaje de horas del cliente sobre el total
-                const clientHourShare = totalHoursInPeriod > 0 ? totalHoursForClient / totalHoursInPeriod : 0;
+                const clientHourShare = totalHoursWorked > 0 ? totalHoursForClient / totalHoursWorked : 0;
                 
                 // Asignar gastos fijos proporcionalmente
                 const distributedFixedCost = totalFixedCosts * clientHourShare;
