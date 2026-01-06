@@ -147,8 +147,14 @@ export default function AumentoClientesDosPage() {
                     sum + (we.hours || 0), 0
                 );
                 
+                // Calcular porcentaje de horas del cliente sobre el total
+                const clientHourShare = totalHoursInPeriod > 0 ? totalHoursForClient / totalHoursInPeriod : 0;
+                
+                // Asignar gastos fijos proporcionalmente
+                const distributedFixedCost = totalFixedCosts * clientHourShare;
+                const fixedCostPerHour = totalHoursForClient > 0 ? distributedFixedCost / totalHoursForClient : 0;
+                
                 const laborCostPerHour = totalHoursForClient > 0 ? totalLaborCost / totalHoursForClient : 0;
-                const fixedCostPerHour = costPerHour;
                 const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
                 
                 const currentPrice = calculateGSTBase(
