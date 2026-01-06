@@ -147,9 +147,8 @@ export default function AumentoClientesDosPage() {
                     sum + (we.hours || 0), 0
                 );
                 
-                const laborCostPerHour = totalHoursForClient > 0 ? totalLaborCost / totalHoursForClient : 0;
-                const fixedCostPerHour = costPerHour;
-                const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
+                const distributedFixedCost = totalHoursForClient * costPerHour;
+                const totalCost = totalLaborCost + distributedFixedCost;
                 
                 const currentPrice = calculateGSTBase(
                     client.current_service_price || 0, 
@@ -165,8 +164,9 @@ export default function AumentoClientesDosPage() {
                     : currentHours;
                 
                 // Calcular nuevo precio por hora con rentabilidad objetivo
+                const costPerHourForClient = newHours > 0 ? totalCost / clientSchedules.length / newHours : 0;
                 const targetMultiplier = 1 + (targetProfit / 100);
-                const newPricePerHour = totalCostPerHour * targetMultiplier;
+                const newPricePerHour = costPerHourForClient * targetMultiplier;
                 const newTotalPrice = newPricePerHour * newHours;
                 const priceIncrease = newTotalPrice - currentPrice;
                 const percentageIncrease = currentPrice > 0 ? (priceIncrease / currentPrice) * 100 : 0;
@@ -177,9 +177,9 @@ export default function AumentoClientesDosPage() {
                     currentPrice,
                     currentHours,
                     currentPricePerHour,
-                    laborCostPerHour,
-                    fixedCostPerHour,
-                    totalCostPerHour,
+                    totalLaborCost,
+                    distributedFixedCost,
+                    totalCost,
                     serviceCount: clientSchedules.length,
                     newHours,
                     newPricePerHour,
@@ -368,9 +368,9 @@ export default function AumentoClientesDosPage() {
                                         <th className="text-right py-3 px-2 font-semibold text-slate-700">Precio Actual</th>
                                         <th className="text-right py-3 px-2 font-semibold text-slate-700">Horas Actuales</th>
                                         <th className="text-right py-3 px-2 font-semibold text-slate-700">$/Hora Actual</th>
-                                        <th className="text-right py-3 px-2 font-semibold text-slate-700">Costo Labor/h</th>
-                                        <th className="text-right py-3 px-2 font-semibold text-slate-700">Gastos Fijos/h</th>
-                                        <th className="text-right py-3 px-2 font-semibold text-slate-700">Costo Total/h</th>
+                                        <th className="text-right py-3 px-2 font-semibold text-slate-700">Costo Labor</th>
+                                        <th className="text-right py-3 px-2 font-semibold text-slate-700">Gastos Fijos</th>
+                                        <th className="text-right py-3 px-2 font-semibold text-slate-700">Costo Total</th>
                                         <th className="text-right py-3 px-2 font-semibold text-slate-700 bg-blue-50">Nuevas Horas</th>
                                         <th className="text-right py-3 px-2 font-semibold text-slate-700 bg-green-50">Nuevo $/Hora</th>
                                         <th className="text-right py-3 px-2 font-semibold text-slate-700 bg-green-50">Nuevo Precio</th>
@@ -384,9 +384,9 @@ export default function AumentoClientesDosPage() {
                                             <td className="text-right py-3 px-2">${client.currentPrice.toFixed(2)}</td>
                                             <td className="text-right py-3 px-2">{client.currentHours.toFixed(2)}h</td>
                                             <td className="text-right py-3 px-2">${client.currentPricePerHour.toFixed(2)}</td>
-                                            <td className="text-right py-3 px-2 text-red-600">${client.laborCostPerHour.toFixed(2)}</td>
-                                            <td className="text-right py-3 px-2 text-orange-600">${client.fixedCostPerHour.toFixed(2)}</td>
-                                            <td className="text-right py-3 px-2 font-semibold text-red-700">${client.totalCostPerHour.toFixed(2)}</td>
+                                            <td className="text-right py-3 px-2 text-red-600">${client.totalLaborCost.toFixed(2)}</td>
+                                            <td className="text-right py-3 px-2 text-orange-600">${client.distributedFixedCost.toFixed(2)}</td>
+                                            <td className="text-right py-3 px-2 font-semibold text-red-700">${client.totalCost.toFixed(2)}</td>
                                             <td className="text-right py-3 px-2 bg-blue-50">
                                                 <Input
                                                     type="number"
