@@ -263,6 +263,16 @@ const TotalsCard = ({ summary, title }) => {
                 <div className="bg-emerald-500/20 backdrop-blur-sm rounded-lg p-4 border border-emerald-500/30">
                     <p className="text-emerald-200 text-xs mb-1">Ingresos Totales</p>
                     <p className="text-emerald-100 text-2xl font-bold">${summary.totalIncome.toFixed(2)}</p>
+                    <div className="mt-2 pt-2 border-t border-emerald-500/30 space-y-1">
+                        <div className="flex justify-between items-center">
+                            <span className="text-emerald-300 text-xs">💵 Cash:</span>
+                            <span className="text-emerald-100 text-sm font-semibold">${(summary.cashIncome || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <span className="text-emerald-300 text-xs">📄 Factura:</span>
+                            <span className="text-emerald-100 text-sm font-semibold">${(summary.nonCashIncome || 0).toFixed(2)}</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="bg-rose-500/20 backdrop-blur-sm rounded-lg p-4 border border-rose-500/30">
@@ -600,6 +610,9 @@ export default function RentabilidadPage() {
             const totalMonthlyHours = Object.values(clientData).reduce((sum, c) => sum + c.totalHours, 0);
 
             const profitData = Object.values(clientData).map(data => {
+                const client = clientMap.get(data.clientId);
+                const isCash = client?.payment_method === 'cash';
+                
                 const incomePerHour = data.totalHours > 0 ? data.totalIncome / data.totalHours : 0;
                 const laborCostPerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
                 const margin = data.totalIncome - data.totalLaborCost;
@@ -614,6 +627,7 @@ export default function RentabilidadPage() {
 
                 return {
                     ...data,
+                    isCash,
                     margin,
                     profitPercentage: data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0,
                     distributedFixedCost,
@@ -742,8 +756,13 @@ export default function RentabilidadPage() {
             acc.totalMargin += client.margin;
             acc.totalHours += client.totalHours;
             acc.totalRealMargin += client.realMargin;
+            if (client.isCash) {
+                acc.cashIncome += client.totalIncome;
+            } else {
+                acc.nonCashIncome += client.totalIncome;
+            }
             return acc;
-        }, { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalHours: 0, totalRealMargin: 0 });
+        }, { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalHours: 0, totalRealMargin: 0, cashIncome: 0, nonCashIncome: 0 });
 
         const totalRealProfitPercentage = summary.totalIncome > 0 ? (summary.totalRealMargin / summary.totalIncome) * 100 : 0;
         summary.totalRealProfitPercentage = totalRealProfitPercentage;
@@ -891,6 +910,9 @@ export default function RentabilidadPage() {
             totalFixedCostsWithTraining / overallCumulativeTotalHours : 0;
 
         const cumulativeClientAnalysis = Object.values(cumulativeClientProfitability).map(data => {
+            const client = clientMap.get(data.clientId);
+            const isCash = client?.payment_method === 'cash';
+            
             const margin = data.totalIncome - data.totalLaborCost;
             const profitPercentage = data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0;
             
@@ -907,6 +929,7 @@ export default function RentabilidadPage() {
 
             return {
                 ...data,
+                isCash,
                 margin,
                 profitPercentage,
                 distributedFixedCost,
@@ -958,8 +981,13 @@ export default function RentabilidadPage() {
             acc.totalMargin += client.margin;
             acc.totalHours += client.totalHours;
             acc.totalRealMargin += client.realMargin;
+            if (client.isCash) {
+                acc.cashIncome += client.totalIncome;
+            } else {
+                acc.nonCashIncome += client.totalIncome;
+            }
             return acc;
-        }, { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0 });
+        }, { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, cashIncome: 0, nonCashIncome: 0 });
 
         const cumulativeTotalRealProfitPercentage = cumulativeSummary.totalIncome > 0 ? (cumulativeSummary.totalRealMargin / cumulativeSummary.totalIncome) * 100 : 0;
         cumulativeSummary.totalRealProfitPercentage = cumulativeTotalRealProfitPercentage;
@@ -1163,6 +1191,16 @@ export default function RentabilidadPage() {
                                 <CardContent>
                                     <p className="text-4xl font-bold text-emerald-900 tracking-tight">${profitabilityData.summary.totalIncome.toFixed(2)}</p>
                                     <p className="text-xs text-emerald-700 mt-1 font-medium">Base (sin GST)</p>
+                                    <div className="mt-3 pt-3 border-t border-emerald-200 space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-emerald-700 font-medium">💵 Cash:</span>
+                                            <span className="text-sm font-bold text-emerald-900">${(profitabilityData.summary.cashIncome || 0).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-emerald-700 font-medium">📄 Factura:</span>
+                                            <span className="text-sm font-bold text-emerald-900">${(profitabilityData.summary.nonCashIncome || 0).toFixed(2)}</span>
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
 
