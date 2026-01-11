@@ -55,9 +55,10 @@ import { format } from "date-fns";
 import CleanerMobileLayout from '@/components/layout/CleanerMobileLayout';
 
 const adminMenuItems = [
-  { name: 'Dashboard', path: 'Dashboard', icon: BarChart },
-  { name: 'Dashboard TV', path: 'TVDashboard', icon: Activity },
-  { name: 'Tareas', path: 'AdminTasksPanel', icon: ListChecks },
+    { name: 'Dashboard', path: 'Dashboard', icon: BarChart },
+    { name: 'Dashboard TV', path: 'TVDashboard', icon: Activity },
+    { name: 'Cotizaciones', path: 'Cotizaciones', icon: FileText },
+    { name: 'Tareas', path: 'AdminTasksPanel', icon: ListChecks },
   { name: 'Horario', path: 'Horario', icon: Calendar },
   { name: 'Gestión Avanzada', path: 'GestionServiciosAdmin', icon: Search },
   { name: 'Reportes de Servicio', path: 'ReportesServicio', icon: AlertTriangle },
