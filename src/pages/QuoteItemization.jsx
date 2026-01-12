@@ -645,86 +645,136 @@ export default function QuoteItemizationPage() {
                     </RadioGroup>
 
                     {currentSelection.selection_type === 'custom' && (
-                      <div className="border rounded-lg p-4 space-y-2 max-h-96 overflow-y-auto">
-                        <h4 className="font-semibold mb-3">Selecciona los items a incluir:</h4>
-                        {areaItems.map(item => {
-                          const isSelected = currentSelection.selected_items.some(i => i.item_name === item.item_name);
-                          return (
-                            <div key={item.id} className="flex items-start space-x-2 p-2 hover:bg-gray-50 rounded group">
-                              <Checkbox 
-                                checked={isSelected}
-                                onCheckedChange={() => handleItemToggle(area.id, item, serviceType)}
-                                id={`item-${item.id}-${serviceType}`}
-                              />
-                              <Label htmlFor={`item-${item.id}-${serviceType}`} className="flex-1 cursor-pointer">
-                                <div className="font-medium">{item.item_name}</div>
-                                {item.item_description && (
-                                  <div className="text-sm text-gray-500">{item.item_description}</div>
-                                )}
-                              </Label>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleOpenItemDialog(area.id, item)}
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-600"
-                                  onClick={() => setItemToDelete(item)}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+                      <div className="space-y-3">
+                        <div className="border rounded-lg p-4 space-y-2 max-h-96 overflow-y-auto">
+                          <h4 className="font-semibold mb-3">Selecciona los items a incluir:</h4>
+                          {areaItems.map(item => {
+                            const isSelected = currentSelection.selected_items.some(i => i.item_name === item.item_name);
+                            return (
+                              <div key={item.id} className="flex items-start space-x-2 p-2 hover:bg-gray-50 rounded group">
+                                <Checkbox 
+                                  checked={isSelected}
+                                  onCheckedChange={() => handleItemToggle(area.id, item, serviceType)}
+                                  id={`item-${item.id}-${serviceType}`}
+                                />
+                                <Label htmlFor={`item-${item.id}-${serviceType}`} className="flex-1 cursor-pointer">
+                                  <div className="font-medium">{item.item_name}</div>
+                                  {item.item_description && (
+                                    <div className="text-sm text-gray-500">{item.item_description}</div>
+                                  )}
+                                </Label>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleOpenItemDialog(area.id, item)}
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-600"
+                                    onClick={() => setItemToDelete(item)}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                        {areaItems.length === 0 && (
-                          <p className="text-gray-500 text-center py-4">
-                            No hay items configurados. Usa "Nuevo Item" para agregar.
-                          </p>
-                        )}
+                            );
+                          })}
+                          {areaItems.length === 0 && (
+                            <p className="text-gray-500 text-center py-4">
+                              No hay items configurados. Usa "Nuevo Item" para agregar.
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor={`notes-${area.id}-${serviceType}`} className="text-sm font-medium">
+                            Notas para esta área (opcional)
+                          </Label>
+                          <Textarea
+                            id={`notes-${area.id}-${serviceType}`}
+                            placeholder="Agrega notas específicas para esta área..."
+                            rows={3}
+                            value={
+                              serviceType === 'initial' ? (areaNotesInitial[area.id] || '') :
+                              serviceType === 'regular' ? (areaNotesRegular[area.id] || '') :
+                              (areaNotesCommercial[area.id] || '')
+                            }
+                            onChange={(e) => {
+                              const setter = serviceType === 'initial' ? setAreaNotesInitial :
+                                           serviceType === 'regular' ? setAreaNotesRegular :
+                                           setAreaNotesCommercial;
+                              setter(prev => ({ ...prev, [area.id]: e.target.value }));
+                            }}
+                            className="resize-none"
+                          />
+                        </div>
                       </div>
                     )}
 
                     {currentSelection.selection_type === 'full' && (
-                      <div className="border rounded-lg p-4 bg-green-50">
-                        <h4 className="font-semibold mb-3 text-green-800">Todos los items incluidos:</h4>
-                        <ul className="space-y-2">
-                          {areaItems.map(item => (
-                            <li key={item.id} className="flex items-start gap-2 group">
-                              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                              <div className="flex-1">
-                                <div className="font-medium">{item.item_name}</div>
-                                {item.item_description && (
-                                  <div className="text-sm text-gray-600">{item.item_description}</div>
-                                )}
-                              </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleOpenItemDialog(area.id, item)}
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-600"
-                                  onClick={() => setItemToDelete(item)}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
+                      <div className="space-y-3">
+                        <div className="border rounded-lg p-4 bg-green-50">
+                          <h4 className="font-semibold mb-3 text-green-800">Todos los items incluidos:</h4>
+                          <ul className="space-y-2">
+                            {areaItems.map(item => (
+                              <li key={item.id} className="flex items-start gap-2 group">
+                                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <div className="font-medium">{item.item_name}</div>
+                                  {item.item_description && (
+                                    <div className="text-sm text-gray-600">{item.item_description}</div>
+                                  )}
+                                </div>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleOpenItemDialog(area.id, item)}
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-600"
+                                    onClick={() => setItemToDelete(item)}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor={`notes-${area.id}-${serviceType}`} className="text-sm font-medium">
+                            Notas para esta área (opcional)
+                          </Label>
+                          <Textarea
+                            id={`notes-${area.id}-${serviceType}`}
+                            placeholder="Agrega notas específicas para esta área..."
+                            rows={3}
+                            value={
+                              serviceType === 'initial' ? (areaNotesInitial[area.id] || '') :
+                              serviceType === 'regular' ? (areaNotesRegular[area.id] || '') :
+                              (areaNotesCommercial[area.id] || '')
+                            }
+                            onChange={(e) => {
+                              const setter = serviceType === 'initial' ? setAreaNotesInitial :
+                                           serviceType === 'regular' ? setAreaNotesRegular :
+                                           setAreaNotesCommercial;
+                              setter(prev => ({ ...prev, [area.id]: e.target.value }));
+                            }}
+                            className="resize-none"
+                          />
+                        </div>
                       </div>
                     )}
 
