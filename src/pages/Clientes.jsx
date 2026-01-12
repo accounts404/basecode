@@ -54,6 +54,7 @@ export default function ClientesPage() {
         // New fields for billing
         has_special_billing_instructions: false,
         special_billing_instructions: '',
+        admin_notes: '',
         // New fields for Family and Pets
         family_members: [],
         pets: [],
@@ -130,6 +131,7 @@ export default function ClientesPage() {
             // New fields for billing
             has_special_billing_instructions: client.has_special_billing_instructions || false,
             special_billing_instructions: client.special_billing_instructions || '',
+            admin_notes: client.admin_notes || '',
             family_members: client.family_members || [],
             pets: client.pets || [],
             secondary_mobile_number: client.secondary_mobile_number || '',
@@ -519,6 +521,21 @@ export default function ClientesPage() {
                                                 />
                                             </div>
                                         )}
+                                    </div>
+
+                                    {/* Admin Notes */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="admin_notes">Notas Administrativas</Label>
+                                        <Textarea
+                                            id="admin_notes"
+                                            value={formData.admin_notes}
+                                            onChange={(e) => setFormData({ ...formData, admin_notes: e.target.value })}
+                                            placeholder="Notas internas solo visibles para administradores..."
+                                            rows={3}
+                                        />
+                                        <p className="text-xs text-slate-500">
+                                            Estas notas son privadas y solo las pueden ver los administradores.
+                                        </p>
                                     </div>
 
                                     {editingClient && (
