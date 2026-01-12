@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { AlertCircle } from 'lucide-react';
 
 export default function AcceptedServicesDialog({ open, onOpenChange, quote, onConfirm }) {
   const [selectedServices, setSelectedServices] = useState([]);
+  const [schedulingNotes, setSchedulingNotes] = useState('');
 
   const handleToggleService = (service) => {
     setSelectedServices(prev => {
@@ -37,7 +39,8 @@ export default function AcceptedServicesDialog({ open, onOpenChange, quote, onCo
     if (selectedServices.length === 0) {
       return;
     }
-    onConfirm(selectedServices);
+    onConfirm(selectedServices, schedulingNotes);
+    setSchedulingNotes('');
   };
 
   const initialServices = quote?.selected_services?.filter(s => s.service_type === 'initial') || [];
@@ -164,6 +167,20 @@ export default function AcceptedServicesDialog({ open, onOpenChange, quote, onCo
               </div>
             </div>
           )}
+        </div>
+
+        <div className="space-y-2 pt-4 border-t">
+          <Label htmlFor="scheduling-notes" className="text-sm font-medium">
+            Notas para Agendar (opcional)
+          </Label>
+          <Textarea
+            id="scheduling-notes"
+            placeholder="Agrega instrucciones o detalles importantes para quien agendará el servicio..."
+            rows={3}
+            value={schedulingNotes}
+            onChange={(e) => setSchedulingNotes(e.target.value)}
+            className="resize-none"
+          />
         </div>
 
         <DialogFooter>
