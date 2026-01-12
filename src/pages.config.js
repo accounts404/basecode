@@ -31,6 +31,7 @@ import Vehiculos from './pages/Vehiculos';
 import QuoteDetail from './pages/QuoteDetail';
 import Cotizaciones from './pages/Cotizaciones';
 import QuoteSettings from './pages/QuoteSettings';
+import QuoteItemization from './pages/QuoteItemization';
 import __Layout from './Layout.jsx';
 
 
@@ -68,6 +69,7 @@ export const PAGES = {
     "QuoteDetail": QuoteDetail,
     "Cotizaciones": Cotizaciones,
     "QuoteSettings": QuoteSettings,
+    "QuoteItemization": QuoteItemization,
 }
 
 export const pagesConfig = {
