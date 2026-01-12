@@ -35,18 +35,18 @@ const ClientForm = ({ client, onSubmit, onCancel }) => {
     const handleSubmit = e => { e.preventDefault(); onSubmit(formData); };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1"><Label>Nombre</Label><Input value={formData.name} onChange={e => handleChange('name', e.target.value)} required /></div>
-                <div className="space-y-1"><Label>Email</Label><Input type="email" value={formData.email} onChange={e => handleChange('email', e.target.value)} required /></div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2"><Label className="text-base">Nombre</Label><Input value={formData.name} onChange={e => handleChange('name', e.target.value)} required className="h-12 text-base" /></div>
+                <div className="space-y-2"><Label className="text-base">Email</Label><Input type="email" value={formData.email} onChange={e => handleChange('email', e.target.value)} required className="h-12 text-base" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1"><Label>Teléfono</Label><Input value={formData.phone} onChange={e => handleChange('phone', e.target.value)} /></div>
-                <div className="space-y-1"><Label>Dirección</Label><Input value={formData.address} onChange={e => handleChange('address', e.target.value)} /></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2"><Label className="text-base">Teléfono</Label><Input value={formData.phone} onChange={e => handleChange('phone', e.target.value)} className="h-12 text-base" /></div>
+                <div className="space-y-2"><Label className="text-base">Dirección</Label><Input value={formData.address} onChange={e => handleChange('address', e.target.value)} className="h-12 text-base" /></div>
             </div>
-            <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-                <Button type="submit">{client ? 'Actualizar Cliente' : 'Guardar Cliente'}</Button>
+            <div className="flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={onCancel} className="h-12 px-6 text-base">Cancelar</Button>
+                <Button type="submit" className="h-12 px-6 text-base">{client ? 'Actualizar Cliente' : 'Guardar Cliente'}</Button>
             </div>
         </form>
     );
@@ -481,14 +481,14 @@ export default function QuoteDetailPage() {
         <>
             <Toaster richColors position="top-right" />
 
-            <div className="p-6 space-y-6">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-2">
-                    <h1 className="text-2xl font-bold text-gray-800">
+            <div className="p-4 md:p-6 lg:p-8 space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <h1 className="text-3xl md:text-2xl font-bold text-gray-800">
                         {quote.id ? `Cotización #${quote.id.slice(0, 8)}` : "Nueva Cotización"}
                     </h1>
-                    <div className="flex gap-2 mt-2 md:mt-0">
-                        <Button variant="outline" asChild><Link to={createPageUrl('Cotizaciones')}><ArrowLeft className="w-4 h-4 mr-2" /> Volver</Link></Button>
-                        <Button onClick={handleSaveQuote} disabled={isSaving}><Save className="w-4 h-4 mr-2" /> {isSaving ? 'Guardando...' : 'Guardar'}</Button>
+                    <div className="flex gap-3 w-full md:w-auto">
+                        <Button variant="outline" asChild className="h-12 px-6 text-base flex-1 md:flex-none"><Link to={createPageUrl('Cotizaciones')}><ArrowLeft className="w-5 h-5 mr-2" /> Volver</Link></Button>
+                        <Button onClick={handleSaveQuote} disabled={isSaving} className="h-12 px-6 text-base flex-1 md:flex-none"><Save className="w-5 h-5 mr-2" /> {isSaving ? 'Guardando...' : 'Guardar'}</Button>
                     </div>
                 </div>
 
@@ -505,71 +505,72 @@ export default function QuoteDetailPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                     <div className="lg:col-span-3 space-y-6">
                         <Card>
-                            <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="w-5 h-5" />Información de la Cotización</CardTitle></CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex items-end gap-2">
-                                    <div className="flex-grow space-y-1">
-                                        <Label>Cliente</Label>
+                            <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="w-6 h-6" />Información de la Cotización</CardTitle></CardHeader>
+                            <CardContent className="space-y-5">
+                                <div className="flex items-end gap-3">
+                                    <div className="flex-grow space-y-2">
+                                        <Label className="text-base">Cliente</Label>
                                         <Select value={quote.client_id || ''} onValueChange={v => handleQuoteChange('client_id', v)}>
-                                            <SelectTrigger><SelectValue placeholder="Selecciona un cliente" /></SelectTrigger>
-                                            <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                                            <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Selecciona un cliente" /></SelectTrigger>
+                                            <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id} className="text-base py-3">{c.name}</SelectItem>)}</SelectContent>
                                         </Select>
                                     </div>
                                     {canModifyClients && (
-                                        <Button variant="outline" onClick={() => handleOpenClientForm()}><UserPlus className="w-4 h-4" /></Button>
+                                        <Button variant="outline" onClick={() => handleOpenClientForm()} className="h-12 w-12 flex-shrink-0"><UserPlus className="w-5 h-5" /></Button>
                                     )}
                                 </div>
 
                                 {selectedClient && (
-                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                        <div className="flex justify-between items-start">
-                                            <h4 className="font-semibold text-blue-900 mb-3">Información del Cliente</h4>
+                                    <div className="bg-blue-50 p-5 rounded-lg border border-blue-200">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <h4 className="font-semibold text-blue-900 text-base">Información del Cliente</h4>
                                             {canModifyClients && (
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenClientForm(selectedClient)}>
-                                                    <Edit className="w-4 h-4 text-blue-600"/>
+                                                <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => handleOpenClientForm(selectedClient)}>
+                                                    <Edit className="w-5 h-5 text-blue-600"/>
                                                 </Button>
                                             )}
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-base">
                                             <div>
                                                 <span className="font-medium text-blue-800">Nombre:</span>
-                                                <p className="text-blue-700">{selectedClient.name}</p>
+                                                <p className="text-blue-700 mt-1">{selectedClient.name}</p>
                                             </div>
                                             <div>
                                                 <span className="font-medium text-blue-800">Email:</span>
-                                                <p className="text-blue-700">{selectedClient.email}</p>
+                                                <p className="text-blue-700 mt-1">{selectedClient.email}</p>
                                             </div>
                                             <div>
                                                 <span className="font-medium text-blue-800">Teléfono:</span>
-                                                <p className="text-blue-700">{selectedClient.mobile_number || 'No especificado'}</p>
+                                                <p className="text-blue-700 mt-1">{selectedClient.mobile_number || 'No especificado'}</p>
                                             </div>
                                             <div>
                                                 <span className="font-medium text-blue-800">Dirección:</span>
-                                                <p className="text-blue-700">{selectedClient.address || 'No especificada'}</p>
+                                                <p className="text-blue-700 mt-1">{selectedClient.address || 'No especificada'}</p>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="space-y-1">
-                                    <Label>Dirección del Servicio</Label>
-                                    <div className="flex items-center gap-2">
-                                        <Input value={quote.service_address || ''} onChange={e => handleQuoteChange('service_address', e.target.value)} placeholder="Ingresa la dirección del servicio" />
+                                <div className="space-y-2">
+                                    <Label className="text-base">Dirección del Servicio</Label>
+                                    <div className="flex items-center gap-3">
+                                        <Input value={quote.service_address || ''} onChange={e => handleQuoteChange('service_address', e.target.value)} placeholder="Ingresa la dirección del servicio" className="h-12 text-base" />
                                         {quote.service_address && (
                                             <a href={getGoogleMapsLink(quote.service_address)} target="_blank" rel="noopener noreferrer">
-                                                <Button variant="outline" size="icon"><Building className="w-4 h-4" /></Button>
+                                                <Button variant="outline" size="icon" className="h-12 w-12 flex-shrink-0"><Building className="w-5 h-5" /></Button>
                                             </a>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="space-y-1">
-                                    <Label>Notas del Servicio</Label>
+                                <div className="space-y-2">
+                                    <Label className="text-base">Notas del Servicio</Label>
                                     <Textarea
                                         value={quote.notes || ''}
                                         onChange={e => handleQuoteChange('notes', e.target.value)}
                                         placeholder="Notas adicionales sobre el servicio, requisitos especiales, acceso, etc..."
-                                        rows={4}
+                                        rows={5}
+                                        className="text-base resize-none"
                                     />
                                 </div>
                             </CardContent>
@@ -577,17 +578,17 @@ export default function QuoteDetailPage() {
 
                         <Card>
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Clock className="w-5 h-5" />
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <Clock className="w-6 h-6" />
                                     Estimación de Horas - Servicios Iniciales
                                 </CardTitle>
-                                <CardDescription>Spring Cleaning, One Off, Primera Limpieza</CardDescription>
+                                <CardDescription className="text-base">Spring Cleaning, One Off, Primera Limpieza</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardContent className="space-y-5">
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     {cleaningAreas.map(area => (
-                                        <div key={`${area.id}_initial`} className="space-y-1">
-                                            <Label>{area.label}</Label>
+                                        <div key={`${area.id}_initial`} className="space-y-2">
+                                            <Label className="text-base">{area.label}</Label>
                                             <Input
                                                 type="number"
                                                 step="0.5"
@@ -596,13 +597,14 @@ export default function QuoteDetailPage() {
                                                 inputMode="decimal"
                                                 value={getHourDisplayValue(quote[`${area.id}_initial`])}
                                                 onChange={e => handleQuoteChange(`${area.id}_initial`, e.target.value)}
+                                                className="h-12 text-base text-center"
                                             />
                                         </div>
                                     ))}
                                 </div>
                                 <div className="border-t pt-4">
-                                    <div className="space-y-1">
-                                        <Label className="text-sm font-medium text-orange-700">Horas Adicionales (para precio máximo)</Label>
+                                    <div className="space-y-2">
+                                        <Label className="text-base font-medium text-orange-700">Horas Adicionales (para precio máximo)</Label>
                                         <Input
                                             type="number"
                                             step="0.5"
@@ -611,9 +613,9 @@ export default function QuoteDetailPage() {
                                             inputMode="decimal"
                                             value={getHourDisplayValue(quote.additional_hours_initial)}
                                             onChange={e => handleQuoteChange('additional_hours_initial', e.target.value)}
-                                            className="border-orange-200 focus:border-orange-400"
+                                            className="border-orange-200 focus:border-orange-400 h-12 text-base text-center"
                                         />
-                                        <p className="text-xs text-gray-500">Horas extra que podrían ser necesarias</p>
+                                        <p className="text-sm text-gray-500">Horas extra que podrían ser necesarias</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -621,17 +623,17 @@ export default function QuoteDetailPage() {
 
                         <Card>
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Clock className="w-5 h-5" />
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <Clock className="w-6 h-6" />
                                     Estimación de Horas - Servicios Regulares
                                 </CardTitle>
-                                <CardDescription>Semanal, Quincenal, Cada 3 semanas</CardDescription>
+                                <CardDescription className="text-base">Semanal, Quincenal, Cada 3 semanas</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-4">
+                            <CardContent className="space-y-5">
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                     {cleaningAreas.map(area => (
-                                        <div key={`${area.id}_regular`} className="space-y-1">
-                                            <Label>{area.label}</Label>
+                                        <div key={`${area.id}_regular`} className="space-y-2">
+                                            <Label className="text-base">{area.label}</Label>
                                             <Input
                                                 type="number"
                                                 step="0.5"
@@ -640,13 +642,14 @@ export default function QuoteDetailPage() {
                                                 inputMode="decimal"
                                                 value={getHourDisplayValue(quote[`${area.id}_regular`])}
                                                 onChange={e => handleQuoteChange(`${area.id}_regular`, e.target.value)}
+                                                className="h-12 text-base text-center"
                                             />
                                         </div>
                                     ))}
                                 </div>
                                 <div className="border-t pt-4">
-                                    <div className="space-y-1">
-                                        <Label className="text-sm font-medium text-blue-700">Horas Adicionales (para precio máximo)</Label>
+                                    <div className="space-y-2">
+                                        <Label className="text-base font-medium text-blue-700">Horas Adicionales (para precio máximo)</Label>
                                         <Input
                                             type="number"
                                             step="0.5"
@@ -655,9 +658,9 @@ export default function QuoteDetailPage() {
                                             inputMode="decimal"
                                             value={getHourDisplayValue(quote.additional_hours_regular)}
                                             onChange={e => handleQuoteChange('additional_hours_regular', e.target.value)}
-                                            className="border-blue-200 focus:border-blue-400"
+                                            className="border-blue-200 focus:border-blue-400 h-12 text-base text-center"
                                         />
-                                        <p className="text-xs text-gray-500">Horas extra que podrían ser necesarias</p>
+                                        <p className="text-sm text-gray-500">Horas extra que podrían ser necesarias</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -665,17 +668,17 @@ export default function QuoteDetailPage() {
 
                         <Card>
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Clock className="w-5 h-5" />
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <Clock className="w-6 h-6" />
                                     Estimación de Horas - Servicios Comerciales
                                 </CardTitle>
-                                <CardDescription>Oficinas, Locales, Negocios</CardDescription>
+                                <CardDescription className="text-base">Oficinas, Locales, Negocios</CardDescription>
                             </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <CardContent className="space-y-5">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                                     {commercialAreas.map(area => (
-                                        <div key={`${area.id}_commercial`} className="space-y-1">
-                                            <Label>{area.label}</Label>
+                                        <div key={`${area.id}_commercial`} className="space-y-2">
+                                            <Label className="text-base">{area.label}</Label>
                                             <Input
                                                 type="number"
                                                 step="0.5"
@@ -684,13 +687,14 @@ export default function QuoteDetailPage() {
                                                 inputMode="decimal"
                                                 value={getHourDisplayValue(quote[`${area.id}_commercial`])}
                                                 onChange={e => handleQuoteChange(`${area.id}_commercial`, e.target.value)}
+                                                className="h-12 text-base text-center"
                                             />
                                         </div>
                                     ))}
                                 </div>
                                 <div className="border-t pt-4">
-                                    <div className="space-y-1">
-                                        <Label className="text-sm font-medium text-purple-700">Horas Adicionales (para precio máximo)</Label>
+                                    <div className="space-y-2">
+                                        <Label className="text-base font-medium text-purple-700">Horas Adicionales (para precio máximo)</Label>
                                         <Input
                                             type="number"
                                             step="0.5"
@@ -699,19 +703,19 @@ export default function QuoteDetailPage() {
                                             inputMode="decimal"
                                             value={getHourDisplayValue(quote.additional_hours_commercial)}
                                             onChange={e => handleQuoteChange('additional_hours_commercial', e.target.value)}
-                                            className="border-purple-200 focus:border-purple-400"
+                                            className="border-purple-200 focus:border-purple-400 h-12 text-base text-center"
                                         />
-                                        <p className="text-xs text-gray-500">Horas extra que podrían ser necesarias</p>
+                                        <p className="text-sm text-gray-500">Horas extra que podrían ser necesarias</p>
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
                         <Card>
-                            <CardHeader><CardTitle className="flex items-center gap-2"><PlusCircle className="w-5 h-5 text-orange-600" />Servicios Adicionales</CardTitle></CardHeader>
-                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label>Cuartos (Steam Vacuum)</Label>
+                            <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><PlusCircle className="w-6 h-6 text-orange-600" />Servicios Adicionales</CardTitle></CardHeader>
+                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div className="space-y-2">
+                                    <Label className="text-base">Cuartos (Steam Vacuum)</Label>
                                     <Input
                                         type="number"
                                         step="1"
@@ -720,10 +724,11 @@ export default function QuoteDetailPage() {
                                         inputMode="numeric"
                                         value={getHourDisplayValue(quote.rooms_for_steam_vacuum)}
                                         onChange={e => handleQuoteChange('rooms_for_steam_vacuum', e.target.value)}
+                                        className="h-12 text-base text-center"
                                     />
                                 </div>
-                                <div className="space-y-1">
-                                    <Label>Precio/Cuarto (Steam)</Label>
+                                <div className="space-y-2">
+                                    <Label className="text-base">Precio/Cuarto (Steam)</Label>
                                     <Input
                                         type="number"
                                         step="0.01"
@@ -732,10 +737,11 @@ export default function QuoteDetailPage() {
                                         inputMode="decimal"
                                         value={getHourDisplayValue(quote.price_per_room_steam_vacuum)}
                                         onChange={e => handleQuoteChange('price_per_room_steam_vacuum', e.target.value)}
+                                        className="h-12 text-base text-center"
                                     />
                                 </div>
-                                <div className="space-y-1">
-                                    <Label>Costo Horno ($)</Label>
+                                <div className="space-y-2">
+                                    <Label className="text-base">Costo Horno ($)</Label>
                                     <Input
                                         type="number"
                                         step="0.01"
@@ -744,10 +750,11 @@ export default function QuoteDetailPage() {
                                         inputMode="decimal"
                                         value={getHourDisplayValue(quote.cost_oven)}
                                         onChange={e => handleQuoteChange('cost_oven', e.target.value)}
+                                        className="h-12 text-base text-center"
                                     />
                                 </div>
-                                <div className="space-y-1">
-                                    <Label>Costo Windows Cleaning ($)</Label>
+                                <div className="space-y-2">
+                                    <Label className="text-base">Costo Windows Cleaning ($)</Label>
                                     <Input
                                         type="number"
                                         step="0.01"
@@ -756,6 +763,7 @@ export default function QuoteDetailPage() {
                                         inputMode="decimal"
                                         value={getHourDisplayValue(quote.cost_windows_cleaning)}
                                         onChange={e => handleQuoteChange('cost_windows_cleaning', e.target.value)}
+                                        className="h-12 text-base text-center"
                                     />
                                 </div>
                             </CardContent>
@@ -854,7 +862,7 @@ export default function QuoteDetailPage() {
                                                         <Button
                                                             onClick={() => handleToggleService(selectedInitialRate, isSelected, finalMinValue, finalMaxValue)}
                                                             variant={isSelected ? "default" : "outline"}
-                                                            className={`w-full ${isSelected ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+                                                            className={`w-full h-12 text-base ${isSelected ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
                                                         >
                                                             {isSelected ? 'Deseleccionar Servicio' : 'Seleccionar este Servicio'}
                                                         </Button>
@@ -915,7 +923,7 @@ export default function QuoteDetailPage() {
                                                         <Button
                                                             onClick={() => handleToggleService(rate, isSelected, finalMinValue, finalMaxValue)}
                                                             variant={isSelected ? "default" : "outline"}
-                                                            className={`w-full ${isSelected ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                                                            className={`w-full h-12 text-base ${isSelected ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
                                                         >
                                                             {isSelected ? 'Deseleccionar' : 'Seleccionar'}
                                                         </Button>
@@ -989,7 +997,7 @@ export default function QuoteDetailPage() {
                                                         <Button
                                                             onClick={() => handleToggleService(selectedCommercialRate, isSelected, finalMinValue, finalMaxValue)}
                                                             variant={isSelected ? "default" : "outline"}
-                                                            className={`w-full ${isSelected ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                                                            className={`w-full h-12 text-base ${isSelected ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
                                                         >
                                                             {isSelected ? 'Deseleccionar Servicio' : 'Seleccionar este Servicio'}
                                                         </Button>
