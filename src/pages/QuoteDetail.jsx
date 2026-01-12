@@ -454,7 +454,14 @@ export default function QuoteDetailPage() {
     };
 
     if (isLoading || !quote) {
-        return <div className="p-6 space-y-4"><Skeleton className="h-96 w-full" /></div>;
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <p className="text-gray-600">Cargando cotización...</p>
+                </div>
+            </div>
+        );
     }
 
     const activeInitialRates = serviceRates.filter(rate => rate.is_active && rate.service_type === 'initial');
