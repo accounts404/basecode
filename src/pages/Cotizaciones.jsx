@@ -643,7 +643,7 @@ export default function CotizacionesPage() {
                 </div>
 
                 {/* Métricas */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Card className="shadow-md border-slate-200">
                         <CardContent className="p-4">
                             <div className="flex items-center justify-between">
@@ -688,18 +688,6 @@ export default function CotizacionesPage() {
                                     <p className="text-2xl font-bold text-emerald-900">{metrics.approvalRate.toFixed(1)}%</p>
                                 </div>
                                 <TrendingUp className="w-8 h-8 text-emerald-500" />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="shadow-md border-purple-200 bg-purple-50/50">
-                        <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs text-purple-700 uppercase font-semibold mb-1">Valor Aprobado</p>
-                                    <p className="text-2xl font-bold text-purple-900">${metrics.totalValue.toFixed(0)}</p>
-                                </div>
-                                <DollarSign className="w-8 h-8 text-purple-500" />
                             </div>
                         </CardContent>
                     </Card>
