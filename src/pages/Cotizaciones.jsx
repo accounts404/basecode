@@ -12,7 +12,7 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import ZenMaidTransferItem from '../components/zenmaid/ZenMaidTransferItem';
+import ZenMaidTransferItem from '@/components/zenmaid/ZenMaidTransferItem';
 import {
     AlertDialog,
     AlertDialogAction,
