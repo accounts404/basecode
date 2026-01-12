@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings, CalendarCheck, ListChecks, Inbox, ExternalLink, User, MapPin, PackageSearch, Trash } from 'lucide-react';
+import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings, CalendarCheck, ListChecks, Inbox, ExternalLink, User, MapPin, PackageSearch, Trash, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ZenMaidTransferItem from '@/components/zenmaid/ZenMaidTransferItem';
+import QuoteReports from '@/components/quotes/QuoteReports';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -45,6 +47,7 @@ export default function CotizacionesPage() {
   const [approvingQuote, setApprovingQuote] = useState(null);
   const [activeTab, setActiveTab] = useState('borrador');
   const [sortConfig, setSortConfig] = useState({ key: 'created_date', direction: 'desc' });
+  const [showReports, setShowReports] = useState(false);
 
   const navigate = useNavigate();
 
@@ -611,6 +614,14 @@ export default function CotizacionesPage() {
                             <Button 
                                 variant="outline" 
                                 size="lg" 
+                                onClick={() => setShowReports(true)}
+                                className="shadow-md"
+                            >
+                                <BarChart3 className="w-5 h-5 mr-2" /> Reportes
+                            </Button>
+                            <Button 
+                                variant="outline" 
+                                size="lg" 
                                 onClick={() => navigate(createPageUrl('ServiceItemsManagement'))}
                                 className="shadow-md"
                             >
@@ -1016,6 +1027,15 @@ export default function CotizacionesPage() {
                 quote={approvingQuote}
                 onConfirm={handleConfirmAcceptedServices}
             />
+
+            <Dialog open={showReports} onOpenChange={setShowReports}>
+                <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl">Reportes de Gestión de Cotizaciones</DialogTitle>
+                    </DialogHeader>
+                    <QuoteReports quotes={quotes} />
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
