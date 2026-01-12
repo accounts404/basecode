@@ -53,6 +53,10 @@ export default function QuoteItemizationPage() {
   const [areaSelectionsRegular, setAreaSelectionsRegular] = useState({});
   const [areaSelectionsCommercial, setAreaSelectionsCommercial] = useState({});
   
+  const [areaNotesInitial, setAreaNotesInitial] = useState({});
+  const [areaNotesRegular, setAreaNotesRegular] = useState({});
+  const [areaNotesCommercial, setAreaNotesCommercial] = useState({});
+  
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [itemToDelete, setItemToDelete] = useState(null);
@@ -108,35 +112,50 @@ export default function QuoteItemizationPage() {
 
       if (quoteData.selected_areas_items_initial && quoteData.selected_areas_items_initial.length > 0) {
         const selections = {};
+        const notes = {};
         quoteData.selected_areas_items_initial.forEach(area => {
           selections[area.area_name] = {
             selection_type: area.selection_type,
             selected_items: area.selected_items || []
           };
+          if (area.area_notes) {
+            notes[area.area_name] = area.area_notes;
+          }
         });
         setAreaSelectionsInitial(selections);
+        setAreaNotesInitial(notes);
       }
 
       if (quoteData.selected_areas_items_regular && quoteData.selected_areas_items_regular.length > 0) {
         const selections = {};
+        const notes = {};
         quoteData.selected_areas_items_regular.forEach(area => {
           selections[area.area_name] = {
             selection_type: area.selection_type,
             selected_items: area.selected_items || []
           };
+          if (area.area_notes) {
+            notes[area.area_name] = area.area_notes;
+          }
         });
         setAreaSelectionsRegular(selections);
+        setAreaNotesRegular(notes);
       }
 
       if (quoteData.selected_areas_items_commercial && quoteData.selected_areas_items_commercial.length > 0) {
         const selections = {};
+        const notes = {};
         quoteData.selected_areas_items_commercial.forEach(area => {
           selections[area.area_name] = {
             selection_type: area.selection_type,
             selected_items: area.selected_items || []
           };
+          if (area.area_notes) {
+            notes[area.area_name] = area.area_notes;
+          }
         });
         setAreaSelectionsCommercial(selections);
+        setAreaNotesCommercial(notes);
       }
 
     } catch (error) {
@@ -276,7 +295,8 @@ export default function QuoteItemizationPage() {
             selection_type: selection.selection_type,
             selected_items: selection.selection_type === 'full' 
               ? areaItems.map(item => ({ item_name: item.item_name, item_description: item.item_description }))
-              : selection.selected_items
+              : selection.selected_items,
+            area_notes: areaNotesInitial[area.id] || ''
           };
         }).filter(area => area !== null && area.selection_type !== 'not_included' && (area.selection_type === 'full' || area.selected_items.length > 0));
         
@@ -296,7 +316,8 @@ export default function QuoteItemizationPage() {
             selection_type: selection.selection_type,
             selected_items: selection.selection_type === 'full' 
               ? areaItems.map(item => ({ item_name: item.item_name, item_description: item.item_description }))
-              : selection.selected_items
+              : selection.selected_items,
+            area_notes: areaNotesRegular[area.id] || ''
           };
         }).filter(area => area !== null && area.selection_type !== 'not_included' && (area.selection_type === 'full' || area.selected_items.length > 0));
         
@@ -316,7 +337,8 @@ export default function QuoteItemizationPage() {
             selection_type: selection.selection_type,
             selected_items: selection.selection_type === 'full' 
               ? areaItems.map(item => ({ item_name: item.item_name, item_description: item.item_description }))
-              : selection.selected_items
+              : selection.selected_items,
+            area_notes: areaNotesCommercial[area.id] || ''
           };
         }).filter(area => area !== null && area.selection_type !== 'not_included' && (area.selection_type === 'full' || area.selected_items.length > 0));
         
@@ -707,10 +729,35 @@ export default function QuoteItemizationPage() {
                     )}
 
                     {currentSelection.selection_type === 'not_included' && (
-                      <div className="border rounded-lg p-4 bg-red-50">
-                        <div className="flex items-center gap-2 text-red-800">
-                          <X className="w-5 h-5" />
-                          <h4 className="font-semibold">Esta área no se incluirá en el servicio</h4>
+                      <div className="space-y-3">
+                        <div className="border rounded-lg p-4 bg-red-50">
+                          <div className="flex items-center gap-2 text-red-800">
+                            <X className="w-5 h-5" />
+                            <h4 className="font-semibold">Esta área no se incluirá en el servicio</h4>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor={`notes-${area.id}-${serviceType}`} className="text-sm font-medium">
+                            Notas para esta área (opcional)
+                          </Label>
+                          <Textarea
+                            id={`notes-${area.id}-${serviceType}`}
+                            placeholder="Agrega notas específicas para esta área..."
+                            rows={3}
+                            value={
+                              serviceType === 'initial' ? (areaNotesInitial[area.id] || '') :
+                              serviceType === 'regular' ? (areaNotesRegular[area.id] || '') :
+                              (areaNotesCommercial[area.id] || '')
+                            }
+                            onChange={(e) => {
+                              const setter = serviceType === 'initial' ? setAreaNotesInitial :
+                                           serviceType === 'regular' ? setAreaNotesRegular :
+                                           setAreaNotesCommercial;
+                              setter(prev => ({ ...prev, [area.id]: e.target.value }));
+                            }}
+                            className="resize-none"
+                          />
                         </div>
                       </div>
                     )}

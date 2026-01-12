@@ -280,6 +280,18 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
             y += lines.length * 4;
           });
         }
+        
+        if (area.area_notes && area.area_notes.trim()) {
+          checkNewPage(10);
+          doc.setFont(undefined, 'italic');
+          doc.setTextColor(80, 80, 80);
+          const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
+          doc.text(notesLines, margin + 8, y);
+          y += notesLines.length * 4 + 2;
+          doc.setFont(undefined, 'normal');
+          doc.setTextColor(0, 0, 0);
+        }
+        
         y += 3;
       });
     }
@@ -380,6 +392,18 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
             y += lines.length * 4;
           });
         }
+        
+        if (area.area_notes && area.area_notes.trim()) {
+          checkNewPage(10);
+          doc.setFont(undefined, 'italic');
+          doc.setTextColor(80, 80, 80);
+          const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
+          doc.text(notesLines, margin + 8, y);
+          y += notesLines.length * 4 + 2;
+          doc.setFont(undefined, 'normal');
+          doc.setTextColor(0, 0, 0);
+        }
+        
         y += 3;
       });
     }
@@ -480,6 +504,18 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
             y += lines.length * 4;
           });
         }
+        
+        if (area.area_notes && area.area_notes.trim()) {
+          checkNewPage(10);
+          doc.setFont(undefined, 'italic');
+          doc.setTextColor(80, 80, 80);
+          const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
+          doc.text(notesLines, margin + 8, y);
+          y += notesLines.length * 4 + 2;
+          doc.setFont(undefined, 'normal');
+          doc.setTextColor(0, 0, 0);
+        }
+        
         y += 3;
       });
     }
