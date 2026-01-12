@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings, CalendarCheck, ListChecks, Inbox, ExternalLink, User, MapPin, PackageSearch, Trash, BarChart3 } from 'lucide-react';
+import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings, CalendarCheck, ListChecks, Inbox, ExternalLink, User, MapPin, PackageSearch, Trash, BarChart3, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import RejectionDialog from '../components/quotes/RejectionDialog';
 import AcceptedServicesDialog from '../components/quotes/AcceptedServicesDialog';
+import QuickClientForm from '../components/quotes/QuickClientForm';
 
 const statusConfig = {
     borrador: { label: 'Borrador', color: 'bg-gray-100 text-gray-800', icon: '📝' },
@@ -48,6 +49,7 @@ export default function CotizacionesPage() {
   const [activeTab, setActiveTab] = useState('borrador');
   const [sortConfig, setSortConfig] = useState({ key: 'created_date', direction: 'desc' });
   const [showReports, setShowReports] = useState(false);
+  const [creatingClientFromQuote, setCreatingClientFromQuote] = useState(null);
 
   const navigate = useNavigate();
 
@@ -229,6 +231,24 @@ export default function CotizacionesPage() {
         } catch (error) { 
             console.error("Error updating quote status:", error);
             toast.error("Error al actualizar el estado."); 
+        }
+    };
+
+    const handleCreateClientFromQuote = async (clientData) => {
+        try {
+            const newClient = await base44.entities.Client.create(clientData);
+            
+            // Actualizar la cotización con el client_id
+            await base44.entities.Quote.update(creatingClientFromQuote.id, {
+                client_id: newClient.id
+            });
+            
+            toast.success("Cliente creado exitosamente y vinculado a la cotización.");
+            setCreatingClientFromQuote(null);
+            loadData();
+        } catch (error) {
+            console.error("Error creating client:", error);
+            toast.error("Error al crear el cliente.");
         }
     };
 
@@ -433,12 +453,30 @@ export default function CotizacionesPage() {
                             return (
                                 <TableRow key={quote.id} className={needsAttention ? 'bg-red-50' : 'hover:bg-slate-50'}>
                                     <TableCell className="font-medium">
-                                        <div>
-                                            <p className="font-semibold text-slate-900">
-                                                {quote.client_name || 'Nombre no disponible'}
-                                            </p>
-                                            {quote.client_phone && (
-                                                <p className="text-xs text-slate-500">📱 {quote.client_phone}</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-slate-900">
+                                                    {quote.client_name || 'Nombre no disponible'}
+                                                </p>
+                                                {quote.client_phone && (
+                                                    <p className="text-xs text-slate-500">📱 {quote.client_phone}</p>
+                                                )}
+                                                {!quote.client_id && (
+                                                    <Badge variant="outline" className="text-xs text-orange-600 border-orange-300 mt-1">
+                                                        Cliente pendiente
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            {!quote.client_id && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setCreatingClientFromQuote(quote)}
+                                                    className="text-green-600 border-green-300 hover:bg-green-50"
+                                                    title="Crear cliente"
+                                                >
+                                                    <UserPlus className="w-4 h-4" />
+                                                </Button>
                                             )}
                                         </div>
                                     </TableCell>
@@ -1022,6 +1060,21 @@ export default function CotizacionesPage() {
                         <DialogTitle className="text-2xl">Reportes de Gestión de Cotizaciones</DialogTitle>
                     </DialogHeader>
                     <QuoteReports quotes={quotes} />
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!creatingClientFromQuote} onOpenChange={(open) => !open && setCreatingClientFromQuote(null)}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl">Crear Cliente desde Cotización</DialogTitle>
+                    </DialogHeader>
+                    {creatingClientFromQuote && (
+                        <QuickClientForm
+                            quote={creatingClientFromQuote}
+                            onSave={handleCreateClientFromQuote}
+                            onCancel={() => setCreatingClientFromQuote(null)}
+                        />
+                    )}
                 </DialogContent>
             </Dialog>
         </div>
