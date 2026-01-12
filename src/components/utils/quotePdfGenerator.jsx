@@ -185,7 +185,7 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(0, 0, 0);
-    doc.text('Services:', margin, y);
+    doc.text('Service Options (choose one):', margin, y);
     y += 6;
 
     doc.setFont(undefined, 'normal');
@@ -197,45 +197,7 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
       y += 5;
     });
 
-    // Additional costs
-    if (quote.cost_steam_vacuum > 0 || quote.cost_oven > 0 || quote.cost_windows_cleaning > 0) {
-      y += 3;
-      checkNewPage(20);
-      doc.setFont(undefined, 'bold');
-      doc.text('Additional Services:', margin, y);
-      y += 6;
-      doc.setFont(undefined, 'normal');
-      
-      if (quote.cost_steam_vacuum > 0) {
-        doc.text(`• Steam Vacuum (${quote.rooms_for_steam_vacuum} rooms)`, margin + 5, y);
-        doc.text(`$${quote.cost_steam_vacuum.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-        y += 5;
-      }
-      if (quote.cost_oven > 0) {
-        doc.text(`• Oven Cleaning`, margin + 5, y);
-        doc.text(`$${quote.cost_oven.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-        y += 5;
-      }
-      if (quote.cost_windows_cleaning > 0) {
-        doc.text(`• Windows Cleaning`, margin + 5, y);
-        doc.text(`$${quote.cost_windows_cleaning.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-        y += 5;
-      }
-    }
-
-    // Total
-    y += 3;
-    checkNewPage(10);
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(0, 159, 227); // Updated color from 255, 140, 0
-    const totalInitialMin = initialServices.reduce((sum, s) => sum + s.price_min, 0) + 
-                            (quote.cost_steam_vacuum || 0) + (quote.cost_oven || 0) + (quote.cost_windows_cleaning || 0);
-    const totalInitialMax = initialServices.reduce((sum, s) => sum + s.price_max, 0) + 
-                            (quote.cost_steam_vacuum || 0) + (quote.cost_oven || 0) + (quote.cost_windows_cleaning || 0);
-    doc.text('TOTAL INITIAL SERVICES:', margin, y);
-    doc.text(`$${totalInitialMin.toFixed(2)} - $${totalInitialMax.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-    y += 10;
+    y += 5;
 
     // Areas and Items
     if (quote.selected_areas_items_initial && quote.selected_areas_items_initial.length > 0) {
@@ -325,7 +287,7 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(0, 0, 0);
-    doc.text('Services:', margin, y);
+    doc.text('Service Options (choose one):', margin, y);
     y += 6;
 
     doc.setFont(undefined, 'normal');
@@ -337,17 +299,7 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
       y += 5;
     });
 
-    // Total
-    y += 3;
-    checkNewPage(10);
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(234, 91, 27); // Updated color from 34, 139, 34
-    const totalRegularMin = regularServices.reduce((sum, s) => sum + s.price_min, 0);
-    const totalRegularMax = regularServices.reduce((sum, s) => sum + s.price_max, 0);
-    doc.text('TOTAL REGULAR SERVICES:', margin, y);
-    doc.text(`$${totalRegularMin.toFixed(2)} - $${totalRegularMax.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-    y += 10;
+    y += 5;
 
     // Areas and Items
     if (quote.selected_areas_items_regular && quote.selected_areas_items_regular.length > 0) {
@@ -437,7 +389,7 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(0, 0, 0);
-    doc.text('Services:', margin, y);
+    doc.text('Service Options (choose one):', margin, y);
     y += 6;
 
     doc.setFont(undefined, 'normal');
@@ -449,17 +401,7 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
       y += 5;
     });
 
-    // Total
-    y += 3;
-    checkNewPage(10);
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(139, 92, 246);
-    const totalCommercialMin = commercialServices.reduce((sum, s) => sum + s.price_min, 0);
-    const totalCommercialMax = commercialServices.reduce((sum, s) => sum + s.price_max, 0);
-    doc.text('TOTAL COMMERCIAL SERVICES:', margin, y);
-    doc.text(`$${totalCommercialMin.toFixed(2)} - $${totalCommercialMax.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-    y += 10;
+    y += 5;
 
     // Areas and Items
     if (quote.selected_areas_items_commercial && quote.selected_areas_items_commercial.length > 0) {
@@ -518,6 +460,53 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
         
         y += 3;
       });
+    }
+
+    y += 10;
+  }
+
+  // ADDITIONAL SERVICES SECTION (EXTRAS) - Color: #7C3AED (RGB: 124, 58, 237)
+  const hasExtras = (quote.cost_steam_vacuum > 0 || quote.cost_oven > 0 || quote.cost_windows_cleaning > 0);
+  if (hasExtras) {
+    checkNewPage(40);
+    
+    // Section Header
+    doc.setFillColor(124, 58, 237);
+    doc.rect(margin, y, pageWidth - 2 * margin, 10, 'F');
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('ADDITIONAL SERVICES', pageWidth / 2, y + 7, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    y += 15;
+
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('(Optional add-ons to any service)', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    
+    if (quote.cost_steam_vacuum > 0) {
+      checkNewPage(6);
+      doc.text(`• Steam Vacuum (${quote.rooms_for_steam_vacuum} rooms)`, margin + 5, y);
+      doc.text(`$${quote.cost_steam_vacuum.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 5;
+    }
+    if (quote.cost_oven > 0) {
+      checkNewPage(6);
+      doc.text(`• Oven Cleaning`, margin + 5, y);
+      doc.text(`$${quote.cost_oven.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 5;
+    }
+    if (quote.cost_windows_cleaning > 0) {
+      checkNewPage(6);
+      doc.text(`• Windows Cleaning`, margin + 5, y);
+      doc.text(`$${quote.cost_windows_cleaning.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 5;
     }
 
     y += 10;
