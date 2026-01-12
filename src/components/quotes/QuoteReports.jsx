@@ -9,7 +9,7 @@ import { TrendingUp, TrendingDown, FileText, DollarSign, Calendar, Download, Ale
 import { format, startOfMonth, endOfMonth, subMonths, differenceInDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const COLORS = {
   initial: '#f97316',
@@ -181,7 +181,7 @@ export default function QuoteReports({ quotes }) {
       ['Servicios Extras', `$${metrics.current.totalExtras.toFixed(2)}`, '-', '-'],
     ];
     
-    doc.autoTable({
+    autoTable(doc, {
       head: [kpiData[0]],
       body: kpiData.slice(1),
       startY: 50,
@@ -189,13 +189,14 @@ export default function QuoteReports({ quotes }) {
     
     // Estados
     doc.setFontSize(14);
-    doc.text('Estados de Cotizaciones', 14, doc.lastAutoTable.finalY + 15);
+    const finalY = doc.lastAutoTable?.finalY || 70;
+    doc.text('Estados de Cotizaciones', 14, finalY + 15);
     
     const statusTableData = statusData.map(s => [s.name, s.value]);
-    doc.autoTable({
+    autoTable(doc, {
       head: [['Estado', 'Cantidad']],
       body: statusTableData,
-      startY: doc.lastAutoTable.finalY + 20,
+      startY: finalY + 20,
     });
     
     doc.save(`reporte-cotizaciones-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
