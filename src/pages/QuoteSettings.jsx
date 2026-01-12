@@ -13,6 +13,7 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function QuoteSettingsPage() {
     const navigate = useNavigate();
@@ -31,6 +32,7 @@ export default function QuoteSettingsPage() {
     });
 
     const [steamVacuumPrice, setSteamVacuumPrice] = useState('0');
+    const [termsAndConditions, setTermsAndConditions] = useState('');
 
     useEffect(() => {
         loadData();
@@ -49,13 +51,16 @@ export default function QuoteSettingsPage() {
             if (settingsData.length > 0) {
                 setSystemSettings(settingsData[0]);
                 setSteamVacuumPrice(settingsData[0].price_per_room_steam_vacuum?.toString() || '0');
+                setTermsAndConditions(settingsData[0].terms_and_conditions || '');
             } else {
                 const newSettings = await base44.entities.SystemSetting.create({
                     setting_name: 'quote_calculator',
-                    price_per_room_steam_vacuum: 0
+                    price_per_room_steam_vacuum: 0,
+                    terms_and_conditions: ''
                 });
                 setSystemSettings(newSettings);
                 setSteamVacuumPrice('0');
+                setTermsAndConditions('');
             }
         } catch (error) {
             console.error("Error loading data:", error);
@@ -145,6 +150,21 @@ export default function QuoteSettingsPage() {
         }
     };
 
+    const handleSaveTermsAndConditions = async () => {
+        if (!systemSettings) return;
+
+        try {
+            await base44.entities.SystemSetting.update(systemSettings.id, {
+                terms_and_conditions: termsAndConditions
+            });
+            toast.success("Políticas actualizadas exitosamente.");
+            loadData();
+        } catch (error) {
+            console.error("Error updating terms:", error);
+            toast.error("Error al actualizar las políticas.");
+        }
+    };
+
     const serviceTypeLabels = {
         initial: 'Inicial (Spring Cleaning, One-Off)',
         regular: 'Regular (Semanal, Quincenal)',
@@ -187,9 +207,10 @@ export default function QuoteSettingsPage() {
                     </div>
 
                     <Tabs defaultValue="rates" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="rates">Tarifas de Servicio</TabsTrigger>
                             <TabsTrigger value="extras">Servicios Adicionales</TabsTrigger>
+                            <TabsTrigger value="policies">Políticas y Términos</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="rates" className="space-y-6">
@@ -294,6 +315,36 @@ export default function QuoteSettingsPage() {
                                         </div>
                                         <Button onClick={handleSaveSteamVacuumPrice}>
                                             <Save className="w-4 h-4 mr-2" /> Guardar
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="policies" className="space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Políticas y Términos</CardTitle>
+                                    <CardDescription>Configura los términos y condiciones que aparecerán en los PDFs de las cotizaciones</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>Términos y Condiciones</Label>
+                                        <Textarea
+                                            value={termsAndConditions}
+                                            onChange={(e) => setTermsAndConditions(e.target.value)}
+                                            placeholder="Ingresa aquí los términos y condiciones que se mostrarán en el PDF de la cotización..."
+                                            rows={20}
+                                            className="font-mono text-sm"
+                                        />
+                                        <p className="text-xs text-gray-500">
+                                            Este texto aparecerá en la sección "Terms and Conditions" del PDF de cotización.
+                                            Puedes usar saltos de línea para organizar el contenido.
+                                        </p>
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <Button onClick={handleSaveTermsAndConditions}>
+                                            <Save className="w-4 h-4 mr-2" /> Guardar Políticas
                                         </Button>
                                     </div>
                                 </CardContent>
