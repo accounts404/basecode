@@ -540,11 +540,9 @@ export default function CotizacionesPage() {
                                 <p className="text-slate-600 mt-1">Administra cotizaciones desde borrador hasta aprobación</p>
                             </div>
                         </div>
-                        <Link to={createPageUrl('QuoteDetail')}>
-                            <Button size="lg" className="shadow-md">
-                                <Plus className="w-5 h-5 mr-2" /> Nueva Cotización
-                            </Button>
-                        </Link>
+                        <Button onClick={() => navigate(createPageUrl('QuoteDetail'))} size="lg" className="shadow-md">
+                            <Plus className="w-5 h-5 mr-2" /> Nueva Cotización
+                        </Button>
                     </div>
                 </div>
 
