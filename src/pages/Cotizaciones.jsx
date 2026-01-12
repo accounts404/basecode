@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp } from 'lucide-react';
+import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -540,9 +540,19 @@ export default function CotizacionesPage() {
                                 <p className="text-slate-600 mt-1">Administra cotizaciones desde borrador hasta aprobación</p>
                             </div>
                         </div>
-                        <Button onClick={() => navigate(createPageUrl('QuoteDetail'))} size="lg" className="shadow-md">
-                            <Plus className="w-5 h-5 mr-2" /> Nueva Cotización
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button 
+                                variant="outline" 
+                                size="lg" 
+                                onClick={() => navigate(createPageUrl('QuoteSettings'))}
+                                className="shadow-md"
+                            >
+                                <Settings className="w-5 h-5 mr-2" /> Configuración
+                            </Button>
+                            <Button onClick={() => navigate(createPageUrl('QuoteDetail'))} size="lg" className="shadow-md">
+                                <Plus className="w-5 h-5 mr-2" /> Nueva Cotización
+                            </Button>
+                        </div>
                     </div>
                 </div>
 

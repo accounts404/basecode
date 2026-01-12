@@ -110,12 +110,15 @@ export default function QuoteDetailPage() {
         setIsLoading(true);
         const quoteId = getQuoteId();
         try {
-            const [clientsData, userData] = await Promise.all([
+            const [clientsData, ratesData, settingsData, userData] = await Promise.all([
                 base44.entities.Client.list(null, 1000),
+                base44.entities.ServiceRate.list(),
+                base44.entities.SystemSetting.list(),
                 base44.auth.me()
             ]);
+            const settings = settingsData[0] || {};
             setClients(clientsData);
-            setServiceRates([]);
+            setServiceRates(ratesData);
             setCurrentUser(userData);
 
             if (quoteId) {
@@ -145,7 +148,7 @@ export default function QuoteDetailPage() {
                     total_hours_commercial: 0,
                     cost_steam_vacuum: 0,
                     rooms_for_steam_vacuum: 0,
-                    price_per_room_steam_vacuum: 0,
+                    price_per_room_steam_vacuum: settings.price_per_room_steam_vacuum || 0,
                     cost_oven: 0,
                     cost_windows_cleaning: 0,
                     selected_services: [],
