@@ -29,6 +29,7 @@ import TVDashboard from './pages/TVDashboard';
 import TrabajoEntradas from './pages/TrabajoEntradas';
 import Vehiculos from './pages/Vehiculos';
 import Cotizaciones from './pages/Cotizaciones';
+import QuoteDetail from './pages/QuoteDetail';
 import __Layout from './Layout.jsx';
 
 
@@ -64,6 +65,7 @@ export const PAGES = {
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
     "Cotizaciones": Cotizaciones,
+    "QuoteDetail": QuoteDetail,
 }
 
 export const pagesConfig = {
