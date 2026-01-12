@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar, Check, User, MapPin, ExternalLink } from 'lucide-react';
+import { Calendar, Check, User, MapPin, ExternalLink, FileText, Home, Bed, Bath } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-export default function ZenMaidTransferItem({ transfer, clientInfo, onComplete }) {
+export default function ZenMaidTransferItem({ transfer, clientInfo, quote, onComplete }) {
   const [selectedDate, setSelectedDate] = useState('');
 
   const handleComplete = () => {
@@ -25,8 +25,8 @@ export default function ZenMaidTransferItem({ transfer, clientInfo, onComplete }
           </h4>
           
           <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
-            <div><span className="font-medium">Email:</span> {clientInfo.email || 'N/A'}</div>
-            <div><span className="font-medium">Teléfono:</span> {clientInfo.mobile_number || 'N/A'}</div>
+            <div><span className="font-medium">Email:</span> {clientInfo.email || quote?.client_email || 'N/A'}</div>
+            <div><span className="font-medium">Teléfono:</span> {clientInfo.mobile_number || quote?.client_phone || 'N/A'}</div>
             <div className="col-span-1 sm:col-span-2">
               <span className="font-medium">Dir. Cliente:</span> {clientInfo.address || 'N/A'}
             </div>
@@ -36,10 +36,41 @@ export default function ZenMaidTransferItem({ transfer, clientInfo, onComplete }
               </span> {transfer.service_address}
             </div>
           </div>
+
+          {quote && (
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              {quote.property_type && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Home className="w-3 h-3" />
+                  {quote.property_type}
+                </Badge>
+              )}
+              {quote.num_bedrooms && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Bed className="w-3 h-3" />
+                  {quote.num_bedrooms} hab
+                </Badge>
+              )}
+              {quote.num_bathrooms && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Bath className="w-3 h-3" />
+                  {quote.num_bathrooms} baños
+                </Badge>
+              )}
+              {quote.service_frequency && (
+                <Badge variant="outline">
+                  {quote.service_frequency === 'weekly' ? 'Semanal' :
+                   quote.service_frequency === 'fortnightly' ? 'Quincenal' :
+                   quote.service_frequency === 'every_3_weeks' ? 'Cada 3 sem' :
+                   quote.service_frequency === 'monthly' ? 'Mensual' : 'One-off'}
+                </Badge>
+              )}
+            </div>
+          )}
           
-          <div className="flex flex-wrap gap-1 mt-2">
+          <div className="flex flex-wrap gap-1 mt-3">
             {transfer.selected_services?.map(s => 
-              <Badge key={s.service_name} variant="secondary" className="text-xs">
+              <Badge key={s.service_name} className="text-xs bg-teal-100 text-teal-800">
                 {s.service_name}
               </Badge>
             )}
@@ -47,16 +78,36 @@ export default function ZenMaidTransferItem({ transfer, clientInfo, onComplete }
           
           {transfer.total_price_min && transfer.total_price_max && (
             <p className="text-sm font-semibold text-teal-700 mt-2">
-              ${transfer.total_price_min} - ${transfer.total_price_max}
+              Precio: ${transfer.total_price_min} - ${transfer.total_price_max}
             </p>
+          )}
+
+          {quote?.notes && (
+            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+              <span className="font-medium">Notas: </span>
+              {quote.notes}
+            </div>
           )}
         </div>
         
-        <Link to={createPageUrl(`QuoteDetail?id=${transfer.quote_id}`)} target="_blank">
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <ExternalLink className="w-4 h-4" />
-          </Button>
-        </Link>
+        <div className="flex flex-col gap-2">
+          {quote?.quote_pdf_url && (
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-8 w-8"
+              onClick={() => window.open(quote.quote_pdf_url, '_blank')}
+              title="Ver PDF de la cotización"
+            >
+              <FileText className="w-4 h-4 text-blue-600" />
+            </Button>
+          )}
+          <Link to={createPageUrl(`QuoteDetail?id=${transfer.quote_id}`)} target="_blank">
+            <Button variant="outline" size="icon" className="h-8 w-8" title="Ver detalles">
+              <ExternalLink className="w-4 h-4" />
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mt-4 pt-4 border-t">

@@ -773,14 +773,18 @@ export default function CotizacionesPage() {
                                             <p>¡Todo al día! No hay cotizaciones pendientes.</p>
                                           </div>
                                         ) : (
-                                          pendingTransfers.map(transfer => (
-                                            <ZenMaidTransferItem 
-                                              key={transfer.id}
-                                              transfer={transfer}
-                                              clientInfo={getClientInfo(transfer.client_id)}
-                                              onComplete={handleCompleteTransfer}
-                                            />
-                                          ))
+                                          pendingTransfers.map(transfer => {
+                                            const quote = quotes.find(q => q.id === transfer.quote_id);
+                                            return (
+                                              <ZenMaidTransferItem 
+                                                key={transfer.id}
+                                                transfer={transfer}
+                                                clientInfo={getClientInfo(transfer.client_id)}
+                                                quote={quote}
+                                                onComplete={handleCompleteTransfer}
+                                              />
+                                            );
+                                          })
                                         )}
                                       </div>
                                     </div>
