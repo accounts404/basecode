@@ -169,7 +169,7 @@ export default function CotizacionesPage() {
         setApprovingQuote(quote);
     };
 
-    const handleConfirmAcceptedServices = async (acceptedServices) => {
+    const handleConfirmAcceptedServices = async (acceptedServices, schedulingNotes) => {
         if (!approvingQuote) return;
 
         try {
@@ -192,6 +192,7 @@ export default function CotizacionesPage() {
                     selected_services: acceptedServices,
                     total_price_min: totalPriceMin,
                     total_price_max: totalPriceMax,
+                    scheduling_notes: schedulingNotes || ''
                 });
                 toast.success("Cotización aprobada y enviada a ZenMaid para agendar.");
             } else { 
