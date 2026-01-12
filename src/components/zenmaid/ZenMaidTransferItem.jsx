@@ -88,6 +88,13 @@ export default function ZenMaidTransferItem({ transfer, clientInfo, quote, onCom
               {quote.notes}
             </div>
           )}
+
+          {transfer.scheduling_notes && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+              <span className="font-medium">📋 Notas para agendar: </span>
+              {transfer.scheduling_notes}
+            </div>
+          )}
         </div>
         
         <div className="flex flex-col gap-2">
