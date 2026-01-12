@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings, CalendarCheck, ListChecks, Inbox, ExternalLink, User, MapPin, PackageSearch } from 'lucide-react';
+import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings, CalendarCheck, ListChecks, Inbox, ExternalLink, User, MapPin, PackageSearch, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -154,6 +154,17 @@ export default function CotizacionesPage() {
       } catch (error) {
         console.error("Error completing transfer:", error);
         toast.error("Error al completar la transferencia.");
+      }
+    };
+
+    const handleDeleteTransfer = async (transferId) => {
+      try {
+        await base44.entities.ZenMaidTransfer.delete(transferId);
+        toast.success("Transferencia eliminada con éxito.");
+        loadData();
+      } catch (error) {
+        console.error("Error deleting transfer:", error);
+        toast.error("Error al eliminar la transferencia.");
       }
     };
 
@@ -806,15 +817,45 @@ export default function CotizacionesPage() {
                                           pendingTransfers.map(transfer => {
                                             const quote = quotes.find(q => q.id === transfer.quote_id);
                                             return (
-                                              <ZenMaidTransferItem 
-                                                key={transfer.id}
-                                                transfer={transfer}
-                                                clientInfo={getClientInfo(transfer.client_id)}
-                                                quote={quote}
-                                                onComplete={handleCompleteTransfer}
-                                              />
+                                              <div key={transfer.id} className="relative">
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      className="absolute top-2 right-2 z-10 h-8 w-8 text-red-500 hover:bg-red-50"
+                                                      title="Eliminar"
+                                                    >
+                                                      <Trash className="w-4 h-4" />
+                                                    </Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                      <AlertDialogDescription>
+                                                        Esta acción no se puede deshacer. La transferencia será eliminada permanentemente.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                      <AlertDialogAction
+                                                        onClick={() => handleDeleteTransfer(transfer.id)}
+                                                        className="bg-red-600 hover:bg-red-700"
+                                                      >
+                                                        Eliminar
+                                                      </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
+                                                <ZenMaidTransferItem 
+                                                  transfer={transfer}
+                                                  clientInfo={getClientInfo(transfer.client_id)}
+                                                  quote={quote}
+                                                  onComplete={handleCompleteTransfer}
+                                                />
+                                              </div>
                                             );
-                                          })
+                                            })
                                         )}
                                       </div>
                                     </div>
@@ -838,10 +879,40 @@ export default function CotizacionesPage() {
                                         ) : (
                                           completedTransfers.map(transfer => {
                                             const clientInfo = getClientInfo(transfer.client_id);
+                                            const quote = quotes.find(q => q.id === transfer.quote_id);
                                             return (
-                                              <div key={transfer.id} className="p-4 bg-gray-50 rounded-lg border hover:bg-white transition-colors">
+                                              <div key={transfer.id} className="p-4 bg-gray-50 rounded-lg border hover:bg-white transition-colors relative">
+                                                <AlertDialog>
+                                                  <AlertDialogTrigger asChild>
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      className="absolute top-2 right-2 h-8 w-8 text-red-500 hover:bg-red-50"
+                                                      title="Eliminar"
+                                                    >
+                                                      <Trash className="w-4 h-4" />
+                                                    </Button>
+                                                  </AlertDialogTrigger>
+                                                  <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                      <AlertDialogDescription>
+                                                        Esta acción no se puede deshacer. La transferencia será eliminada permanentemente.
+                                                      </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                      <AlertDialogAction
+                                                        onClick={() => handleDeleteTransfer(transfer.id)}
+                                                        className="bg-red-600 hover:bg-red-700"
+                                                      >
+                                                        Eliminar
+                                                      </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                  </AlertDialogContent>
+                                                </AlertDialog>
                                                 <div className="flex justify-between items-start mb-3">
-                                                  <div className="flex-1">
+                                                  <div className="flex-1 pr-10">
                                                     <h4 className="font-bold text-gray-900 flex items-center gap-2">
                                                       <User className="w-4 h-4 text-gray-400"/>
                                                       {transfer.client_name}
@@ -871,13 +942,40 @@ export default function CotizacionesPage() {
                                                     <p className="text-xs text-green-600 font-semibold mt-2">
                                                       Agendado para: {format(new Date(transfer.transfer_date), 'dd MMM, yyyy', { locale: es })}
                                                     </p>
-                                                  </div>
 
-                                                  <Link to={createPageUrl(`QuoteDetail?id=${transfer.quote_id}`)} target="_blank">
-                                                    <Button variant="outline" size="icon" className="h-8 w-8">
-                                                      <ExternalLink className="w-4 h-4" />
-                                                    </Button>
-                                                  </Link>
+                                                    {transfer.scheduling_notes && (
+                                                      <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                                        <span className="font-medium">📋 Notas para agendar: </span>
+                                                        {transfer.scheduling_notes}
+                                                      </div>
+                                                    )}
+
+                                                    {quote?.notes && (
+                                                      <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+                                                        <span className="font-medium">Notas: </span>
+                                                        {quote.notes}
+                                                      </div>
+                                                    )}
+                                                    </div>
+
+                                                    <div className="flex gap-2">
+                                                    {quote?.quote_pdf_url && (
+                                                      <Button 
+                                                        variant="outline" 
+                                                        size="icon" 
+                                                        className="h-8 w-8"
+                                                        onClick={() => window.open(quote.quote_pdf_url, '_blank')}
+                                                        title="Ver PDF"
+                                                      >
+                                                        <FileText className="w-4 h-4 text-blue-600" />
+                                                      </Button>
+                                                    )}
+                                                    <Link to={createPageUrl(`QuoteDetail?id=${transfer.quote_id}`)} target="_blank">
+                                                      <Button variant="outline" size="icon" className="h-8 w-8">
+                                                        <ExternalLink className="w-4 h-4" />
+                                                      </Button>
+                                                    </Link>
+                                                    </div>
                                                 </div>
                                               </div>
                                             );
