@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Send, CheckCircle, Package, Loader2, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Save, Send, CheckCircle, Package, Loader2, Plus, Edit2, Trash2, X, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,6 +27,7 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { generateQuotePDF } from '../components/utils/quotePdfGenerator';
 import { format } from 'date-fns';
+import { v4 as uuidv4 } from 'uuid';
 
 const areas = [
   { id: 'dusting_wiping_tidy', name: 'Dusting / Wiping / Tidy Up' },
@@ -48,6 +49,7 @@ export default function QuoteItemizationPage() {
   const [isSending, setIsSending] = useState(false);
   const [activeServiceType, setActiveServiceType] = useState('initial');
   const [activeArea, setActiveArea] = useState('dusting_wiping_tidy');
+  const [currentStep, setCurrentStep] = useState('itemization'); // 'itemization' or 'options'
   
   const [areaSelectionsInitial, setAreaSelectionsInitial] = useState({});
   const [areaSelectionsRegular, setAreaSelectionsRegular] = useState({});
@@ -66,6 +68,24 @@ export default function QuoteItemizationPage() {
     item_name: '',
     item_description: '',
     service_type: 'both'
+  });
+
+  // Service Options State
+  const [serviceOptions, setServiceOptions] = useState([]);
+  const [isOptionsDialogOpen, setIsOptionsDialogOpen] = useState(false);
+  const [editingOption, setEditingOption] = useState(null);
+  const [optionToDelete, setOptionToDelete] = useState(null);
+  const [optionFormData, setOptionFormData] = useState({
+    option_name: '',
+    service_type: 'regular',
+    selected_areas_items: [],
+    pricing: {
+      weekly: { price_min: 0, price_max: 0 },
+      fortnightly: { price_min: 0, price_max: 0 },
+      every_3_weeks: { price_min: 0, price_max: 0 },
+      monthly: { price_min: 0, price_max: 0 },
+      one_off: { price_min: 0, price_max: 0 }
+    }
   });
 
   const getQuoteId = useCallback(() => new URLSearchParams(location.search).get('id'), [location.search]);
@@ -156,6 +176,11 @@ export default function QuoteItemizationPage() {
         });
         setAreaSelectionsCommercial(selections);
         setAreaNotesCommercial(notes);
+      }
+
+      // Load service options if they exist
+      if (quoteData.service_options && quoteData.service_options.length > 0) {
+        setServiceOptions(quoteData.service_options);
       }
 
     } catch (error) {
@@ -277,6 +302,42 @@ export default function QuoteItemizationPage() {
     }
   };
 
+  const handleNextToOptions = async () => {
+    // Validate that itemization is complete
+    const hasInitialSelections = hasInitialServices() && Object.values(areaSelectionsInitial).some(sel => 
+      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
+    );
+
+    const hasRegularSelections = hasRegularServices() && Object.values(areaSelectionsRegular).some(sel => 
+      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
+    );
+
+    const hasCommercialSelections = hasCommercialServices() && Object.values(areaSelectionsCommercial).some(sel => 
+      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
+    );
+
+    if (hasInitialServices() && !hasInitialSelections) {
+      toast.error("Por favor, selecciona al menos un área para los servicios iniciales");
+      return;
+    }
+
+    if (hasRegularServices() && !hasRegularSelections) {
+      toast.error("Por favor, selecciona al menos un área para los servicios regulares");
+      return;
+    }
+
+    if (hasCommercialServices() && !hasCommercialSelections) {
+      toast.error("Por favor, selecciona al menos un área para los servicios comerciales");
+      return;
+    }
+
+    // Save current itemization
+    await handleSave();
+    
+    // Move to options step
+    setCurrentStep('options');
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -353,6 +414,11 @@ export default function QuoteItemizationPage() {
         (hasInitialServices() ? hasInitialItems : true) && 
         (hasRegularServices() ? hasRegularItems : true) &&
         (hasCommercialServices() ? hasCommercialItems : true);
+
+      // Save service options
+      if (serviceOptions.length > 0) {
+        dataToUpdate.service_options = serviceOptions;
+      }
 
       await base44.entities.Quote.update(quote.id, dataToUpdate);
       toast.success("Itemización guardada exitosamente");
