@@ -254,7 +254,11 @@ export default function QuoteDetailPage() {
                 );
                 toast.info(`Servicio '${rate.service_name}' deseleccionado.`);
             } else {
-                newSelectedServices = newSelectedServices.filter(s => s.service_type !== rate.service_type);
+                // Para servicios regulares, permitir múltiples selecciones
+                // Para inicial y comercial, solo permitir uno a la vez
+                if (rate.service_type !== 'regular') {
+                    newSelectedServices = newSelectedServices.filter(s => s.service_type !== rate.service_type);
+                }
 
                 newSelectedServices.push({
                     service_name: rate.service_name,
@@ -865,35 +869,22 @@ export default function QuoteDetailPage() {
                                     <Card>
                                         <CardHeader>
                                             <CardTitle className="flex items-center gap-2 text-blue-700"><Sparkles className="w-5 h-5" />Servicios Regulares</CardTitle>
-                                            <CardDescription>Semanal, Quincenal, Cada 3 semanas</CardDescription>
+                                            <CardDescription>Selecciona uno o más servicios regulares (Semanal, Quincenal, Cada 3 semanas)</CardDescription>
                                         </CardHeader>
                                         <CardContent className="space-y-4">
-                                            <Select value={selectedRegularRateId} onValueChange={setSelectedRegularRateId}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Selecciona un tipo de servicio" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {activeRegularRates.map(rate => (
-                                                        <SelectItem key={rate.id} value={rate.id}>
-                                                            {rate.service_name} (${rate.hourly_rate.toFixed(2)}/hr)
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-
-                                            {selectedRegularRate && (() => {
+                                            {activeRegularRates.map(rate => {
                                                 const totalHours = quote.total_hours_regular || 0;
                                                 const additionalHours = quote.additional_hours_regular || 0;
-                                                const hourlyRate = selectedRegularRate.hourly_rate || 0;
+                                                const hourlyRate = rate.hourly_rate || 0;
 
                                                 const finalMinValue = totalHours * hourlyRate;
                                                 const finalMaxValue = (totalHours + additionalHours) * hourlyRate;
-                                                const isSelected = quote.selected_services?.some(s => s.service_name === selectedRegularRate.service_name && s.service_type === selectedRegularRate.service_type);
+                                                const isSelected = quote.selected_services?.some(s => s.service_name === rate.service_name && s.service_type === rate.service_type);
 
                                                 return (
-                                                    <div className="border border-blue-200 bg-blue-50/50 rounded-lg p-4 space-y-3">
+                                                    <div key={rate.id} className={`border ${isSelected ? 'border-blue-400 bg-blue-50' : 'border-blue-200 bg-blue-50/50'} rounded-lg p-4 space-y-3`}>
                                                         <div className="text-center">
-                                                            <h4 className="font-bold text-lg text-blue-800">{selectedRegularRate.service_name}</h4>
+                                                            <h4 className="font-bold text-lg text-blue-800">{rate.service_name}</h4>
                                                             <p className="text-sm text-blue-600">
                                                                 ${hourlyRate.toFixed(2)}/hora &times; {totalHours.toFixed(1)} horas
                                                                 {additionalHours > 0 && (
@@ -922,15 +913,15 @@ export default function QuoteDetailPage() {
                                                         )}
 
                                                         <Button
-                                                            onClick={() => handleToggleService(selectedRegularRate, isSelected, finalMinValue, finalMaxValue)}
+                                                            onClick={() => handleToggleService(rate, isSelected, finalMinValue, finalMaxValue)}
                                                             variant={isSelected ? "default" : "outline"}
                                                             className={`w-full ${isSelected ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
                                                         >
-                                                            {isSelected ? 'Deseleccionar Servicio' : 'Seleccionar este Servicio'}
+                                                            {isSelected ? 'Deseleccionar' : 'Seleccionar'}
                                                         </Button>
                                                     </div>
                                                 );
-                                            })()}
+                                            })}
                                         </CardContent>
                                     </Card>
                                 )}

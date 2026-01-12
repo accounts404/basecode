@@ -28,11 +28,11 @@ import Rentabilidad from './pages/Rentabilidad';
 import Reportes from './pages/Reportes';
 import ReportesServicio from './pages/ReportesServicio';
 import RevisionPrecios from './pages/RevisionPrecios';
+import ServiceItemsManagement from './pages/ServiceItemsManagement';
 import ServicioActivo from './pages/ServicioActivo';
 import TVDashboard from './pages/TVDashboard';
 import TrabajoEntradas from './pages/TrabajoEntradas';
 import Vehiculos from './pages/Vehiculos';
-import ServiceItemsManagement from './pages/ServiceItemsManagement';
 import __Layout from './Layout.jsx';
 
 
@@ -67,11 +67,11 @@ export const PAGES = {
     "Reportes": Reportes,
     "ReportesServicio": ReportesServicio,
     "RevisionPrecios": RevisionPrecios,
+    "ServiceItemsManagement": ServiceItemsManagement,
     "ServicioActivo": ServicioActivo,
     "TVDashboard": TVDashboard,
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
-    "ServiceItemsManagement": ServiceItemsManagement,
 }
 
 export const pagesConfig = {
