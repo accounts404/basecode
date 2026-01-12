@@ -427,11 +427,9 @@ export default function QuoteDetailPage() {
                     await base44.entities.ZenMaidTransfer.create({ quote_id: savedQuote.id, client_id: savedQuote.client_id, client_name: savedQuote.client_name, service_address: savedQuote.service_address, status: 'pending', selected_services: savedQuote.selected_services, total_price_min: finalTotalPriceMin, total_price_max: finalTotalPriceMax });
                     toast.info("Cotización enviada a la cola de ZenMaid para agendar.");
                 }
-                
-                navigate(createPageUrl(`QuoteDetail?id=${savedQuote.id}`), { replace: true });
             }
             
-            setQuote(savedQuote);
+            navigate(createPageUrl('Cotizaciones'));
 
         } catch (error) {
             if (error.response && (error.response.status === 401 || error.response.status === 403)) {
