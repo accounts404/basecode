@@ -133,7 +133,7 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
   
   // Expire Date (14 business days after quote date)
   const expireDate = addBusinessDays(quoteDate, 14);
-  doc.text(`Expire Date: ${format(expireDate, 'dd/MM/yyyy')}`, margin, y);
+  doc.text(`Valid Until: ${format(expireDate, 'dd/MM/yyyy')}`, margin, y);
   y += 12;
 
   // Notes (if any)
