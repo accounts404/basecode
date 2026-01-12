@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
+import { generateQuotePDF } from '../components/utils/quotePdfGenerator';
+import { format } from 'date-fns';
 
 const areas = [
   { id: 'dusting_wiping_tidy', name: 'Dusting / Wiping / Tidy Up' },
@@ -371,23 +373,84 @@ export default function QuoteItemizationPage() {
       return;
     }
 
+    if (!client || !client.email) {
+      toast.error("El cliente no tiene un email registrado");
+      return;
+    }
+
     setIsSending(true);
     
     try {
       await handleSave();
 
+      const pdfToastId = toast.loading("Generando PDF de la cotización...");
+
+      const systemSettings = await base44.entities.SystemSetting.list();
+      const settings = systemSettings[0] || {};
+
+      const updatedQuote = await base44.entities.Quote.get(quote.id);
+
+      const pdfDoc = await generateQuotePDF({
+        quote: updatedQuote,
+        client,
+        systemSettings: settings
+      });
+
+      const pdfBlob = pdfDoc.output('blob', { compress: true });
+      
+      const clientNameClean = client.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      const dateStr = format(new Date(), 'dd-MM-yyyy');
+      const filename = `${clientNameClean}_Quote_${dateStr}.pdf`;
+      
+      const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
+
+      const fileSizeMB = pdfFile.size / (1024 * 1024);
+      toast.loading(`Subiendo PDF (${fileSizeMB.toFixed(2)} MB)...`, { id: pdfToastId });
+
+      let fileUrl = null;
+      let uploadAttempts = 0;
+      const maxAttempts = 3;
+
+      while (uploadAttempts < maxAttempts && !fileUrl) {
+        try {
+          uploadAttempts++;
+          if (uploadAttempts > 1) {
+            toast.loading(`Reintentando subir PDF (intento ${uploadAttempts}/${maxAttempts})...`, { id: pdfToastId });
+          }
+          
+          const { file_url } = await base44.integrations.Core.UploadFile({ file: pdfFile });
+          fileUrl = file_url;
+          
+        } catch (uploadError) {
+          console.error(`Upload attempt ${uploadAttempts} failed:`, uploadError);
+          
+          if (uploadAttempts >= maxAttempts) {
+            throw new Error(`No se pudo subir el PDF después de ${maxAttempts} intentos. Por favor, intenta nuevamente.`);
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 1000 * uploadAttempts));
+        }
+      }
+
+      if (!fileUrl) {
+        throw new Error("No se pudo obtener la URL del PDF");
+      }
+
+      toast.loading("Guardando cotización...", { id: pdfToastId });
       await base44.entities.Quote.update(quote.id, {
         status: 'enviada',
         sent_date: new Date().toISOString().split('T')[0],
+        quote_pdf_url: fileUrl,
         itemization_completed: true
       });
 
-      toast.success("Cotización finalizada y enviada exitosamente");
+      toast.success("Cotización finalizada y PDF generado exitosamente", { id: pdfToastId });
       navigate(createPageUrl('Cotizaciones'));
       
     } catch (error) {
       console.error("Error finalizando cotización:", error);
-      toast.error("Error al finalizar la cotización");
+      const errorMessage = error.message || "Error al finalizar la cotización";
+      toast.error(errorMessage);
     } finally {
       setIsSending(false);
     }
