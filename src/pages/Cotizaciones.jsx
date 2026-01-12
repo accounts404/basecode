@@ -25,6 +25,7 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import RejectionDialog from '../components/quotes/RejectionDialog';
+import AcceptedServicesDialog from '../components/quotes/AcceptedServicesDialog';
 
 const statusConfig = {
     borrador: { label: 'Borrador', color: 'bg-gray-100 text-gray-800', icon: '📝' },
@@ -41,6 +42,7 @@ export default function CotizacionesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [rejectingQuote, setRejectingQuote] = useState(null);
+  const [approvingQuote, setApprovingQuote] = useState(null);
   const [activeTab, setActiveTab] = useState('borrador');
   const [sortConfig, setSortConfig] = useState({ key: 'created_date', direction: 'desc' });
 
@@ -159,36 +161,55 @@ export default function CotizacionesPage() {
       return clients.find(c => c.id === clientId) || {};
     };
 
+    const handleApproveQuote = (quote) => {
+        if (!quote.selected_services || quote.selected_services.length === 0) {
+            toast.error("Por favor, edita la cotización y selecciona al menos un servicio antes de aprobarla.");
+            return;
+        }
+        setApprovingQuote(quote);
+    };
+
+    const handleConfirmAcceptedServices = async (acceptedServices) => {
+        if (!approvingQuote) return;
+
+        try {
+            const totalPriceMin = acceptedServices.reduce((sum, s) => sum + s.price_min, 0);
+            const totalPriceMax = acceptedServices.reduce((sum, s) => sum + s.price_max, 0);
+
+            await base44.entities.Quote.update(approvingQuote.id, { 
+                status: 'aprobado',
+                accepted_services: acceptedServices
+            });
+            
+            const existingTransfer = await base44.entities.ZenMaidTransfer.filter({ quote_id: approvingQuote.id });
+            if (existingTransfer.length === 0) {
+                await base44.entities.ZenMaidTransfer.create({
+                    quote_id: approvingQuote.id,
+                    client_id: approvingQuote.client_id,
+                    client_name: approvingQuote.client_name,
+                    service_address: approvingQuote.service_address,
+                    status: 'pending',
+                    selected_services: acceptedServices,
+                    total_price_min: totalPriceMin,
+                    total_price_max: totalPriceMax,
+                });
+                toast.success("Cotización aprobada y enviada a ZenMaid para agendar.");
+            } else { 
+                toast.success("Cotización aprobada con éxito."); 
+            }
+            
+            setApprovingQuote(null);
+            loadData();
+        } catch (error) { 
+            console.error("Error updating quote status:", error);
+            toast.error("Error al actualizar el estado."); 
+        }
+    };
+
     const handleStatusChange = async (quote, newStatus) => {
         try {
-            if (newStatus === 'aprobado') {
-                if (!quote.selected_services || quote.selected_services.length === 0) {
-                    toast.error("Por favor, edita la cotización y selecciona al menos un servicio antes de aprobarla.");
-                    return;
-                }
-                
-                await base44.entities.Quote.update(quote.id, { status: newStatus });
-                
-                const existingTransfer = await base44.entities.ZenMaidTransfer.filter({ quote_id: quote.id });
-                if (existingTransfer.length === 0) {
-                    await base44.entities.ZenMaidTransfer.create({
-                        quote_id: quote.id,
-                        client_id: quote.client_id,
-                        client_name: quote.client_name,
-                        service_address: quote.service_address,
-                        status: 'pending',
-                        selected_services: quote.selected_services,
-                        total_price_min: quote.total_price_min,
-                        total_price_max: quote.total_price_max,
-                    });
-                    toast.success("Cotización aprobada y enviada a ZenMaid para agendar.");
-                } else { 
-                    toast.success("Cotización aprobada con éxito."); 
-                }
-            } else {
-                await base44.entities.Quote.update(quote.id, { status: newStatus });
-                toast.success(`Estado actualizado a ${newStatus}.`);
-            }
+            await base44.entities.Quote.update(quote.id, { status: newStatus });
+            toast.success(`Estado actualizado a ${newStatus}.`);
             loadData();
         } catch (error) { 
             console.error("Error updating quote status:", error);
@@ -503,7 +524,7 @@ export default function CotizacionesPage() {
                                                     <Button 
                                                         variant="ghost" 
                                                         size="icon" 
-                                                        onClick={() => handleStatusChange(quote, 'aprobado')} 
+                                                        onClick={() => handleApproveQuote(quote)} 
                                                         className="text-green-600 hover:bg-green-50" 
                                                         title="Aprobar"
                                                     >
@@ -888,6 +909,13 @@ export default function CotizacionesPage() {
                 isOpen={!!rejectingQuote}
                 onClose={() => setRejectingQuote(null)}
                 onSubmit={handleRejectionSubmit}
+            />
+            
+            <AcceptedServicesDialog
+                open={!!approvingQuote}
+                onOpenChange={(open) => !open && setApprovingQuote(null)}
+                quote={approvingQuote}
+                onConfirm={handleConfirmAcceptedServices}
             />
         </div>
     );
