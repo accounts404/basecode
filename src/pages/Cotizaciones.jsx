@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import RejectionDialog from '../components/quotes/RejectionDialog';
 import AcceptedServicesDialog from '../components/quotes/AcceptedServicesDialog';
+import QuoteReports from '../components/quotes/QuoteReports';
 
 const statusConfig = {
     borrador: { label: 'Borrador', color: 'bg-gray-100 text-gray-800', icon: '📝' },
@@ -710,7 +711,7 @@ export default function CotizacionesPage() {
                     <CardContent className="p-0">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                             <div className="px-6 pb-4">
-                              <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+                              <TabsList className="grid w-full grid-cols-7 h-auto p-1">
                                 <TabsTrigger value="borrador" className="flex flex-col md:flex-row items-center gap-2 py-3">
                                   <span className="text-lg">📝</span>
                                   <span className="text-xs md:text-sm font-medium">Borradores</span>
@@ -740,6 +741,10 @@ export default function CotizacionesPage() {
                                   <span className="text-lg">❌</span>
                                   <span className="text-xs md:text-sm font-medium">Rechazadas</span>
                                   <Badge variant="secondary" className="text-xs">{quotesByStatus.rechazado?.length || 0}</Badge>
+                                </TabsTrigger>
+                                <TabsTrigger value="reportes" className="flex flex-col md:flex-row items-center gap-2 py-3">
+                                  <span className="text-lg">📊</span>
+                                  <span className="text-xs md:text-sm font-medium">Reportes</span>
                                 </TabsTrigger>
                               </TabsList>
                             </div>
@@ -997,6 +1002,10 @@ export default function CotizacionesPage() {
                               <div className="border-t border-slate-100">
                                 {renderQuoteTable('rechazado')}
                               </div>
+                            </TabsContent>
+
+                            <TabsContent value="reportes" className="mt-0">
+                              <QuoteReports quotes={quotes} />
                             </TabsContent>
                             </Tabs>
                             </CardContent>
