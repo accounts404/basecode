@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings } from 'lucide-react';
+import { Plus, Search, Check, X, Edit, Trash2, AlertTriangle, ChevronUp, ChevronDown, Loader2, List, FileText, DollarSign, Calendar, TrendingUp, Settings, CalendarCheck, ListChecks, Inbox, ExternalLink, User, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import ZenMaidTransferItem from '../components/zenmaid/ZenMaidTransferItem';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -34,14 +35,16 @@ const statusConfig = {
 };
 
 export default function CotizacionesPage() { 
-    const [quotes, setQuotes] = useState([]);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [rejectingQuote, setRejectingQuote] = useState(null);
-    const [activeTab, setActiveTab] = useState('borrador');
-    const [sortConfig, setSortConfig] = useState({ key: 'created_date', direction: 'desc' });
-    
-    const navigate = useNavigate();
+  const [quotes, setQuotes] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [transfers, setTransfers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [rejectingQuote, setRejectingQuote] = useState(null);
+  const [activeTab, setActiveTab] = useState('borrador');
+  const [sortConfig, setSortConfig] = useState({ key: 'created_date', direction: 'desc' });
+
+  const navigate = useNavigate();
 
     useEffect(() => {
         loadData();
@@ -65,16 +68,22 @@ export default function CotizacionesPage() {
     };
 
     const loadData = async () => {
-        setIsLoading(true);
-        try {
-            const quotesData = await base44.entities.Quote.list('-created_date', 1000);
-            setQuotes(quotesData);
-        } catch (error) {
-            console.error("Error loading quotes data:", error);
-            toast.error("Error al cargar las cotizaciones.");
-        } finally {
-            setIsLoading(false);
-        }
+      setIsLoading(true);
+      try {
+        const [quotesData, clientsData, transfersData] = await Promise.all([
+          base44.entities.Quote.list('-created_date', 1000),
+          base44.entities.Client.list(null, 1000),
+          base44.entities.ZenMaidTransfer.list('-created_date', 1000)
+        ]);
+        setQuotes(quotesData);
+        setClients(clientsData);
+        setTransfers(transfersData);
+      } catch (error) {
+        console.error("Error loading quotes data:", error);
+        toast.error("Error al cargar las cotizaciones.");
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     const handleSendToItemization = async (quote) => {
@@ -111,21 +120,43 @@ export default function CotizacionesPage() {
     };
 
     const handleRejectionSubmit = async (rejectionData) => {
-        if (!rejectingQuote) return;
+      if (!rejectingQuote) return;
 
-        try {
-            await base44.entities.Quote.update(rejectingQuote.id, {
-                status: 'rechazado',
-                rejection_type: rejectionData.rejection_type,
-                rejection_reason: rejectionData.rejection_reason,
-            });
-            toast.success("Cotización marcada como rechazada.");
-            setRejectingQuote(null);
-            loadData();
-        } catch (error) {
-            console.error("Error rejecting quote:", error);
-            toast.error("Error al rechazar la cotización.");
-        }
+      try {
+        await base44.entities.Quote.update(rejectingQuote.id, {
+          status: 'rechazado',
+          rejection_type: rejectionData.rejection_type,
+          rejection_reason: rejectionData.rejection_reason,
+        });
+        toast.success("Cotización marcada como rechazada.");
+        setRejectingQuote(null);
+        loadData();
+      } catch (error) {
+        console.error("Error rejecting quote:", error);
+        toast.error("Error al rechazar la cotización.");
+      }
+    };
+
+    const handleCompleteTransfer = async (transferId, date) => {
+      if (!date) {
+        toast.error("Por favor, selecciona una fecha de servicio.");
+        return;
+      }
+      try {
+        await base44.entities.ZenMaidTransfer.update(transferId, {
+          status: 'completed',
+          transfer_date: date
+        });
+        toast.success("Transferencia completada y agendada.");
+        loadData();
+      } catch (error) {
+        console.error("Error completing transfer:", error);
+        toast.error("Error al completar la transferencia.");
+      }
+    };
+
+    const getClientInfo = (clientId) => {
+      return clients.find(c => c.id === clientId) || {};
     };
 
     const handleStatusChange = async (quote, newStatus) => {
@@ -166,14 +197,17 @@ export default function CotizacionesPage() {
     };
 
     const quotesByStatus = useMemo(() => {
-        return {
-            borrador: quotes.filter(q => q.status === 'borrador'),
-            itemizando: quotes.filter(q => q.status === 'itemizando'),
-            enviada: quotes.filter(q => q.status === 'enviada'),
-            aprobado: quotes.filter(q => q.status === 'aprobado'),
-            rechazado: quotes.filter(q => q.status === 'rechazado')
-        };
+      return {
+        borrador: quotes.filter(q => q.status === 'borrador'),
+        itemizando: quotes.filter(q => q.status === 'itemizando'),
+        enviada: quotes.filter(q => q.status === 'enviada'),
+        aprobado: quotes.filter(q => q.status === 'aprobado'),
+        rechazado: quotes.filter(q => q.status === 'rechazado')
+      };
     }, [quotes]);
+
+    const pendingTransfers = transfers.filter(t => t.status === 'pending');
+    const completedTransfers = transfers.filter(t => t.status === 'completed');
 
     // Calcular métricas
     const metrics = useMemo(() => {
@@ -635,33 +669,38 @@ export default function CotizacionesPage() {
                     <CardContent className="p-0">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                             <div className="px-6 pb-4">
-                                <TabsList className="grid w-full grid-cols-5 h-auto p-1">
-                                    <TabsTrigger value="borrador" className="flex flex-col md:flex-row items-center gap-2 py-3">
-                                        <span className="text-lg">📝</span>
-                                        <span className="text-xs md:text-sm font-medium">Borradores</span>
-                                        <Badge variant="secondary" className="text-xs">{quotesByStatus.borrador?.length || 0}</Badge>
-                                    </TabsTrigger>
-                                    <TabsTrigger value="itemizando" className="flex flex-col md:flex-row items-center gap-2 py-3">
-                                        <span className="text-lg">📋</span>
-                                        <span className="text-xs md:text-sm font-medium">Itemizar</span>
-                                        <Badge variant="secondary" className="text-xs">{quotesByStatus.itemizando?.length || 0}</Badge>
-                                    </TabsTrigger>
-                                    <TabsTrigger value="enviada" className="flex flex-col md:flex-row items-center gap-2 py-3">
-                                        <span className="text-lg">📤</span>
-                                        <span className="text-xs md:text-sm font-medium">Enviadas</span>
-                                        <Badge variant="secondary" className="text-xs">{quotesByStatus.enviada?.length || 0}</Badge>
-                                    </TabsTrigger>
-                                    <TabsTrigger value="aprobado" className="flex flex-col md:flex-row items-center gap-2 py-3">
-                                        <span className="text-lg">✅</span>
-                                        <span className="text-xs md:text-sm font-medium">Aprobadas</span>
-                                        <Badge variant="secondary" className="text-xs">{quotesByStatus.aprobado?.length || 0}</Badge>
-                                    </TabsTrigger>
-                                    <TabsTrigger value="rechazado" className="flex flex-col md:flex-row items-center gap-2 py-3">
-                                        <span className="text-lg">❌</span>
-                                        <span className="text-xs md:text-sm font-medium">Rechazadas</span>
-                                        <Badge variant="secondary" className="text-xs">{quotesByStatus.rechazado?.length || 0}</Badge>
-                                    </TabsTrigger>
-                                </TabsList>
+                              <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+                                <TabsTrigger value="borrador" className="flex flex-col md:flex-row items-center gap-2 py-3">
+                                  <span className="text-lg">📝</span>
+                                  <span className="text-xs md:text-sm font-medium">Borradores</span>
+                                  <Badge variant="secondary" className="text-xs">{quotesByStatus.borrador?.length || 0}</Badge>
+                                </TabsTrigger>
+                                <TabsTrigger value="itemizando" className="flex flex-col md:flex-row items-center gap-2 py-3">
+                                  <span className="text-lg">📋</span>
+                                  <span className="text-xs md:text-sm font-medium">Itemizar</span>
+                                  <Badge variant="secondary" className="text-xs">{quotesByStatus.itemizando?.length || 0}</Badge>
+                                </TabsTrigger>
+                                <TabsTrigger value="enviada" className="flex flex-col md:flex-row items-center gap-2 py-3">
+                                  <span className="text-lg">📤</span>
+                                  <span className="text-xs md:text-sm font-medium">Enviadas</span>
+                                  <Badge variant="secondary" className="text-xs">{quotesByStatus.enviada?.length || 0}</Badge>
+                                </TabsTrigger>
+                                <TabsTrigger value="aprobado" className="flex flex-col md:flex-row items-center gap-2 py-3">
+                                  <span className="text-lg">✅</span>
+                                  <span className="text-xs md:text-sm font-medium">Aprobadas</span>
+                                  <Badge variant="secondary" className="text-xs">{quotesByStatus.aprobado?.length || 0}</Badge>
+                                </TabsTrigger>
+                                <TabsTrigger value="para_agendar" className="flex flex-col md:flex-row items-center gap-2 py-3">
+                                  <span className="text-lg">📅</span>
+                                  <span className="text-xs md:text-sm font-medium">Para Agendar</span>
+                                  <Badge variant="secondary" className="text-xs">{pendingTransfers?.length || 0}</Badge>
+                                </TabsTrigger>
+                                <TabsTrigger value="rechazado" className="flex flex-col md:flex-row items-center gap-2 py-3">
+                                  <span className="text-lg">❌</span>
+                                  <span className="text-xs md:text-sm font-medium">Rechazadas</span>
+                                  <Badge variant="secondary" className="text-xs">{quotesByStatus.rechazado?.length || 0}</Badge>
+                                </TabsTrigger>
+                              </TabsList>
                             </div>
 
                             <TabsContent value="borrador" className="mt-0">
@@ -708,20 +747,129 @@ export default function CotizacionesPage() {
                                 </div>
                             </TabsContent>
 
-                            <TabsContent value="rechazado" className="mt-0">
-                                <div className="px-6 pb-4 border-t border-slate-100 pt-4 bg-red-50/30">
-                                    <p className="text-sm text-slate-700">
-                                        📊 Analiza los motivos de rechazo para mejorar futuras propuestas.
-                                    </p>
+                            <TabsContent value="para_agendar" className="mt-0">
+                              <div className="px-6 pb-4 border-t border-slate-100 pt-4 bg-teal-50/30">
+                                <p className="text-sm text-slate-700">
+                                  📅 Procesa las cotizaciones aprobadas y agéndalas en el sistema.
+                                </p>
+                              </div>
+                              <div className="border-t border-slate-100">
+                                <div className="p-6">
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Pending Column */}
+                                    <div className="border border-teal-200 rounded-lg bg-teal-50/30">
+                                      <div className="p-4 border-b bg-white">
+                                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                                          <Inbox className="w-5 h-5 text-teal-700" />
+                                          Pendientes ({pendingTransfers.length})
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                          Cotizaciones aprobadas listas para agendar
+                                        </p>
+                                      </div>
+                                      <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
+                                        {pendingTransfers.length === 0 ? (
+                                          <div className="text-center py-10 text-gray-500">
+                                            <p>¡Todo al día! No hay cotizaciones pendientes.</p>
+                                          </div>
+                                        ) : (
+                                          pendingTransfers.map(transfer => (
+                                            <ZenMaidTransferItem 
+                                              key={transfer.id}
+                                              transfer={transfer}
+                                              clientInfo={getClientInfo(transfer.client_id)}
+                                              onComplete={handleCompleteTransfer}
+                                            />
+                                          ))
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Completed Column */}
+                                    <div className="border rounded-lg">
+                                      <div className="p-4 border-b bg-white">
+                                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                                          <ListChecks className="w-5 h-5 text-green-700" />
+                                          Agendados ({completedTransfers.length})
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                          Historial de cotizaciones procesadas
+                                        </p>
+                                      </div>
+                                      <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
+                                        {completedTransfers.length === 0 ? (
+                                          <div className="text-center py-10 text-gray-500">
+                                            <p>Aún no se ha completado ninguna transferencia.</p>
+                                          </div>
+                                        ) : (
+                                          completedTransfers.map(transfer => {
+                                            const clientInfo = getClientInfo(transfer.client_id);
+                                            return (
+                                              <div key={transfer.id} className="p-4 bg-gray-50 rounded-lg border hover:bg-white transition-colors">
+                                                <div className="flex justify-between items-start mb-3">
+                                                  <div className="flex-1">
+                                                    <h4 className="font-bold text-gray-900 flex items-center gap-2">
+                                                      <User className="w-4 h-4 text-gray-400"/>
+                                                      {transfer.client_name}
+                                                    </h4>
+
+                                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600">
+                                                      <div><span className="font-medium">Email:</span> {clientInfo.email || 'N/A'}</div>
+                                                      <div><span className="font-medium">Teléfono:</span> {clientInfo.mobile_number || 'N/A'}</div>
+                                                      <div className="col-span-1 sm:col-span-2">
+                                                        <span className="font-medium">Dir. Cliente:</span> {clientInfo.address || 'N/A'}
+                                                      </div>
+                                                      <div className="col-span-1 sm:col-span-2">
+                                                        <span className="font-medium flex items-center gap-1">
+                                                          <MapPin className="w-3 h-3"/>Dir. Servicio:
+                                                        </span> {transfer.service_address}
+                                                      </div>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap gap-1 mt-2">
+                                                      {transfer.selected_services?.map(s => 
+                                                        <Badge key={s.service_name} variant="secondary" className="text-xs">
+                                                          {s.service_name}
+                                                        </Badge>
+                                                      )}
+                                                    </div>
+
+                                                    <p className="text-xs text-green-600 font-semibold mt-2">
+                                                      Agendado para: {format(new Date(transfer.transfer_date), 'dd MMM, yyyy', { locale: es })}
+                                                    </p>
+                                                  </div>
+
+                                                  <Link to={createPageUrl(`QuoteDetail?id=${transfer.quote_id}`)} target="_blank">
+                                                    <Button variant="outline" size="icon" className="h-8 w-8">
+                                                      <ExternalLink className="w-4 h-4" />
+                                                    </Button>
+                                                  </Link>
+                                                </div>
+                                              </div>
+                                            );
+                                          })
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="border-t border-slate-100">
-                                    {renderQuoteTable('rechazado')}
-                                </div>
+                              </div>
                             </TabsContent>
-                        </Tabs>
-                    </CardContent>
-                </Card>
-            </div>
+
+                            <TabsContent value="rechazado" className="mt-0">
+                              <div className="px-6 pb-4 border-t border-slate-100 pt-4 bg-red-50/30">
+                                <p className="text-sm text-slate-700">
+                                  📊 Analiza los motivos de rechazo para mejorar futuras propuestas.
+                                </p>
+                              </div>
+                              <div className="border-t border-slate-100">
+                                {renderQuoteTable('rechazado')}
+                              </div>
+                            </TabsContent>
+                            </Tabs>
+                            </CardContent>
+                            </Card>
+                            </div>
             
             <RejectionDialog
                 quote={rejectingQuote}
