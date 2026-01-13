@@ -41,22 +41,35 @@ export default function ServiceOptionsBuilder({
       regular: 'selected_areas_items_regular',
       commercial: 'selected_areas_items_commercial'
     };
-    const areasData = quote?.[fieldMap[serviceType]] || [];
+    
+    const fieldName = fieldMap[serviceType];
+    const areasData = quote?.[fieldName] || [];
+    
+    console.log('[ServiceOptionsBuilder] Debug:', {
+      serviceType,
+      fieldName,
+      quoteId: quote?.id,
+      areasData,
+      hasData: areasData.length > 0
+    });
     
     // Transform to show actual items from the itemized areas
-    return areasData.map(area => {
-      const itemsToShow = area.selected_items || [];
-      
-      return {
-        area_id: area.area_name,
-        area_name: area.area_display_name,
-        items: itemsToShow.map((item, idx) => ({
-          item_id: `${area.area_name}_${item.item_name}_${idx}`,
-          item_name: item.item_name,
-          item_description: item.item_description
-        }))
-      };
-    }).filter(area => area.items.length > 0);
+    return areasData
+      .filter(area => area.selection_type !== 'exclude') // No mostrar áreas excluidas
+      .map(area => {
+        const itemsToShow = area.selected_items || [];
+        
+        return {
+          area_id: area.area_name,
+          area_name: area.area_display_name,
+          items: itemsToShow.map((item, idx) => ({
+            item_id: `${area.area_name}_${item.item_name}_${idx}`,
+            item_name: item.item_name,
+            item_description: item.item_description
+          }))
+        };
+      })
+      .filter(area => area.items.length > 0);
   };
 
   const createNewOption = () => {
