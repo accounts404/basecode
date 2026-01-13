@@ -400,9 +400,9 @@ export default function ServiceOptionsBuilder({
                 </div>
 
                 {/* Items Selection with Tabs */}
-                <div className="flex-1 overflow-hidden flex flex-col">
+                <div className="flex flex-col">
                   <Label className="mb-2">Selecciona Áreas e Items para Incluir</Label>
-                  <ScrollArea className="flex-1 border rounded-lg p-3" style={{ maxHeight: '400px' }}>
+                  <div className="border rounded-lg">
                     <Tabs value={activeArea} onValueChange={setActiveArea}>
                       <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 mb-3">
                         {areas.map(area => (
@@ -417,7 +417,7 @@ export default function ServiceOptionsBuilder({
                         const currentSelection = editingOption.area_selections?.[area.id] || { selection_type: null, selected_items: [] };
 
                         return (
-                          <TabsContent key={area.id} value={area.id} className="space-y-3 mt-0">
+                          <TabsContent key={area.id} value={area.id} className="space-y-3 mt-0 p-3">
                             <div className="space-y-2">
                               <h4 className="text-sm font-semibold">{area.name}</h4>
                               
@@ -454,7 +454,7 @@ export default function ServiceOptionsBuilder({
                               </RadioGroup>
 
                               {currentSelection.selection_type === 'custom' && (
-                                <div className="border rounded-lg p-3 space-y-2 max-h-64 overflow-y-auto bg-gray-50">
+                                <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto bg-gray-50">
                                   <h5 className="font-semibold text-sm mb-2">Selecciona los items:</h5>
                                   {areaItems.map(item => {
                                     const isSelected = currentSelection.selected_items.some(i => i.item_name === item.item_name);
@@ -483,7 +483,7 @@ export default function ServiceOptionsBuilder({
                               )}
 
                               {currentSelection.selection_type === 'full' && (
-                                <div className="border rounded-lg p-3 bg-green-50 max-h-64 overflow-y-auto">
+                                <div className="border rounded-lg p-3 bg-green-50 max-h-48 overflow-y-auto">
                                   <h5 className="font-semibold text-sm mb-2 text-green-800">Todos los items incluidos:</h5>
                                   <ul className="space-y-1">
                                     {areaItems.map(item => (
@@ -514,7 +514,7 @@ export default function ServiceOptionsBuilder({
                         );
                       })}
                     </Tabs>
-                  </ScrollArea>
+                  </div>
                 </div>
 
                 <Button onClick={saveOption} className="w-full">
