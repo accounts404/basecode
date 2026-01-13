@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Save, Send, CheckCircle, Package, Loader2, Plus, Edit2, Trash2, X, Layers } from 'lucide-react';
+import { ArrowLeft, Save, Send, CheckCircle, Package, Loader2, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,7 +27,6 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { generateQuotePDF } from '../components/utils/quotePdfGenerator';
 import { format } from 'date-fns';
-import { v4 as uuidv4 } from 'uuid';
 
 const areas = [
   { id: 'dusting_wiping_tidy', name: 'Dusting / Wiping / Tidy Up' },
@@ -49,7 +48,6 @@ export default function QuoteItemizationPage() {
   const [isSending, setIsSending] = useState(false);
   const [activeServiceType, setActiveServiceType] = useState('initial');
   const [activeArea, setActiveArea] = useState('dusting_wiping_tidy');
-  const [currentStep, setCurrentStep] = useState('itemization'); // 'itemization' or 'options'
   
   const [areaSelectionsInitial, setAreaSelectionsInitial] = useState({});
   const [areaSelectionsRegular, setAreaSelectionsRegular] = useState({});
@@ -68,24 +66,6 @@ export default function QuoteItemizationPage() {
     item_name: '',
     item_description: '',
     service_type: 'both'
-  });
-
-  // Service Options State
-  const [serviceOptions, setServiceOptions] = useState([]);
-  const [isOptionsDialogOpen, setIsOptionsDialogOpen] = useState(false);
-  const [editingOption, setEditingOption] = useState(null);
-  const [optionToDelete, setOptionToDelete] = useState(null);
-  const [optionFormData, setOptionFormData] = useState({
-    option_name: '',
-    service_type: 'regular',
-    selected_areas_items: [],
-    pricing: {
-      weekly: { price_min: 0, price_max: 0 },
-      fortnightly: { price_min: 0, price_max: 0 },
-      every_3_weeks: { price_min: 0, price_max: 0 },
-      monthly: { price_min: 0, price_max: 0 },
-      one_off: { price_min: 0, price_max: 0 }
-    }
   });
 
   const getQuoteId = useCallback(() => new URLSearchParams(location.search).get('id'), [location.search]);
@@ -176,11 +156,6 @@ export default function QuoteItemizationPage() {
         });
         setAreaSelectionsCommercial(selections);
         setAreaNotesCommercial(notes);
-      }
-
-      // Load service options if they exist
-      if (quoteData.service_options && quoteData.service_options.length > 0) {
-        setServiceOptions(quoteData.service_options);
       }
 
     } catch (error) {
@@ -302,125 +277,6 @@ export default function QuoteItemizationPage() {
     }
   };
 
-  // Service Options Handlers
-  const handleOpenOptionDialog = (option = null) => {
-    if (option) {
-      setEditingOption(option);
-      setOptionFormData(option);
-    } else {
-      setEditingOption(null);
-      setOptionFormData({
-        option_name: '',
-        service_type: activeServiceType,
-        selected_areas_items: [],
-        pricing: {
-          weekly: { price_min: 0, price_max: 0 },
-          fortnightly: { price_min: 0, price_max: 0 },
-          every_3_weeks: { price_min: 0, price_max: 0 },
-          monthly: { price_min: 0, price_max: 0 },
-          one_off: { price_min: 0, price_max: 0 }
-        }
-      });
-    }
-    setIsOptionsDialogOpen(true);
-  };
-
-  const handleSaveOption = () => {
-    if (!optionFormData.option_name.trim()) {
-      toast.error("El nombre de la opción es requerido");
-      return;
-    }
-
-    const newOption = {
-      ...optionFormData,
-      option_id: editingOption?.option_id || uuidv4(),
-      // Copy the itemization from the current service type
-      selected_areas_items: getCurrentItemization(optionFormData.service_type)
-    };
-
-    if (editingOption) {
-      setServiceOptions(prev => prev.map(opt => 
-        opt.option_id === editingOption.option_id ? newOption : opt
-      ));
-      toast.success("Opción actualizada exitosamente");
-    } else {
-      setServiceOptions(prev => [...prev, newOption]);
-      toast.success("Opción creada exitosamente");
-    }
-
-    setIsOptionsDialogOpen(false);
-    setEditingOption(null);
-  };
-
-  const handleDeleteOption = () => {
-    if (!optionToDelete) return;
-
-    setServiceOptions(prev => prev.filter(opt => opt.option_id !== optionToDelete.option_id));
-    toast.success("Opción eliminada exitosamente");
-    setOptionToDelete(null);
-  };
-
-  const getCurrentItemization = (serviceType) => {
-    const areaSelections = serviceType === 'initial' ? areaSelectionsInitial : 
-                           serviceType === 'regular' ? areaSelectionsRegular :
-                           areaSelectionsCommercial;
-    
-    return areas.map(area => {
-      const selection = areaSelections[area.id];
-      if (!selection || selection.selection_type === 'not_included') return null;
-      
-      const areaItems = getItemsForArea(area.id, serviceType);
-      
-      return {
-        area_name: area.id,
-        area_display_name: area.name,
-        selection_type: selection.selection_type,
-        selected_items: selection.selection_type === 'full' 
-          ? areaItems.map(item => ({ item_name: item.item_name, item_description: item.item_description }))
-          : selection.selected_items,
-        area_notes: (serviceType === 'initial' ? areaNotesInitial[area.id] : 
-                    serviceType === 'regular' ? areaNotesRegular[area.id] :
-                    areaNotesCommercial[area.id]) || ''
-      };
-    }).filter(area => area !== null && (area.selection_type === 'full' || area.selected_items.length > 0));
-  };
-
-  const handleNextToOptions = async () => {
-    // Validate that itemization is complete
-    const hasInitialSelections = hasInitialServices() && Object.values(areaSelectionsInitial).some(sel => 
-      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
-    );
-
-    const hasRegularSelections = hasRegularServices() && Object.values(areaSelectionsRegular).some(sel => 
-      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
-    );
-
-    const hasCommercialSelections = hasCommercialServices() && Object.values(areaSelectionsCommercial).some(sel => 
-      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
-    );
-
-    if (hasInitialServices() && !hasInitialSelections) {
-      toast.error("Por favor, selecciona al menos un área para los servicios iniciales");
-      return;
-    }
-
-    if (hasRegularServices() && !hasRegularSelections) {
-      toast.error("Por favor, selecciona al menos un área para los servicios regulares");
-      return;
-    }
-
-    if (hasCommercialServices() && !hasCommercialSelections) {
-      toast.error("Por favor, selecciona al menos un área para los servicios comerciales");
-      return;
-    }
-
-    // Save current itemization
-    await handleSave();
-    
-    // Move to options step
-    setCurrentStep('options');
-  };
-
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -497,11 +353,6 @@ export default function QuoteItemizationPage() {
         (hasInitialServices() ? hasInitialItems : true) && 
         (hasRegularServices() ? hasRegularItems : true) &&
         (hasCommercialServices() ? hasCommercialItems : true);
-
-      // Save service options
-      if (serviceOptions.length > 0) {
-        dataToUpdate.service_options = serviceOptions;
-      }
 
       await base44.entities.Quote.update(quote.id, dataToUpdate);
       toast.success("Itemización guardada exitosamente");
@@ -976,125 +827,12 @@ export default function QuoteItemizationPage() {
     hasCommercialServices()
   ].filter(Boolean).length;
 
-  const renderOptionsStep = () => {
-    const optionsForCurrentType = serviceOptions.filter(opt => opt.service_type === activeServiceType);
-
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Opciones de Servicio</CardTitle>
-                <CardDescription>
-                  Crea diferentes paquetes con precios variables según la frecuencia del servicio
-                </CardDescription>
-              </div>
-              <Button onClick={() => handleOpenOptionDialog()}>
-                <Plus className="w-4 h-4 mr-2" />
-                Nueva Opción
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {optionsForCurrentType.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Layers className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No hay opciones creadas para este tipo de servicio</p>
-                <p className="text-sm mt-1">Crea una opción para ofrecer diferentes paquetes al cliente</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {optionsForCurrentType.map((option) => (
-                  <Card key={option.option_id} className="border-2">
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-lg">{option.option_name}</CardTitle>
-                          <Badge className="mt-2">
-                            {option.service_type === 'initial' ? '⭐ Inicial' :
-                             option.service_type === 'regular' ? '🔄 Regular' : '🏢 Comercial'}
-                          </Badge>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenOptionDialog(option)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setOptionToDelete(option)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div>
-                          <h4 className="font-semibold mb-2">Precios por Frecuencia:</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {Object.entries(option.pricing).map(([freq, prices]) => {
-                              if (!prices.price_min && !prices.price_max) return null;
-                              const freqLabels = {
-                                weekly: 'Semanal',
-                                fortnightly: 'Quincenal',
-                                every_3_weeks: 'Cada 3 Semanas',
-                                monthly: 'Mensual',
-                                one_off: 'Servicio Único'
-                              };
-                              return (
-                                <div key={freq} className="border rounded-lg p-3">
-                                  <div className="text-sm font-medium text-gray-700">{freqLabels[freq]}</div>
-                                  <div className="text-lg font-bold text-green-700">
-                                    ${prices.price_min} - ${prices.price_max}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div>
-                          <h4 className="font-semibold mb-2">Áreas Incluidas:</h4>
-                          <div className="flex flex-wrap gap-2">
-                            {option.selected_areas_items?.map((area, idx) => (
-                              <Badge key={idx} variant="outline">
-                                {area.area_display_name}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  };
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">
-            {currentStep === 'itemization' ? 'Itemizar Cotización' : 'Crear Opciones de Servicio'} #{quote.id.slice(-6)}
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-800">Itemizar Cotización #{quote.id.slice(-6)}</h1>
           <p className="text-gray-600 mt-1">{client?.name} - {quote.service_address}</p>
-          {currentStep === 'options' && (
-            <Badge variant="outline" className="mt-2">
-              Paso 2 de 2: Opciones de Servicio
-            </Badge>
-          )}
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
@@ -1102,28 +840,12 @@ export default function QuoteItemizationPage() {
               <ArrowLeft className="w-4 h-4 mr-2" /> Volver
             </Link>
           </Button>
-          {currentStep === 'itemization' ? (
-            <>
-              <Button onClick={handleSave} disabled={isSaving} variant="outline">
-                <Save className="w-4 h-4 mr-2" /> Guardar
-              </Button>
-              <Button onClick={handleNextToOptions} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700">
-                Siguiente: Crear Opciones <ArrowLeft className="w-4 h-4 ml-2 rotate-180" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button onClick={() => setCurrentStep('itemization')} variant="outline">
-                <ArrowLeft className="w-4 h-4 mr-2" /> Atrás
-              </Button>
-              <Button onClick={handleSave} disabled={isSaving} variant="outline">
-                <Save className="w-4 h-4 mr-2" /> Guardar
-              </Button>
-              <Button onClick={handleFinalizeSend} disabled={isSending || isSaving} className="bg-green-600 hover:bg-green-700">
-                <Send className="w-4 h-4 mr-2" /> Finalizar y Enviar
-              </Button>
-            </>
-          )}
+          <Button onClick={handleSave} disabled={isSaving} variant="outline">
+            <Save className="w-4 h-4 mr-2" /> Guardar
+          </Button>
+          <Button onClick={handleFinalizeSend} disabled={isSending || isSaving} className="bg-green-600 hover:bg-green-700">
+            <Send className="w-4 h-4 mr-2" /> Finalizar y Enviar
+          </Button>
         </div>
       </div>
 
@@ -1147,19 +869,19 @@ export default function QuoteItemizationPage() {
           
           {hasInitialServices() && (
             <TabsContent value="initial">
-              {currentStep === 'itemization' ? renderServiceTypeSection('initial') : renderOptionsStep()}
+              {renderServiceTypeSection('initial')}
             </TabsContent>
           )}
           
           {hasRegularServices() && (
             <TabsContent value="regular">
-              {currentStep === 'itemization' ? renderServiceTypeSection('regular') : renderOptionsStep()}
+              {renderServiceTypeSection('regular')}
             </TabsContent>
           )}
 
           {hasCommercialServices() && (
             <TabsContent value="commercial">
-              {currentStep === 'itemization' ? renderServiceTypeSection('commercial') : renderOptionsStep()}
+              {renderServiceTypeSection('commercial')}
             </TabsContent>
           )}
         </Tabs>
@@ -1233,269 +955,6 @@ export default function QuoteItemizationPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteItem} className="bg-red-600 hover:bg-red-700">
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={isOptionsDialogOpen} onOpenChange={setIsOptionsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingOption ? 'Editar Opción' : 'Nueva Opción de Servicio'}</DialogTitle>
-            <DialogDescription>
-              Configura los precios según diferentes frecuencias de servicio
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6">
-            <div>
-              <Label htmlFor="option_name">Nombre de la Opción *</Label>
-              <Input
-                id="option_name"
-                value={optionFormData.option_name}
-                onChange={(e) => setOptionFormData({ ...optionFormData, option_name: e.target.value })}
-                placeholder="Ej: Full Home Cleaning, Essential Cleaning"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="service_type_option">Tipo de Servicio</Label>
-              <Select
-                value={optionFormData.service_type}
-                onValueChange={(value) => setOptionFormData({ ...optionFormData, service_type: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {hasInitialServices() && <SelectItem value="initial">Inicial</SelectItem>}
-                  {hasRegularServices() && <SelectItem value="regular">Regular</SelectItem>}
-                  {hasCommercialServices() && <SelectItem value="commercial">Comercial</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-4">
-              <Label className="text-base font-semibold">Precios por Frecuencia</Label>
-              
-              {/* Weekly */}
-              <div className="border rounded-lg p-4 space-y-3">
-                <Label className="text-sm font-medium">Semanal (Weekly)</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="weekly_min" className="text-xs text-gray-600">Precio Mínimo</Label>
-                    <Input
-                      id="weekly_min"
-                      type="number"
-                      value={optionFormData.pricing.weekly.price_min}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          weekly: { ...optionFormData.pricing.weekly, price_min: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="weekly_max" className="text-xs text-gray-600">Precio Máximo</Label>
-                    <Input
-                      id="weekly_max"
-                      type="number"
-                      value={optionFormData.pricing.weekly.price_max}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          weekly: { ...optionFormData.pricing.weekly, price_max: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Fortnightly */}
-              <div className="border rounded-lg p-4 space-y-3">
-                <Label className="text-sm font-medium">Quincenal (Fortnightly)</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="fortnightly_min" className="text-xs text-gray-600">Precio Mínimo</Label>
-                    <Input
-                      id="fortnightly_min"
-                      type="number"
-                      value={optionFormData.pricing.fortnightly.price_min}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          fortnightly: { ...optionFormData.pricing.fortnightly, price_min: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="fortnightly_max" className="text-xs text-gray-600">Precio Máximo</Label>
-                    <Input
-                      id="fortnightly_max"
-                      type="number"
-                      value={optionFormData.pricing.fortnightly.price_max}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          fortnightly: { ...optionFormData.pricing.fortnightly, price_max: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Every 3 Weeks */}
-              <div className="border rounded-lg p-4 space-y-3">
-                <Label className="text-sm font-medium">Cada 3 Semanas (Every 3 Weeks)</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="every_3_weeks_min" className="text-xs text-gray-600">Precio Mínimo</Label>
-                    <Input
-                      id="every_3_weeks_min"
-                      type="number"
-                      value={optionFormData.pricing.every_3_weeks.price_min}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          every_3_weeks: { ...optionFormData.pricing.every_3_weeks, price_min: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="every_3_weeks_max" className="text-xs text-gray-600">Precio Máximo</Label>
-                    <Input
-                      id="every_3_weeks_max"
-                      type="number"
-                      value={optionFormData.pricing.every_3_weeks.price_max}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          every_3_weeks: { ...optionFormData.pricing.every_3_weeks, price_max: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Monthly */}
-              <div className="border rounded-lg p-4 space-y-3">
-                <Label className="text-sm font-medium">Mensual (Monthly)</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="monthly_min" className="text-xs text-gray-600">Precio Mínimo</Label>
-                    <Input
-                      id="monthly_min"
-                      type="number"
-                      value={optionFormData.pricing.monthly.price_min}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          monthly: { ...optionFormData.pricing.monthly, price_min: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="monthly_max" className="text-xs text-gray-600">Precio Máximo</Label>
-                    <Input
-                      id="monthly_max"
-                      type="number"
-                      value={optionFormData.pricing.monthly.price_max}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          monthly: { ...optionFormData.pricing.monthly, price_max: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* One Off */}
-              <div className="border rounded-lg p-4 space-y-3">
-                <Label className="text-sm font-medium">Servicio Único (One Off)</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="one_off_min" className="text-xs text-gray-600">Precio Mínimo</Label>
-                    <Input
-                      id="one_off_min"
-                      type="number"
-                      value={optionFormData.pricing.one_off.price_min}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          one_off: { ...optionFormData.pricing.one_off, price_min: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="one_off_max" className="text-xs text-gray-600">Precio Máximo</Label>
-                    <Input
-                      id="one_off_max"
-                      type="number"
-                      value={optionFormData.pricing.one_off.price_max}
-                      onChange={(e) => setOptionFormData({
-                        ...optionFormData,
-                        pricing: {
-                          ...optionFormData.pricing,
-                          one_off: { ...optionFormData.pricing.one_off, price_max: parseFloat(e.target.value) || 0 }
-                        }
-                      })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOptionsDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveOption}>
-              {editingOption ? 'Actualizar' : 'Crear'} Opción
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={!!optionToDelete} onOpenChange={() => setOptionToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar esta opción?</AlertDialogTitle>
-            <AlertDialogDescription>
-              La opción "{optionToDelete?.option_name}" será eliminada permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteOption} className="bg-red-600 hover:bg-red-700">
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
