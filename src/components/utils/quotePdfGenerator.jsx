@@ -258,7 +258,92 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
       });
     }
 
-    y += 10;
+    y += 5;
+
+    // ADDITIONAL OPTIONS FOR INITIAL SERVICES
+    const initialOptions = quote.service_options?.filter(opt => opt.service_type === 'initial') || [];
+    if (initialOptions.length > 0) {
+      initialOptions.forEach((option, index) => {
+        checkNewPage(40);
+        
+        // Option Header
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(0, 159, 227);
+        doc.text(`INITIAL SERVICE OPTION #${index + 2} - ${option.option_name}`, margin, y);
+        y += 8;
+        doc.setTextColor(0, 0, 0);
+
+        // Pricing
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('Service Options (choose one):', margin, y);
+        y += 6;
+
+        doc.setFont(undefined, 'normal');
+        if (option.pricing?.one_off) {
+          checkNewPage(6);
+          doc.text(`• One-Off Service`, margin + 5, y);
+          doc.text(`$${option.pricing.one_off.price_min} - $${option.pricing.one_off.price_max}`, pageWidth - margin, y, { align: 'right' });
+          y += 5;
+        }
+
+        y += 5;
+
+        // Areas and Items
+        if (option.selected_areas_items && option.selected_areas_items.length > 0) {
+          checkNewPage(30);
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          doc.text('Areas and Services Included:', margin, y);
+          y += 7;
+
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'normal');
+          
+          option.selected_areas_items.forEach(area => {
+            if (area.selection_type === 'not_included') return;
+            
+            checkNewPage(15);
+            doc.setFont(undefined, 'bold');
+            doc.text(`${area.area_display_name}:`, margin + 3, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            
+            if (area.selection_type === 'full') {
+              doc.setFont(undefined, 'bold');
+              doc.text('• Full Service - All items included:', margin + 8, y);
+              y += 5;
+              doc.setFont(undefined, 'normal');
+              
+              if (area.selected_items && area.selected_items.length > 0) {
+                area.selected_items.forEach(item => {
+                  checkNewPage(5);
+                  const itemText = `  - ${item.item_name}`;
+                  const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                  doc.text(lines, margin + 12, y);
+                  y += lines.length * 4;
+                });
+              }
+            } else if (area.selected_items && area.selected_items.length > 0) {
+              area.selected_items.forEach(item => {
+                checkNewPage(5);
+                const itemText = `• ${item.item_name}`;
+                const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                doc.text(lines, margin + 8, y);
+                y += lines.length * 4;
+              });
+            }
+            
+            y += 3;
+          });
+        }
+
+        y += 10;
+      });
+    }
+
+    y += 5;
   }
 
   // REGULAR SERVICES SECTION - Color: #EA5B1B (RGB: 234, 91, 27)
@@ -360,7 +445,101 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
       });
     }
 
-    y += 10;
+    y += 5;
+
+    // ADDITIONAL OPTIONS FOR REGULAR SERVICES
+    const regularOptions = quote.service_options?.filter(opt => opt.service_type === 'regular') || [];
+    if (regularOptions.length > 0) {
+      const frequencyLabels = {
+        weekly: 'Weekly',
+        fortnightly: 'Fortnightly',
+        every_3_weeks: 'Every 3 Weeks',
+        monthly: 'Monthly'
+      };
+
+      regularOptions.forEach((option, index) => {
+        checkNewPage(40);
+        
+        // Option Header
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(234, 91, 27);
+        doc.text(`REGULAR SERVICE OPTION #${index + 2} - ${option.option_name}`, margin, y);
+        y += 8;
+        doc.setTextColor(0, 0, 0);
+
+        // Pricing
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('Service Options (choose one):', margin, y);
+        y += 6;
+
+        doc.setFont(undefined, 'normal');
+        Object.keys(frequencyLabels).forEach(freq => {
+          if (option.pricing?.[freq] && option.pricing[freq].enabled !== false) {
+            checkNewPage(6);
+            doc.text(`• ${frequencyLabels[freq]}`, margin + 5, y);
+            doc.text(`$${option.pricing[freq].price_min} - $${option.pricing[freq].price_max}`, pageWidth - margin, y, { align: 'right' });
+            y += 5;
+          }
+        });
+
+        y += 5;
+
+        // Areas and Items
+        if (option.selected_areas_items && option.selected_areas_items.length > 0) {
+          checkNewPage(30);
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          doc.text('Areas and Services Included:', margin, y);
+          y += 7;
+
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'normal');
+          
+          option.selected_areas_items.forEach(area => {
+            if (area.selection_type === 'not_included') return;
+            
+            checkNewPage(15);
+            doc.setFont(undefined, 'bold');
+            doc.text(`${area.area_display_name}:`, margin + 3, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            
+            if (area.selection_type === 'full') {
+              doc.setFont(undefined, 'bold');
+              doc.text('• Full Service - All items included:', margin + 8, y);
+              y += 5;
+              doc.setFont(undefined, 'normal');
+              
+              if (area.selected_items && area.selected_items.length > 0) {
+                area.selected_items.forEach(item => {
+                  checkNewPage(5);
+                  const itemText = `  - ${item.item_name}`;
+                  const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                  doc.text(lines, margin + 12, y);
+                  y += lines.length * 4;
+                });
+              }
+            } else if (area.selected_items && area.selected_items.length > 0) {
+              area.selected_items.forEach(item => {
+                checkNewPage(5);
+                const itemText = `• ${item.item_name}`;
+                const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                doc.text(lines, margin + 8, y);
+                y += lines.length * 4;
+              });
+            }
+            
+            y += 3;
+          });
+        }
+
+        y += 10;
+      });
+    }
+
+    y += 5;
   }
 
   // COMMERCIAL SERVICES SECTION - Color: #8B5CF6 (RGB: 139, 92, 246)
@@ -462,7 +641,101 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
       });
     }
 
-    y += 10;
+    y += 5;
+
+    // ADDITIONAL OPTIONS FOR COMMERCIAL SERVICES
+    const commercialOptions = quote.service_options?.filter(opt => opt.service_type === 'commercial') || [];
+    if (commercialOptions.length > 0) {
+      const frequencyLabels = {
+        weekly: 'Weekly',
+        fortnightly: 'Fortnightly',
+        every_3_weeks: 'Every 3 Weeks',
+        monthly: 'Monthly'
+      };
+
+      commercialOptions.forEach((option, index) => {
+        checkNewPage(40);
+        
+        // Option Header
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(139, 92, 246);
+        doc.text(`COMMERCIAL SERVICE OPTION #${index + 2} - ${option.option_name}`, margin, y);
+        y += 8;
+        doc.setTextColor(0, 0, 0);
+
+        // Pricing
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text('Service Options (choose one):', margin, y);
+        y += 6;
+
+        doc.setFont(undefined, 'normal');
+        Object.keys(frequencyLabels).forEach(freq => {
+          if (option.pricing?.[freq] && option.pricing[freq].enabled !== false) {
+            checkNewPage(6);
+            doc.text(`• ${frequencyLabels[freq]}`, margin + 5, y);
+            doc.text(`$${option.pricing[freq].price_min} - $${option.pricing[freq].price_max}`, pageWidth - margin, y, { align: 'right' });
+            y += 5;
+          }
+        });
+
+        y += 5;
+
+        // Areas and Items
+        if (option.selected_areas_items && option.selected_areas_items.length > 0) {
+          checkNewPage(30);
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          doc.text('Areas and Services Included:', margin, y);
+          y += 7;
+
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'normal');
+          
+          option.selected_areas_items.forEach(area => {
+            if (area.selection_type === 'not_included') return;
+            
+            checkNewPage(15);
+            doc.setFont(undefined, 'bold');
+            doc.text(`${area.area_display_name}:`, margin + 3, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            
+            if (area.selection_type === 'full') {
+              doc.setFont(undefined, 'bold');
+              doc.text('• Full Service - All items included:', margin + 8, y);
+              y += 5;
+              doc.setFont(undefined, 'normal');
+              
+              if (area.selected_items && area.selected_items.length > 0) {
+                area.selected_items.forEach(item => {
+                  checkNewPage(5);
+                  const itemText = `  - ${item.item_name}`;
+                  const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                  doc.text(lines, margin + 12, y);
+                  y += lines.length * 4;
+                });
+              }
+            } else if (area.selected_items && area.selected_items.length > 0) {
+              area.selected_items.forEach(item => {
+                checkNewPage(5);
+                const itemText = `• ${item.item_name}`;
+                const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                doc.text(lines, margin + 8, y);
+                y += lines.length * 4;
+              });
+            }
+            
+            y += 3;
+          });
+        }
+
+        y += 10;
+      });
+    }
+
+    y += 5;
   }
 
   // ADDITIONAL SERVICES SECTION (EXTRAS) - Color: #7C3AED (RGB: 124, 58, 237)
