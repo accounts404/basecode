@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, Package } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { base44 } from '@/api/base44Client';
 
 const frequencyLabels = {
   weekly: 'Semanal',
@@ -16,15 +15,6 @@ const frequencyLabels = {
   every_3_weeks: 'Cada 3 Semanas',
   monthly: 'Mensual'
 };
-
-const areas = [
-  { id: 'dusting_wiping_tidy', name: 'Dusting / Wiping / Tidy Up' },
-  { id: 'kitchen_pantry', name: 'Kitchen and Pantry' },
-  { id: 'bathrooms', name: 'Bathrooms' },
-  { id: 'laundry', name: 'Laundry' },
-  { id: 'floors', name: 'Floors' },
-  { id: 'other_areas', name: 'Other Areas' }
-];
 
 export default function ServiceOptionsBuilder({ 
   open, 
@@ -35,13 +25,6 @@ export default function ServiceOptionsBuilder({
 }) {
   const [options, setOptions] = useState([]);
   const [editingOption, setEditingOption] = useState(null);
-  const [allItems, setAllItems] = useState([]);
-
-  useEffect(() => {
-    if (open) {
-      loadItems();
-    }
-  }, [open]);
 
   useEffect(() => {
     if (open && quote?.service_options) {
@@ -50,20 +33,13 @@ export default function ServiceOptionsBuilder({
     }
   }, [open, quote, serviceType]);
 
-  const loadItems = async () => {
-    try {
-      const itemsData = await base44.entities.ServiceAreaItem.list();
-      setAllItems(itemsData.filter(item => item.is_active));
-    } catch (error) {
-      console.error('Error loading items:', error);
-    }
-  };
-
-  const getItemsForArea = (areaId) => {
-    return allItems.filter(item => 
-      item.area_name === areaId && 
-      (item.service_type === serviceType || item.service_type === 'both')
-    );
+  const getItemizedAreas = () => {
+    const fieldMap = {
+      initial: 'selected_areas_items_initial',
+      regular: 'selected_areas_items_regular',
+      commercial: 'selected_areas_items_commercial'
+    };
+    return quote?.[fieldMap[serviceType]] || [];
   };
 
   const createNewOption = () => {
@@ -72,12 +48,12 @@ export default function ServiceOptionsBuilder({
       option_name: '',
       service_type: serviceType,
       pricing: serviceType === 'initial' 
-        ? { one_off: { price_min: 0, price_max: 0, enabled: true } }
+        ? { one_off: { price_min: 0, price_max: 0 } }
         : {
-            weekly: { price_min: 0, price_max: 0, enabled: true },
-            fortnightly: { price_min: 0, price_max: 0, enabled: true },
-            every_3_weeks: { price_min: 0, price_max: 0, enabled: true },
-            monthly: { price_min: 0, price_max: 0, enabled: true }
+            weekly: { price_min: 0, price_max: 0 },
+            fortnightly: { price_min: 0, price_max: 0 },
+            every_3_weeks: { price_min: 0, price_max: 0 },
+            monthly: { price_min: 0, price_max: 0 }
           },
       selected_areas_items: []
     };
@@ -105,7 +81,7 @@ export default function ServiceOptionsBuilder({
     setOptions(options.filter(o => o.option_id !== optionId));
   };
 
-  const toggleItemInOption = (areaId, itemName) => {
+  const toggleItemInOption = (areaId, itemId) => {
     const newAreas = [...(editingOption.selected_areas_items || [])];
     const areaIndex = newAreas.findIndex(a => a.area_id === areaId);
 
@@ -113,13 +89,13 @@ export default function ServiceOptionsBuilder({
       // Add area with this item
       newAreas.push({
         area_id: areaId,
-        items: [{ item_name: itemName }]
+        items: [{ item_id: itemId, selection_type: 'full' }]
       });
     } else {
-      const itemIndex = newAreas[areaIndex].items.findIndex(i => i.item_name === itemName);
+      const itemIndex = newAreas[areaIndex].items.findIndex(i => i.item_id === itemId);
       if (itemIndex === -1) {
         // Add item to existing area
-        newAreas[areaIndex].items.push({ item_name: itemName });
+        newAreas[areaIndex].items.push({ item_id: itemId, selection_type: 'full' });
       } else {
         // Remove item
         newAreas[areaIndex].items.splice(itemIndex, 1);
@@ -133,9 +109,9 @@ export default function ServiceOptionsBuilder({
     setEditingOption({ ...editingOption, selected_areas_items: newAreas });
   };
 
-  const isItemSelected = (areaId, itemName) => {
+  const isItemSelected = (areaId, itemId) => {
     const area = editingOption?.selected_areas_items?.find(a => a.area_id === areaId);
-    return area?.items?.some(i => i.item_name === itemName) || false;
+    return area?.items?.some(i => i.item_id === itemId) || false;
   };
 
   const handleSaveAll = () => {
@@ -263,70 +239,47 @@ export default function ServiceOptionsBuilder({
                           </div>
                         </div>
                       ) : (
-                        Object.keys(frequencyLabels).map(freq => {
-                          const isEnabled = editingOption.pricing[freq]?.enabled !== false;
-                          return (
-                            <div key={freq} className={isEnabled ? '' : 'opacity-50'}>
-                              <div className="flex items-center justify-between mb-1">
-                                <Label className="text-xs font-semibold">{frequencyLabels[freq]}</Label>
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    checked={isEnabled}
-                                    onCheckedChange={(checked) => setEditingOption({
-                                      ...editingOption,
-                                      pricing: {
-                                        ...editingOption.pricing,
-                                        [freq]: {
-                                          ...editingOption.pricing[freq],
-                                          enabled: checked
-                                        }
+                        Object.keys(frequencyLabels).map(freq => (
+                          <div key={freq}>
+                            <Label className="text-xs font-semibold">{frequencyLabels[freq]}</Label>
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Mín</Label>
+                                <Input
+                                  type="number"
+                                  value={editingOption.pricing[freq]?.price_min || 0}
+                                  onChange={(e) => setEditingOption({
+                                    ...editingOption,
+                                    pricing: {
+                                      ...editingOption.pricing,
+                                      [freq]: {
+                                        ...editingOption.pricing[freq],
+                                        price_min: parseFloat(e.target.value) || 0
                                       }
-                                    })}
-                                  />
-                                  <Label className="text-xs text-muted-foreground">Incluir</Label>
-                                </div>
+                                    }
+                                  })}
+                                />
                               </div>
-                              {isEnabled && (
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Mín</Label>
-                                    <Input
-                                      type="number"
-                                      value={editingOption.pricing[freq]?.price_min || 0}
-                                      onChange={(e) => setEditingOption({
-                                        ...editingOption,
-                                        pricing: {
-                                          ...editingOption.pricing,
-                                          [freq]: {
-                                            ...editingOption.pricing[freq],
-                                            price_min: parseFloat(e.target.value) || 0
-                                          }
-                                        }
-                                      })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Máx</Label>
-                                    <Input
-                                      type="number"
-                                      value={editingOption.pricing[freq]?.price_max || 0}
-                                      onChange={(e) => setEditingOption({
-                                        ...editingOption,
-                                        pricing: {
-                                          ...editingOption.pricing,
-                                          [freq]: {
-                                            ...editingOption.pricing[freq],
-                                            price_max: parseFloat(e.target.value) || 0
-                                          }
-                                        }
-                                      })}
-                                    />
-                                  </div>
-                                </div>
-                              )}
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Máx</Label>
+                                <Input
+                                  type="number"
+                                  value={editingOption.pricing[freq]?.price_max || 0}
+                                  onChange={(e) => setEditingOption({
+                                    ...editingOption,
+                                    pricing: {
+                                      ...editingOption.pricing,
+                                      [freq]: {
+                                        ...editingOption.pricing[freq],
+                                        price_max: parseFloat(e.target.value) || 0
+                                      }
+                                    }
+                                  })}
+                                />
+                              </div>
                             </div>
-                          );
-                        })
+                          </div>
+                        ))
                       )}
                     </CardContent>
                   </Card>
@@ -336,39 +289,28 @@ export default function ServiceOptionsBuilder({
                 <div className="flex-1 overflow-hidden flex flex-col">
                   <Label className="mb-2">Selecciona Items para Incluir</Label>
                   <ScrollArea className="flex-1 border rounded-lg p-3">
-                    {allItems.length === 0 ? (
+                    {itemizedAreas.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
-                        Cargando items...
+                        No hay items itemizados aún
                       </p>
                     ) : (
                       <div className="space-y-4">
-                        {areas.map(area => {
-                          const areaItems = getItemsForArea(area.id);
-                          if (areaItems.length === 0) return null;
-                          
-                          return (
-                            <div key={area.id}>
-                              <h4 className="font-semibold text-sm mb-2">{area.name}</h4>
-                              <div className="space-y-2 pl-2">
-                                {areaItems.map(item => (
-                                  <div key={item.id} className="flex items-start gap-2">
-                                    <Checkbox
-                                      checked={isItemSelected(area.id, item.item_name)}
-                                      onCheckedChange={() => toggleItemInOption(area.id, item.item_name)}
-                                      className="mt-0.5"
-                                    />
-                                    <div className="flex-1">
-                                      <span className="text-sm font-medium">{item.item_name}</span>
-                                      {item.item_description && (
-                                        <p className="text-xs text-muted-foreground">{item.item_description}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                        {itemizedAreas.map(area => (
+                          <div key={area.area_id}>
+                            <h4 className="font-semibold text-sm mb-2">{area.area_name}</h4>
+                            <div className="space-y-2 pl-2">
+                              {area.items?.map(item => (
+                                <div key={item.item_id} className="flex items-center gap-2">
+                                  <Checkbox
+                                    checked={isItemSelected(area.area_id, item.item_id)}
+                                    onCheckedChange={() => toggleItemInOption(area.area_id, item.item_id)}
+                                  />
+                                  <span className="text-sm">{item.item_name}</span>
+                                </div>
+                              ))}
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </ScrollArea>
