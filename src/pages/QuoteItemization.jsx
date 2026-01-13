@@ -27,6 +27,7 @@ import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
 import { generateQuotePDF } from '../components/utils/quotePdfGenerator';
 import { format } from 'date-fns';
+import ServiceOptionsBuilder from '../components/quotes/ServiceOptionsBuilder';
 
 const areas = [
   { id: 'dusting_wiping_tidy', name: 'Dusting / Wiping / Tidy Up' },
@@ -67,6 +68,9 @@ export default function QuoteItemizationPage() {
     item_description: '',
     service_type: 'both'
   });
+  
+  const [isOptionsBuilderOpen, setIsOptionsBuilderOpen] = useState(false);
+  const [optionsServiceType, setOptionsServiceType] = useState(null);
 
   const getQuoteId = useCallback(() => new URLSearchParams(location.search).get('id'), [location.search]);
 
@@ -274,6 +278,28 @@ export default function QuoteItemizationPage() {
     } catch (error) {
       console.error("Error deleting item:", error);
       toast.error("Error al eliminar el item");
+    }
+  };
+
+  const handleOpenOptionsBuilder = (serviceType) => {
+    setOptionsServiceType(serviceType);
+    setIsOptionsBuilderOpen(true);
+  };
+
+  const handleSaveOptions = async (options) => {
+    try {
+      const allOptions = quote?.service_options || [];
+      const otherOptions = allOptions.filter(opt => opt.service_type !== optionsServiceType);
+      const updatedOptions = [...otherOptions, ...options];
+      
+      await base44.entities.Quote.update(quote.id, { service_options: updatedOptions });
+      toast.success('Opciones guardadas exitosamente');
+      
+      const updatedQuote = await base44.entities.Quote.get(quote.id);
+      setQuote(updatedQuote);
+    } catch (error) {
+      console.error('Error saving options:', error);
+      toast.error('Error al guardar opciones');
     }
   };
 
@@ -811,15 +837,36 @@ export default function QuoteItemizationPage() {
                         </div>
                       </div>
                     )}
-                  </TabsContent>
-                );
-              })}
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  };
+                    </TabsContent>
+                    );
+                    })}
+                    </Tabs>
+                    </CardContent>
+                    </Card>
+
+                    <Card className="bg-gradient-to-r from-indigo-50 to-purple-50">
+                    <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                    <Package className="w-5 h-5" />
+                    Opciones de Servicio
+                    </CardTitle>
+                    <CardDescription>
+                    Crea múltiples opciones con diferentes items y precios para que el cliente elija
+                    </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                    <Button onClick={() => handleOpenOptionsBuilder(serviceType)} variant="outline" className="w-full">
+                    <Plus className="w-4 h-4 mr-2" />
+                    {quote?.service_options?.filter(opt => opt.service_type === serviceType).length > 0 
+                    ? `Editar Opciones (${quote.service_options.filter(opt => opt.service_type === serviceType).length} creadas)`
+                    : 'Crear Opciones de Servicio'
+                    }
+                    </Button>
+                    </CardContent>
+                    </Card>
+                    </div>
+                    );
+                    };
 
   const activeServiceTypesCount = [
     hasInitialServices(),
@@ -960,6 +1007,14 @@ export default function QuoteItemizationPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ServiceOptionsBuilder
+        open={isOptionsBuilderOpen}
+        onClose={() => setIsOptionsBuilderOpen(false)}
+        quote={quote}
+        serviceType={optionsServiceType}
+        onSave={handleSaveOptions}
+      />
     </div>
   );
 }
