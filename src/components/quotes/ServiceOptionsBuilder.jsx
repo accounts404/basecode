@@ -35,41 +35,20 @@ export default function ServiceOptionsBuilder({
     }
   }, [open, quote, serviceType]);
 
-  const getItemizedAreas = () => {
-    const fieldMap = {
-      initial: 'selected_areas_items_initial',
-      regular: 'selected_areas_items_regular',
-      commercial: 'selected_areas_items_commercial'
-    };
-    
-    const fieldName = fieldMap[serviceType];
-    const areasData = quote?.[fieldName] || [];
-    
-    console.log('[ServiceOptionsBuilder] Debug:', {
-      serviceType,
-      fieldName,
-      quoteId: quote?.id,
-      areasData,
-      hasData: areasData.length > 0
-    });
-    
-    // Transform to show actual items from the itemized areas
-    return areasData
-      .filter(area => area.selection_type !== 'exclude') // No mostrar áreas excluidas
-      .map(area => {
-        const itemsToShow = area.selected_items || [];
-        
-        return {
-          area_id: area.area_name,
-          area_name: area.area_display_name,
-          items: itemsToShow.map((item, idx) => ({
-            item_id: `${area.area_name}_${item.item_name}_${idx}`,
-            item_name: item.item_name,
-            item_description: item.item_description
-          }))
-        };
-      })
-      .filter(area => area.items.length > 0);
+  const areas = [
+    { id: 'dusting_wiping_tidy', name: 'Dusting / Wiping / Tidy Up' },
+    { id: 'kitchen_pantry', name: 'Kitchen and Pantry' },
+    { id: 'bathrooms', name: 'Bathrooms' },
+    { id: 'laundry', name: 'Laundry' },
+    { id: 'floors', name: 'Floors' },
+    { id: 'other_areas', name: 'Other Areas' }
+  ];
+
+  const getItemsForArea = (areaId) => {
+    return allItems.filter(item => 
+      item.area_name === areaId && 
+      (item.service_type === serviceType || item.service_type === 'both')
+    );
   };
 
   const createNewOption = () => {
