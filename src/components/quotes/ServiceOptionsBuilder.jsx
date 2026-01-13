@@ -6,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Package } from 'lucide-react';
+import { Plus, Trash2, Package, ChevronDown, ChevronRight } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const frequencyLabels = {
   weekly: 'Semanal',
@@ -25,6 +26,7 @@ export default function ServiceOptionsBuilder({
 }) {
   const [options, setOptions] = useState([]);
   const [editingOption, setEditingOption] = useState(null);
+  const [openAreas, setOpenAreas] = useState({});
 
   useEffect(() => {
     if (open && quote?.service_options) {
@@ -39,7 +41,30 @@ export default function ServiceOptionsBuilder({
       regular: 'selected_areas_items_regular',
       commercial: 'selected_areas_items_commercial'
     };
-    return quote?.[fieldMap[serviceType]] || [];
+    const areasData = quote?.[fieldMap[serviceType]] || [];
+    
+    // Transform to show actual items
+    return areasData.map(area => {
+      let itemsToShow = [];
+      
+      if (area.selection_type === 'full') {
+        // Get all items from ServiceAreaItem for this area
+        const allAreaItems = quote?.selected_areas_items_initial?.find(a => a.area_name === area.area_name)?.selected_items || [];
+        itemsToShow = allAreaItems;
+      } else if (area.selection_type === 'custom') {
+        itemsToShow = area.selected_items || [];
+      }
+      
+      return {
+        area_id: area.area_name,
+        area_name: area.area_display_name,
+        items: itemsToShow.map((item, idx) => ({
+          item_id: `${area.area_name}_${idx}`,
+          item_name: item.item_name,
+          item_description: item.item_description
+        }))
+      };
+    }).filter(area => area.items.length > 0);
   };
 
   const createNewOption = () => {
@@ -48,12 +73,12 @@ export default function ServiceOptionsBuilder({
       option_name: '',
       service_type: serviceType,
       pricing: serviceType === 'initial' 
-        ? { one_off: { price_min: 0, price_max: 0 } }
+        ? { one_off: { price_min: 0, price_max: 0, enabled: true } }
         : {
-            weekly: { price_min: 0, price_max: 0 },
-            fortnightly: { price_min: 0, price_max: 0 },
-            every_3_weeks: { price_min: 0, price_max: 0 },
-            monthly: { price_min: 0, price_max: 0 }
+            weekly: { price_min: 0, price_max: 0, enabled: true },
+            fortnightly: { price_min: 0, price_max: 0, enabled: true },
+            every_3_weeks: { price_min: 0, price_max: 0, enabled: true },
+            monthly: { price_min: 0, price_max: 0, enabled: true }
           },
       selected_areas_items: []
     };
@@ -81,7 +106,7 @@ export default function ServiceOptionsBuilder({
     setOptions(options.filter(o => o.option_id !== optionId));
   };
 
-  const toggleItemInOption = (areaId, itemId) => {
+  const toggleItemInOption = (areaId, areaName, itemId, itemName, itemDescription) => {
     const newAreas = [...(editingOption.selected_areas_items || [])];
     const areaIndex = newAreas.findIndex(a => a.area_id === areaId);
 
@@ -89,13 +114,14 @@ export default function ServiceOptionsBuilder({
       // Add area with this item
       newAreas.push({
         area_id: areaId,
-        items: [{ item_id: itemId, selection_type: 'full' }]
+        area_name: areaName,
+        items: [{ item_id: itemId, item_name: itemName, item_description: itemDescription }]
       });
     } else {
       const itemIndex = newAreas[areaIndex].items.findIndex(i => i.item_id === itemId);
       if (itemIndex === -1) {
         // Add item to existing area
-        newAreas[areaIndex].items.push({ item_id: itemId, selection_type: 'full' });
+        newAreas[areaIndex].items.push({ item_id: itemId, item_name: itemName, item_description: itemDescription });
       } else {
         // Remove item
         newAreas[areaIndex].items.splice(itemIndex, 1);
@@ -239,47 +265,70 @@ export default function ServiceOptionsBuilder({
                           </div>
                         </div>
                       ) : (
-                        Object.keys(frequencyLabels).map(freq => (
-                          <div key={freq}>
-                            <Label className="text-xs font-semibold">{frequencyLabels[freq]}</Label>
-                            <div className="grid grid-cols-2 gap-2 mt-1">
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Mín</Label>
-                                <Input
-                                  type="number"
-                                  value={editingOption.pricing[freq]?.price_min || 0}
-                                  onChange={(e) => setEditingOption({
-                                    ...editingOption,
-                                    pricing: {
-                                      ...editingOption.pricing,
-                                      [freq]: {
-                                        ...editingOption.pricing[freq],
-                                        price_min: parseFloat(e.target.value) || 0
+                        Object.keys(frequencyLabels).map(freq => {
+                          const isEnabled = editingOption.pricing[freq]?.enabled !== false;
+                          return (
+                            <div key={freq} className="border rounded-lg p-2">
+                              <div className="flex items-center justify-between mb-2">
+                                <Label className="text-xs font-semibold">{frequencyLabels[freq]}</Label>
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    checked={isEnabled}
+                                    onCheckedChange={(checked) => setEditingOption({
+                                      ...editingOption,
+                                      pricing: {
+                                        ...editingOption.pricing,
+                                        [freq]: {
+                                          ...editingOption.pricing[freq],
+                                          enabled: checked
+                                        }
                                       }
-                                    }
-                                  })}
-                                />
+                                    })}
+                                  />
+                                  <Label className="text-xs text-muted-foreground">Incluir</Label>
+                                </div>
                               </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Máx</Label>
-                                <Input
-                                  type="number"
-                                  value={editingOption.pricing[freq]?.price_max || 0}
-                                  onChange={(e) => setEditingOption({
-                                    ...editingOption,
-                                    pricing: {
-                                      ...editingOption.pricing,
-                                      [freq]: {
-                                        ...editingOption.pricing[freq],
-                                        price_max: parseFloat(e.target.value) || 0
-                                      }
-                                    }
-                                  })}
-                                />
-                              </div>
+                              {isEnabled && (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs text-muted-foreground">Mín</Label>
+                                    <Input
+                                      type="number"
+                                      value={editingOption.pricing[freq]?.price_min || 0}
+                                      onChange={(e) => setEditingOption({
+                                        ...editingOption,
+                                        pricing: {
+                                          ...editingOption.pricing,
+                                          [freq]: {
+                                            ...editingOption.pricing[freq],
+                                            price_min: parseFloat(e.target.value) || 0
+                                          }
+                                        }
+                                      })}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs text-muted-foreground">Máx</Label>
+                                    <Input
+                                      type="number"
+                                      value={editingOption.pricing[freq]?.price_max || 0}
+                                      onChange={(e) => setEditingOption({
+                                        ...editingOption,
+                                        pricing: {
+                                          ...editingOption.pricing,
+                                          [freq]: {
+                                            ...editingOption.pricing[freq],
+                                            price_max: parseFloat(e.target.value) || 0
+                                          }
+                                        }
+                                      })}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </CardContent>
                   </Card>
@@ -291,25 +340,66 @@ export default function ServiceOptionsBuilder({
                   <ScrollArea className="flex-1 border rounded-lg p-3">
                     {itemizedAreas.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
-                        No hay items itemizados aún
+                        No hay items itemizados aún. Primero debes itemizar en la página de itemización.
                       </p>
                     ) : (
-                      <div className="space-y-4">
+                      <div className="space-y-2">
                         {itemizedAreas.map(area => (
-                          <div key={area.area_id}>
-                            <h4 className="font-semibold text-sm mb-2">{area.area_name}</h4>
-                            <div className="space-y-2 pl-2">
-                              {area.items?.map(item => (
-                                <div key={item.item_id} className="flex items-center gap-2">
-                                  <Checkbox
-                                    checked={isItemSelected(area.area_id, item.item_id)}
-                                    onCheckedChange={() => toggleItemInOption(area.area_id, item.item_id)}
-                                  />
-                                  <span className="text-sm">{item.item_name}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                          <Collapsible 
+                            key={area.area_id}
+                            open={openAreas[area.area_id]}
+                            onOpenChange={(open) => setOpenAreas({ ...openAreas, [area.area_id]: open })}
+                          >
+                            <Card>
+                              <CollapsibleTrigger asChild>
+                                <CardHeader className="p-3 cursor-pointer hover:bg-accent/50">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      {openAreas[area.area_id] ? (
+                                        <ChevronDown className="w-4 h-4" />
+                                      ) : (
+                                        <ChevronRight className="w-4 h-4" />
+                                      )}
+                                      <h4 className="font-semibold text-sm">{area.area_name}</h4>
+                                    </div>
+                                    <Badge variant="outline" className="text-xs">
+                                      {area.items?.length || 0} items
+                                    </Badge>
+                                  </div>
+                                </CardHeader>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <CardContent className="p-3 pt-0">
+                                  <div className="space-y-2">
+                                    {area.items?.map(item => (
+                                      <div key={item.item_id} className="flex items-start gap-2 p-2 hover:bg-accent/30 rounded">
+                                        <Checkbox
+                                          checked={isItemSelected(area.area_id, item.item_id)}
+                                          onCheckedChange={() => toggleItemInOption(
+                                            area.area_id, 
+                                            area.area_name, 
+                                            item.item_id, 
+                                            item.item_name,
+                                            item.item_description
+                                          )}
+                                        />
+                                        <div className="flex-1">
+                                          <Label className="text-sm font-medium cursor-pointer">
+                                            {item.item_name}
+                                          </Label>
+                                          {item.item_description && (
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                              {item.item_description}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CardContent>
+                              </CollapsibleContent>
+                            </Card>
+                          </Collapsible>
                         ))}
                       </div>
                     )}
