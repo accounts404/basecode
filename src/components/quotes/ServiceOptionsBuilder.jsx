@@ -272,115 +272,131 @@ export default function ServiceOptionsBuilder({
                     />
                   </div>
 
+                  {/* Frequency Selection */}
+                  {serviceType !== 'initial' && (
+                    <div>
+                      <Label className="text-sm mb-2 block">Selecciona Frecuencias</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.keys(frequencyLabels).map(freq => {
+                          const isEnabled = editingOption.pricing[freq]?.enabled !== false;
+                          return (
+                            <div key={freq} className="flex items-center space-x-2 p-2 border rounded-lg hover:bg-gray-50">
+                              <Checkbox
+                                id={`freq-${freq}`}
+                                checked={isEnabled}
+                                onCheckedChange={(checked) => setEditingOption({
+                                  ...editingOption,
+                                  pricing: {
+                                    ...editingOption.pricing,
+                                    [freq]: {
+                                      ...editingOption.pricing[freq],
+                                      enabled: checked
+                                    }
+                                  }
+                                })}
+                              />
+                              <Label htmlFor={`freq-${freq}`} className="cursor-pointer text-sm font-medium">
+                                {frequencyLabels[freq]}
+                              </Label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Pricing Section */}
-                  <Card>
-                    <CardHeader className="p-3">
-                      <CardTitle className="text-sm">Precios por Frecuencia</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0 space-y-3">
+                  <div>
+                    <Label className="text-sm mb-2 block">Precios por Frecuencia</Label>
+                    <div className="space-y-2">
                       {serviceType === 'initial' ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-xs">Precio Mínimo (AUD)</Label>
-                            <Input
-                              type="number"
-                              value={editingOption.pricing.one_off?.price_min || 0}
-                              onChange={(e) => setEditingOption({
-                                ...editingOption,
-                                pricing: {
-                                  one_off: { 
-                                    ...editingOption.pricing.one_off,
-                                    price_min: parseFloat(e.target.value) || 0 
+                        <div className="border rounded-lg p-3">
+                          <Label className="text-xs font-semibold mb-2 block">One-Off Service</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Precio Mínimo (AUD)</Label>
+                              <Input
+                                type="number"
+                                value={editingOption.pricing.one_off?.price_min || 0}
+                                onChange={(e) => setEditingOption({
+                                  ...editingOption,
+                                  pricing: {
+                                    one_off: { 
+                                      ...editingOption.pricing.one_off,
+                                      price_min: parseFloat(e.target.value) || 0 
+                                    }
                                   }
-                                }
-                              })}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-xs">Precio Máximo (AUD)</Label>
-                            <Input
-                              type="number"
-                              value={editingOption.pricing.one_off?.price_max || 0}
-                              onChange={(e) => setEditingOption({
-                                ...editingOption,
-                                pricing: {
-                                  one_off: { 
-                                    ...editingOption.pricing.one_off,
-                                    price_max: parseFloat(e.target.value) || 0 
+                                })}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Precio Máximo (AUD)</Label>
+                              <Input
+                                type="number"
+                                value={editingOption.pricing.one_off?.price_max || 0}
+                                onChange={(e) => setEditingOption({
+                                  ...editingOption,
+                                  pricing: {
+                                    one_off: { 
+                                      ...editingOption.pricing.one_off,
+                                      price_max: parseFloat(e.target.value) || 0 
+                                    }
                                   }
-                                }
-                              })}
-                            />
+                                })}
+                              />
+                            </div>
                           </div>
                         </div>
                       ) : (
                         Object.keys(frequencyLabels).map(freq => {
                           const isEnabled = editingOption.pricing[freq]?.enabled !== false;
+                          if (!isEnabled) return null;
+                          
                           return (
-                            <div key={freq} className="border rounded-lg p-2">
-                              <div className="flex items-center justify-between mb-2">
-                                <Label className="text-xs font-semibold">{frequencyLabels[freq]}</Label>
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    checked={isEnabled}
-                                    onCheckedChange={(checked) => setEditingOption({
+                            <div key={freq} className="border rounded-lg p-3">
+                              <Label className="text-xs font-semibold mb-2 block">{frequencyLabels[freq]}</Label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Precio Mínimo (AUD)</Label>
+                                  <Input
+                                    type="number"
+                                    value={editingOption.pricing[freq]?.price_min || 0}
+                                    onChange={(e) => setEditingOption({
                                       ...editingOption,
                                       pricing: {
                                         ...editingOption.pricing,
                                         [freq]: {
                                           ...editingOption.pricing[freq],
-                                          enabled: checked
+                                          price_min: parseFloat(e.target.value) || 0
                                         }
                                       }
                                     })}
                                   />
-                                  <Label className="text-xs text-muted-foreground">Incluir</Label>
+                                </div>
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Precio Máximo (AUD)</Label>
+                                  <Input
+                                    type="number"
+                                    value={editingOption.pricing[freq]?.price_max || 0}
+                                    onChange={(e) => setEditingOption({
+                                      ...editingOption,
+                                      pricing: {
+                                        ...editingOption.pricing,
+                                        [freq]: {
+                                          ...editingOption.pricing[freq],
+                                          price_max: parseFloat(e.target.value) || 0
+                                        }
+                                      }
+                                    })}
+                                  />
                                 </div>
                               </div>
-                              {isEnabled && (
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Mín</Label>
-                                    <Input
-                                      type="number"
-                                      value={editingOption.pricing[freq]?.price_min || 0}
-                                      onChange={(e) => setEditingOption({
-                                        ...editingOption,
-                                        pricing: {
-                                          ...editingOption.pricing,
-                                          [freq]: {
-                                            ...editingOption.pricing[freq],
-                                            price_min: parseFloat(e.target.value) || 0
-                                          }
-                                        }
-                                      })}
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs text-muted-foreground">Máx</Label>
-                                    <Input
-                                      type="number"
-                                      value={editingOption.pricing[freq]?.price_max || 0}
-                                      onChange={(e) => setEditingOption({
-                                        ...editingOption,
-                                        pricing: {
-                                          ...editingOption.pricing,
-                                          [freq]: {
-                                            ...editingOption.pricing[freq],
-                                            price_max: parseFloat(e.target.value) || 0
-                                          }
-                                        }
-                                      })}
-                                    />
-                                  </div>
-                                </div>
-                              )}
                             </div>
                           );
                         })
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Items Selection with Tabs */}
