@@ -43,23 +43,15 @@ export default function ServiceOptionsBuilder({
     };
     const areasData = quote?.[fieldMap[serviceType]] || [];
     
-    // Transform to show actual items
+    // Transform to show actual items from the itemized areas
     return areasData.map(area => {
-      let itemsToShow = [];
-      
-      if (area.selection_type === 'full') {
-        // Get all items from ServiceAreaItem for this area
-        const allAreaItems = quote?.selected_areas_items_initial?.find(a => a.area_name === area.area_name)?.selected_items || [];
-        itemsToShow = allAreaItems;
-      } else if (area.selection_type === 'custom') {
-        itemsToShow = area.selected_items || [];
-      }
+      const itemsToShow = area.selected_items || [];
       
       return {
         area_id: area.area_name,
         area_name: area.area_display_name,
         items: itemsToShow.map((item, idx) => ({
-          item_id: `${area.area_name}_${idx}`,
+          item_id: `${area.area_name}_${item.item_name}_${idx}`,
           item_name: item.item_name,
           item_description: item.item_description
         }))
