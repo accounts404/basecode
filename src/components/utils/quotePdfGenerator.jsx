@@ -263,206 +263,448 @@ export const generateQuotePDF = async ({ quote, client, systemSettings }) => {
 
   // REGULAR SERVICES SECTION - Color: #EA5B1B (RGB: 234, 91, 27)
   const hasRegular = quote.selected_services?.some(s => s.service_type === 'regular');
-  if (hasRegular) {
-    checkNewPage(60);
-    
-    // Section Header with new color
-    doc.setFillColor(234, 91, 27); // Updated color from 34, 139, 34
-    doc.rect(margin, y, pageWidth - 2 * margin, 10, 'F');
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('REGULAR SERVICES', pageWidth / 2, y + 7, { align: 'center' });
-    doc.setTextColor(0, 0, 0);
-    y += 15;
+  const regularServiceOptions = quote.service_options?.filter(opt => opt.service_type === 'regular') || [];
+  
+  if (hasRegular || regularServiceOptions.length > 0) {
+    // If we have multiple options, render each separately
+    if (regularServiceOptions.length > 0) {
+      regularServiceOptions.forEach((option, index) => {
+        checkNewPage(60);
+        
+        // Section Header with option number
+        doc.setFillColor(234, 91, 27);
+        doc.rect(margin, y, pageWidth - 2 * margin, 10, 'F');
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(255, 255, 255);
+        const headerText = regularServiceOptions.length > 1 
+          ? `REGULAR SERVICE #${index + 1} - ${option.option_name}`
+          : `REGULAR SERVICES - ${option.option_name}`;
+        doc.text(headerText, pageWidth / 2, y + 7, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        y += 15;
 
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'italic');
-    doc.setTextColor(100, 100, 100);
-    doc.text('(Weekly, Fortnightly, Every 3 Weeks, Monthly)', pageWidth / 2, y, { align: 'center' });
-    y += 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'italic');
+        doc.setTextColor(100, 100, 100);
+        doc.text('(Weekly, Fortnightly, Every 3 Weeks, Monthly)', pageWidth / 2, y, { align: 'center' });
+        y += 8;
 
-    // Services and Prices
-    const regularServices = quote.selected_services.filter(s => s.service_type === 'regular');
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('Service Options (choose one):', margin, y);
-    y += 6;
+        // Prices for this option
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('Service Options (choose one):', margin, y);
+        y += 6;
 
-    doc.setFont(undefined, 'normal');
-    regularServices.forEach(service => {
-      checkNewPage(6);
-      const translatedName = translateServiceName(service.service_name);
-      doc.text(`• ${translatedName}`, margin + 5, y);
-      doc.text(`$${service.price_min} - $${service.price_max}`, pageWidth - margin, y, { align: 'right' });
-      y += 5;
-    });
+        doc.setFont(undefined, 'normal');
+        const frequencyLabels = {
+          weekly: 'Weekly',
+          fortnightly: 'Fortnightly',
+          every_3_weeks: 'Every 3 Weeks',
+          monthly: 'Monthly'
+        };
 
-    y += 5;
+        Object.keys(frequencyLabels).forEach(freq => {
+          const pricing = option.pricing?.[freq];
+          if (pricing && pricing.enabled !== false && (pricing.price_min > 0 || pricing.price_max > 0)) {
+            checkNewPage(6);
+            doc.text(`• ${frequencyLabels[freq]}`, margin + 5, y);
+            doc.text(`$${pricing.price_min} - $${pricing.price_max}`, pageWidth - margin, y, { align: 'right' });
+            y += 5;
+          }
+        });
 
-    // Areas and Items
-    if (quote.selected_areas_items_regular && quote.selected_areas_items_regular.length > 0) {
-      checkNewPage(30);
-      doc.setFontSize(11);
+        y += 5;
+
+        // Areas and Items for this option
+        if (option.selected_areas_items && option.selected_areas_items.length > 0) {
+          checkNewPage(30);
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          doc.setTextColor(0, 0, 0);
+          doc.text('Areas and Services Included:', margin, y);
+          y += 7;
+
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'normal');
+          
+          option.selected_areas_items.forEach(area => {
+            checkNewPage(15);
+            doc.setFont(undefined, 'bold');
+            doc.text(`${area.area_display_name || area.area_name}:`, margin + 3, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            
+            if (area.selection_type === 'full') {
+              doc.setFont(undefined, 'bold');
+              doc.text('• Full Service - All items included:', margin + 8, y);
+              y += 5;
+              doc.setFont(undefined, 'normal');
+              
+              if (area.selected_items && area.selected_items.length > 0) {
+                area.selected_items.forEach(item => {
+                  checkNewPage(5);
+                  const itemText = `  - ${item.item_name}`;
+                  const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                  doc.text(lines, margin + 12, y);
+                  y += lines.length * 4;
+                });
+              }
+            } else if (area.selection_type === 'custom' && area.selected_items && area.selected_items.length > 0) {
+              area.selected_items.forEach(item => {
+                checkNewPage(5);
+                const itemText = `• ${item.item_name}`;
+                const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                doc.text(lines, margin + 8, y);
+                y += lines.length * 4;
+              });
+            } else if (area.selection_type === 'not_included') {
+              doc.setFont(undefined, 'italic');
+              doc.setTextColor(150, 150, 150);
+              doc.text('• Not included in this option', margin + 8, y);
+              y += 5;
+              doc.setFont(undefined, 'normal');
+              doc.setTextColor(0, 0, 0);
+            }
+            
+            if (area.area_notes && area.area_notes.trim()) {
+              checkNewPage(10);
+              doc.setFont(undefined, 'italic');
+              doc.setTextColor(80, 80, 80);
+              const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
+              doc.text(notesLines, margin + 8, y);
+              y += notesLines.length * 4 + 2;
+              doc.setFont(undefined, 'normal');
+              doc.setTextColor(0, 0, 0);
+            }
+            
+            y += 3;
+          });
+        }
+
+        y += 10;
+      });
+    } else {
+      // Fallback to old format if no service_options (backward compatibility)
+      checkNewPage(60);
+      
+      doc.setFillColor(234, 91, 27);
+      doc.rect(margin, y, pageWidth - 2 * margin, 10, 'F');
+      doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('REGULAR SERVICES', pageWidth / 2, y + 7, { align: 'center' });
       doc.setTextColor(0, 0, 0);
-      doc.text('Areas and Services Included:', margin, y);
-      y += 7;
+      y += 15;
 
       doc.setFontSize(9);
+      doc.setFont(undefined, 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text('(Weekly, Fortnightly, Every 3 Weeks, Monthly)', pageWidth / 2, y, { align: 'center' });
+      y += 8;
+
+      const regularServices = quote.selected_services.filter(s => s.service_type === 'regular');
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text('Service Options (choose one):', margin, y);
+      y += 6;
+
       doc.setFont(undefined, 'normal');
-      
-      quote.selected_areas_items_regular.forEach(area => {
-        checkNewPage(15);
-        doc.setFont(undefined, 'bold');
-        doc.text(`${area.area_display_name}:`, margin + 3, y);
+      regularServices.forEach(service => {
+        checkNewPage(6);
+        const translatedName = translateServiceName(service.service_name);
+        doc.text(`• ${translatedName}`, margin + 5, y);
+        doc.text(`$${service.price_min} - $${service.price_max}`, pageWidth - margin, y, { align: 'right' });
         y += 5;
+      });
+
+      y += 5;
+
+      if (quote.selected_areas_items_regular && quote.selected_areas_items_regular.length > 0) {
+        checkNewPage(30);
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('Areas and Services Included:', margin, y);
+        y += 7;
+
+        doc.setFontSize(9);
         doc.setFont(undefined, 'normal');
         
-        if (area.selection_type === 'full') {
+        quote.selected_areas_items_regular.forEach(area => {
+          checkNewPage(15);
           doc.setFont(undefined, 'bold');
-          doc.text('• Full Service - All items included:', margin + 8, y);
+          doc.text(`${area.area_display_name}:`, margin + 3, y);
           y += 5;
           doc.setFont(undefined, 'normal');
           
-          if (area.selected_items && area.selected_items.length > 0) {
+          if (area.selection_type === 'full') {
+            doc.setFont(undefined, 'bold');
+            doc.text('• Full Service - All items included:', margin + 8, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            
+            if (area.selected_items && area.selected_items.length > 0) {
+              area.selected_items.forEach(item => {
+                checkNewPage(5);
+                const itemText = `  - ${item.item_name}`;
+                const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                doc.text(lines, margin + 12, y);
+                y += lines.length * 4;
+              });
+            }
+          } else if (area.selected_items && area.selected_items.length > 0) {
             area.selected_items.forEach(item => {
               checkNewPage(5);
-              const itemText = `  - ${item.item_name}`;
+              const itemText = `• ${item.item_name}`;
               const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
-              doc.text(lines, margin + 12, y);
+              doc.text(lines, margin + 8, y);
               y += lines.length * 4;
             });
           }
-        } else if (area.selected_items && area.selected_items.length > 0) {
-          area.selected_items.forEach(item => {
-            checkNewPage(5);
-            const itemText = `• ${item.item_name}`;
-            const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
-            doc.text(lines, margin + 8, y);
-            y += lines.length * 4;
-          });
-        }
-        
-        if (area.area_notes && area.area_notes.trim()) {
-          checkNewPage(10);
-          doc.setFont(undefined, 'italic');
-          doc.setTextColor(80, 80, 80);
-          const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
-          doc.text(notesLines, margin + 8, y);
-          y += notesLines.length * 4 + 2;
-          doc.setFont(undefined, 'normal');
-          doc.setTextColor(0, 0, 0);
-        }
-        
-        y += 3;
-      });
-    }
+          
+          if (area.area_notes && area.area_notes.trim()) {
+            checkNewPage(10);
+            doc.setFont(undefined, 'italic');
+            doc.setTextColor(80, 80, 80);
+            const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
+            doc.text(notesLines, margin + 8, y);
+            y += notesLines.length * 4 + 2;
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(0, 0, 0);
+          }
+          
+          y += 3;
+        });
+      }
 
-    y += 10;
+      y += 10;
+    }
   }
 
   // COMMERCIAL SERVICES SECTION - Color: #8B5CF6 (RGB: 139, 92, 246)
   const hasCommercial = quote.selected_services?.some(s => s.service_type === 'commercial');
-  if (hasCommercial) {
-    checkNewPage(60);
-    
-    // Section Header
-    doc.setFillColor(139, 92, 246);
-    doc.rect(margin, y, pageWidth - 2 * margin, 10, 'F');
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('COMMERCIAL SERVICES', pageWidth / 2, y + 7, { align: 'center' });
-    doc.setTextColor(0, 0, 0);
-    y += 15;
+  const commercialServiceOptions = quote.service_options?.filter(opt => opt.service_type === 'commercial') || [];
+  
+  if (hasCommercial || commercialServiceOptions.length > 0) {
+    // If we have multiple options, render each separately
+    if (commercialServiceOptions.length > 0) {
+      commercialServiceOptions.forEach((option, index) => {
+        checkNewPage(60);
+        
+        // Section Header with option number
+        doc.setFillColor(139, 92, 246);
+        doc.rect(margin, y, pageWidth - 2 * margin, 10, 'F');
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(255, 255, 255);
+        const headerText = commercialServiceOptions.length > 1 
+          ? `COMMERCIAL SERVICE #${index + 1} - ${option.option_name}`
+          : `COMMERCIAL SERVICES - ${option.option_name}`;
+        doc.text(headerText, pageWidth / 2, y + 7, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        y += 15;
 
-    doc.setFontSize(9);
-    doc.setFont(undefined, 'italic');
-    doc.setTextColor(100, 100, 100);
-    doc.text('(Offices, Stores, Businesses)', pageWidth / 2, y, { align: 'center' });
-    y += 8;
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'italic');
+        doc.setTextColor(100, 100, 100);
+        doc.text('(Offices, Stores, Businesses)', pageWidth / 2, y, { align: 'center' });
+        y += 8;
 
-    // Services and Prices
-    const commercialServices = quote.selected_services.filter(s => s.service_type === 'commercial');
-    doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('Service Options (choose one):', margin, y);
-    y += 6;
+        // Prices for this option
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('Service Options (choose one):', margin, y);
+        y += 6;
 
-    doc.setFont(undefined, 'normal');
-    commercialServices.forEach(service => {
-      checkNewPage(6);
-      const translatedName = translateServiceName(service.service_name);
-      doc.text(`• ${translatedName}`, margin + 5, y);
-      doc.text(`$${service.price_min} - $${service.price_max}`, pageWidth - margin, y, { align: 'right' });
-      y += 5;
-    });
+        doc.setFont(undefined, 'normal');
+        const frequencyLabels = {
+          weekly: 'Weekly',
+          fortnightly: 'Fortnightly',
+          every_3_weeks: 'Every 3 Weeks',
+          monthly: 'Monthly'
+        };
 
-    y += 5;
+        Object.keys(frequencyLabels).forEach(freq => {
+          const pricing = option.pricing?.[freq];
+          if (pricing && pricing.enabled !== false && (pricing.price_min > 0 || pricing.price_max > 0)) {
+            checkNewPage(6);
+            doc.text(`• ${frequencyLabels[freq]}`, margin + 5, y);
+            doc.text(`$${pricing.price_min} - $${pricing.price_max}`, pageWidth - margin, y, { align: 'right' });
+            y += 5;
+          }
+        });
 
-    // Areas and Items
-    if (quote.selected_areas_items_commercial && quote.selected_areas_items_commercial.length > 0) {
-      checkNewPage(30);
-      doc.setFontSize(11);
+        y += 5;
+
+        // Areas and Items for this option
+        if (option.selected_areas_items && option.selected_areas_items.length > 0) {
+          checkNewPage(30);
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          doc.setTextColor(0, 0, 0);
+          doc.text('Areas and Services Included:', margin, y);
+          y += 7;
+
+          doc.setFontSize(9);
+          doc.setFont(undefined, 'normal');
+          
+          option.selected_areas_items.forEach(area => {
+            checkNewPage(15);
+            doc.setFont(undefined, 'bold');
+            doc.text(`${area.area_display_name || area.area_name}:`, margin + 3, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            
+            if (area.selection_type === 'full') {
+              doc.setFont(undefined, 'bold');
+              doc.text('• Full Service - All items included:', margin + 8, y);
+              y += 5;
+              doc.setFont(undefined, 'normal');
+              
+              if (area.selected_items && area.selected_items.length > 0) {
+                area.selected_items.forEach(item => {
+                  checkNewPage(5);
+                  const itemText = `  - ${item.item_name}`;
+                  const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                  doc.text(lines, margin + 12, y);
+                  y += lines.length * 4;
+                });
+              }
+            } else if (area.selection_type === 'custom' && area.selected_items && area.selected_items.length > 0) {
+              area.selected_items.forEach(item => {
+                checkNewPage(5);
+                const itemText = `• ${item.item_name}`;
+                const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                doc.text(lines, margin + 8, y);
+                y += lines.length * 4;
+              });
+            } else if (area.selection_type === 'not_included') {
+              doc.setFont(undefined, 'italic');
+              doc.setTextColor(150, 150, 150);
+              doc.text('• Not included in this option', margin + 8, y);
+              y += 5;
+              doc.setFont(undefined, 'normal');
+              doc.setTextColor(0, 0, 0);
+            }
+            
+            if (area.area_notes && area.area_notes.trim()) {
+              checkNewPage(10);
+              doc.setFont(undefined, 'italic');
+              doc.setTextColor(80, 80, 80);
+              const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
+              doc.text(notesLines, margin + 8, y);
+              y += notesLines.length * 4 + 2;
+              doc.setFont(undefined, 'normal');
+              doc.setTextColor(0, 0, 0);
+            }
+            
+            y += 3;
+          });
+        }
+
+        y += 10;
+      });
+    } else {
+      // Fallback to old format if no service_options (backward compatibility)
+      checkNewPage(60);
+      
+      doc.setFillColor(139, 92, 246);
+      doc.rect(margin, y, pageWidth - 2 * margin, 10, 'F');
+      doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('COMMERCIAL SERVICES', pageWidth / 2, y + 7, { align: 'center' });
       doc.setTextColor(0, 0, 0);
-      doc.text('Areas and Services Included:', margin, y);
-      y += 7;
+      y += 15;
 
       doc.setFontSize(9);
+      doc.setFont(undefined, 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text('(Offices, Stores, Businesses)', pageWidth / 2, y, { align: 'center' });
+      y += 8;
+
+      const commercialServices = quote.selected_services.filter(s => s.service_type === 'commercial');
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text('Service Options (choose one):', margin, y);
+      y += 6;
+
       doc.setFont(undefined, 'normal');
-      
-      quote.selected_areas_items_commercial.forEach(area => {
-        checkNewPage(15);
-        doc.setFont(undefined, 'bold');
-        doc.text(`${area.area_display_name}:`, margin + 3, y);
+      commercialServices.forEach(service => {
+        checkNewPage(6);
+        const translatedName = translateServiceName(service.service_name);
+        doc.text(`• ${translatedName}`, margin + 5, y);
+        doc.text(`$${service.price_min} - $${service.price_max}`, pageWidth - margin, y, { align: 'right' });
         y += 5;
+      });
+
+      y += 5;
+
+      if (quote.selected_areas_items_commercial && quote.selected_areas_items_commercial.length > 0) {
+        checkNewPage(30);
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('Areas and Services Included:', margin, y);
+        y += 7;
+
+        doc.setFontSize(9);
         doc.setFont(undefined, 'normal');
         
-        if (area.selection_type === 'full') {
+        quote.selected_areas_items_commercial.forEach(area => {
+          checkNewPage(15);
           doc.setFont(undefined, 'bold');
-          doc.text('• Full Service - All items included:', margin + 8, y);
+          doc.text(`${area.area_display_name}:`, margin + 3, y);
           y += 5;
           doc.setFont(undefined, 'normal');
           
-          if (area.selected_items && area.selected_items.length > 0) {
+          if (area.selection_type === 'full') {
+            doc.setFont(undefined, 'bold');
+            doc.text('• Full Service - All items included:', margin + 8, y);
+            y += 5;
+            doc.setFont(undefined, 'normal');
+            
+            if (area.selected_items && area.selected_items.length > 0) {
+              area.selected_items.forEach(item => {
+                checkNewPage(5);
+                const itemText = `  - ${item.item_name}`;
+                const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
+                doc.text(lines, margin + 12, y);
+                y += lines.length * 4;
+              });
+            }
+          } else if (area.selected_items && area.selected_items.length > 0) {
             area.selected_items.forEach(item => {
               checkNewPage(5);
-              const itemText = `  - ${item.item_name}`;
+              const itemText = `• ${item.item_name}`;
               const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
-              doc.text(lines, margin + 12, y);
+              doc.text(lines, margin + 8, y);
               y += lines.length * 4;
             });
           }
-        } else if (area.selected_items && area.selected_items.length > 0) {
-          area.selected_items.forEach(item => {
-            checkNewPage(5);
-            const itemText = `• ${item.item_name}`;
-            const lines = doc.splitTextToSize(itemText, pageWidth - margin - 15);
-            doc.text(lines, margin + 8, y);
-            y += lines.length * 4;
-          });
-        }
-        
-        if (area.area_notes && area.area_notes.trim()) {
-          checkNewPage(10);
-          doc.setFont(undefined, 'italic');
-          doc.setTextColor(80, 80, 80);
-          const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
-          doc.text(notesLines, margin + 8, y);
-          y += notesLines.length * 4 + 2;
-          doc.setFont(undefined, 'normal');
-          doc.setTextColor(0, 0, 0);
-        }
-        
-        y += 3;
-      });
-    }
+          
+          if (area.area_notes && area.area_notes.trim()) {
+            checkNewPage(10);
+            doc.setFont(undefined, 'italic');
+            doc.setTextColor(80, 80, 80);
+            const notesLines = doc.splitTextToSize(`Notes: ${area.area_notes}`, pageWidth - margin - 15);
+            doc.text(notesLines, margin + 8, y);
+            y += notesLines.length * 4 + 2;
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(0, 0, 0);
+          }
+          
+          y += 3;
+        });
+      }
 
-    y += 10;
+      y += 10;
+    }
   }
 
   // ADDITIONAL SERVICES SECTION (EXTRAS) - Color: #7C3AED (RGB: 124, 58, 237)
