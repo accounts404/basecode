@@ -29,6 +29,7 @@ import {
 import ThresholdManager from '../components/rentabilidad/ThresholdManager';
 import PricingAnalysisTable from '../components/rentabilidad/PricingAnalysisTable';
 import ClientMultiSelect from '../components/work/ClientMultiSelect';
+import PriceIncreaseNotificationDialog from '../components/rentabilidad/PriceIncreaseNotificationDialog';
 
 const extractDateOnly = (isoString) => {
   if (!isoString) return null;
@@ -349,6 +350,10 @@ export default function RentabilidadPage() {
     const [monthlyTrainingCost, setMonthlyTrainingCost] = useState({ hours: 0, amount: 0 });
     const [cumulativeTrainingCost, setCumulativeTrainingCost] = useState({ hours: 0, amount: 0 });
     const [trainingClientId, setTrainingClientId] = useState(null);
+
+    const [hideNotifiedClients, setHideNotifiedClients] = useState(false);
+    const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
+    const [selectedClientForNotification, setSelectedClientForNotification] = useState(null);
 
     const [cumulativeStartDate, setCumulativeStartDate] = useState(new Date('2025-04-01T00:00:00Z'));
     const [cumulativeEndDate, setCumulativeEndDate] = useState(new Date());
@@ -963,6 +968,13 @@ export default function RentabilidadPage() {
         });
 
         const filteredCumulativeAnalysis = sortedCumulativeAnalysis.filter(data => {
+            const client = clientMap.get(data.clientId);
+            
+            // Filtro de ocultar notificados
+            if (hideNotifiedClients && client && !shouldShowClient(client)) {
+                return false;
+            }
+            
             // Prioridad 1: Si hay clientes seleccionados en multi-select, usar eso
             if (selectedClients.length > 0) {
                 return selectedClients.includes(data.clientName);
@@ -1017,6 +1029,32 @@ export default function RentabilidadPage() {
     };
 
     const clientsForPricingAnalysis = clients.filter(c => c.id !== trainingClientId);
+
+    // Helper: calcular si hace más de 9 meses desde último envío
+    const shouldShowClient = (client) => {
+        if (!hideNotifiedClients) return true;
+        
+        const notifications = client.price_increase_notifications || [];
+        if (notifications.length === 0) return true;
+
+        const lastNotification = notifications[notifications.length - 1];
+        const lastSentDate = new Date(lastNotification.sent_date);
+        const nineMonthsAgo = new Date();
+        nineMonthsAgo.setMonth(nineMonthsAgo.getMonth() - 9);
+
+        return lastSentDate <= nineMonthsAgo;
+    };
+
+    const handleOpenNotificationDialog = (client) => {
+        setSelectedClientForNotification(client);
+        setNotificationDialogOpen(true);
+    };
+
+    const handleNotificationSuccess = async () => {
+        setNotificationDialogOpen(false);
+        setSelectedClientForNotification(null);
+        await loadAllInitialData();
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
@@ -1450,9 +1488,23 @@ export default function RentabilidadPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
-                                    <Card className="mb-6 shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
-                                        <CardContent className="p-6">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                   <Card className="mb-6 shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
+                                       <CardContent className="p-6">
+                                           <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
+                                               <div className="flex items-center gap-3">
+                                                   <input
+                                                       type="checkbox"
+                                                       id="hide-notified"
+                                                       checked={hideNotifiedClients}
+                                                       onChange={(e) => setHideNotifiedClients(e.target.checked)}
+                                                       className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                                   />
+                                                   <Label htmlFor="hide-notified" className="text-sm font-medium text-slate-700 cursor-pointer">
+                                                       Ocultar clientes con aumento enviado (últimos 9 meses)
+                                                   </Label>
+                                               </div>
+                                           </div>
+                                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="space-y-2">
                                                     <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
                                                         <Calendar className="w-4 h-4 text-green-600" />
@@ -1670,10 +1722,18 @@ export default function RentabilidadPage() {
                                                                 {getSortIcon('realProfitPercentage')}
                                                             </div>
                                                         </TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {cumulativeProfitabilityData.clientAnalysis.map(data => (
+                                                        <TableHead className="text-center font-bold text-slate-700">
+                                                            Aumento Enviado
+                                                        </TableHead>
+                                                        </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                        {cumulativeProfitabilityData.clientAnalysis.map(data => {
+                                                        const client = clients.find(c => c.id === data.clientId);
+                                                        const notifications = client?.price_increase_notifications || [];
+                                                        const lastNotification = notifications.length > 0 ? notifications[notifications.length - 1] : null;
+
+                                                        return (
                                                         <TableRow key={data.clientId} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
                                                             <TableCell className="font-semibold text-slate-900 py-4">{data.clientName}</TableCell>
                                                             <TableCell className="text-center text-slate-700">{data.serviceCount}</TableCell>
@@ -1711,9 +1771,29 @@ export default function RentabilidadPage() {
                                                                     <span className="text-base">{data.realProfitPercentage.toFixed(1)}%</span>
                                                                 </div>
                                                             </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
+                                                            <TableCell className="text-center">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleOpenNotificationDialog(client)}
+                                                                    className={lastNotification ? 'text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50' : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'}
+                                                                >
+                                                                    {lastNotification ? (
+                                                                        <div className="flex flex-col items-center gap-1">
+                                                                            <Mail className="w-4 h-4" />
+                                                                            <span className="text-xs font-medium">
+                                                                                {format(new Date(lastNotification.sent_date), 'dd/MM/yy')}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <Mail className="w-4 h-4" />
+                                                                    )}
+                                                                </Button>
+                                                            </TableCell>
+                                                            </TableRow>
+                                                            );
+                                                            })}
+                                                            </TableBody>
                                                 <tfoot>
                                                     <TableRow className="bg-gradient-to-r from-slate-100 to-slate-50 font-bold text-slate-900 sticky bottom-0 border-t-2 border-slate-300">
                                                         <TableCell colSpan="2" className="text-right text-xl py-5">TOTAL ACUMULADO</TableCell>
@@ -1810,6 +1890,15 @@ export default function RentabilidadPage() {
                         <h3 className="text-2xl font-bold text-slate-700 mb-3">Selecciona un Período</h3>
                         <p className="text-slate-600 text-lg font-light">Elige un mes para comenzar el análisis de rentabilidad.</p>
                     </Card>
+                )}
+
+                {selectedClientForNotification && (
+                    <PriceIncreaseNotificationDialog
+                        client={selectedClientForNotification}
+                        open={notificationDialogOpen}
+                        onOpenChange={setNotificationDialogOpen}
+                        onSuccess={handleNotificationSuccess}
+                    />
                 )}
             </div>
         </div>
