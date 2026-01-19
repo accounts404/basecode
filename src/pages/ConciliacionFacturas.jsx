@@ -1524,6 +1524,14 @@ export default function ConciliacionFacturasPage() {
                             </div>
                         )}
                     </TabsContent>
+
+                    <TabsContent value="by-client" className="space-y-6">
+                        <ClientSummaryReportTab 
+                            monthlySchedules={monthlySchedules} 
+                            clients={clients}
+                            usersMap={usersMap}
+                        />
+                    </TabsContent>
                 </Tabs>
             </div>
 
