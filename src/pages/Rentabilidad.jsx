@@ -783,11 +783,30 @@ export default function RentabilidadPage() {
 
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
-            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0 };
+            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0, operationalCosts: { clients: [], totalCost: 0 } };
         }
 
-        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
+        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId && c.client_type !== 'operational_cost');
+        const operationalCostClients = clients.filter(c => c.active !== false && c.client_type === 'operational_cost');
         const clientMap = new Map(activeClients.map(c => [c.id, c]));
+
+        // Calcular costos operativos
+        const operationalCostsMap = new Map();
+        operationalCostClients.forEach(opClient => {
+            const opWorkEntries = allWorkEntries.filter(entry =>
+                entry.client_id === opClient.id &&
+                isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate))
+            );
+            const totalOpCost = opWorkEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
+            if (totalOpCost > 0) {
+                operationalCostsMap.set(opClient.id, {
+                    clientName: opClient.name,
+                    totalCost: totalOpCost,
+                    hours: opWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0)
+                });
+            }
+        });
+        const totalOperationalCosts = Array.from(operationalCostsMap.values()).reduce((sum, item) => sum + item.totalCost, 0);
 
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
@@ -912,7 +931,7 @@ export default function RentabilidadPage() {
         const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
-        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
+        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalOperationalCosts;
 
         const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
 
@@ -1005,7 +1024,11 @@ export default function RentabilidadPage() {
         return { 
             clientAnalysis: filteredCumulativeAnalysis, 
             summary: cumulativeSummary, 
-            overallTotalFixedCosts: totalCumulativeFixedCosts 
+            overallTotalFixedCosts: totalCumulativeFixedCosts,
+            operationalCosts: {
+                clients: Array.from(operationalCostsMap.values()),
+                totalCost: totalOperationalCosts
+            }
         };
     }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
 
