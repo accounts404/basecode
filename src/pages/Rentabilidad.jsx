@@ -6,19 +6,21 @@ import { PricingThreshold } from '@/entities/PricingThreshold';
 import { Schedule } from '@/entities/Schedule';
 import { User } from '@/entities/User';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO, startOfDay, endOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO, startOfDay, endOfDay, differenceInMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, X, Search, Settings, ArrowRightSquare, Clock9, GraduationCap } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, X, Search, Settings, ArrowRightSquare, Clock9, GraduationCap, Send, History, Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
     Accordion,
     AccordionContent,
@@ -352,6 +354,14 @@ export default function RentabilidadPage() {
 
     const [cumulativeStartDate, setCumulativeStartDate] = useState(new Date('2025-04-01T00:00:00Z'));
     const [cumulativeEndDate, setCumulativeEndDate] = useState(new Date());
+    
+    const [hideSentClients, setHideSentClients] = useState(false);
+    const [sendModalOpen, setSendModalOpen] = useState(false);
+    const [selectedClientForSend, setSelectedClientForSend] = useState(null);
+    const [sendDate, setSendDate] = useState(new Date());
+    const [sendNotes, setSendNotes] = useState('');
+    const [historyModalOpen, setHistoryModalOpen] = useState(false);
+    const [selectedClientForHistory, setSelectedClientForHistory] = useState(null);
 
     const frequencyOptions = [
         { value: "all", label: "Todas las Frecuencias" },
@@ -1018,6 +1028,88 @@ export default function RentabilidadPage() {
 
     const clientsForPricingAnalysis = clients.filter(c => c.id !== trainingClientId);
 
+    // Función para verificar si han pasado 9 meses desde el último envío
+    const isNotificationExpired = (sentDate) => {
+        if (!sentDate) return true;
+        const monthsSince = differenceInMonths(new Date(), new Date(sentDate));
+        return monthsSince >= 9;
+    };
+
+    // Función para obtener el estado de envío de un cliente
+    const getClientSendStatus = (client) => {
+        if (!client.current_price_increase_sent_date) {
+            return { sent: false, expired: true, monthsSince: null };
+        }
+        const expired = isNotificationExpired(client.current_price_increase_sent_date);
+        const monthsSince = differenceInMonths(new Date(), new Date(client.current_price_increase_sent_date));
+        return { sent: true, expired, monthsSince };
+    };
+
+    // Abrir modal de envío
+    const handleOpenSendModal = (clientData) => {
+        const client = clients.find(c => c.id === clientData.clientId);
+        setSelectedClientForSend({ ...clientData, fullClient: client });
+        setSendDate(new Date());
+        setSendNotes('');
+        setSendModalOpen(true);
+    };
+
+    // Marcar como enviado
+    const handleMarkAsSent = async () => {
+        if (!selectedClientForSend) return;
+        
+        try {
+            const client = selectedClientForSend.fullClient;
+            const currentHistory = client.price_increase_notifications || [];
+            
+            await Client.update(client.id, {
+                current_price_increase_sent_date: sendDate.toISOString(),
+                current_price_increase_notes: sendNotes,
+                price_increase_notifications: [
+                    ...currentHistory,
+                    {
+                        sent_date: sendDate.toISOString(),
+                        notes: sendNotes,
+                        sent_by_admin: (await User.me())?.id || 'unknown'
+                    }
+                ]
+            });
+            
+            await loadAllInitialData();
+            setSendModalOpen(false);
+            setSelectedClientForSend(null);
+            setSendNotes('');
+        } catch (error) {
+            console.error('Error al marcar como enviado:', error);
+            alert('Error al guardar. Intenta de nuevo.');
+        }
+    };
+
+    // Desmarcar envío
+    const handleUnmarkSent = async (clientData) => {
+        if (!confirm('¿Desmarcar el envío de aumento para este cliente?')) return;
+        
+        try {
+            const client = clients.find(c => c.id === clientData.clientId);
+            await Client.update(client.id, {
+                current_price_increase_sent_date: null,
+                current_price_increase_notes: null
+            });
+            
+            await loadAllInitialData();
+        } catch (error) {
+            console.error('Error al desmarcar:', error);
+            alert('Error al desmarcar. Intenta de nuevo.');
+        }
+    };
+
+    // Ver historial
+    const handleViewHistory = (clientData) => {
+        const client = clients.find(c => c.id === clientData.clientId);
+        setSelectedClientForHistory({ ...clientData, fullClient: client });
+        setHistoryModalOpen(true);
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
             <div className="max-w-[1920px] mx-auto">
@@ -1452,6 +1544,22 @@ export default function RentabilidadPage() {
                                 <AccordionContent className="px-8 pb-8 pt-6">
                                     <Card className="mb-6 shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                                         <CardContent className="p-6">
+                                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
+                                                <div className="flex items-center gap-3">
+                                                    <Switch
+                                                        id="hide-sent"
+                                                        checked={hideSentClients}
+                                                        onCheckedChange={setHideSentClients}
+                                                    />
+                                                    <Label htmlFor="hide-sent" className="text-sm font-semibold text-slate-700 cursor-pointer flex items-center gap-2">
+                                                        {hideSentClients ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                        Ocultar clientes con aumento enviado
+                                                    </Label>
+                                                </div>
+                                                <div className="text-xs text-slate-500 bg-slate-100 px-3 py-2 rounded-lg">
+                                                    Los envíos se resetean automáticamente después de 9 meses
+                                                </div>
+                                            </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="space-y-2">
                                                     <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
@@ -1668,13 +1776,29 @@ export default function RentabilidadPage() {
                                                             <div className="flex items-center justify-end gap-2">
                                                                 % Rent. Real
                                                                 {getSortIcon('realProfitPercentage')}
-                                                            </div>
-                                                        </TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {cumulativeProfitabilityData.clientAnalysis.map(data => (
-                                                        <TableRow key={data.clientId} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
+                                                                            </div>
+                                                                        </TableHead>
+                                                                        <TableHead className="text-center font-bold text-slate-700 bg-yellow-50">
+                                                                            <div className="flex items-center justify-center gap-2">
+                                                                                <Send className="w-4 h-4" />
+                                                                                Aumento Enviado
+                                                                            </div>
+                                                                        </TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody>
+                                                                    {cumulativeProfitabilityData.clientAnalysis
+                                                                        .filter(data => {
+                                                                            if (!hideSentClients) return true;
+                                                                            const client = clients.find(c => c.id === data.clientId);
+                                                                            const status = getClientSendStatus(client);
+                                                                            return !status.sent || status.expired;
+                                                                        })
+                                                                        .map(data => {
+                                                                            const client = clients.find(c => c.id === data.clientId);
+                                                                            const sendStatus = getClientSendStatus(client);
+                                                                            return (
+                                                        <TableRow key={data.clientId} className={`hover:bg-slate-50/50 transition-colors border-b border-slate-100 ${sendStatus.sent && !sendStatus.expired ? 'bg-green-50/30' : ''}`}>
                                                             <TableCell className="font-semibold text-slate-900 py-4">{data.clientName}</TableCell>
                                                             <TableCell className="text-center text-slate-700">{data.serviceCount}</TableCell>
                                                             <TableCell className="text-center font-medium text-slate-800">{data.totalHours.toFixed(2)}h</TableCell>
@@ -1711,9 +1835,77 @@ export default function RentabilidadPage() {
                                                                     <span className="text-base">{data.realProfitPercentage.toFixed(1)}%</span>
                                                                 </div>
                                                             </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
+                                                            <TableCell className="text-center bg-yellow-50">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                    {sendStatus.sent && !sendStatus.expired ? (
+                                                                        <>
+                                                                            <TooltipProvider>
+                                                                                <Tooltip>
+                                                                                    <TooltipTrigger asChild>
+                                                                                        <div className="flex items-center gap-2 text-green-700">
+                                                                                            <CheckCircle className="w-5 h-5" />
+                                                                                            <span className="text-sm font-semibold">
+                                                                                                {format(new Date(client.current_price_increase_sent_date), 'd MMM yyyy', { locale: es })}
+                                                                                            </span>
+                                                                                            <span className="text-xs text-slate-500">
+                                                                                                ({sendStatus.monthsSince}m)
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </TooltipTrigger>
+                                                                                    <TooltipContent>
+                                                                                        <p className="text-xs">
+                                                                                            {client.current_price_increase_notes || 'Sin notas'}
+                                                                                        </p>
+                                                                                    </TooltipContent>
+                                                                                </Tooltip>
+                                                                            </TooltipProvider>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                onClick={() => handleUnmarkSent(data)}
+                                                                                className="h-7 w-7 p-0"
+                                                                            >
+                                                                                <X className="w-4 h-4 text-red-600" />
+                                                                            </Button>
+                                                                            {client.price_increase_notifications?.length > 1 && (
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="sm"
+                                                                                    onClick={() => handleViewHistory(data)}
+                                                                                    className="h-7 w-7 p-0"
+                                                                                >
+                                                                                    <History className="w-4 h-4 text-blue-600" />
+                                                                                </Button>
+                                                                            )}
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                onClick={() => handleOpenSendModal(data)}
+                                                                                className="h-8 px-3 text-xs"
+                                                                            >
+                                                                                <Send className="w-3 h-3 mr-1" />
+                                                                                Marcar
+                                                                            </Button>
+                                                                            {client.price_increase_notifications?.length > 0 && (
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="sm"
+                                                                                    onClick={() => handleViewHistory(data)}
+                                                                                    className="h-7 w-7 p-0"
+                                                                                >
+                                                                                    <History className="w-4 h-4 text-slate-600" />
+                                                                                </Button>
+                                                                            )}
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                            </TableRow>
+                                                            )})}
+                                                            </TableBody>
                                                 <tfoot>
                                                     <TableRow className="bg-gradient-to-r from-slate-100 to-slate-50 font-bold text-slate-900 sticky bottom-0 border-t-2 border-slate-300">
                                                         <TableCell colSpan="2" className="text-right text-xl py-5">TOTAL ACUMULADO</TableCell>
@@ -1811,7 +2003,113 @@ export default function RentabilidadPage() {
                         <p className="text-slate-600 text-lg font-light">Elige un mes para comenzar el análisis de rentabilidad.</p>
                     </Card>
                 )}
-            </div>
-        </div>
-    );
-}
+
+                {/* Modal para marcar como enviado */}
+                <Dialog open={sendModalOpen} onOpenChange={setSendModalOpen}>
+                    <DialogContent className="sm:max-w-[500px]">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                                <Send className="w-5 h-5 text-blue-600" />
+                                Marcar Aumento como Enviado
+                            </DialogTitle>
+                            <DialogDescription>
+                                Cliente: <span className="font-semibold">{selectedClientForSend?.clientName}</span>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label className="text-sm font-semibold">Fecha de Envío</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-full justify-start text-left">
+                                            <Calendar className="mr-2 h-4 w-4" />
+                                            {format(sendDate, 'd MMMM yyyy', { locale: es })}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <CalendarComponent
+                                            mode="single"
+                                            selected={sendDate}
+                                            onSelect={(date) => date && setSendDate(date)}
+                                            disabled={(date) => date > new Date()}
+                                            initialFocus
+                                            locale={es}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-sm font-semibold">Notas (Opcional)</Label>
+                                <Textarea
+                                    placeholder="Ej: Enviado por email, Conversación telefónica, etc."
+                                    value={sendNotes}
+                                    onChange={(e) => setSendNotes(e.target.value)}
+                                    rows={3}
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setSendModalOpen(false)}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleMarkAsSent} className="bg-blue-600 hover:bg-blue-700">
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Confirmar
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Modal de historial */}
+                <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+                    <DialogContent className="sm:max-w-[600px]">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                                <History className="w-5 h-5 text-blue-600" />
+                                Historial de Envíos
+                            </DialogTitle>
+                            <DialogDescription>
+                                Cliente: <span className="font-semibold">{selectedClientForHistory?.clientName}</span>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4 max-h-[400px] overflow-y-auto">
+                            {selectedClientForHistory?.fullClient?.price_increase_notifications?.length > 0 ? (
+                                <div className="space-y-3">
+                                    {[...selectedClientForHistory.fullClient.price_increase_notifications]
+                                        .sort((a, b) => new Date(b.sent_date) - new Date(a.sent_date))
+                                        .map((notification, index) => (
+                                            <Card key={index} className="p-4 border border-slate-200">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="space-y-1">
+                                                        <p className="font-semibold text-slate-900">
+                                                            {format(new Date(notification.sent_date), 'd MMMM yyyy', { locale: es })}
+                                                        </p>
+                                                        <p className="text-sm text-slate-600">
+                                                            {notification.notes || 'Sin notas'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-xs text-slate-500">
+                                                        {differenceInMonths(new Date(), new Date(notification.sent_date))} meses
+                                                    </div>
+                                                </div>
+                                            </Card>
+                                        ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-slate-500">
+                                    <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                    <p>No hay historial de envíos</p>
+                                </div>
+                            )}
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setHistoryModalOpen(false)}>
+                                Cerrar
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                </div>
+                </div>
+                );
+                }
