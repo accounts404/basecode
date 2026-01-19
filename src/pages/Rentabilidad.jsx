@@ -347,8 +347,6 @@ export default function RentabilidadPage() {
     const [isThresholdModalOpen, setIsThresholdModalOpen] = useState(false);
     const [users, setUsers] = useState([]);
     const [monthlyProcessedClientAnalysis, setMonthlyProcessedClientAnalysis] = useState([]);
-    const [monthlyOperationalCosts, setMonthlyOperationalCosts] = useState({ hours: 0, amount: 0, clients: [] });
-    const [cumulativeOperationalCosts, setCumulativeOperationalCosts] = useState({ hours: 0, amount: 0, clients: [] });
     
     const [monthlyTrainingCost, setMonthlyTrainingCost] = useState({ hours: 0, amount: 0 });
     const [cumulativeTrainingCost, setCumulativeTrainingCost] = useState({ hours: 0, amount: 0 });
@@ -374,13 +372,9 @@ export default function RentabilidadPage() {
         { value: "one_off", label: "Servicio Único" }
     ];
 
-    // Obtener lista única de nombres de clientes para el selector (excluir operational_cost)
+    // Obtener lista única de nombres de clientes para el selector
     const uniqueClientNames = useMemo(() => {
-        const activeClients = clients.filter(c => 
-            c.active !== false && 
-            c.id !== trainingClientId &&
-            c.client_type !== 'operational_cost'
-        );
+        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
         return [...new Set(activeClients.map(c => c.name))].sort();
     }, [clients, trainingClientId]);
 
@@ -518,54 +512,10 @@ export default function RentabilidadPage() {
                 );
             }
 
-            // Procesar costos operacionales por separado
-            const operationalClientsData = [];
-            let totalOperationalHours = 0;
-            let totalOperationalCost = 0;
-
             monthlySchedules.forEach(schedule => {
                 if (schedule.client_id === trainingClientId) return;
 
                 const client = clientMap.get(schedule.client_id);
-                if (!client) {
-                    console.warn('[Rentabilidad] ⚠️ Cliente no encontrado para schedule:', schedule.id, schedule.client_name);
-                    return;
-                }
-
-                // Si es operational_cost, contabilizar por separado
-                if (client.client_type === 'operational_cost') {
-                    const workEntriesForThisClient = allWorkEntries.filter(e => 
-                        e.client_id === schedule.client_id &&
-                        isDateInRange(e.work_date, monthStart, monthEnd)
-                    );
-                    
-                    const clientHours = workEntriesForThisClient.reduce((sum, e) => sum + (e.hours || 0), 0);
-                    const clientCost = workEntriesForThisClient.reduce((sum, e) => sum + (e.total_amount || 0), 0);
-                    
-                    totalOperationalHours += clientHours;
-                    totalOperationalCost += clientCost;
-                    
-                    operationalClientsData.push({
-                        clientName: client.name,
-                        hours: clientHours,
-                        cost: clientCost
-                    });
-                    
-                    return; // No procesar como cliente normal
-                }
-            });
-
-            setMonthlyOperationalCosts({
-                hours: totalOperationalHours,
-                amount: totalOperationalCost,
-                clients: operationalClientsData
-            });
-
-            monthlySchedules.forEach(schedule => {
-                if (schedule.client_id === trainingClientId) return;
-
-                const client = clientMap.get(schedule.client_id);
-                if (client?.client_type === 'operational_cost') return;
                 if (!client) {
                     console.warn('[Rentabilidad] ⚠️ Cliente no encontrado para schedule:', schedule.id, schedule.client_name);
                     return;
@@ -665,7 +615,7 @@ export default function RentabilidadPage() {
             setFixedCostInput(currentFixedCostAmount);
             setSavedFixedCosts(currentFixedCostAmount);
 
-            const totalFixedCostsWithTrainingAndOperational = currentFixedCostAmount + trainingAmount + totalOperationalCost;
+            const totalFixedCostsWithTraining = currentFixedCostAmount + trainingAmount;
 
             const totalMonthlyHours = Object.values(clientData).reduce((sum, c) => sum + c.totalHours, 0);
 
@@ -679,7 +629,7 @@ export default function RentabilidadPage() {
                 const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
 
                 const clientHourShare = totalMonthlyHours > 0 ? data.totalHours / totalMonthlyHours : 0;
-                const distributedFixedCost = totalFixedCostsWithTrainingAndOperational * clientHourShare;
+                const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
                 const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
                 const realMargin = margin - distributedFixedCost;
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
@@ -836,11 +786,7 @@ export default function RentabilidadPage() {
             return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0 };
         }
 
-        const activeClients = clients.filter(c => 
-            c.active !== false && 
-            c.id !== trainingClientId &&
-            c.client_type !== 'operational_cost'
-        );
+        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
         const clientMap = new Map(activeClients.map(c => [c.id, c]));
 
         const cumulativeIncomeDetailMap = new Map();
@@ -894,39 +840,6 @@ export default function RentabilidadPage() {
             }
         });
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
-
-        // Calcular costos operacionales acumulados
-        const operationalClients = clients.filter(c => c.client_type === 'operational_cost');
-        const cumulativeOperationalClientsData = [];
-        let totalCumulativeOperationalHours = 0;
-        let totalCumulativeOperationalCost = 0;
-
-        operationalClients.forEach(client => {
-            const workEntriesForThisClient = allWorkEntries.filter(e => 
-                e.client_id === client.id &&
-                isDateInRange(e.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate))
-            );
-            
-            const clientHours = workEntriesForThisClient.reduce((sum, e) => sum + (e.hours || 0), 0);
-            const clientCost = workEntriesForThisClient.reduce((sum, e) => sum + (e.total_amount || 0), 0);
-            
-            if (clientHours > 0 || clientCost > 0) {
-                totalCumulativeOperationalHours += clientHours;
-                totalCumulativeOperationalCost += clientCost;
-                
-                cumulativeOperationalClientsData.push({
-                    clientName: client.name,
-                    hours: clientHours,
-                    cost: clientCost
-                });
-            }
-        });
-
-        setCumulativeOperationalCosts({
-            hours: totalCumulativeOperationalHours,
-            amount: totalCumulativeOperationalCost,
-            clients: cumulativeOperationalClientsData
-        });
 
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
             return isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
@@ -999,12 +912,12 @@ export default function RentabilidadPage() {
         const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
-        const totalFixedCostsWithTrainingAndOperational = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCost;
+        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
 
         const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
 
         const cumulativeFixedCostPerHourOverall = overallCumulativeTotalHours > 0 ? 
-            totalFixedCostsWithTrainingAndOperational / overallCumulativeTotalHours : 0;
+            totalFixedCostsWithTraining / overallCumulativeTotalHours : 0;
 
         const cumulativeClientAnalysis = Object.values(cumulativeClientProfitability).map(data => {
             const client = clientMap.get(data.clientId);
@@ -1113,10 +1026,7 @@ export default function RentabilidadPage() {
         loadAllInitialData();
     };
 
-    const clientsForPricingAnalysis = clients.filter(c => 
-        c.id !== trainingClientId && 
-        c.client_type !== 'operational_cost'
-    );
+    const clientsForPricingAnalysis = clients.filter(c => c.id !== trainingClientId);
 
     // Función para verificar si han pasado 9 meses desde el último envío
     const isNotificationExpired = (sentDate) => {
@@ -1426,9 +1336,9 @@ export default function RentabilidadPage() {
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <p className="text-4xl font-bold text-orange-900 tracking-tight">${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts.amount).toFixed(2)}</p>
+                                    <p className="text-4xl font-bold text-orange-900 tracking-tight">${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount).toFixed(2)}</p>
                                     <p className="text-xs text-orange-700 mt-1 font-medium">
-                                        Fijos: ${parseFloat(fixedCostInput || 0).toFixed(2)} + TRN: ${monthlyTrainingCost.amount.toFixed(2)} + OPS: ${monthlyOperationalCosts.amount.toFixed(2)}
+                                        Fijos: ${parseFloat(fixedCostInput || 0).toFixed(2)} + TRN: ${monthlyTrainingCost.amount.toFixed(2)}
                                     </p>
                                 </CardContent>
                             </Card>
@@ -1475,40 +1385,6 @@ export default function RentabilidadPage() {
                             </Card>
                         </div>
                         
-                        {monthlyOperationalCosts.clients.length > 0 && (
-                            <Card className="shadow-lg border border-red-200/60 bg-gradient-to-br from-red-50 to-white mb-6">
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-sm font-semibold text-red-800 uppercase tracking-wide flex items-center gap-2">
-                                        <Briefcase className="w-4 h-4" />
-                                        Gastos Operativos (Casas Internas)
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        {monthlyOperationalCosts.clients.map((client, idx) => (
-                                            <div key={idx} className="flex justify-between items-center p-3 bg-white rounded-lg border border-red-100">
-                                                <span className="font-semibold text-slate-900">{client.clientName}</span>
-                                                <div className="flex items-center gap-4">
-                                                    <span className="text-sm text-slate-600">{client.hours.toFixed(2)}h</span>
-                                                    <span className="text-lg font-bold text-red-700">${client.cost.toFixed(2)}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        <div className="flex justify-between items-center p-4 bg-red-100 rounded-lg border-2 border-red-300">
-                                            <span className="font-bold text-red-900">TOTAL GASTOS OPERATIVOS</span>
-                                            <div className="flex items-center gap-4">
-                                                <span className="text-sm font-semibold text-red-800">{monthlyOperationalCosts.hours.toFixed(2)}h</span>
-                                                <span className="text-xl font-bold text-red-900">${monthlyOperationalCosts.amount.toFixed(2)}</span>
-                                            </div>
-                                        </div>
-                                        <p className="text-xs text-slate-600 italic">
-                                            * Estos costos se distribuyen proporcionalmente entre todos los clientes según sus horas trabajadas
-                                        </p>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-
                         <Accordion type="multiple" defaultValue={["item-1", "item-2", "item-3"]} className="w-full space-y-6">
                             <AccordionItem value="item-1" className="bg-white border border-slate-200/60 rounded-2xl shadow-lg overflow-hidden">
                                 <AccordionTrigger className="px-8 py-6 text-lg font-bold hover:no-underline hover:bg-slate-50/50 transition-colors">
@@ -2028,7 +1904,7 @@ export default function RentabilidadPage() {
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
                                                                         <div className="cursor-help">
-                                                                            ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + cumulativeOperationalCosts.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                            ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent className="bg-slate-900 text-white p-3">
@@ -2038,10 +1914,10 @@ export default function RentabilidadPage() {
                                                                                 Mano de obra: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.summary.totalLaborCost / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                             </p>
                                                                             <p className="text-xs">
-                                                                                Gastos fijos: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + cumulativeOperationalCosts.amount) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                                Gastos fijos: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                             </p>
                                                                             <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
-                                                                                Total: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + cumulativeOperationalCosts.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                                Total: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                             </p>
                                                                         </div>
                                                                     </TooltipContent>
@@ -2051,7 +1927,7 @@ export default function RentabilidadPage() {
                                                         <TableCell className="text-right text-xl text-emerald-800">${cumulativeProfitabilityData.summary.totalIncome.toFixed(2)}</TableCell>
                                                         <TableCell className="text-right text-xl text-rose-800">${cumulativeProfitabilityData.summary.totalLaborCost.toFixed(2)}</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalMargin > 0 ? 'text-blue-800' : 'text-orange-800'}`}>${cumulativeProfitabilityData.summary.totalMargin.toFixed(2)}</TableCell>
-                                                        <TableCell className="text-right text-xl text-slate-700">(${(cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + cumulativeOperationalCosts.amount).toFixed(2)})</TableCell>
+                                                        <TableCell className="text-right text-xl text-slate-700">(${(cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount).toFixed(2)})</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalRealMargin > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${cumulativeProfitabilityData.summary.totalRealMargin.toFixed(2)}</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalRealProfitPercentage > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
                                                             <div className="flex items-center justify-end gap-2">
