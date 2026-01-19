@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +22,6 @@ export default function ClientForm({ client, onSave, onCancel }) {
         name: '',
         sms_name: '',
         client_type: 'domestic',
-        is_overhead_cost: false,
         mobile_number: '',
         secondary_mobile_number: '',
         address: '',
@@ -57,7 +57,6 @@ export default function ClientForm({ client, onSave, onCancel }) {
                 name: client.name || '',
                 sms_name: client.sms_name || '',
                 client_type: client.client_type || 'domestic',
-                is_overhead_cost: client.is_overhead_cost || false,
                 mobile_number: client.mobile_number || '',
                 secondary_mobile_number: client.secondary_mobile_number || '',
                 address: client.address || '',
@@ -187,24 +186,13 @@ export default function ClientForm({ client, onSave, onCancel }) {
                                 placeholder="ej: 0498765432 (opcional)"
                             />
                         </div>
-                        <div className="flex flex-col space-y-3 md:col-span-2">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox 
-                                    id="active" 
-                                    checked={formData.active} 
-                                    onCheckedChange={(checked) => setFormData({...formData, active: checked})}
-                                />
-                                <Label htmlFor="active">Cliente Activo</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox 
-                                    id="is_overhead_cost" 
-                                    checked={formData.is_overhead_cost} 
-                                    onCheckedChange={(checked) => setFormData({...formData, is_overhead_cost: checked})}
-                                />
-                                <Label htmlFor="is_overhead_cost" className="text-orange-700 font-semibold">Es un Gasto Operativo (no cliente real)</Label>
-                            </div>
-                            <p className="text-xs text-slate-600 ml-6">Los costos se prorratearán entre los clientes reales según horas trabajadas.</p>
+                        <div className="flex items-center space-x-2 self-end pb-2">
+                            <Checkbox 
+                                id="active" 
+                                checked={formData.active} 
+                                onCheckedChange={(checked) => setFormData({...formData, active: checked})}
+                            />
+                            <Label htmlFor="active">Cliente Activo</Label>
                         </div>
                     </div>
                 </TabsContent>
