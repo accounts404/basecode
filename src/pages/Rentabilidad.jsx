@@ -1402,19 +1402,19 @@ export default function RentabilidadPage() {
 
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                              <Card className="shadow-lg border border-orange-200/60 bg-gradient-to-br from-orange-50 to-white">
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-sm font-semibold text-orange-800 uppercase tracking-wide flex items-center gap-2">
-                                        <PiggyBank className="w-4 h-4" />
-                                        Gastos Fijos Totales
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-4xl font-bold text-orange-900 tracking-tight">${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount).toFixed(2)}</p>
-                                    <p className="text-xs text-orange-700 mt-1 font-medium">
-                                        Fijos: ${parseFloat(fixedCostInput || 0).toFixed(2)} + TRN: ${monthlyTrainingCost.amount.toFixed(2)}
-                                    </p>
-                                </CardContent>
-                            </Card>
+                                  <CardHeader className="pb-3">
+                                      <CardTitle className="text-sm font-semibold text-orange-800 uppercase tracking-wide flex items-center gap-2">
+                                          <PiggyBank className="w-4 h-4" />
+                                          Gastos Fijos Totales
+                                      </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                      <p className="text-4xl font-bold text-orange-900 tracking-tight">${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + (monthlyOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0))).toFixed(2)}</p>
+                                      <p className="text-xs text-orange-700 mt-1 font-medium">
+                                          Fijos: ${parseFloat(fixedCostInput || 0).toFixed(2)} + TRN: ${monthlyTrainingCost.amount.toFixed(2)} + OP: ${(monthlyOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0)).toFixed(2)}
+                                      </p>
+                                  </CardContent>
+                             </Card>
 
                             <Card className={`shadow-lg border ${profitabilityData.summary.totalRealMargin >= 0 ? 'border-emerald-200/60 bg-gradient-to-br from-emerald-50 to-white' : 'border-rose-200/60 bg-gradient-to-br from-rose-50 to-white'}`}>
                                 <CardHeader className="pb-3">
