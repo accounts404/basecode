@@ -266,18 +266,33 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                             }
 
                                             let serviceAmount = 0;
+                                            let serviceGstType = 'inclusive';
+                                            
                                             if (service.reconciliation_items && service.reconciliation_items.length > 0) {
                                                 serviceAmount = service.reconciliation_items.reduce((itemTotal, item) => {
                                                     const itemAmount = parseFloat(item.amount) || 0;
                                                     return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
                                                 }, 0);
+                                                if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                                                    serviceGstType = service.billed_gst_type_snapshot;
+                                                } else {
+                                                    const client = clients.get(service.client_id);
+                                                    serviceGstType = client?.gst_type || 'inclusive';
+                                                }
                                             } else {
                                                 if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
                                                     serviceAmount = service.billed_price_snapshot;
+                                                    serviceGstType = service.billed_gst_type_snapshot || 'inclusive';
                                                 } else {
                                                     const client = clients.get(service.client_id);
                                                     serviceAmount = client?.current_service_price || 0;
+                                                    serviceGstType = client?.gst_type || 'inclusive';
                                                 }
+                                            }
+
+                                            let serviceBaseAmount = serviceAmount;
+                                            if (serviceGstType === 'inclusive') {
+                                                serviceBaseAmount = serviceAmount / 1.1;
                                             }
 
                                             const serviceDate = new Date(service.start_time);
@@ -299,6 +314,9 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                                     </TableCell>
                                                     <TableCell className="text-right text-slate-600">
                                                         ${(serviceAmount / serviceHours).toFixed(2)}/h
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-slate-600">
+                                                        ${serviceBaseAmount.toFixed(2)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-semibold text-blue-600">
                                                         ${serviceAmount.toFixed(2)}
