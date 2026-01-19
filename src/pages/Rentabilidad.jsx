@@ -1078,7 +1078,8 @@ export default function RentabilidadPage() {
         return { 
             clientAnalysis: filteredCumulativeAnalysis, 
             summary: cumulativeSummary, 
-            overallTotalFixedCosts: totalCumulativeFixedCosts 
+            overallTotalFixedCosts: totalCumulativeFixedCosts,
+            overallTotalFixedCostsWithOperational: totalFixedCostsWithTraining
         };
     }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
 
