@@ -114,12 +114,51 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
     };
 
     const totalStats = useMemo(() => {
+        let totalAmount = 0;
+        let cashAmount = 0;
+        let normalAmount = 0;
+
+        // Recalcular totales incluyendo desglose de cash
+        const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0);
+        const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
+
+        monthlySchedules.forEach(service => {
+            const serviceDate = new Date(service.start_time);
+            if (serviceDate >= start && serviceDate <= end) {
+                const client = clients.get(service.client_id);
+                
+                let amount = 0;
+                if (service.reconciliation_items && service.reconciliation_items.length > 0) {
+                    amount = service.reconciliation_items.reduce((itemTotal, item) => {
+                        const itemAmount = parseFloat(item.amount) || 0;
+                        return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
+                    }, 0);
+                } else {
+                    if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                        amount = service.billed_price_snapshot;
+                    } else {
+                        amount = client?.current_service_price || 0;
+                    }
+                }
+                
+                totalAmount += amount;
+                
+                if (client?.payment_method === 'cash') {
+                    cashAmount += amount;
+                } else {
+                    normalAmount += amount;
+                }
+            }
+        });
+
         return {
-            totalAmount: clientReport.reduce((sum, client) => sum + client.totalAmount, 0),
+            totalAmount,
+            cashAmount,
+            normalAmount,
             totalHours: clientReport.reduce((sum, client) => sum + client.totalHours, 0),
             clientCount: clientReport.length
         };
-    }, [clientReport]);
+    }, [clientReport, monthlySchedules, clients, startDate, endDate]);
 
     return (
         <div className="space-y-6">
