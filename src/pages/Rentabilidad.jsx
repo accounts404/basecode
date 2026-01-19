@@ -783,19 +783,11 @@ export default function RentabilidadPage() {
 
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
-            return { 
-                clientAnalysis: [], 
-                overheadAnalysis: [],
-                summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, 
-                overallTotalFixedCosts: 0 
-            };
+            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0 };
         }
 
         const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
-        const overheadClients = activeClients.filter(c => c.is_overhead_cost === true);
-        const realClients = activeClients.filter(c => c.is_overhead_cost !== true);
         const clientMap = new Map(activeClients.map(c => [c.id, c]));
-        const overheadClientIds = new Set(overheadClients.map(c => c.id));
 
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
@@ -920,20 +912,12 @@ export default function RentabilidadPage() {
         const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
-        // Calcular el costo total de los clientes overhead
-        const overheadTotalCost = Object.values(cumulativeClientProfitability)
-            .filter(entry => overheadClientIds.has(entry.clientId))
-            .reduce((sum, entry) => sum + (entry.totalLaborCost || 0), 0);
+        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
 
-        const totalFixedCostsWithTrainingAndOverhead = totalCumulativeFixedCosts + cumulativeTrainingAmount + overheadTotalCost;
+        const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
 
-        // Calcular horas solo de clientes REALES (no overhead)
-        const realClientsTotalHours = Object.values(cumulativeClientProfitability)
-            .filter(entry => !overheadClientIds.has(entry.clientId))
-            .reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
-
-        const cumulativeFixedCostPerHourOverall = realClientsTotalHours > 0 ? 
-            totalFixedCostsWithTrainingAndOverhead / realClientsTotalHours : 0;
+        const cumulativeFixedCostPerHourOverall = overallCumulativeTotalHours > 0 ? 
+            totalFixedCostsWithTraining / overallCumulativeTotalHours : 0;
 
         const cumulativeClientAnalysis = Object.values(cumulativeClientProfitability).map(data => {
             const client = clientMap.get(data.clientId);
@@ -970,11 +954,7 @@ export default function RentabilidadPage() {
             };
         }).filter(data => data.totalHours > 0 || data.totalIncome > 0);
 
-        // Separar clientes reales de overhead
-        const realClientsAnalysis = cumulativeClientAnalysis.filter(data => !overheadClientIds.has(data.clientId));
-        const overheadClientsAnalysis = cumulativeClientAnalysis.filter(data => overheadClientIds.has(data.clientId));
-
-        const sortedCumulativeAnalysis = [...realClientsAnalysis].sort((a, b) => {
+        const sortedCumulativeAnalysis = [...cumulativeClientAnalysis].sort((a, b) => {
             let aValue = a[sortColumn];
             let bValue = b[sortColumn];
 
@@ -1023,11 +1003,9 @@ export default function RentabilidadPage() {
         cumulativeSummary.totalRealProfitPercentage = cumulativeTotalRealProfitPercentage;
 
         return { 
-            clientAnalysis: filteredCumulativeAnalysis,
-            overheadAnalysis: overheadClientsAnalysis,
+            clientAnalysis: filteredCumulativeAnalysis, 
             summary: cumulativeSummary, 
-            overallTotalFixedCosts: totalCumulativeFixedCosts,
-            overheadTotalCost: overheadTotalCost
+            overallTotalFixedCosts: totalCumulativeFixedCosts 
         };
     }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
 
@@ -1695,48 +1673,6 @@ export default function RentabilidadPage() {
                                             </span>
                                         )}
                                     </p>
-
-                                    {/* Sección de Gastos Operativos */}
-                                    {cumulativeProfitabilityData.overheadAnalysis.length > 0 && (
-                                        <Card className="mb-6 shadow-lg border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-white">
-                                            <CardHeader className="pb-3 bg-orange-100/50">
-                                                <CardTitle className="text-lg font-bold text-orange-900 flex items-center gap-2">
-                                                    <PiggyBank className="w-5 h-5" />
-                                                    Gastos Operativos
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="p-4">
-                                                <p className="text-sm text-orange-800 mb-4">
-                                                    Estos "clientes" son en realidad gastos operativos (ej: casas de los jefes). Sus costos se prorratean automáticamente entre todos los clientes reales según las horas trabajadas.
-                                                </p>
-                                                <div className="space-y-2">
-                                                    {cumulativeProfitabilityData.overheadAnalysis.map(data => (
-                                                        <div key={data.clientId} className="bg-white border border-orange-200 rounded-lg p-3">
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="flex-1">
-                                                                    <p className="font-semibold text-slate-900">{data.clientName}</p>
-                                                                    <p className="text-xs text-slate-600">{data.totalHours.toFixed(2)}h trabajadas</p>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <p className="text-lg font-bold text-rose-700">${data.totalLaborCost.toFixed(2)}</p>
-                                                                    <p className="text-xs text-slate-600">${data.laborCostPerHour.toFixed(2)}/h</p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                    <div className="bg-orange-100 border-2 border-orange-400 rounded-lg p-4 mt-4">
-                                                        <div className="flex items-center justify-between">
-                                                            <p className="font-bold text-orange-900">TOTAL GASTOS OPERATIVOS:</p>
-                                                            <p className="text-2xl font-bold text-orange-900">${(cumulativeProfitabilityData.overheadTotalCost || 0).toFixed(2)}</p>
-                                                        </div>
-                                                        <p className="text-xs text-orange-700 mt-2">
-                                                            Este monto se distribuye proporcionalmente entre los clientes reales según sus horas trabajadas.
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
                                     {cumulativeProfitabilityData.clientAnalysis.length > 0 ? (
                                         <div className="overflow-x-auto max-h-[600px] overflow-y-auto border border-slate-200 rounded-xl">
                                             <Table>
@@ -1968,7 +1904,7 @@ export default function RentabilidadPage() {
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
                                                                         <div className="cursor-help">
-                                                                           ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + (cumulativeProfitabilityData.overheadTotalCost || 0))) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                            ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent className="bg-slate-900 text-white p-3">
@@ -1978,10 +1914,10 @@ export default function RentabilidadPage() {
                                                                                 Mano de obra: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.summary.totalLaborCost / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                             </p>
                                                                             <p className="text-xs">
-                                                                               Gastos fijos: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + (cumulativeProfitabilityData.overheadTotalCost || 0)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                                Gastos fijos: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                             </p>
                                                                             <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
-                                                                               Total: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + (cumulativeProfitabilityData.overheadTotalCost || 0))) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                                Total: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                             </p>
                                                                         </div>
                                                                     </TooltipContent>
@@ -1991,7 +1927,7 @@ export default function RentabilidadPage() {
                                                         <TableCell className="text-right text-xl text-emerald-800">${cumulativeProfitabilityData.summary.totalIncome.toFixed(2)}</TableCell>
                                                         <TableCell className="text-right text-xl text-rose-800">${cumulativeProfitabilityData.summary.totalLaborCost.toFixed(2)}</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalMargin > 0 ? 'text-blue-800' : 'text-orange-800'}`}>${cumulativeProfitabilityData.summary.totalMargin.toFixed(2)}</TableCell>
-                                                        <TableCell className="text-right text-xl text-slate-700">(${(cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + (cumulativeProfitabilityData.overheadTotalCost || 0)).toFixed(2)})</TableCell>
+                                                        <TableCell className="text-right text-xl text-slate-700">(${(cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount).toFixed(2)})</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalRealMargin > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${cumulativeProfitabilityData.summary.totalRealMargin.toFixed(2)}</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalRealProfitPercentage > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
                                                             <div className="flex items-center justify-end gap-2">
