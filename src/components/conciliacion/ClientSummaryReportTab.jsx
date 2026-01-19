@@ -20,6 +20,8 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             : new Date()
     );
     const [expandedClients, setExpandedClients] = useState({});
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     // Filtrar servicios por rango de fechas y agrupar por cliente
     const clientReport = useMemo(() => {
