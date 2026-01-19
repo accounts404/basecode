@@ -183,13 +183,20 @@ export default function ClientesPage() {
         e.preventDefault();
         setLoading(true);
         try {
+            // Limpiar campos numéricos vacíos
+            const cleanedFormData = {
+                ...formData,
+                num_bedrooms: formData.num_bedrooms === '' ? null : formData.num_bedrooms,
+                num_bathrooms: formData.num_bathrooms === '' ? null : formData.num_bathrooms,
+            };
+
             if (editingClient) {
-                console.log('[Clientes] Actualizando cliente con notas estructuradas:', formData.structured_service_notes ? 'Sí' : 'No');
-                await Client.update(editingClient.id, formData);
+                console.log('[Clientes] Actualizando cliente con notas estructuradas:', cleanedFormData.structured_service_notes ? 'Sí' : 'No');
+                await Client.update(editingClient.id, cleanedFormData);
                 console.log('[Clientes] Cliente actualizado exitosamente, incluyendo notas estructuradas.');
             } else {
-                console.log('[Clientes] Creando nuevo cliente con notas estructuradas:', formData.structured_service_notes ? 'Sí' : 'No');
-                await Client.create(formData);
+                console.log('[Clientes] Creando nuevo cliente con notas estructuradas:', cleanedFormData.structured_service_notes ? 'Sí' : 'No');
+                await Client.create(cleanedFormData);
                 console.log('[Clientes] Nuevo cliente creado exitosamente, incluyendo notas estructuradas.');
             }
             fetchClients();
