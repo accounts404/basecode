@@ -240,6 +240,9 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                             <TableCell className="text-right font-semibold text-slate-700">
                                                 ${avgRate.toFixed(2)}/h
                                             </TableCell>
+                                            <TableCell className="text-right font-semibold text-slate-600">
+                                                ${(clientGroup.baseAmount || 0).toFixed(2)}
+                                            </TableCell>
                                             <TableCell className="text-right">
                                                 <span className="font-bold text-lg text-blue-700">
                                                     ${clientGroup.totalAmount.toFixed(2)}
