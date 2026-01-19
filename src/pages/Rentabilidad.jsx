@@ -1541,7 +1541,7 @@ export default function RentabilidadPage() {
                                         </span>
                                     </div>
                                 </AccordionTrigger>
-                                <AccordionContent className="px-8 pb-8 pt-6">
+                                <AccordionContent className="px-8 pb-8 pt-6 min-h-screen">
                                     <Card className="mb-6 shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                                         <CardContent className="p-6">
                                             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
@@ -1674,7 +1674,7 @@ export default function RentabilidadPage() {
                                         )}
                                     </p>
                                     {cumulativeProfitabilityData.clientAnalysis.length > 0 ? (
-                                        <div className="overflow-x-auto max-h-[1000px] overflow-y-auto border border-slate-200 rounded-xl">
+                                        <div className="overflow-x-auto h-[calc(100vh-400px)] overflow-y-auto border border-slate-200 rounded-xl">
                                             <Table>
                                                 <TableHeader className="sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 border-b-2 border-slate-200">
                                                     <TableRow>
