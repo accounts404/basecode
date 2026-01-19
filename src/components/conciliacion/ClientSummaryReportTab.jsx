@@ -214,6 +214,16 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                 <Card className="shadow-lg border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4">
                     <p className="text-sm text-blue-700 font-semibold">Ingresos Totales</p>
                     <p className="text-3xl font-bold text-blue-900 mt-2">${totalStats.totalAmount.toFixed(2)}</p>
+                    <div className="mt-3 space-y-1 text-xs">
+                        <div className="flex justify-between text-slate-600">
+                            <span>• Cash:</span>
+                            <span className="font-semibold text-green-700">${totalStats.cashAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                            <span>• Otros:</span>
+                            <span className="font-semibold text-blue-700">${totalStats.normalAmount.toFixed(2)}</span>
+                        </div>
+                    </div>
                 </Card>
 
                 <Card className="shadow-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
