@@ -1429,6 +1429,60 @@ export default function RentabilidadPage() {
                             </Card>
                         </div>
                         
+                        {/* Sección de Gastos Operativos */}
+                        {monthlyOperationalCosts.length > 0 && selectedPeriod && (
+                            <Card className="shadow-xl border border-orange-200/60 bg-gradient-to-br from-orange-50 to-white mb-6">
+                                <CardHeader>
+                                    <CardTitle className="text-lg flex items-center gap-2 text-orange-900">
+                                        <Briefcase className="w-5 h-5" />
+                                        Gastos Operativos - {format(selectedPeriod.start, 'MMMM yyyy', { locale: es })}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-4">
+                                        <p className="text-sm text-slate-600">
+                                            Los siguientes clientes son tratados como costos operativos. Sus gastos se distribuyen automáticamente entre los clientes reales según sus horas de trabajo.
+                                        </p>
+                                        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                                            <Table>
+                                                <TableHeader className="bg-orange-100">
+                                                    <TableRow>
+                                                        <TableHead className="font-bold text-orange-900">Nombre</TableHead>
+                                                        <TableHead className="text-right font-bold text-orange-900">Total Laborales</TableHead>
+                                                        <TableHead className="text-right font-bold text-orange-900">% Distribución</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {monthlyProcessedClientAnalysis
+                                                        .filter(data => {
+                                                            const client = clients.find(c => c.id === data.clientId);
+                                                            return client?.client_type === 'operational_cost';
+                                                        })
+                                                        .map(data => {
+                                                            const totalRealHours = Object.values(monthlyProcessedClientAnalysis)
+                                                                .filter(d => {
+                                                                    const c = clients.find(cl => cl.id === d.clientId);
+                                                                    return c?.client_type !== 'operational_cost';
+                                                                })
+                                                                .reduce((sum, d) => sum + d.totalHours, 0);
+                                                            const distribution = totalRealHours > 0 ? (data.totalHours / totalRealHours) * 100 : 0;
+                                                            
+                                                            return (
+                                                                <TableRow key={data.clientId} className="hover:bg-orange-50/50">
+                                                                    <TableCell className="font-semibold">{data.clientName}</TableCell>
+                                                                    <TableCell className="text-right text-orange-700 font-bold">${data.totalLaborCost.toFixed(2)}</TableCell>
+                                                                    <TableCell className="text-right text-slate-700">{distribution.toFixed(1)}%</TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         <Accordion type="multiple" defaultValue={["item-1", "item-2", "item-3"]} className="w-full space-y-6">
                             <AccordionItem value="item-1" className="bg-white border border-slate-200/60 rounded-2xl shadow-lg overflow-hidden">
                                 <AccordionTrigger className="px-8 py-6 text-lg font-bold hover:no-underline hover:bg-slate-50/50 transition-colors">
