@@ -253,44 +253,40 @@ export default function ConciliacionFacturasPage() {
 
     const fetchMonthlyData = useCallback(async (date) => {
         try {
-            const year = date.getFullYear();
-            const month = date.getMonth();
+            console.log('[ConciliacionFacturas] 🔍 Cargando TODOS los servicios desde abril 2025...');
             
-            // Construir el prefijo del mes objetivo: "YYYY-MM"
-            const targetMonthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-            
-            console.log('[ConciliacionFacturas] 🔍 Buscando servicios para mes:', targetMonthPrefix);
-            
-            // Traer un rango amplio para cubrir diferencias de zona horaria
-            const monthStartUTC = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-            const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-            const monthEndUTC = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
+            // Cargar todos los servicios desde abril 2025 hasta hoy
+            const startOfRange = new Date(Date.UTC(2025, 3, 1, 0, 0, 0, 0)); // Abril 2025
+            const endOfRange = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 23, 59, 59, 999));
 
-            const schedulesData = await Schedule.filter({
-                start_time: {
-                    $gte: monthStartUTC.toISOString(),
-                    $lte: monthEndUTC.toISOString()
+            const BATCH_SIZE = 5000;
+            let allSchedules = [];
+            let skip = 0;
+            let hasMore = true;
+
+            // Cargar todos los registros en lotes
+            while (hasMore) {
+                const batch = await Schedule.list('-start_time', BATCH_SIZE, skip);
+                const batchArray = Array.isArray(batch) ? batch : [];
+                
+                allSchedules = [...allSchedules, ...batchArray];
+                
+                if (batchArray.length < BATCH_SIZE) {
+                    hasMore = false;
+                } else {
+                    skip += BATCH_SIZE;
                 }
-            }, '-start_time');
+            }
 
-            // FILTRO ADICIONAL: Verificar que la fecha del servicio (primeros 10 chars) coincida con el mes
-            const activeSchedules = schedulesData.filter(schedule => {
+            // Filtrar servicios activos en el rango de fechas
+            const activeSchedules = allSchedules.filter(schedule => {
                 if (schedule.status === 'cancelled') return false;
                 
-                // Extraer YYYY-MM-DD de start_time (primeros 10 caracteres)
-                const serviceDateStr = schedule.start_time ? schedule.start_time.slice(0, 10) : '';
-                
-                // Verificar que comience con el mes objetivo (YYYY-MM)
-                const isInTargetMonth = serviceDateStr.startsWith(targetMonthPrefix);
-                
-                if (!isInTargetMonth) {
-                    console.log(`[ConciliacionFacturas] ❌ Excluido: ${schedule.client_name} - Fecha: ${serviceDateStr} (no pertenece a ${targetMonthPrefix})`);
-                }
-                
-                return isInTargetMonth;
-            });
+                const serviceDate = new Date(schedule.start_time);
+                return serviceDate >= startOfRange && serviceDate <= endOfRange;
+            }).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 
-            console.log(`[ConciliacionFacturas] ✅ Servicios del mes ${targetMonthPrefix}: ${activeSchedules.length}`);
+            console.log(`[ConciliacionFacturas] ✅ Total de servicios cargados: ${activeSchedules.length}`);
             setMonthlySchedules(activeSchedules);
         } catch (err) {
             console.error("Error fetching monthly data:", err);
