@@ -995,13 +995,6 @@ export default function RentabilidadPage() {
         const totalCumulativeOperationalCosts = cumulativeOperationalCosts.reduce((sum, cost) => sum + (cost.totalLaborCost || 0), 0);
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCosts;
-        
-        console.log('[Rentabilidad] 🔍 DEBUG totalFixedCostsWithTraining:', {
-            fixedCosts: totalCumulativeFixedCosts,
-            training: cumulativeTrainingAmount,
-            operational: totalCumulativeOperationalCosts,
-            total: totalFixedCostsWithTraining
-        });
 
         const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
 
