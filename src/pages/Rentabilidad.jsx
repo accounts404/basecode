@@ -1907,7 +1907,7 @@ export default function RentabilidadPage() {
                                                             )})}
                                                             </TableBody>
                                                 <tfoot>
-                                                    <TableRow className="bg-gradient-to-r from-slate-100 to-slate-50 font-bold text-slate-900 sticky bottom-0 border-t-2 border-slate-300">
+                                                    <TableRow className="bg-gradient-to-r from-slate-100 to-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
                                                         <TableCell colSpan="2" className="text-right text-xl py-5">TOTAL ACUMULADO</TableCell>
                                                         <TableCell className="text-center text-xl">{cumulativeProfitabilityData.summary.totalHours.toFixed(2)}h</TableCell>
                                                         <TableCell className="text-right text-xl text-blue-800 bg-blue-50">
