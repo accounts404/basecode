@@ -278,7 +278,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {clientReport.map((clientGroup, index) => {
+                            {paginationStats.paginatedItems.map((clientGroup, index) => {
                                 const avgRate = clientGroup.totalHours > 0 ? clientGroup.totalAmount / clientGroup.totalHours : 0;
                                 const isExpanded = expandedClients[index];
                                 
