@@ -121,16 +121,19 @@ export default function ClientForm({ client, onSave, onCancel }) {
                 </TabsList>
 
                 <TabsContent value="basic" className="space-y-6">
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="is_overhead_cost" 
-                                checked={formData.is_overhead_cost} 
-                                onCheckedChange={(checked) => setFormData({...formData, is_overhead_cost: checked})}
-                            />
-                            <Label htmlFor="is_overhead_cost" className="text-orange-700 font-semibold cursor-pointer">Es un Gasto Operativo (no cliente real)</Label>
+                    <div className="flex items-center gap-3 p-3 bg-orange-100 border-2 border-orange-500 rounded-lg">
+                        <Checkbox 
+                            id="is_overhead_cost" 
+                            checked={formData.is_overhead_cost} 
+                            onCheckedChange={(checked) => setFormData({...formData, is_overhead_cost: checked})}
+                            className="w-5 h-5"
+                        />
+                        <div className="flex-1">
+                            <Label htmlFor="is_overhead_cost" className="text-orange-800 font-bold text-sm cursor-pointer block">
+                                ⚠️ Es un Gasto Operativo (NO es un cliente real)
+                            </Label>
+                            <p className="text-xs text-orange-700">Sus costos se prorratearán entre los clientes reales</p>
                         </div>
-                        <p className="text-xs text-orange-600 ml-6 mt-1">Sus costos se prorratearán entre los clientes reales según horas trabajadas.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
