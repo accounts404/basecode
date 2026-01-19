@@ -353,7 +353,7 @@ export default function RentabilidadPage() {
     const [trainingClientId, setTrainingClientId] = useState(null);
 
     const [cumulativeStartDate, setCumulativeStartDate] = useState(new Date('2025-04-01T00:00:00Z'));
-    const [cumulativeEndDate, setCumulativeEndDate] = useState(new Date());
+    const [cumulativeEndDate, setCumulativeEndDate] = useState(new Date('2025-12-31T23:59:59Z'));
     
     const [hideSentClients, setHideSentClients] = useState(false);
     const [sendModalOpen, setSendModalOpen] = useState(false);
