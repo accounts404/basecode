@@ -1839,26 +1839,29 @@ export default function RentabilidadPage() {
                                                                 <div className="flex items-center justify-center gap-2">
                                                                     {sendStatus.sent && !sendStatus.expired ? (
                                                                         <>
-                                                                            <TooltipProvider>
-                                                                                <Tooltip>
-                                                                                    <TooltipTrigger asChild>
-                                                                                        <div className="flex items-center gap-2 text-green-700">
-                                                                                            <CheckCircle className="w-5 h-5" />
-                                                                                            <span className="text-sm font-semibold">
-                                                                                                {format(new Date(client.current_price_increase_sent_date), 'd MMM yyyy', { locale: es })}
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                onClick={() => handleViewHistory(data)}
+                                                                                className="h-auto py-1 px-2 hover:bg-green-100"
+                                                                            >
+                                                                                <div className="flex items-center gap-2 text-green-700">
+                                                                                    <CheckCircle className="w-5 h-5" />
+                                                                                    <div className="flex flex-col items-start">
+                                                                                        <span className="text-sm font-semibold">
+                                                                                            {format(new Date(client.current_price_increase_sent_date), 'd MMM yyyy', { locale: es })}
+                                                                                        </span>
+                                                                                        {client.current_price_increase_notes && (
+                                                                                            <span className="text-xs text-slate-600 max-w-[150px] truncate">
+                                                                                                {client.current_price_increase_notes}
                                                                                             </span>
-                                                                                            <span className="text-xs text-slate-500">
-                                                                                                ({sendStatus.monthsSince}m)
-                                                                                            </span>
-                                                                                        </div>
-                                                                                    </TooltipTrigger>
-                                                                                    <TooltipContent>
-                                                                                        <p className="text-xs">
-                                                                                            {client.current_price_increase_notes || 'Sin notas'}
-                                                                                        </p>
-                                                                                    </TooltipContent>
-                                                                                </Tooltip>
-                                                                            </TooltipProvider>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <span className="text-xs text-slate-500">
+                                                                                        ({sendStatus.monthsSince}m)
+                                                                                    </span>
+                                                                                </div>
+                                                                            </Button>
                                                                             <Button
                                                                                 variant="ghost"
                                                                                 size="sm"
@@ -1867,16 +1870,6 @@ export default function RentabilidadPage() {
                                                                             >
                                                                                 <X className="w-4 h-4 text-red-600" />
                                                                             </Button>
-                                                                            {client.price_increase_notifications?.length > 1 && (
-                                                                                <Button
-                                                                                    variant="ghost"
-                                                                                    size="sm"
-                                                                                    onClick={() => handleViewHistory(data)}
-                                                                                    className="h-7 w-7 p-0"
-                                                                                >
-                                                                                    <History className="w-4 h-4 text-blue-600" />
-                                                                                </Button>
-                                                                            )}
                                                                         </>
                                                                     ) : (
                                                                         <>
