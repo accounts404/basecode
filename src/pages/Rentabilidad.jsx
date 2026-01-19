@@ -823,10 +823,19 @@ export default function RentabilidadPage() {
     const cumulativeOperationalCosts = useMemo(() => {
         if (!cumulativeStartDate || !cumulativeEndDate) return [];
         
+        // Crear mapa de clientes para búsqueda rápida
+        const clientMap = new Map(clients.map(c => [c.id, c]));
+        
         const operationalCostEntries = allWorkEntries.filter(entry => {
-            const client = clients.find(c => c.id === entry.client_id);
+            const client = clientMap.get(entry.client_id);
             return client?.client_type === 'operational_cost' && 
                    isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate));
+        });
+
+        console.log('[Rentabilidad] 📊 DEBUG cumulativeOperationalCosts:', {
+            totalEntries: operationalCostEntries.length,
+            dateRange: { start: format(cumulativeStartDate, 'yyyy-MM-dd'), end: format(cumulativeEndDate, 'yyyy-MM-dd') },
+            operationalClients: operationalCostClients.map(c => c.name)
         });
 
         // Agrupar por cliente operativo
@@ -844,8 +853,12 @@ export default function RentabilidadPage() {
             costsByClient[entry.client_id].totalLaborCost += entry.total_amount || 0;
         });
 
-        return Object.values(costsByClient);
-    }, [allWorkEntries, clients, cumulativeStartDate, cumulativeEndDate]);
+        const result = Object.values(costsByClient);
+        const totalCost = result.reduce((sum, c) => sum + c.totalLaborCost, 0);
+        console.log('[Rentabilidad] 💰 Total cumulativeOperationalCosts:', totalCost, 'vs Expected: 2733');
+
+        return result;
+    }, [allWorkEntries, clients, cumulativeStartDate, cumulativeEndDate, operationalCostClients]);
 
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
