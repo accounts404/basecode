@@ -191,6 +191,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                 <TableHead className="text-right font-bold text-slate-700">Servicios</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Horas</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Tarifa Promedio</TableHead>
+                                <TableHead className="text-right font-bold text-slate-700">Base (sin GST)</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Monto Total</TableHead>
                             </TableRow>
                         </TableHeader>
