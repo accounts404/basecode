@@ -841,15 +841,11 @@ export default function RentabilidadPage() {
         });
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
 
-        // FILTRAR WorkEntries: solo procesar clientes que tengan schedules facturados
-        const clientsWithSchedules = new Set(invoicedSchedulesCumulative.map(s => s.client_id));
-        
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
             return isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training' &&
-                   clientsWithSchedules.has(entry.client_id); // NUEVO: solo clientes con schedules
+                   entry.activity !== 'training';
         });
 
         const cumulativeClientProfitability = cumulativeWorkEntries.reduce((acc, entry) => {
