@@ -4,6 +4,7 @@ import { Client } from '@/entities/Client';
 import { DailyReconciliation } from '@/entities/DailyReconciliation';
 import { User } from '@/entities/User';
 import ReconciliationModal from '../components/conciliacion/ReconciliationModal';
+import ClientSummaryReportTab from '../components/conciliacion/ClientSummaryReportTab';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
