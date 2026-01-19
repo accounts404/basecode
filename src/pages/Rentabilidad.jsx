@@ -1455,60 +1455,47 @@ export default function RentabilidadPage() {
                             </Card>
                         </div>
                         
-                        {/* Sección de Gastos Operativos */}
+                        {/* Sección de Gastos Operativos - Período Acumulado */}
                          <Card className="shadow-xl border border-orange-200/60 bg-gradient-to-br from-orange-50 to-white mb-6">
                              <CardHeader>
                                  <CardTitle className="text-lg flex items-center gap-2 text-orange-900">
                                      <Briefcase className="w-5 h-5" />
-                                     Gastos Operativos Detallados - {format(selectedPeriod.start, 'MMMM yyyy', { locale: es })}
+                                     Gastos Operativos Detallados ({format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - {format(cumulativeEndDate, 'd MMM yyyy', { locale: es })})
                                  </CardTitle>
                              </CardHeader>
                              <CardContent>
                                  <div className="space-y-4">
                                      <p className="text-sm text-slate-600">
-                                         Detalle de todos los costos operativos por cliente. Estos gastos se distribuyen automáticamente entre los clientes reales según sus horas de trabajo.
+                                         Detalle de todos los costos operativos por cliente en el período acumulado. Estos gastos se distribuyen automáticamente entre los clientes reales según sus horas de trabajo.
                                      </p>
-                                     {monthlyProcessedClientAnalysis.filter(data => {
-                                         const client = clients.find(c => c.id === data.clientId);
-                                         return client?.client_type === 'operational_cost';
-                                     }).length > 0 ? (
+                                     {cumulativeOperationalCosts.length > 0 ? (
                                          <div className="overflow-x-auto border border-slate-200 rounded-lg">
                                              <Table>
                                                  <TableHeader className="bg-orange-100">
                                                      <TableRow>
                                                          <TableHead className="font-bold text-orange-900">Cliente Operativo</TableHead>
-                                                         <TableHead className="text-center font-bold text-orange-900">Horas</TableHead>
-                                                         <TableHead className="text-right font-bold text-orange-900">Costo Laboral</TableHead>
+                                                         <TableHead className="text-center font-bold text-orange-900">Horas Acum.</TableHead>
+                                                         <TableHead className="text-right font-bold text-orange-900">Costo Laboral Acum.</TableHead>
                                                          <TableHead className="text-right font-bold text-orange-900">% de Distribución</TableHead>
                                                          <TableHead className="text-right font-bold text-orange-900">Valor/Hora</TableHead>
                                                      </TableRow>
                                                  </TableHeader>
                                                  <TableBody>
-                                                     {monthlyProcessedClientAnalysis
-                                                         .filter(data => {
-                                                             const client = clients.find(c => c.id === data.clientId);
-                                                             return client?.client_type === 'operational_cost';
-                                                         })
-                                                         .map(data => {
-                                                             const totalRealHours = Object.values(monthlyProcessedClientAnalysis)
-                                                                 .filter(d => {
-                                                                     const c = clients.find(cl => cl.id === d.clientId);
-                                                                     return c?.client_type !== 'operational_cost';
-                                                                 })
-                                                                 .reduce((sum, d) => sum + d.totalHours, 0);
-                                                             const distribution = totalRealHours > 0 ? (data.totalHours / totalRealHours) * 100 : 0;
-                                                             const valuePerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
+                                                     {cumulativeOperationalCosts.map(data => {
+                                                         const totalRealHours = cumulativeProfitabilityData.clientAnalysis.reduce((sum, d) => sum + d.totalHours, 0);
+                                                         const distribution = totalRealHours > 0 ? (data.totalHours / totalRealHours) * 100 : 0;
+                                                         const valuePerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
 
-                                                             return (
-                                                                 <TableRow key={data.clientId} className="hover:bg-orange-50/50">
-                                                                     <TableCell className="font-semibold">{data.clientName}</TableCell>
-                                                                     <TableCell className="text-center text-slate-700">{data.totalHours.toFixed(2)}h</TableCell>
-                                                                     <TableCell className="text-right text-orange-700 font-bold">${data.totalLaborCost.toFixed(2)}</TableCell>
-                                                                     <TableCell className="text-right text-slate-700 font-medium">{distribution.toFixed(1)}%</TableCell>
-                                                                     <TableCell className="text-right text-slate-700">${valuePerHour.toFixed(2)}/h</TableCell>
-                                                                 </TableRow>
-                                                             );
-                                                         })}
+                                                         return (
+                                                             <TableRow key={data.clientId} className="hover:bg-orange-50/50">
+                                                                 <TableCell className="font-semibold">{data.clientName}</TableCell>
+                                                                 <TableCell className="text-center text-slate-700">{data.totalHours.toFixed(2)}h</TableCell>
+                                                                 <TableCell className="text-right text-orange-700 font-bold">${data.totalLaborCost.toFixed(2)}</TableCell>
+                                                                 <TableCell className="text-right text-slate-700 font-medium">{distribution.toFixed(1)}%</TableCell>
+                                                                 <TableCell className="text-right text-slate-700">${valuePerHour.toFixed(2)}/h</TableCell>
+                                                             </TableRow>
+                                                         );
+                                                     })}
                                                  </TableBody>
                                              </Table>
                                          </div>
