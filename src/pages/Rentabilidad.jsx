@@ -1565,6 +1565,56 @@ export default function RentabilidadPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
+                                    {/* Gastos Operativos Section */}
+                                    {cumulativeProfitabilityData.operationalCosts?.clients?.length > 0 && (
+                                        <Card className="mb-8 shadow-lg border-2 border-red-200 bg-gradient-to-br from-red-50 to-white">
+                                            <CardHeader className="bg-gradient-to-r from-red-100 to-red-50 border-b border-red-200">
+                                                <CardTitle className="text-lg font-bold flex items-center gap-3 text-red-900">
+                                                    <AlertCircle className="w-5 h-5" />
+                                                    Gastos Operativos
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="pt-6">
+                                                <div className="space-y-4">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <Card className="bg-white border border-red-100">
+                                                            <CardContent className="pt-6">
+                                                                <p className="text-sm font-semibold text-red-800 mb-2">Total Gastos Operativos</p>
+                                                                <p className="text-3xl font-bold text-red-900">${cumulativeProfitabilityData.operationalCosts.totalCost.toFixed(2)}</p>
+                                                                <p className="text-xs text-red-600 mt-2">Prorrateo: Distribuido entre clientes reales según horas</p>
+                                                            </CardContent>
+                                                        </Card>
+                                                        <Card className="bg-white border border-red-100">
+                                                            <CardContent className="pt-6">
+                                                                <p className="text-sm font-semibold text-red-800 mb-2">Costo por Hora (Promedio)</p>
+                                                                <p className="text-3xl font-bold text-red-900">
+                                                                    ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.operationalCosts.totalCost / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                </p>
+                                                            </CardContent>
+                                                        </Card>
+                                                    </div>
+                                                    <Card className="bg-red-50 border border-red-200">
+                                                        <CardHeader className="pb-3">
+                                                            <CardTitle className="text-sm font-semibold text-red-800">Detalle de Costos</CardTitle>
+                                                        </CardHeader>
+                                                        <CardContent>
+                                                            <div className="space-y-2">
+                                                                {cumulativeProfitabilityData.operationalCosts.clients.map((opCost, idx) => (
+                                                                    <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-100">
+                                                                        <div>
+                                                                            <p className="font-semibold text-red-900">{opCost.clientName}</p>
+                                                                            <p className="text-xs text-red-600">{opCost.hours.toFixed(2)}h</p>
+                                                                        </div>
+                                                                        <p className="font-bold text-red-900">${opCost.totalCost.toFixed(2)}</p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
                                     <Card className="mb-6 shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                                         <CardContent className="p-6">
                                             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
