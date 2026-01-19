@@ -1431,9 +1431,20 @@ export default function RentabilidadPage() {
                                   </CardHeader>
                                   <CardContent>
                                       <p className="text-4xl font-bold text-orange-900 tracking-tight">${(cumulativeProfitabilityData.overallTotalFixedCostsWithOperational || cumulativeProfitabilityData.overallTotalFixedCosts).toFixed(2)}</p>
-                                      <p className="text-xs text-orange-700 mt-1 font-medium">
-                                          Fijos: ${cumulativeProfitabilityData.overallTotalFixedCosts.toFixed(2)} + TRN: ${cumulativeTrainingCost.amount.toFixed(2)} + OP: ${(cumulativeOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0)).toFixed(2)}
-                                      </p>
+                                      <div className="mt-3 pt-3 border-t border-orange-200 space-y-1.5">
+                                          <div className="flex justify-between items-center">
+                                              <span className="text-xs text-orange-700 font-medium">📋 Fijos:</span>
+                                              <span className="text-sm font-bold text-orange-900">${cumulativeProfitabilityData.overallTotalFixedCosts.toFixed(2)}</span>
+                                          </div>
+                                          <div className="flex justify-between items-center">
+                                              <span className="text-xs text-orange-700 font-medium">🎓 Entrenamiento:</span>
+                                              <span className="text-sm font-bold text-orange-900">${cumulativeTrainingCost.amount.toFixed(2)}</span>
+                                          </div>
+                                          <div className="flex justify-between items-center">
+                                              <span className="text-xs text-orange-700 font-medium">⚙️ Operativos:</span>
+                                              <span className="text-sm font-bold text-orange-900">${(cumulativeOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0)).toFixed(2)}</span>
+                                          </div>
+                                      </div>
                                   </CardContent>
                              </Card>
 
