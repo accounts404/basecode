@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from "react";
 import { User } from "@/entities/User";
 import { Client } from "@/entities/Client";
@@ -119,14 +118,7 @@ export default function RegistrarTrabajoPage() {
       return false;
     }
     
-    const decimal = Math.round((num % 1) * 100) / 100;
-    const isValidDecimal = VALID_HOUR_DECIMALS.includes(decimal);
-    
-    if (!isValidDecimal) {
-      setHoursError("Solo se permiten decimales .00, .25, .50 o .75");
-      return false;
-    }
-    
+    // Permitir cualquier decimal hasta 4 posiciones para entradas manuales después de 2026-01-19
     setHoursError("");
     return true;
   };
@@ -187,10 +179,10 @@ export default function RegistrarTrabajoPage() {
         totalAmount = parseFloat(formData.fixed_amount);
         hourlyRate = totalAmount; // hourly_rate = total_amount since hours = 1
       } else {
-        // For regular activities, use hours * rate
-        hours = parseFloat(formData.hours);
+        // For regular activities, use hours * rate with 4 decimal precision
+        hours = parseFloat(parseFloat(formData.hours).toFixed(4));
         hourlyRate = parseFloat(formData.hourly_rate);
-        totalAmount = hours * hourlyRate;
+        totalAmount = parseFloat((hours * hourlyRate).toFixed(2));
       }
 
       const workEntry = {
@@ -515,12 +507,12 @@ export default function RegistrarTrabajoPage() {
                           <Clock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
                           <Input
                             type="number"
-                            step="0.25"
+                            step="0.01"
                             min="0"
                             value={formData.hours}
                             onChange={handleHoursChange}
                             className={`pl-12 h-14 text-lg ${hoursError ? 'border-red-500' : ''}`}
-                            placeholder="8.5"
+                            placeholder="8.5 o 1.3666"
                             required
                             onWheel={(e) => e.currentTarget.blur()}
                           />
@@ -535,23 +527,10 @@ export default function RegistrarTrabajoPage() {
                           </div>
                         )}
                         
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-3">
-                          <h4 className="text-sm font-semibold text-blue-900 mb-3">
-                            Conversión de Minutos
-                          </h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            {[
-                              { minutes: "15 min", decimal: ".25" },
-                              { minutes: "30 min", decimal: ".50" },
-                              { minutes: "45 min", decimal: ".75" },
-                              { minutes: "60 min", decimal: "1.00" }
-                            ].map((conversion, index) => (
-                              <div key={index} className="text-center p-2 bg-white rounded-lg">
-                                <div className="font-semibold text-slate-900 text-sm">{conversion.minutes}</div>
-                                <div className="font-mono text-blue-700">{conversion.decimal}</div>
-                              </div>
-                            ))}
-                          </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                          <p className="text-xs text-blue-800">
+                            <strong>Nota:</strong> Puedes ingresar cualquier valor decimal (ej: 1.3666, 2.75, 3.25)
+                          </p>
                         </div>
                       </div>
                     </>

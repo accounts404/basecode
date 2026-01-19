@@ -104,8 +104,10 @@ Deno.serve(async (req) => {
                     console.log('- End time general:', schedule.end_time);
                 }
 
-                cleanerHours = differenceInMinutes(endTime, startTime) / 60;
-                console.log('- Horas calculadas:', cleanerHours);
+                const totalMinutes = differenceInMinutes(endTime, startTime);
+                cleanerHours = parseFloat((totalMinutes / 60).toFixed(4));
+                console.log('- Minutos totales:', totalMinutes);
+                console.log('- Horas calculadas (4 decimales):', cleanerHours);
                 
                 if (cleanerHours <= 0) {
                     console.log('- ⚠️ SALTANDO limpiador', cleanerId, '- Horas <= 0');
@@ -141,10 +143,10 @@ Deno.serve(async (req) => {
                     client_id: schedule.client_id,
                     client_name: schedule.client_name,
                     work_date: format(workDate, 'yyyy-MM-dd'),
-                    hours: cleanerHours,
+                    hours: parseFloat(cleanerHours.toFixed(4)),
                     activity: clientActivity,
                     hourly_rate: cleanerRate,
-                    total_amount: cleanerHours * cleanerRate,
+                    total_amount: parseFloat((cleanerHours * cleanerRate).toFixed(2)),
                     period: `${format(workDate, 'yyyy-MM')}-${workDate.getDate() <= 15 ? '1st' : '2nd'}`,
                     invoiced: false,
                     schedule_id: scheduleId,
