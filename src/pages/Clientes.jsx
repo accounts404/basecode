@@ -372,8 +372,14 @@ export default function ClientesPage() {
                                                 <SelectItem value="domestic">Doméstico</SelectItem>
                                                 <SelectItem value="commercial">Comercial</SelectItem>
                                                 <SelectItem value="training">Entrenamiento</SelectItem>
+                                                <SelectItem value="operational_cost">Costo Operativo</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                        {formData.client_type === 'operational_cost' && (
+                                            <p className="text-xs text-slate-600 bg-orange-50 px-3 py-2 rounded border border-orange-200">
+                                                ⚠️ Este cliente será tratado como gasto operativo. Sus costos se distribuirán entre los clientes reales en el análisis de rentabilidad.
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="address">Dirección</Label>
