@@ -1674,7 +1674,7 @@ export default function RentabilidadPage() {
                                         )}
                                     </p>
                                     {cumulativeProfitabilityData.clientAnalysis.length > 0 ? (
-                                        <div className="overflow-x-auto max-h-[600px] overflow-y-auto border border-slate-200 rounded-xl">
+                                        <div className="overflow-x-auto max-h-[1200px] overflow-y-auto border border-slate-200 rounded-xl">
                                             <Table>
                                                 <TableHeader className="sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 border-b-2 border-slate-200">
                                                     <TableRow>
@@ -1957,6 +1957,14 @@ export default function RentabilidadPage() {
                                         <div className="text-center py-16 text-slate-500">
                                             <Clock9 className="w-16 h-16 mx-auto mb-4" />
                                             <p className="text-lg">No hay datos acumulados desde {format(cumulativeStartDate, 'd MMM yyyy', { locale: es })}.</p>
+                                        </div>
+                                    )}
+                                    
+                                    {cumulativeProfitabilityData.clientAnalysis.length === 0 && hideSentClients && (
+                                        <div className="text-center py-8 text-blue-600 bg-blue-50 rounded-lg mt-4">
+                                            <EyeOff className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                            <p className="font-medium">Todos los clientes tienen aumento enviado</p>
+                                            <p className="text-sm text-slate-600 mt-1">Desactiva el filtro para verlos</p>
                                         </div>
                                     )}
                                 </AccordionContent>
