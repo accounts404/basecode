@@ -806,6 +806,20 @@ export default function RentabilidadPage() {
 
     }, [selectedPeriod, monthlyProcessedClientAnalysis, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
 
+    const monthlyOperationalCosts = useMemo(() => {
+        if (!selectedPeriod) return [];
+        const [year, month] = selectedMonth.split('-');
+        const monthStart = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+        const monthEnd = endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+        
+        return Object.values(monthlyProcessedClientAnalysis || [])
+            .map(data => {
+                const client = clients.find(c => c.id === data.clientId);
+                return client;
+            })
+            .filter(c => c?.client_type === 'operational_cost');
+    }, [selectedMonth, monthlyProcessedClientAnalysis, clients, selectedPeriod]);
+
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
             return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0 };
@@ -1138,21 +1152,6 @@ export default function RentabilidadPage() {
         setSelectedClientForHistory({ ...clientData, fullClient: client });
         setHistoryModalOpen(true);
     };
-
-    // Mostrar sección de gastos operativos si hay en el mes actual
-    const monthlyOperationalCosts = useMemo(() => {
-        if (!selectedPeriod) return [];
-        const [year, month] = selectedMonth.split('-');
-        const monthStart = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
-        const monthEnd = endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
-
-        return Object.values(monthlyProcessedClientAnalysis || [])
-            .map(data => {
-                const client = clients.find(c => c.id === data.clientId);
-                return client;
-            })
-            .filter(c => c?.client_type === 'operational_cost');
-    }, [selectedMonth, monthlyProcessedClientAnalysis, clients, selectedPeriod]);
 
     return (
          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
