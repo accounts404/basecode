@@ -162,6 +162,22 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         };
     }, [clientReport, monthlySchedules, clients, startDate, endDate]);
 
+    // Paginación
+    const paginationStats = useMemo(() => {
+        const totalItems = clientReport.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedItems = clientReport.slice(startIndex, endIndex);
+
+        return {
+            totalItems,
+            totalPages,
+            currentPage,
+            paginatedItems
+        };
+    }, [clientReport, currentPage]);
+
     return (
         <div className="space-y-6">
             {/* Date Range Selector */}
