@@ -397,6 +397,48 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                         </TableBody>
                     </Table>
                 </div>
+
+                {/* Pagination Controls */}
+                {paginationStats.totalPages > 1 && (
+                    <div className="flex items-center justify-between p-4 border-t border-slate-200 bg-slate-50">
+                        <div className="text-sm text-slate-600">
+                            Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, paginationStats.totalItems)} de {paginationStats.totalItems} clientes
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            
+                            <div className="flex gap-1">
+                                {Array.from({ length: paginationStats.totalPages }, (_, i) => i + 1).map(page => (
+                                    <Button
+                                        key={page}
+                                        variant={currentPage === page ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setCurrentPage(page)}
+                                        className="w-8 h-8 p-0"
+                                    >
+                                        {page}
+                                    </Button>
+                                ))}
+                            </div>
+                            
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(prev => Math.min(paginationStats.totalPages, prev + 1))}
+                                disabled={currentPage === paginationStats.totalPages}
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
