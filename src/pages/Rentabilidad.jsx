@@ -977,7 +977,11 @@ export default function RentabilidadPage() {
                 realMarginPerHour,
                 totalCostPerHour
             };
-        }).filter(data => data.totalHours > 0 || data.totalIncome > 0);
+        }).filter(data => {
+             // Excluir clientes operacionales del análisis acumulado
+             const client = clientMap.get(data.clientId);
+             return client?.client_type !== 'operational_cost' && (data.totalHours > 0 || data.totalIncome > 0);
+        });
 
         const sortedCumulativeAnalysis = [...cumulativeClientAnalysis].sort((a, b) => {
             let aValue = a[sortColumn];
