@@ -978,7 +978,10 @@ export default function RentabilidadPage() {
         const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
-        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
+        // Sumar costos operativos acumulados
+        const totalCumulativeOperationalCosts = cumulativeOperationalCosts.reduce((sum, cost) => sum + (cost.totalLaborCost || 0), 0);
+
+        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCosts;
 
         const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
 
