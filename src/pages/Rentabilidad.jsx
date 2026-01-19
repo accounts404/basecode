@@ -820,6 +820,33 @@ export default function RentabilidadPage() {
             .filter(c => c?.client_type === 'operational_cost');
     }, [selectedMonth, monthlyProcessedClientAnalysis, clients, selectedPeriod]);
 
+    const cumulativeOperationalCosts = useMemo(() => {
+        if (!cumulativeStartDate || !cumulativeEndDate) return [];
+        
+        const operationalCostEntries = allWorkEntries.filter(entry => {
+            const client = clients.find(c => c.id === entry.client_id);
+            return client?.client_type === 'operational_cost' && 
+                   isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate));
+        });
+
+        // Agrupar por cliente operativo
+        const costsByClient = {};
+        operationalCostEntries.forEach(entry => {
+            if (!costsByClient[entry.client_id]) {
+                costsByClient[entry.client_id] = {
+                    clientId: entry.client_id,
+                    clientName: entry.client_name,
+                    totalHours: 0,
+                    totalLaborCost: 0
+                };
+            }
+            costsByClient[entry.client_id].totalHours += entry.hours || 0;
+            costsByClient[entry.client_id].totalLaborCost += entry.total_amount || 0;
+        });
+
+        return Object.values(costsByClient);
+    }, [allWorkEntries, clients, cumulativeStartDate, cumulativeEndDate]);
+
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
             return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0 };
