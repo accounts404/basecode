@@ -1426,13 +1426,13 @@ export default function RentabilidadPage() {
                                   <CardHeader className="pb-3">
                                       <CardTitle className="text-sm font-semibold text-orange-800 uppercase tracking-wide flex items-center gap-2">
                                           <PiggyBank className="w-4 h-4" />
-                                          Gastos Fijos Totales
+                                          Gastos Fijos Acumulados
                                       </CardTitle>
                                   </CardHeader>
                                   <CardContent>
-                                      <p className="text-4xl font-bold text-orange-900 tracking-tight">${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + (monthlyOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0))).toFixed(2)}</p>
+                                      <p className="text-4xl font-bold text-orange-900 tracking-tight">${(cumulativeProfitabilityData.overallTotalFixedCostsWithOperational || cumulativeProfitabilityData.overallTotalFixedCosts).toFixed(2)}</p>
                                       <p className="text-xs text-orange-700 mt-1 font-medium">
-                                          Fijos: ${parseFloat(fixedCostInput || 0).toFixed(2)} + TRN: ${monthlyTrainingCost.amount.toFixed(2)} + OP: ${(monthlyOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0)).toFixed(2)}
+                                          Fijos: ${cumulativeProfitabilityData.overallTotalFixedCosts.toFixed(2)} + TRN: ${cumulativeTrainingCost.amount.toFixed(2)} + OP: ${(cumulativeOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0)).toFixed(2)}
                                       </p>
                                   </CardContent>
                              </Card>
