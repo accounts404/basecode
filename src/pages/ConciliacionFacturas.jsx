@@ -856,9 +856,10 @@ export default function ConciliacionFacturasPage() {
                 )}
 
                 <Tabs defaultValue="daily" className="space-y-6">
-                    <TabsList className="grid w-full max-w-md grid-cols-2">
+                    <TabsList className="grid w-full max-w-md grid-cols-3">
                         <TabsTrigger value="daily">Vista Diaria</TabsTrigger>
                         <TabsTrigger value="monthly">Resumen Mensual</TabsTrigger>
+                        <TabsTrigger value="by-client">Por Cliente</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="daily" className="space-y-6">
