@@ -1674,7 +1674,7 @@ export default function RentabilidadPage() {
                                         )}
                                     </p>
                                     {cumulativeProfitabilityData.clientAnalysis.length > 0 ? (
-                                        <div className="overflow-x-auto max-h-[5000px] overflow-y-auto border border-slate-200 rounded-xl">
+                                        <div className="overflow-x-auto max-h-[1100px] overflow-y-auto border border-slate-200 rounded-xl">
                                             <Table>
                                                 <TableHeader className="sticky top-0 bg-slate-100/95 backdrop-blur-sm z-10 border-b-2 border-slate-200">
                                                     <TableRow>
