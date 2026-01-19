@@ -71,19 +71,34 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
 
                 // Calcular monto
                 let amount = 0;
+                let gstType = client?.gst_type || 'inclusive';
+
                 if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-                    amount = service.reconciliation_items.reduce((itemTotal, item) => {
-                        const itemAmount = parseFloat(item.amount) || 0;
-                        return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
-                    }, 0);
-                } else {
-                    if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                        amount = service.billed_price_snapshot;
-                    } else {
-                        amount = client?.current_service_price || 0;
-                    }
+                amount = service.reconciliation_items.reduce((itemTotal, item) => {
+                const itemAmount = parseFloat(item.amount) || 0;
+                return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
+                }, 0);
+                if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                gstType = service.billed_gst_type_snapshot;
                 }
+                } else {
+                if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                amount = service.billed_price_snapshot;
+                gstType = service.billed_gst_type_snapshot || 'inclusive';
+                } else {
+                amount = client?.current_service_price || 0;
+                }
+                }
+
+                // Calcular base sin GST
+                let baseAmount = amount;
+                if (gstType === 'inclusive') {
+                baseAmount = amount / 1.1;
+                }
+
                 group.totalAmount += amount;
+                if (!group.baseAmount) group.baseAmount = 0;
+                group.baseAmount += baseAmount;
             });
         });
 
