@@ -1838,25 +1838,18 @@ export default function RentabilidadPage() {
                                                             <TableCell className="text-center bg-yellow-50">
                                                                 <div className="flex items-center justify-center gap-2">
                                                                     {sendStatus.sent && !sendStatus.expired ? (
-                                                                        <>
+                                                                        <div className="flex items-center gap-1">
                                                                             <Button
                                                                                 variant="ghost"
                                                                                 size="sm"
                                                                                 onClick={() => handleViewHistory(data)}
-                                                                                className="h-auto py-1 px-2 hover:bg-green-100"
+                                                                                className="h-auto py-0.5 px-1 hover:bg-green-100"
                                                                             >
-                                                                                <div className="flex items-center gap-2 text-green-700">
-                                                                                    <CheckCircle className="w-5 h-5" />
-                                                                                    <div className="flex flex-col items-start">
-                                                                                        <span className="text-sm font-semibold">
-                                                                                            {format(new Date(client.current_price_increase_sent_date), 'd MMM yyyy', { locale: es })}
-                                                                                        </span>
-                                                                                        {client.current_price_increase_notes && (
-                                                                                            <span className="text-xs text-slate-600 max-w-[150px] truncate">
-                                                                                                {client.current_price_increase_notes}
-                                                                                            </span>
-                                                                                        )}
-                                                                                    </div>
+                                                                                <div className="flex items-center gap-1 text-green-700">
+                                                                                    <CheckCircle className="w-3.5 h-3.5" />
+                                                                                    <span className="text-xs font-semibold">
+                                                                                        {format(new Date(client.current_price_increase_sent_date), 'd MMM', { locale: es })}
+                                                                                    </span>
                                                                                     <span className="text-xs text-slate-500">
                                                                                         ({sendStatus.monthsSince}m)
                                                                                     </span>
@@ -1866,18 +1859,18 @@ export default function RentabilidadPage() {
                                                                                 variant="ghost"
                                                                                 size="sm"
                                                                                 onClick={() => handleUnmarkSent(data)}
-                                                                                className="h-7 w-7 p-0"
+                                                                                className="h-6 w-6 p-0"
                                                                             >
-                                                                                <X className="w-4 h-4 text-red-600" />
+                                                                                <X className="w-3 h-3 text-red-600" />
                                                                             </Button>
-                                                                        </>
+                                                                        </div>
                                                                     ) : (
-                                                                        <>
+                                                                        <div className="flex items-center gap-1">
                                                                             <Button
                                                                                 variant="outline"
                                                                                 size="sm"
                                                                                 onClick={() => handleOpenSendModal(data)}
-                                                                                className="h-8 px-3 text-xs"
+                                                                                className="h-7 px-2 text-xs"
                                                                             >
                                                                                 <Send className="w-3 h-3 mr-1" />
                                                                                 Marcar
@@ -1887,12 +1880,12 @@ export default function RentabilidadPage() {
                                                                                     variant="ghost"
                                                                                     size="sm"
                                                                                     onClick={() => handleViewHistory(data)}
-                                                                                    className="h-7 w-7 p-0"
+                                                                                    className="h-6 w-6 p-0"
                                                                                 >
-                                                                                    <History className="w-4 h-4 text-slate-600" />
+                                                                                    <History className="w-3 h-3 text-slate-600" />
                                                                                 </Button>
                                                                             )}
-                                                                        </>
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                             </TableCell>
