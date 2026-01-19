@@ -1830,7 +1830,6 @@ export default function RentabilidadPage() {
                                                             <TableCell className="text-right font-semibold text-rose-700">${data.totalLaborCost.toFixed(2)}</TableCell>
                                                             <TableCell className={`text-right font-semibold ${data.margin > 0 ? 'text-blue-700' : 'text-orange-700'}`}>${data.margin.toFixed(2)}</TableCell>
                                                             <TableCell className="text-right text-slate-600 font-medium">(${data.distributedFixedCost.toFixed(2)})</TableCell>
-                                                        {/* DEBUG: Fila para ver los totales operacionales */}
                                                             <TableCell className={`text-right font-bold text-lg ${data.realMargin > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${data.realMargin.toFixed(2)}</TableCell>
                                                             <TableCell className={`text-right font-bold ${data.realProfitPercentage > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                                                 <div className="flex items-center justify-end gap-2">
