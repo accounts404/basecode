@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -20,8 +20,6 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             : new Date()
     );
     const [expandedClients, setExpandedClients] = useState({});
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
 
     // Filtrar servicios por rango de fechas y agrupar por cliente
     const clientReport = useMemo(() => {
@@ -162,22 +160,6 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         };
     }, [clientReport, monthlySchedules, clients, startDate, endDate]);
 
-    // Paginación
-    const paginationStats = useMemo(() => {
-        const totalItems = clientReport.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage);
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedItems = clientReport.slice(startIndex, endIndex);
-
-        return {
-            totalItems,
-            totalPages,
-            currentPage,
-            paginatedItems
-        };
-    }, [clientReport, currentPage]);
-
     return (
         <div className="space-y-6">
             {/* Date Range Selector */}
@@ -278,7 +260,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {paginationStats.paginatedItems.map((clientGroup, index) => {
+                            {clientReport.map((clientGroup, index) => {
                                 const avgRate = clientGroup.totalHours > 0 ? clientGroup.totalAmount / clientGroup.totalHours : 0;
                                 const isExpanded = expandedClients[index];
                                 
@@ -397,48 +379,6 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                         </TableBody>
                     </Table>
                 </div>
-
-                {/* Pagination Controls */}
-                {paginationStats.totalPages > 1 && (
-                    <div className="flex items-center justify-between p-4 border-t border-slate-200 bg-slate-50">
-                        <div className="text-sm text-slate-600">
-                            Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, paginationStats.totalItems)} de {paginationStats.totalItems} clientes
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                disabled={currentPage === 1}
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </Button>
-                            
-                            <div className="flex gap-1">
-                                {Array.from({ length: paginationStats.totalPages }, (_, i) => i + 1).map(page => (
-                                    <Button
-                                        key={page}
-                                        variant={currentPage === page ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => setCurrentPage(page)}
-                                        className="w-8 h-8 p-0"
-                                    >
-                                        {page}
-                                    </Button>
-                                ))}
-                            </div>
-                            
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage(prev => Math.min(paginationStats.totalPages, prev + 1))}
-                                disabled={currentPage === paginationStats.totalPages}
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );
