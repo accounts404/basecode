@@ -373,10 +373,18 @@ export default function RentabilidadPage() {
     ];
 
     // Obtener lista única de nombres de clientes para el selector
-    const uniqueClientNames = useMemo(() => {
-        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
-        return [...new Set(activeClients.map(c => c.name))].sort();
+    // Separar clientes reales de costos operativos
+    const realClients = useMemo(() => {
+        return clients.filter(c => c.active !== false && c.id !== trainingClientId && c.client_type !== 'operational_cost');
     }, [clients, trainingClientId]);
+
+    const operationalCostClients = useMemo(() => {
+        return clients.filter(c => c.active !== false && c.client_type === 'operational_cost');
+    }, [clients]);
+
+    const uniqueClientNames = useMemo(() => {
+        return [...new Set(realClients.map(c => c.name))].sort();
+    }, [realClients]);
 
     // Helper para cargar TODOS los registros con paginación automática
     const loadAllRecords = async (entity, sortField = '-created_date') => {
@@ -615,9 +623,22 @@ export default function RentabilidadPage() {
             setFixedCostInput(currentFixedCostAmount);
             setSavedFixedCosts(currentFixedCostAmount);
 
-            const totalFixedCostsWithTraining = currentFixedCostAmount + trainingAmount;
+            // Calcular costos operativos del mes
+            const monthlyOperationalCost = Object.values(clientData)
+                .filter(c => {
+                    const client = clientMap.get(c.clientId);
+                    return client?.client_type === 'operational_cost';
+                })
+                .reduce((sum, c) => sum + c.totalLaborCost, 0);
 
-            const totalMonthlyHours = Object.values(clientData).reduce((sum, c) => sum + c.totalHours, 0);
+            const totalFixedCostsWithTraining = currentFixedCostAmount + trainingAmount + monthlyOperationalCost;
+
+            const totalMonthlyHours = Object.values(clientData)
+                .filter(c => {
+                    const client = clientMap.get(c.clientId);
+                    return client?.client_type !== 'operational_cost';
+                })
+                .reduce((sum, c) => sum + c.totalHours, 0);
 
             const profitData = Object.values(clientData).map(data => {
                 const client = clientMap.get(data.clientId);
@@ -649,7 +670,11 @@ export default function RentabilidadPage() {
                     fixedCostPerHour,
                     realMarginPerHour
                 };
-            }).filter(data => data.totalHours > 0 || data.totalIncome > 0);
+            }).filter(data => {
+                // Excluir clientes operacionales del análisis de rentabilidad
+                const client = clientMap.get(data.clientId);
+                return client?.client_type !== 'operational_cost' && (data.totalHours > 0 || data.totalIncome > 0);
+            });
 
             setMonthlyProcessedClientAnalysis(profitData);
 
@@ -1110,20 +1135,35 @@ export default function RentabilidadPage() {
         setHistoryModalOpen(true);
     };
 
+    // Mostrar sección de gastos operativos si hay en el mes actual
+    const monthlyOperationalCosts = useMemo(() => {
+        if (!selectedPeriod) return [];
+        const [year, month] = selectedMonth.split('-');
+        const monthStart = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+        const monthEnd = endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+
+        return Object.values(monthlyProcessedClientAnalysis || [])
+            .map(data => {
+                const client = clients.find(c => c.id === data.clientId);
+                return client;
+            })
+            .filter(c => c?.client_type === 'operational_cost');
+    }, [selectedMonth, monthlyProcessedClientAnalysis, clients, selectedPeriod]);
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
-            <div className="max-w-[1920px] mx-auto">
-                <div className="mb-10">
-                    <div className="flex items-center gap-4 mb-3">
-                        <div className="p-3 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg">
-                            <Activity className="w-7 h-7 text-white" />
-                        </div>
-                        <div>
-                            <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Análisis de Rentabilidad</h1>
-                            <p className="text-slate-600 mt-1 text-lg font-light">Evaluación financiera detallada por cliente y período</p>
-                        </div>
-                    </div>
-                </div>
+         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
+             <div className="max-w-[1920px] mx-auto">
+                 <div className="mb-10">
+                     <div className="flex items-center gap-4 mb-3">
+                         <div className="p-3 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg">
+                             <Activity className="w-7 h-7 text-white" />
+                         </div>
+                         <div>
+                             <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Análisis de Rentabilidad</h1>
+                             <p className="text-slate-600 mt-1 text-lg font-light">Evaluación financiera detallada por cliente y período</p>
+                         </div>
+                     </div>
+                 </div>
 
                 <Card className="mb-8 shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                   <CardContent className="p-8">
