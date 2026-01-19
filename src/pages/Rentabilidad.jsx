@@ -783,30 +783,11 @@ export default function RentabilidadPage() {
 
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
-            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0, operationalCosts: { clients: [], totalCost: 0 } };
+            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0 };
         }
 
-        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId && c.client_type !== 'operational_cost');
-        const operationalCostClients = clients.filter(c => c.active !== false && c.client_type === 'operational_cost');
+        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
         const clientMap = new Map(activeClients.map(c => [c.id, c]));
-
-        // Calcular costos operativos
-        const operationalCostsMap = new Map();
-        operationalCostClients.forEach(opClient => {
-            const opWorkEntries = allWorkEntries.filter(entry =>
-                entry.client_id === opClient.id &&
-                isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate))
-            );
-            const totalOpCost = opWorkEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
-            if (totalOpCost > 0) {
-                operationalCostsMap.set(opClient.id, {
-                    clientName: opClient.name,
-                    totalCost: totalOpCost,
-                    hours: opWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0)
-                });
-            }
-        });
-        const totalOperationalCosts = Array.from(operationalCostsMap.values()).reduce((sum, item) => sum + item.totalCost, 0);
 
         const cumulativeIncomeDetailMap = new Map();
         const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
@@ -931,7 +912,7 @@ export default function RentabilidadPage() {
         const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
         const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
 
-        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalOperationalCosts;
+        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount;
 
         const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
 
@@ -1024,11 +1005,7 @@ export default function RentabilidadPage() {
         return { 
             clientAnalysis: filteredCumulativeAnalysis, 
             summary: cumulativeSummary, 
-            overallTotalFixedCosts: totalCumulativeFixedCosts,
-            operationalCosts: {
-                clients: Array.from(operationalCostsMap.values()),
-                totalCost: totalOperationalCosts
-            }
+            overallTotalFixedCosts: totalCumulativeFixedCosts 
         };
     }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
 
@@ -1565,56 +1542,6 @@ export default function RentabilidadPage() {
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="px-8 pb-8 pt-6">
-                                    {/* Gastos Operativos Section */}
-                                    {cumulativeProfitabilityData.operationalCosts?.clients?.length > 0 && (
-                                        <Card className="mb-8 shadow-lg border-2 border-red-200 bg-gradient-to-br from-red-50 to-white">
-                                            <CardHeader className="bg-gradient-to-r from-red-100 to-red-50 border-b border-red-200">
-                                                <CardTitle className="text-lg font-bold flex items-center gap-3 text-red-900">
-                                                    <AlertCircle className="w-5 h-5" />
-                                                    Gastos Operativos
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="pt-6">
-                                                <div className="space-y-4">
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <Card className="bg-white border border-red-100">
-                                                            <CardContent className="pt-6">
-                                                                <p className="text-sm font-semibold text-red-800 mb-2">Total Gastos Operativos</p>
-                                                                <p className="text-3xl font-bold text-red-900">${cumulativeProfitabilityData.operationalCosts.totalCost.toFixed(2)}</p>
-                                                                <p className="text-xs text-red-600 mt-2">Prorrateo: Distribuido entre clientes reales según horas</p>
-                                                            </CardContent>
-                                                        </Card>
-                                                        <Card className="bg-white border border-red-100">
-                                                            <CardContent className="pt-6">
-                                                                <p className="text-sm font-semibold text-red-800 mb-2">Costo por Hora (Promedio)</p>
-                                                                <p className="text-3xl font-bold text-red-900">
-                                                                    ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.operationalCosts.totalCost / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                                </p>
-                                                            </CardContent>
-                                                        </Card>
-                                                    </div>
-                                                    <Card className="bg-red-50 border border-red-200">
-                                                        <CardHeader className="pb-3">
-                                                            <CardTitle className="text-sm font-semibold text-red-800">Detalle de Costos</CardTitle>
-                                                        </CardHeader>
-                                                        <CardContent>
-                                                            <div className="space-y-2">
-                                                                {cumulativeProfitabilityData.operationalCosts.clients.map((opCost, idx) => (
-                                                                    <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-100">
-                                                                        <div>
-                                                                            <p className="font-semibold text-red-900">{opCost.clientName}</p>
-                                                                            <p className="text-xs text-red-600">{opCost.hours.toFixed(2)}h</p>
-                                                                        </div>
-                                                                        <p className="font-bold text-red-900">${opCost.totalCost.toFixed(2)}</p>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </CardContent>
-                                                    </Card>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
                                     <Card className="mb-6 shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                                         <CardContent className="p-6">
                                             <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
@@ -1977,7 +1904,7 @@ export default function RentabilidadPage() {
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
                                                                         <div className="cursor-help">
-                                                                            ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + cumulativeProfitabilityData.operationalCosts.totalCost)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                            ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent className="bg-slate-900 text-white p-3">
@@ -1989,11 +1916,8 @@ export default function RentabilidadPage() {
                                                                             <p className="text-xs">
                                                                                 Gastos fijos: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                             </p>
-                                                                            <p className="text-xs">
-                                                                                Gastos operativos: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.operationalCosts.totalCost / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                                            </p>
                                                                             <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
-                                                                                Total: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + cumulativeProfitabilityData.operationalCosts.totalCost)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                                                Total: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                                                             </p>
                                                                         </div>
                                                                     </TooltipContent>
@@ -2003,9 +1927,7 @@ export default function RentabilidadPage() {
                                                         <TableCell className="text-right text-xl text-emerald-800">${cumulativeProfitabilityData.summary.totalIncome.toFixed(2)}</TableCell>
                                                         <TableCell className="text-right text-xl text-rose-800">${cumulativeProfitabilityData.summary.totalLaborCost.toFixed(2)}</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalMargin > 0 ? 'text-blue-800' : 'text-orange-800'}`}>${cumulativeProfitabilityData.summary.totalMargin.toFixed(2)}</TableCell>
-                                                        <TableCell className="text-right text-xl text-slate-700">
-                                                            (${(cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount + cumulativeProfitabilityData.operationalCosts.totalCost).toFixed(2)})
-                                                        </TableCell>
+                                                        <TableCell className="text-right text-xl text-slate-700">(${(cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount).toFixed(2)})</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalRealMargin > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${cumulativeProfitabilityData.summary.totalRealMargin.toFixed(2)}</TableCell>
                                                         <TableCell className={`text-right text-xl ${cumulativeProfitabilityData.summary.totalRealProfitPercentage > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
                                                             <div className="flex items-center justify-end gap-2">
