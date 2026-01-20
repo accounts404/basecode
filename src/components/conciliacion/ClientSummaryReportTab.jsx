@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +21,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             : new Date()
     );
     const [expandedClients, setExpandedClients] = useState({});
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Filtrar servicios por rango de fechas y agrupar por cliente
     const clientReport = useMemo(() => {
