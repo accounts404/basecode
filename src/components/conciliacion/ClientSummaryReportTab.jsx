@@ -282,7 +282,18 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {clientReport.map((clientGroup, index) => {
+                            {filteredClientReport.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan="7" className="text-center py-12">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Search className="w-12 h-12 text-slate-300" />
+                                            <p className="text-slate-600 font-medium">
+                                                {searchTerm ? `No se encontraron clientes con "${searchTerm}"` : 'No hay clientes en este período'}
+                                            </p>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ) : filteredClientReport.map((clientGroup, index) => {
                                 const avgRate = clientGroup.totalHours > 0 ? clientGroup.totalAmount / clientGroup.totalHours : 0;
                                 const isExpanded = expandedClients[index];
                                 
