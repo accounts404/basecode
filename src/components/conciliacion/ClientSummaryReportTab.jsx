@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar, ChevronDown, ChevronUp, Search, CheckCircle } from 'lucide-react';
@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
+import { base44 } from '@/api/base44Client';
 
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
     const [startDate, setStartDate] = useState(
@@ -24,6 +25,34 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
     const [expandedClients, setExpandedClients] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [reviewedClients, setReviewedClients] = useState({});
+    const [currentPeriod, setCurrentPeriod] = useState('');
+
+    // Cargar el estado de revisión guardado
+    useEffect(() => {
+        const loadReviewedStatus = async () => {
+            const period = format(startDate, 'yyyy-MM');
+            setCurrentPeriod(period);
+            
+            try {
+                const reviews = await base44.entities.ClientReconciliationReview.filter({
+                    period_month: period
+                });
+                
+                const reviewedMap = {};
+                reviews.forEach(review => {
+                    if (review.reviewed) {
+                        reviewedMap[review.client_name] = true;
+                    }
+                });
+                
+                setReviewedClients(reviewedMap);
+            } catch (error) {
+                console.error('Error cargando estado de revisión:', error);
+            }
+        };
+        
+        loadReviewedStatus();
+    }, [startDate]);
 
     // Filtrar servicios por rango de fechas y agrupar por cliente
     const clientReport = useMemo(() => {
@@ -133,11 +162,43 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             });
         }, [clientReport, searchTerm, reviewedClients]);
 
-        const toggleReviewed = (clientName) => {
+        const toggleReviewed = async (clientName) => {
+            const newValue = !reviewedClients[clientName];
+
             setReviewedClients(prev => ({
                 ...prev,
-                [clientName]: !prev[clientName]
+                [clientName]: newValue
             }));
+
+            try {
+                const user = await base44.auth.me();
+
+                // Buscar si ya existe un registro
+                const existing = await base44.entities.ClientReconciliationReview.filter({
+                    client_name: clientName,
+                    period_month: currentPeriod
+                });
+
+                if (existing.length > 0) {
+                    // Actualizar existente
+                    await base44.entities.ClientReconciliationReview.update(existing[0].id, {
+                        reviewed: newValue,
+                        reviewed_at: new Date().toISOString(),
+                        reviewed_by: user.id
+                    });
+                } else {
+                    // Crear nuevo
+                    await base44.entities.ClientReconciliationReview.create({
+                        client_name: clientName,
+                        period_month: currentPeriod,
+                        reviewed: newValue,
+                        reviewed_at: new Date().toISOString(),
+                        reviewed_by: user.id
+                    });
+                }
+            } catch (error) {
+                console.error('Error guardando estado de revisión:', error);
+            }
         };
 
     const toggleExpand = (clientId) => {
