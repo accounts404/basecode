@@ -138,7 +138,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             const serviceDate = new Date(service.start_time);
             if (serviceDate >= start && serviceDate <= end) {
                 const client = clients.get(service.client_id);
-                
+
                 let amount = 0;
                 if (service.reconciliation_items && service.reconciliation_items.length > 0) {
                     amount = service.reconciliation_items.reduce((itemTotal, item) => {
@@ -152,9 +152,9 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                         amount = client?.current_service_price || 0;
                     }
                 }
-                
+
                 totalAmount += amount;
-                
+
                 if (client?.payment_method === 'cash') {
                     cashAmount += amount;
                 } else {
@@ -167,10 +167,10 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             totalAmount,
             cashAmount,
             normalAmount,
-            totalHours: clientReport.reduce((sum, client) => sum + client.totalHours, 0),
-            clientCount: clientReport.length
+            totalHours: filteredClientReport.reduce((sum, client) => sum + client.totalHours, 0),
+            clientCount: filteredClientReport.length
         };
-    }, [clientReport, monthlySchedules, clients, startDate, endDate]);
+    }, [filteredClientReport, monthlySchedules, clients, startDate, endDate]);
 
     return (
         <div className="space-y-6">
