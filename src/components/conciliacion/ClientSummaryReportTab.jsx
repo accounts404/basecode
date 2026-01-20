@@ -329,7 +329,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="shadow-lg border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4">
-                    <p className="text-sm text-blue-700 font-semibold">Ingresos Totales</p>
+                    <p className="text-sm text-blue-700 font-semibold">Ingresos Totales (sin GST)</p>
                     <p className="text-3xl font-bold text-blue-900 mt-2">${totalStats.totalAmount.toFixed(2)}</p>
                     <div className="mt-3 space-y-1 text-xs">
                         <div className="flex justify-between text-slate-600">
