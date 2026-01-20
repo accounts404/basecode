@@ -106,7 +106,17 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
 
         // Convertir a array y ordenar por nombre de cliente
         return Object.values(grouped).sort((a, b) => a.clientName.localeCompare(b.clientName));
-    }, [monthlySchedules, clients, startDate, endDate]);
+        }, [monthlySchedules, clients, startDate, endDate]);
+
+        // Filtrar clientes por término de búsqueda
+        const filteredClientReport = useMemo(() => {
+        if (!searchTerm.trim()) return clientReport;
+
+        const term = searchTerm.toLowerCase();
+        return clientReport.filter(client => 
+        client.clientName.toLowerCase().includes(term)
+        );
+        }, [clientReport, searchTerm]);
 
     const toggleExpand = (clientId) => {
         setExpandedClients(prev => ({
