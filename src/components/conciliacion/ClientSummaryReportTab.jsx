@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, Search, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,6 +23,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
     );
     const [expandedClients, setExpandedClients] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
+    const [reviewedClients, setReviewedClients] = useState({});
 
     // Filtrar servicios por rango de fechas y agrupar por cliente
     const clientReport = useMemo(() => {
@@ -108,15 +110,35 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         return Object.values(grouped).sort((a, b) => a.clientName.localeCompare(b.clientName));
         }, [monthlySchedules, clients, startDate, endDate]);
 
-        // Filtrar clientes por término de búsqueda
+        // Filtrar y ordenar clientes: no revisados primero, revisados al final
         const filteredClientReport = useMemo(() => {
-        if (!searchTerm.trim()) return clientReport;
+            let filtered = clientReport;
 
-        const term = searchTerm.toLowerCase();
-        return clientReport.filter(client => 
-        client.clientName.toLowerCase().includes(term)
-        );
-        }, [clientReport, searchTerm]);
+            if (searchTerm.trim()) {
+                const term = searchTerm.toLowerCase();
+                filtered = clientReport.filter(client => 
+                    client.clientName.toLowerCase().includes(term)
+                );
+            }
+
+            // Ordenar: no revisados primero, revisados al final
+            return filtered.sort((a, b) => {
+                const aReviewed = reviewedClients[a.clientName] || false;
+                const bReviewed = reviewedClients[b.clientName] || false;
+
+                if (aReviewed === bReviewed) {
+                    return a.clientName.localeCompare(b.clientName);
+                }
+                return aReviewed ? 1 : -1;
+            });
+        }, [clientReport, searchTerm, reviewedClients]);
+
+        const toggleReviewed = (clientName) => {
+            setReviewedClients(prev => ({
+                ...prev,
+                [clientName]: !prev[clientName]
+            }));
+        };
 
     const toggleExpand = (clientId) => {
         setExpandedClients(prev => ({
@@ -272,6 +294,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                     <Table>
                         <TableHeader className="bg-slate-100">
                             <TableRow>
+                                <TableHead className="font-bold text-slate-700 w-12 text-center">✓</TableHead>
                                 <TableHead className="font-bold text-slate-700 w-12"></TableHead>
                                 <TableHead className="font-bold text-slate-700">Cliente</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Servicios</TableHead>
@@ -296,37 +319,47 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                             ) : filteredClientReport.map((clientGroup, index) => {
                                 const avgRate = clientGroup.totalHours > 0 ? clientGroup.totalAmount / clientGroup.totalHours : 0;
                                 const isExpanded = expandedClients[index];
-                                
+                                const isReviewed = reviewedClients[clientGroup.clientName] || false;
+
                                 return (
                                     <React.Fragment key={index}>
                                         {/* Cliente Principal Row */}
                                         <TableRow 
-                                            className="bg-gradient-to-r from-slate-50 to-white hover:bg-slate-100 cursor-pointer border-b-2 border-slate-200"
-                                            onClick={() => toggleExpand(index)}
+                                            className={`${isReviewed ? 'bg-gradient-to-r from-green-50 to-green-100' : 'bg-gradient-to-r from-slate-50 to-white'} hover:bg-slate-100 cursor-pointer border-b-2 ${isReviewed ? 'border-green-300' : 'border-slate-200'}`}
                                         >
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                                                <Checkbox
+                                                    checked={isReviewed}
+                                                    onCheckedChange={() => toggleReviewed(clientGroup.clientName)}
+                                                    className={isReviewed ? 'border-green-600 data-[state=checked]:bg-green-600' : ''}
+                                                />
+                                            </TableCell>
+                                            <TableCell className="text-center" onClick={() => toggleExpand(index)}>
                                                 {isExpanded ? 
                                                     <ChevronUp className="w-5 h-5 text-blue-600" /> : 
                                                     <ChevronDown className="w-5 h-5 text-slate-400" />
                                                 }
                                             </TableCell>
-                                            <TableCell className="font-bold text-slate-900">
-                                                {clientGroup.clientName}
+                                            <TableCell className={`font-bold ${isReviewed ? 'text-green-900' : 'text-slate-900'}`} onClick={() => toggleExpand(index)}>
+                                                <div className="flex items-center gap-2">
+                                                    {clientGroup.clientName}
+                                                    {isReviewed && <CheckCircle className="w-4 h-4 text-green-600" />}
+                                                </div>
                                             </TableCell>
-                                            <TableCell className="text-right font-semibold text-slate-700">
+                                            <TableCell className={`text-right font-semibold ${isReviewed ? 'text-green-800' : 'text-slate-700'}`} onClick={() => toggleExpand(index)}>
                                                 {clientGroup.services.length}
                                             </TableCell>
-                                            <TableCell className="text-right font-semibold text-slate-700">
+                                            <TableCell className={`text-right font-semibold ${isReviewed ? 'text-green-800' : 'text-slate-700'}`} onClick={() => toggleExpand(index)}>
                                                 {clientGroup.totalHours.toFixed(2)}h
                                             </TableCell>
-                                            <TableCell className="text-right font-semibold text-slate-700">
+                                            <TableCell className={`text-right font-semibold ${isReviewed ? 'text-green-800' : 'text-slate-700'}`} onClick={() => toggleExpand(index)}>
                                                 ${avgRate.toFixed(2)}/h
                                             </TableCell>
-                                            <TableCell className="text-right font-semibold text-slate-600">
+                                            <TableCell className={`text-right font-semibold ${isReviewed ? 'text-green-700' : 'text-slate-600'}`} onClick={() => toggleExpand(index)}>
                                                 ${(clientGroup.baseAmount || 0).toFixed(2)}
                                             </TableCell>
-                                            <TableCell className="text-right">
-                                                <span className="font-bold text-lg text-blue-700">
+                                            <TableCell className="text-right" onClick={() => toggleExpand(index)}>
+                                                <span className={`font-bold text-lg ${isReviewed ? 'text-green-700' : 'text-blue-700'}`}>
                                                     ${clientGroup.totalAmount.toFixed(2)}
                                                 </span>
                                             </TableCell>
@@ -382,8 +415,9 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                             return (
                                                 <TableRow 
                                                     key={serviceIdx} 
-                                                    className="bg-white hover:bg-blue-50 border-b border-slate-100 text-sm"
+                                                    className={`${isReviewed ? 'bg-green-50/30' : 'bg-white'} hover:bg-blue-50 border-b border-slate-100 text-sm`}
                                                 >
+                                                    <TableCell></TableCell>
                                                     <TableCell></TableCell>
                                                     <TableCell className="text-slate-600 pl-8">
                                                         <span className="text-xs">
