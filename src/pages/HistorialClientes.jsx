@@ -98,7 +98,7 @@ export default function HistorialClientes() {
                 loadAllRecords(User, '-created_date'),
                 loadAllRecords(ServiceReport, '-created_date')
             ]);
-            setClients((clientsData || []).filter(c => c.active !== false));
+            setClients(clientsData || []);
             setCleaners(cleanersData || []);
             setServiceReports(reportsData || []);
         } catch (error) {
