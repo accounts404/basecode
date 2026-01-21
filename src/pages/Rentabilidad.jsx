@@ -1360,6 +1360,16 @@ export default function RentabilidadPage() {
                                     <p className={`text-xs mt-1 font-medium ${profitabilityData.summary.totalRealMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                         Después de Gastos Fijos
                                     </p>
+                                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-1.5">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-green-700 font-medium">💵 Cash:</span>
+                                            <span className="text-sm font-bold text-green-900">${(profitabilityData.summary.cashNetMargin || 0).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs text-blue-700 font-medium">📄 Factura:</span>
+                                            <span className="text-sm font-bold text-blue-900">${(profitabilityData.summary.invoiceNetMargin || 0).toFixed(2)}</span>
+                                        </div>
+                                    </div>
                                 </CardContent>
                             </Card>
 
