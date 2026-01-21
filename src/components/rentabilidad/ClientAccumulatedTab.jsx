@@ -144,226 +144,48 @@ export default function ClientAccumulatedTab({
         return Object.values(costsByClient);
     }, [allWorkEntries, clients, cumulativeStartDate, cumulativeEndDate]);
 
+import { extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
+import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilityCalculations';
+
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
-            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 }, overallTotalFixedCosts: 0 };
+            return { 
+                clientAnalysis: [], 
+                summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0, cashIncome: 0, nonCashIncome: 0 }, 
+                overallTotalFixedCosts: 0,
+                overallTotalFixedCostsWithOperational: 0,
+                trainingCost: { hours: 0, amount: 0 },
+                operationalCostsDetails: []
+            };
         }
 
         const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
-        const clientMap = new Map(activeClients.map(c => [c.id, c]));
 
-        const cumulativeIncomeDetailMap = new Map();
-        const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
-            return isDateInRange(schedule.start_time, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
-                   schedule.xero_invoiced === true &&
-                   schedule.client_id !== trainingClientId &&
-                   clientMap.has(schedule.client_id);
+        // USAR LA FUNCIÓN CENTRALIZADA
+        const result = calculateProfitabilityForPeriod({
+            periodStart: cumulativeStartDate,
+            periodEnd: endOfDay(cumulativeEndDate),
+            clients: activeClients,
+            allSchedules,
+            allWorkEntries,
+            allFixedCosts,
+            trainingClientId,
+            sortColumn,
+            sortDirection
         });
 
-        const clientServiceCountFromSchedules = new Map();
-        
-        invoicedSchedulesCumulative.forEach(schedule => {
-            const client = clientMap.get(schedule.client_id);
-            if (!client) return;
+        // Actualizar el estado de training cost
+        setCumulativeTrainingCost(result.trainingCost);
 
-            const clientId = client.id;
-            
-            if (!clientServiceCountFromSchedules.has(clientId)) {
-                clientServiceCountFromSchedules.set(clientId, new Set());
-            }
-            const scheduleDateOnly = extractDateOnly(schedule.start_time);
-            if (scheduleDateOnly) {
-                clientServiceCountFromSchedules.get(clientId).add(scheduleDateOnly);
-            }
-            
-            let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
-
-            // CRÍTICO: Usar la misma lógica que RentabilityAnalysisTab
-            const priceData = getPriceForSchedule(schedule, client);
-            const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
-            
-            const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
-            
-            let netBreakdownForSchedule = {};
-            for (const type in priceData.breakdown) {
-                netBreakdownForSchedule[type] = priceData.breakdown[type] * gstFactor;
-            }
-            
-            cumulativeIncomeDetailMap.set(clientId, mergeRevenueBreakdowns(currentClientCumulativeBreakdown, netBreakdownForSchedule));
-        });
-
-        let cumulativeTrainingHours = 0;
-        let cumulativeTrainingAmount = 0;
-        allWorkEntries.forEach(entry => {
-            if (entry.client_id === trainingClientId && 
-                isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate))) {
-                cumulativeTrainingHours += entry.hours || 0;
-                cumulativeTrainingAmount += entry.total_amount || 0;
-            }
-        });
-        setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
-
-        // CRÍTICO: Filtrar WorkEntries excluyendo operational_cost
-        const cumulativeWorkEntries = allWorkEntries.filter(entry => {
-            const client = clientMap.get(entry.client_id);
-            return isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
-                   entry.client_id !== trainingClientId &&
-                   clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training' &&
-                   client?.client_type !== 'operational_cost';
-        });
-
-        const cumulativeClientProfitability = cumulativeWorkEntries.reduce((acc, entry) => {
-            if (!entry.client_id) return acc;
-            const client = clientMap.get(entry.client_id);
-            if (!client) return acc;
-
-            if (!acc[client.id]) {
-                acc[client.id] = {
-                    clientId: client.id,
-                    clientName: client.name,
-                    totalIncome: 0,
-                    totalLaborCost: 0,
-                    totalHours: 0,
-                    serviceCount: 0,
-                    revenueBreakdown: {},
-                    currentServicePrice: client.current_service_price || 0,
-                    gstType: client.gst_type || 'inclusive',
-                };
-            }
-            acc[client.id].totalLaborCost += entry.total_amount || 0;
-            acc[client.id].totalHours += entry.hours || 0;
-            return acc;
-        }, {});
-
-        cumulativeIncomeDetailMap.forEach((breakdown, clientId) => {
-            if (cumulativeClientProfitability[clientId]) {
-                cumulativeClientProfitability[clientId].revenueBreakdown = breakdown;
-                cumulativeClientProfitability[clientId].totalIncome = calculateTotalIncomeFromBreakdown(breakdown);
-                
-                const uniqueServiceDates = clientServiceCountFromSchedules.get(clientId);
-                cumulativeClientProfitability[clientId].serviceCount = uniqueServiceDates ? uniqueServiceDates.size : 0;
-
-            } else {
-                const client = clientMap.get(clientId);
-                if (client) {
-                    const uniqueServiceDates = clientServiceCountFromSchedules.get(clientId);
-                    cumulativeClientProfitability[clientId] = {
-                        clientId: clientId,
-                        clientName: client.name,
-                        totalIncome: calculateTotalIncomeFromBreakdown(breakdown),
-                        totalLaborCost: 0,
-                        totalHours: 0,
-                        serviceCount: uniqueServiceDates ? uniqueServiceDates.size : 0,
-                        revenueBreakdown: breakdown,
-                        currentServicePrice: client.current_service_price || 0,
-                        gstType: client.gst_type || 'inclusive',
-                    };
-                }
-            }
-        });
-
-        const startPeriod = format(cumulativeStartDate, 'yyyy-MM');
-        const endPeriod = format(cumulativeEndDate, 'yyyy-MM');
-        const periodMonths = [];
-        let currentDate = new Date(startPeriod + '-01');
-        while (format(currentDate, 'yyyy-MM') <= endPeriod) {
-            periodMonths.push(format(currentDate, 'yyyy-MM'));
-            currentDate = addMonths(currentDate, 1);
-        }
-
-        const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
-        const totalCumulativeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
-
-        const totalCumulativeOperationalCosts = cumulativeOperationalCosts.reduce((sum, cost) => sum + (cost.totalLaborCost || 0), 0);
-
-        const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCosts;
-
-        const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
-
-        const cumulativeFixedCostPerHourOverall = overallCumulativeTotalHours > 0 ? 
-            totalFixedCostsWithTraining / overallCumulativeTotalHours : 0;
-
-        const cumulativeClientAnalysis = Object.values(cumulativeClientProfitability).map(data => {
-            const client = clientMap.get(data.clientId);
-            const isCash = client?.payment_method === 'cash';
-            
-            const margin = data.totalIncome - data.totalLaborCost;
-            const profitPercentage = data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0;
-            
-            const distributedFixedCost = data.totalHours * cumulativeFixedCostPerHourOverall;
-            const realMargin = margin - distributedFixedCost;
-            const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
-
-            const incomePerHour = data.totalHours > 0 ? data.totalIncome / data.totalHours : 0;
-            const laborCostPerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
-            const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
-            const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
-            const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
-            const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
-
-            return {
-                ...data,
-                isCash,
-                margin,
-                profitPercentage,
-                distributedFixedCost,
-                realMargin,
-                realProfitPercentage,
-                incomePerHour,
-                laborCostPerHour,
-                marginPerHour,
-                fixedCostPerHour,
-                realMarginPerHour,
-                totalCostPerHour
-            };
-        }).filter(data => {
-             const client = clientMap.get(data.clientId);
-             return client?.client_type !== 'operational_cost' && (data.totalHours > 0 || data.totalIncome > 0);
-        });
-
-        const sortedCumulativeAnalysis = [...cumulativeClientAnalysis].sort((a, b) => {
-            let aValue = a[sortColumn];
-            let bValue = b[sortColumn];
-
-            if (sortColumn === 'clientName') {
-                aValue = aValue?.toLowerCase() || '';
-                bValue = bValue?.toLowerCase() || '';
-                return sortDirection === 'asc' ? 
-                    aValue.localeCompare(bValue) : 
-                    bValue.localeCompare(aValue);
-            }
-
-            aValue = parseFloat(aValue) || 0;
-            bValue = parseFloat(bValue) || 0;
-            
-            return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-        });
-
-        const cumulativeSummary = sortedCumulativeAnalysis.reduce((acc, client) => {
-            acc.totalIncome += client.totalIncome;
-            acc.totalLaborCost += client.totalLaborCost;
-            acc.totalMargin += client.margin;
-            acc.totalHours += client.totalHours;
-            acc.totalRealMargin += client.realMargin;
-            if (client.isCash) {
-                acc.cashIncome += client.totalIncome;
-            } else {
-                acc.nonCashIncome += client.totalIncome;
-            }
-            return acc;
-        }, { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, cashIncome: 0, nonCashIncome: 0 });
-
-        const cumulativeTotalRealProfitPercentage = cumulativeSummary.totalIncome > 0 ? (cumulativeSummary.totalRealMargin / cumulativeSummary.totalIncome) * 100 : 0;
-        cumulativeSummary.totalRealProfitPercentage = cumulativeTotalRealProfitPercentage;
-
-        return { 
-            clientAnalysis: sortedCumulativeAnalysis, 
-            summary: cumulativeSummary, 
-            overallTotalFixedCosts: totalCumulativeFixedCosts,
-            overallTotalFixedCostsWithOperational: totalFixedCostsWithTraining
+        return {
+            clientAnalysis: result.clientAnalysis,
+            summary: result.summary,
+            overallTotalFixedCosts: result.totalFixedCosts,
+            overallTotalFixedCostsWithOperational: result.totalFixedCostsWithTraining,
+            trainingCost: result.trainingCost,
+            operationalCostsDetails: result.operationalCostsDetails
         };
-    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, sortColumn, sortDirection, cumulativeOperationalCosts]);
+    }, [clients, allWorkEntries, allSchedules, allFixedCosts, cumulativeStartDate, cumulativeEndDate, trainingClientId, sortColumn, sortDirection]);
 
     const isNotificationExpired = (sentDate) => {
         if (!sentDate) return true;
