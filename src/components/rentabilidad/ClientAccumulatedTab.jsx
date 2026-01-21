@@ -14,8 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from '@/components/ui/textarea';
 import { Client } from '@/entities/Client';
 import { User } from '@/entities/User';
-import { calculateTotalIncomeFromBreakdown, mergeRevenueBreakdowns, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
-import { getPriceForSchedule, calculateGST } from '@/components/utils/priceCalculations';
+import { extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
+import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilityCalculations';
 
 const TotalsCard = ({ summary, title }) => {
     const isGrossProfitable = summary.totalMargin > 0;
