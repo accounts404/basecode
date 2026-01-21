@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FixedCost } from '@/entities/FixedCost';
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { calculateTotalIncomeFromBreakdown, mergeRevenueBreakdowns } from '@/components/utils/priceCalculations';
-import { getPriceForSchedule, calculateGST, isDateInRange } from '@/components/utils/priceCalculations';
+import { getPriceForSchedule, calculateGST, isDateInRange, extractDateOnly } from '@/components/utils/priceCalculations';
 
 const generateMonthOptions = () => {
     const months = [];
@@ -92,7 +94,10 @@ export default function RentabilityAnalysisTab({
     sortDirection,
     handleSort
 }) {
+    const [filterMode, setFilterMode] = useState('month'); // 'month' o 'range'
     const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+    const [rangeStartDate, setRangeStartDate] = useState(new Date('2025-04-01T00:00:00Z'));
+    const [rangeEndDate, setRangeEndDate] = useState(new Date());
     const [selectedPeriod, setSelectedPeriod] = useState(null);
     const [fixedCostInput, setFixedCostInput] = useState(0);
     const [savedFixedCosts, setSavedFixedCosts] = useState(0);
@@ -104,10 +109,43 @@ export default function RentabilityAnalysisTab({
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (selectedMonth && clients.length > 0) {
-            loadMonthData(selectedMonth);
+        if (clients.length > 0) {
+            if (filterMode === 'month' && selectedMonth) {
+                loadMonthData(selectedMonth);
+            } else if (filterMode === 'range' && rangeStartDate && rangeEndDate) {
+                loadRangeData(rangeStartDate, rangeEndDate);
+            }
         }
-    }, [selectedMonth, clients, allWorkEntries, allSchedules, allFixedCosts]);
+    }, [filterMode, selectedMonth, rangeStartDate, rangeEndDate, clients, allWorkEntries, allSchedules, allFixedCosts]);
+
+    const loadRangeData = async (startDate, endDate) => {
+        setError('');
+        try {
+            const periodStart = startDate;
+            const periodEnd = endOfDay(endDate);
+            setSelectedPeriod({ start: periodStart, end: periodEnd });
+
+            // Calcular gastos fijos para el rango
+            const startPeriod = format(startDate, 'yyyy-MM');
+            const endPeriod = format(endDate, 'yyyy-MM');
+            const periodMonths = [];
+            let currentDate = new Date(startPeriod + '-01');
+            while (format(currentDate, 'yyyy-MM') <= endPeriod) {
+                periodMonths.push(format(currentDate, 'yyyy-MM'));
+                currentDate = addMonths(currentDate, 1);
+            }
+
+            const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
+            const totalRangeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
+            setFixedCostInput(totalRangeFixedCosts);
+            setSavedFixedCosts(totalRangeFixedCosts);
+
+            processData(periodStart, periodEnd);
+        } catch (err) {
+            console.error("Error loading range data:", err);
+            setError("Error al cargar los datos del rango.");
+        }
+    };
 
     const loadMonthData = async (monthValue) => {
         setError('');
@@ -117,15 +155,32 @@ export default function RentabilityAnalysisTab({
             const monthEnd = endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
             setSelectedPeriod({ start: monthStart, end: monthEnd });
 
+            const fixedCostsForMonth = allFixedCosts.filter(fc => fc.period === monthValue);
+            const currentFixedCostAmount = fixedCostsForMonth && fixedCostsForMonth.length > 0
+                ? fixedCostsForMonth[0].amount
+                : 0;
+            setFixedCostInput(currentFixedCostAmount);
+            setSavedFixedCosts(currentFixedCostAmount);
+
+            processData(monthStart, monthEnd);
+        } catch (err) {
+            console.error("Error loading month data:", err);
+            setError("Error al cargar los datos del mes.");
+        }
+    };
+
+    const processData = (periodStart, periodEnd) => {
+        try {
+
             const clientMap = new Map(clients.map(c => [c.id, c]));
             const clientData = {};
 
-            const monthlySchedules = allSchedules.filter(s => 
-                isDateInRange(s.start_time, monthStart, monthEnd) &&
+            const periodSchedules = allSchedules.filter(s => 
+                isDateInRange(s.start_time, periodStart, periodEnd) &&
                 s.xero_invoiced
             );
 
-            monthlySchedules.forEach(schedule => {
+            periodSchedules.forEach(schedule => {
                 if (schedule.client_id === trainingClientId) return;
 
                 const client = clientMap.get(schedule.client_id);
@@ -165,19 +220,19 @@ export default function RentabilityAnalysisTab({
             let trainingAmount = 0;
             allWorkEntries.forEach(entry => {
                 if (entry.client_id === trainingClientId && 
-                    isDateInRange(entry.work_date, monthStart, monthEnd)) {
+                    isDateInRange(entry.work_date, periodStart, periodEnd)) {
                     trainingHours += entry.hours || 0;
                     trainingAmount += entry.total_amount || 0;
                 }
             });
             setMonthlyTrainingCost({ hours: trainingHours, amount: trainingAmount });
 
-            const monthlyWorkEntries = allWorkEntries.filter(e => 
-                isDateInRange(e.work_date, monthStart, monthEnd) &&
+            const periodWorkEntries = allWorkEntries.filter(e => 
+                isDateInRange(e.work_date, periodStart, periodEnd) &&
                 e.activity !== 'training'
             );
 
-            monthlyWorkEntries.forEach(entry => {
+            periodWorkEntries.forEach(entry => {
                 const clientId = entry.client_id;
                 
                 if (clientId === trainingClientId) return;
@@ -205,23 +260,16 @@ export default function RentabilityAnalysisTab({
                 }
             });
 
-            const fixedCostsForMonth = allFixedCosts.filter(fc => fc.period === monthValue);
-            const currentFixedCostAmount = fixedCostsForMonth && fixedCostsForMonth.length > 0
-                ? fixedCostsForMonth[0].amount
-                : 0;
-            setFixedCostInput(currentFixedCostAmount);
-            setSavedFixedCosts(currentFixedCostAmount);
-
-            const monthlyOperationalCost = Object.values(clientData)
+            const periodOperationalCost = Object.values(clientData)
                 .filter(c => {
                     const client = clientMap.get(c.clientId);
                     return client?.client_type === 'operational_cost';
                 })
                 .reduce((sum, c) => sum + c.totalLaborCost, 0);
 
-            const totalFixedCostsWithTraining = currentFixedCostAmount + trainingAmount + monthlyOperationalCost;
+            const totalFixedCostsWithTraining = (filterMode === 'month' ? savedFixedCosts : fixedCostInput) + trainingAmount + periodOperationalCost;
 
-            const totalMonthlyHours = Object.values(clientData)
+            const totalPeriodHours = Object.values(clientData)
                 .filter(c => {
                     const client = clientMap.get(c.clientId);
                     return client?.client_type !== 'operational_cost';
@@ -237,7 +285,7 @@ export default function RentabilityAnalysisTab({
                 const margin = data.totalIncome - data.totalLaborCost;
                 const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
 
-                const clientHourShare = totalMonthlyHours > 0 ? data.totalHours / totalMonthlyHours : 0;
+                const clientHourShare = totalPeriodHours > 0 ? data.totalHours / totalPeriodHours : 0;
                 const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
                 const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
                 const realMargin = margin - distributedFixedCost;
@@ -266,8 +314,8 @@ export default function RentabilityAnalysisTab({
             setMonthlyProcessedClientAnalysis(profitData);
 
         } catch (err) {
-            console.error("Error loading month data:", err);
-            setError("Error al cargar los datos del mes.");
+            console.error("Error processing data:", err);
+            setError("Error al procesar los datos.");
         }
     };
 
@@ -381,7 +429,7 @@ export default function RentabilityAnalysisTab({
     }, [selectedPeriod, monthlyProcessedClientAnalysis, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts]);
 
     const handleSaveFixedCosts = async () => {
-        if (!selectedMonth) return;
+        if (filterMode !== 'month' || !selectedMonth) return;
         
         setSavingFixedCosts(true);
         setSaveSuccess(false);
@@ -425,81 +473,195 @@ export default function RentabilityAnalysisTab({
         <div className="space-y-6">
             <Card className="shadow-xl border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end">
-                        <div className="space-y-3">
-                            <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-blue-600" />
-                                Período de Análisis
-                            </Label>
-                            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                                <SelectTrigger className="h-12 text-base border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 font-medium">
-                                    <SelectValue placeholder="Selecciona un mes" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {monthOptions.map((month) => (
-                                        <SelectItem key={month.value} value={month.value} className="py-3 text-base">
-                                            {month.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-3">
-                            <Label htmlFor="fixed-costs" className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-                                <PiggyBank className="w-4 h-4 text-orange-600" />
-                                Gastos Fijos del Período
-                            </Label>
-                            <div className="flex items-center gap-3">
-                                <div className="relative flex-1">
-                                    <DollarSign className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
-                                    <Input
-                                        id="fixed-costs"
-                                        type="number"
-                                        step="0.01"
-                                        value={fixedCostInput}
-                                        onChange={(e) => setFixedCostInput(e.target.value)}
-                                        className="pl-12 h-12 text-base border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 font-medium"
-                                        placeholder="0.00"
-                                        onWheel={(e) => e.currentTarget.blur()}
-                                    />
-                                </div>
-                                <Button 
-                                    onClick={handleSaveFixedCosts}
-                                    disabled={savingFixedCosts || parseFloat(fixedCostInput) === savedFixedCosts}
-                                    size="lg"
-                                    className="h-12 px-5 bg-blue-600 hover:bg-blue-700 shadow-md"
-                                >
-                                    {savingFixedCosts ? (
-                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                                    ) : (
-                                        <Save className="w-5 h-5" />
-                                    )}
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div className="space-y-3">
-                            <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
-                                <GraduationCap className="w-4 h-4 text-purple-600" />
-                                Costo de Entrenamiento
-                            </Label>
-                            <div className="h-12 bg-purple-50 border-2 border-purple-200 rounded-lg px-4 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <Clock className="w-4 h-4 text-purple-600" />
-                                    <span className="text-sm font-medium text-purple-900">
-                                        {monthlyTrainingCost.hours.toFixed(2)}h
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <DollarSign className="w-4 h-4 text-purple-600" />
-                                    <span className="text-base font-bold text-purple-900">
-                                        ${monthlyTrainingCost.amount.toFixed(2)}
-                                    </span>
-                                </div>
-                            </div>
+                    <div className="mb-6">
+                        <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 block">
+                            Modo de Filtro
+                        </Label>
+                        <div className="flex gap-3">
+                            <Button
+                                variant={filterMode === 'month' ? 'default' : 'outline'}
+                                onClick={() => setFilterMode('month')}
+                                className="flex-1"
+                            >
+                                <Calendar className="w-4 h-4 mr-2" />
+                                Mes Único
+                            </Button>
+                            <Button
+                                variant={filterMode === 'range' ? 'default' : 'outline'}
+                                onClick={() => setFilterMode('range')}
+                                className="flex-1"
+                            >
+                                <Calendar className="w-4 h-4 mr-2" />
+                                Rango de Fechas
+                            </Button>
                         </div>
                     </div>
+
+                    {filterMode === 'month' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end">
+                            <div className="space-y-3">
+                                <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-blue-600" />
+                                    Período de Análisis
+                                </Label>
+                                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                                    <SelectTrigger className="h-12 text-base border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 font-medium">
+                                        <SelectValue placeholder="Selecciona un mes" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {monthOptions.map((month) => (
+                                            <SelectItem key={month.value} value={month.value} className="py-3 text-base">
+                                                {month.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-3">
+                                <Label htmlFor="fixed-costs" className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                    <PiggyBank className="w-4 h-4 text-orange-600" />
+                                    Gastos Fijos del Período
+                                </Label>
+                                <div className="flex items-center gap-3">
+                                    <div className="relative flex-1">
+                                        <DollarSign className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+                                        <Input
+                                            id="fixed-costs"
+                                            type="number"
+                                            step="0.01"
+                                            value={fixedCostInput}
+                                            onChange={(e) => setFixedCostInput(e.target.value)}
+                                            className="pl-12 h-12 text-base border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 font-medium"
+                                            placeholder="0.00"
+                                            onWheel={(e) => e.currentTarget.blur()}
+                                        />
+                                    </div>
+                                    <Button 
+                                        onClick={handleSaveFixedCosts}
+                                        disabled={savingFixedCosts || parseFloat(fixedCostInput) === savedFixedCosts}
+                                        size="lg"
+                                        className="h-12 px-5 bg-blue-600 hover:bg-blue-700 shadow-md"
+                                    >
+                                        {savingFixedCosts ? (
+                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                        ) : (
+                                            <Save className="w-5 h-5" />
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                    <GraduationCap className="w-4 h-4 text-purple-600" />
+                                    Costo de Entrenamiento
+                                </Label>
+                                <div className="h-12 bg-purple-50 border-2 border-purple-200 rounded-lg px-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Clock className="w-4 h-4 text-purple-600" />
+                                        <span className="text-sm font-medium text-purple-900">
+                                            {monthlyTrainingCost.hours.toFixed(2)}h
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <DollarSign className="w-4 h-4 text-purple-600" />
+                                        <span className="text-base font-bold text-purple-900">
+                                            ${monthlyTrainingCost.amount.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end">
+                            <div className="space-y-3">
+                                <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-green-600" />
+                                    Fecha Inicial
+                                </Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="h-12 px-4 justify-start text-left font-medium border-slate-300 hover:border-green-600 hover:bg-slate-50 w-full"
+                                        >
+                                            <Calendar className="mr-3 h-5 w-5 text-green-600" />
+                                            {format(rangeStartDate, 'd MMMM yyyy', { locale: es })}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <CalendarComponent
+                                            mode="single"
+                                            selected={rangeStartDate}
+                                            onSelect={(date) => date && setRangeStartDate(date)}
+                                            disabled={(date) => {
+                                                const minDate = new Date('2025-04-01');
+                                                if (date < minDate) return true;
+                                                if (date > new Date()) return true;
+                                                if (date > rangeEndDate) return true;
+                                                const dateStr = format(date, 'yyyy-MM');
+                                                if (dateStr === '2025-08' || dateStr === '2025-09') return true;
+                                                return false;
+                                            }}
+                                            initialFocus
+                                            locale={es}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+
+                            <div className="space-y-3">
+                                <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-blue-600" />
+                                    Fecha Final
+                                </Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="h-12 px-4 justify-start text-left font-medium border-slate-300 hover:border-blue-600 hover:bg-slate-50 w-full"
+                                        >
+                                            <Calendar className="mr-3 h-5 w-5 text-blue-600" />
+                                            {format(rangeEndDate, 'd MMMM yyyy', { locale: es })}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0" align="start">
+                                        <CalendarComponent
+                                            mode="single"
+                                            selected={rangeEndDate}
+                                            onSelect={(date) => date && setRangeEndDate(date)}
+                                            disabled={(date) => {
+                                                if (date < rangeStartDate) return true;
+                                                if (date > new Date()) return true;
+                                                const dateStr = format(date, 'yyyy-MM');
+                                                if (dateStr === '2025-08' || dateStr === '2025-09') return true;
+                                                return false;
+                                            }}
+                                            initialFocus
+                                            locale={es}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+
+                            <div className="space-y-3">
+                                <Label className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                    <PiggyBank className="w-4 h-4 text-orange-600" />
+                                    Gastos Fijos del Rango
+                                </Label>
+                                <div className="h-12 bg-orange-50 border-2 border-orange-200 rounded-lg px-4 flex items-center justify-between">
+                                    <span className="text-xs text-orange-700 font-medium">Total acumulado:</span>
+                                    <div className="flex items-center gap-2">
+                                        <DollarSign className="w-4 h-4 text-orange-600" />
+                                        <span className="text-base font-bold text-orange-900">
+                                            ${fixedCostInput.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     
                     {saveSuccess && (
                         <Alert className="mt-6 border-emerald-200 bg-emerald-50/50 shadow-sm">
@@ -682,7 +844,7 @@ export default function RentabilityAnalysisTab({
                         <CardHeader>
                             <CardTitle className="text-lg flex items-center gap-2 text-orange-900">
                                 <Briefcase className="w-5 h-5" />
-                                Gastos Operativos Detallados ({format(selectedPeriod.start, 'MMMM yyyy', { locale: es })})
+                                Gastos Operativos Detallados ({format(selectedPeriod.start, 'd MMM yyyy', { locale: es })} - {format(selectedPeriod.end, 'd MMM yyyy', { locale: es })})
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
