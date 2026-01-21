@@ -493,7 +493,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                                 serviceBaseAmount = serviceAmount / 1.1;
                                             }
 
-                                            const serviceDate = new Date(service.start_time);
+                                            const serviceDate = parseISOAsLocal(service.start_time);
 
                                             return (
                                                 <TableRow 
