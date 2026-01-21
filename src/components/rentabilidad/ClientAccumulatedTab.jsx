@@ -626,18 +626,18 @@ import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilit
                                                 </div>
                                             </TooltipTrigger>
                                             <TooltipContent className="bg-slate-900 text-white p-3">
-                                                <div className="space-y-1">
-                                                    <p className="text-sm font-semibold">Desglose promedio por hora:</p>
-                                                    <p className="text-xs">
-                                                        Mano de obra: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.summary.totalLaborCost / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                    </p>
-                                                    <p className="text-xs">
-                                                        Gastos fijos: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                    </p>
-                                                    <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
-                                                        Total: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + (cumulativeProfitabilityData.overallTotalFixedCosts + cumulativeTrainingCost.amount)) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                    </p>
-                                                </div>
+                                               <div className="space-y-1">
+                                                   <p className="text-sm font-semibold">Desglose promedio por hora:</p>
+                                                   <p className="text-xs">
+                                                       Mano de obra: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.summary.totalLaborCost / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                   </p>
+                                                   <p className="text-xs">
+                                                       Gastos fijos: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? cumulativeProfitabilityData.overallTotalFixedCostsWithOperational / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                   </p>
+                                                   <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
+                                                       Total: ${(cumulativeProfitabilityData.summary.totalHours > 0 ? (cumulativeProfitabilityData.summary.totalLaborCost + cumulativeProfitabilityData.overallTotalFixedCostsWithOperational) / cumulativeProfitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                   </p>
+                                               </div>
                                             </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>
