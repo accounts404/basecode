@@ -33,11 +33,6 @@ import PricingAnalysisTable from '../components/rentabilidad/PricingAnalysisTabl
 import ClientMultiSelect from '../components/work/ClientMultiSelect';
 import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
-const extractDateOnly_LOCAL = (isoString) => {
-  if (!isoString) return null;
-  return isoString.substring(0, 10);
-};
-
 // Función para verificar si una fecha está en agosto o septiembre 2025
 const isExcludedMonth = (dateString) => {
   if (!dateString) return false;
