@@ -1302,9 +1302,9 @@ export default function RentabilidadPage() {
                                       </CardTitle>
                                   </CardHeader>
                                   <CardContent>
-                                      <p className="text-4xl font-bold text-orange-900 tracking-tight">${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + (monthlyOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0))).toFixed(2)}</p>
+                                      <p className="text-4xl font-bold text-orange-900 tracking-tight">${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts).toFixed(2)}</p>
                                       <p className="text-xs text-orange-700 mt-1 font-medium">
-                                          Fijos: ${parseFloat(fixedCostInput || 0).toFixed(2)} + TRN: ${monthlyTrainingCost.amount.toFixed(2)} + OP: ${(monthlyOperationalCosts.reduce((sum, c) => sum + (c.totalLaborCost || 0), 0)).toFixed(2)}
+                                          Fijos: ${parseFloat(fixedCostInput || 0).toFixed(2)} + TRN: ${monthlyTrainingCost.amount.toFixed(2)} + OP: ${monthlyOperationalCosts.toFixed(2)}
                                       </p>
                                   </CardContent>
                              </Card>
