@@ -11,6 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
 
+// Helper para parsear fechas ISO como hora local (evitar problemas de zona horaria)
+function parseISOAsLocal(isoString) {
+    if (!isoString) return new Date();
+    const dateStr = isoString.split('T')[0];
+    const timeStr = isoString.split('T')[1]?.split('.')[0] || '00:00:00';
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const [hour, minute, second] = timeStr.split(':').map(Number);
+    return new Date(year, month - 1, day, hour, minute, second);
+}
+
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
     const [startDate, setStartDate] = useState(
         monthlySchedules.length > 0 
