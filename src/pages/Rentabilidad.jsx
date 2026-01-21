@@ -526,6 +526,13 @@ export default function RentabilidadPage() {
                 .reduce((sum, c) => sum + c.totalLaborCost, 0);
 
             const totalFixedCostsWithTraining = currentFixedCostAmount + trainingAmount + monthlyOperationalCost;
+            
+            console.log('[Rentabilidad] 💰 Gastos Fijos del Mes:', {
+                fijos: currentFixedCostAmount,
+                training: trainingAmount,
+                operacionales: monthlyOperationalCost,
+                total: totalFixedCostsWithTraining
+            });
 
             const totalMonthlyHours = Object.values(clientData)
                 .filter(c => {
