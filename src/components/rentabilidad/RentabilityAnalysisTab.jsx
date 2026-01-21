@@ -149,43 +149,26 @@ export default function RentabilityAnalysisTab({
         }
     };
 
-    const monthlyOperationalCosts = useMemo(() => {
-        if (!selectedPeriod) return 0;
+    const monthlyProfitResult = useMemo(() => {
+        if (!selectedPeriod) return null;
         
-        const operationalCostEntries = allWorkEntries.filter(entry => {
-            const client = clients.find(c => c.id === entry.client_id);
-            return client?.client_type === 'operational_cost' && 
-                   isDateInRange(entry.work_date, selectedPeriod.start, selectedPeriod.end);
-        });
-        
-        return operationalCostEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
-    }, [allWorkEntries, clients, selectedPeriod]);
+        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
 
-    const monthlyOperationalCostsDetails = useMemo(() => {
-        if (!selectedPeriod) return [];
-        
-        const operationalCostEntries = allWorkEntries.filter(entry => {
-            const client = clients.find(c => c.id === entry.client_id);
-            return client?.client_type === 'operational_cost' && 
-                   isDateInRange(entry.work_date, selectedPeriod.start, selectedPeriod.end);
+        return calculateProfitabilityForPeriod({
+            periodStart: selectedPeriod.start,
+            periodEnd: selectedPeriod.end,
+            clients: activeClients,
+            allSchedules,
+            allWorkEntries,
+            allFixedCosts,
+            trainingClientId,
+            sortColumn,
+            sortDirection
         });
+    }, [selectedPeriod, clients, allSchedules, allWorkEntries, allFixedCosts, trainingClientId, sortColumn, sortDirection]);
 
-        const costsByClient = {};
-        operationalCostEntries.forEach(entry => {
-            if (!costsByClient[entry.client_id]) {
-                costsByClient[entry.client_id] = {
-                    clientId: entry.client_id,
-                    clientName: entry.client_name,
-                    totalHours: 0,
-                    totalLaborCost: 0
-                };
-            }
-            costsByClient[entry.client_id].totalHours += entry.hours || 0;
-            costsByClient[entry.client_id].totalLaborCost += entry.total_amount || 0;
-        });
-
-        return Object.values(costsByClient);
-    }, [allWorkEntries, clients, selectedPeriod]);
+    const monthlyOperationalCosts = monthlyProfitResult?.operationalCost || 0;
+    const monthlyOperationalCostsDetails = monthlyProfitResult?.operationalCostsDetails || [];
 
     const profitabilityData = useMemo(() => {
         if (!selectedPeriod || monthlyProcessedClientAnalysis.length === 0) {
