@@ -694,14 +694,42 @@ export default function RentabilidadPage() {
             acc.totalRealMargin += client.realMargin;
             if (client.isCash) {
                 acc.cashIncome += client.totalIncome;
+                acc.cashLaborCost += client.totalLaborCost;
+                acc.cashMargin += client.margin;
             } else {
                 acc.nonCashIncome += client.totalIncome;
+                acc.invoiceLaborCost += client.totalLaborCost;
+                acc.invoiceMargin += client.margin;
             }
             return acc;
-        }, { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalHours: 0, totalRealMargin: 0, cashIncome: 0, nonCashIncome: 0 });
+        }, { 
+            totalIncome: 0, 
+            totalLaborCost: 0, 
+            totalMargin: 0, 
+            totalHours: 0, 
+            totalRealMargin: 0, 
+            cashIncome: 0, 
+            nonCashIncome: 0,
+            cashLaborCost: 0,
+            invoiceLaborCost: 0,
+            cashMargin: 0,
+            invoiceMargin: 0
+        });
 
         const totalRealProfitPercentage = summary.totalIncome > 0 ? (summary.totalRealMargin / summary.totalIncome) * 100 : 0;
         summary.totalRealProfitPercentage = totalRealProfitPercentage;
+        
+        // Calcular gastos fijos proporcionalmente
+        const totalFixedCosts = parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts;
+        const cashRatio = summary.totalIncome > 0 ? summary.cashIncome / summary.totalIncome : 0;
+        const invoiceRatio = summary.totalIncome > 0 ? summary.nonCashIncome / summary.totalIncome : 0;
+        
+        summary.cashFixedCosts = totalFixedCosts * cashRatio;
+        summary.invoiceFixedCosts = totalFixedCosts * invoiceRatio;
+        summary.cashNetMargin = summary.cashMargin - summary.cashFixedCosts;
+        summary.invoiceNetMargin = summary.invoiceMargin - summary.invoiceFixedCosts;
+        summary.cashProfitability = summary.cashIncome > 0 ? (summary.cashNetMargin / summary.cashIncome) * 100 : 0;
+        summary.invoiceProfitability = summary.nonCashIncome > 0 ? (summary.invoiceNetMargin / summary.nonCashIncome) * 100 : 0;
 
         return { clientAnalysis: filteredClientAnalysis, summary };
 
