@@ -118,11 +118,6 @@ export default function ClientAccumulatedTab({
     const [selectedClientForHistory, setSelectedClientForHistory] = useState(null);
     const [cumulativeTrainingCost, setCumulativeTrainingCost] = useState({ hours: 0, amount: 0 });
 
-
-
-import { extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
-import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilityCalculations';
-
     const cumulativeProfitabilityData = useMemo(() => {
         if (clients.length === 0 || allWorkEntries.length === 0 || allSchedules.length === 0) {
             return { 
