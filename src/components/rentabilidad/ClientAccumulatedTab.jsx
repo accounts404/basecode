@@ -351,7 +351,7 @@ import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilit
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {cumulativeOperationalCosts.length > 0 ? (
+                    {cumulativeProfitabilityData.operationalCostsDetails.length > 0 ? (
                         <div className="overflow-x-auto border border-slate-200 rounded-lg">
                             <Table>
                                 <TableHeader className="bg-orange-100">
