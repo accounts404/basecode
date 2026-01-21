@@ -113,6 +113,17 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                 const priceData = getPriceForSchedule(service, client);
                 const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
 
+                // DEBUG LOG para julio 2025
+                if (extractDateOnly(service.start_time)?.startsWith('2025-07') && client.name === 'David Muzverney') {
+                    console.log('[ClientSummaryReportTab] DEBUG - David Muzverney julio 2025:', {
+                        serviceId: service.id,
+                        date: extractDateOnly(service.start_time),
+                        priceData,
+                        netIncome,
+                        runningTotal: group.totalAmount + priceData.rawAmount
+                    });
+                }
+
                 group.totalAmount += priceData.rawAmount;
                 if (!group.baseAmount) group.baseAmount = 0;
                 group.baseAmount += netIncome;
