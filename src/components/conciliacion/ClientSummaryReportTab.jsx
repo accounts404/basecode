@@ -10,23 +10,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
-
-// Helper para extraer solo la fecha (YYYY-MM-DD) de un ISO string
-const extractDateOnly = (isoString) => {
-    if (!isoString) return null;
-    return isoString.substring(0, 10);
-};
-
-// Helper para verificar si una fecha está en un rango
-const isDateInRange = (dateString, rangeStart, rangeEnd) => {
-    if (!dateString || !rangeStart || !rangeEnd) return false;
-    
-    const date = extractDateOnly(dateString);
-    const startDate = format(rangeStart, 'yyyy-MM-dd');
-    const endDate = format(rangeEnd, 'yyyy-MM-dd');
-    
-    return date >= startDate && date <= endDate;
-};
+import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
     const [startDate, setStartDate] = useState(() => {
