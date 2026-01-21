@@ -35,63 +35,13 @@ export default function RentabilidadPage() {
     const [clients, setClients] = useState([]);
     const [allWorkEntries, setAllWorkEntries] = useState([]);
     const [allSchedules, setAllSchedules] = useState([]);
+    const [allFixedCosts, setAllFixedCosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [selectedPeriod, setSelectedPeriod] = useState(null);
-    const [monthOptions] = useState(generateMonthOptions());
-    const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
-    const [fixedCostInput, setFixedCostInput] = useState(0);
-    const [allFixedCosts, setAllFixedCosts] = useState([]);
-    const [savedFixedCosts, setSavedFixedCosts] = useState(0);
-    const [savingFixedCosts, setSavingFixedCosts] = useState(false);
-    const [saveSuccess, setSaveSuccess] = useState(false);
-    const [clientSearchTerm, setClientSearchTerm] = useState("");
-    const [selectedClients, setSelectedClients] = useState([]);
     const [sortColumn, setSortColumn] = useState('realMargin');
     const [sortDirection, setSortDirection] = useState('desc');
     const [pricingThresholds, setPricingThresholds] = useState([]);
-    const [selectedFrequency, setSelectedFrequency] = useState('all');
-    const [isThresholdModalOpen, setIsThresholdModalOpen] = useState(false);
-    const [users, setUsers] = useState([]);
-    const [monthlyProcessedClientAnalysis, setMonthlyProcessedClientAnalysis] = useState([]);
-    
-    const [monthlyTrainingCost, setMonthlyTrainingCost] = useState({ hours: 0, amount: 0 });
-    const [cumulativeTrainingCost, setCumulativeTrainingCost] = useState({ hours: 0, amount: 0 });
     const [trainingClientId, setTrainingClientId] = useState(null);
-
-    const [cumulativeStartDate, setCumulativeStartDate] = useState(new Date('2025-04-01T00:00:00Z'));
-    const [cumulativeEndDate, setCumulativeEndDate] = useState(new Date());
-    
-    const [hideSentClients, setHideSentClients] = useState(false);
-    const [sendModalOpen, setSendModalOpen] = useState(false);
-    const [selectedClientForSend, setSelectedClientForSend] = useState(null);
-    const [sendDate, setSendDate] = useState(new Date());
-    const [sendNotes, setSendNotes] = useState('');
-    const [historyModalOpen, setHistoryModalOpen] = useState(false);
-    const [selectedClientForHistory, setSelectedClientForHistory] = useState(null);
-
-    const frequencyOptions = [
-        { value: "all", label: "Todas las Frecuencias" },
-        { value: "weekly", label: "Semanal" },
-        { value: "fortnightly", label: "Quincenal" },
-        { value: "every_3_weeks", label: "Cada 3 semanas" },
-        { value: "monthly", label: "Mensual" },
-        { value: "one_off", label: "Servicio Único" }
-    ];
-
-    // Obtener lista única de nombres de clientes para el selector
-    // Separar clientes reales de costos operativos
-    const realClients = useMemo(() => {
-        return clients.filter(c => c.active !== false && c.id !== trainingClientId && c.client_type !== 'operational_cost');
-    }, [clients, trainingClientId]);
-
-    const operationalCostClients = useMemo(() => {
-        return clients.filter(c => c.active !== false && c.client_type === 'operational_cost');
-    }, [clients]);
-
-    const uniqueClientNames = useMemo(() => {
-        return [...new Set(realClients.map(c => c.name))].sort();
-    }, [realClients]);
 
     // Helper para cargar TODOS los registros con paginación automática
     const loadAllRecords = async (entity, sortField = '-created_date') => {
