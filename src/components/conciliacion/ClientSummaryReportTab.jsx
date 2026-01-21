@@ -501,7 +501,14 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                                 serviceBaseAmount = serviceAmount / 1.1;
                                             }
 
-                                            const serviceDate = parseISOAsLocal(service.start_time);
+                                            // Parsear fecha del servicio desde el string (YYYY-MM-DD)
+                                            const serviceDateStr = extractDateOnly(service.start_time);
+                                            const [serviceYear, serviceMonth, serviceDay] = serviceDateStr.split('-').map(Number);
+                                            const serviceDate = new Date(serviceYear, serviceMonth - 1, serviceDay);
+                                            
+                                            // Parsear hora del servicio
+                                            const serviceTimeStr = service.start_time.split('T')[1];
+                                            const [hour, minute] = serviceTimeStr.split(':').map(Number);
 
                                             return (
                                                 <TableRow 
@@ -512,7 +519,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                                     <TableCell></TableCell>
                                                     <TableCell className="text-slate-600 pl-8">
                                                         <span className="text-xs">
-                                                            {format(serviceDate, "d MMM", { locale: es })} @ {format(serviceDate, "HH:mm")}
+                                                            {format(serviceDate, "d MMM", { locale: es })} @ {hour.toString().padStart(2, '0')}:{minute.toString().padStart(2, '0')}
                                                         </span>
                                                     </TableCell>
                                                     <TableCell className="text-right text-slate-600">1</TableCell>
