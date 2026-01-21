@@ -117,153 +117,31 @@ export default function RentabilityAnalysisTab({
             const monthEnd = endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
             setSelectedPeriod({ start: monthStart, end: monthEnd });
 
-            const clientMap = new Map(clients.map(c => [c.id, c]));
-            const clientData = {};
+            const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
 
-            const monthlySchedules = allSchedules.filter(s => 
-                isDateInRange(s.start_time, monthStart, monthEnd) &&
-                s.xero_invoiced
-            );
-
-            monthlySchedules.forEach(schedule => {
-                if (schedule.client_id === trainingClientId) return;
-
-                const client = clientMap.get(schedule.client_id);
-                if (!client) return;
-
-                const clientId = client.id;
-                if (!clientData[clientId]) {
-                    clientData[clientId] = {
-                        clientId: clientId,
-                        clientName: client.name,
-                        totalIncome: 0,
-                        totalLaborCost: 0,
-                        totalHours: 0,
-                        serviceCount: 0,
-                        revenueBreakdown: {},
-                        currentServicePrice: client.current_service_price || 0,
-                        gstType: client.gst_type || 'inclusive',
-                    };
-                }
-
-                const priceData = getPriceForSchedule(schedule, client);
-                const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
-                
-                const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
-                
-                let netBreakdownForSchedule = {};
-                for (const type in priceData.breakdown) {
-                    netBreakdownForSchedule[type] = priceData.breakdown[type] * gstFactor;
-                }
-
-                clientData[clientId].revenueBreakdown = mergeRevenueBreakdowns(clientData[clientId].revenueBreakdown, netBreakdownForSchedule);
-                clientData[clientId].totalIncome += calculateTotalIncomeFromBreakdown(netBreakdownForSchedule);
-                clientData[clientId].serviceCount += 1;
+            // USAR LA FUNCIÓN CENTRALIZADA
+            const result = calculateProfitabilityForPeriod({
+                periodStart: monthStart,
+                periodEnd: monthEnd,
+                clients: activeClients,
+                allSchedules,
+                allWorkEntries,
+                allFixedCosts,
+                trainingClientId,
+                sortColumn,
+                sortDirection
             });
 
-            let trainingHours = 0;
-            let trainingAmount = 0;
-            allWorkEntries.forEach(entry => {
-                if (entry.client_id === trainingClientId && 
-                    isDateInRange(entry.work_date, monthStart, monthEnd)) {
-                    trainingHours += entry.hours || 0;
-                    trainingAmount += entry.total_amount || 0;
-                }
-            });
-            setMonthlyTrainingCost({ hours: trainingHours, amount: trainingAmount });
+            setMonthlyProcessedClientAnalysis(result.clientAnalysis);
+            setMonthlyTrainingCost(result.trainingCost);
 
-            const monthlyWorkEntries = allWorkEntries.filter(e => 
-                isDateInRange(e.work_date, monthStart, monthEnd) &&
-                e.activity !== 'training'
-            );
-
-            monthlyWorkEntries.forEach(entry => {
-                const clientId = entry.client_id;
-                
-                if (clientId === trainingClientId) return;
-
-                if (!clientData[clientId]) {
-                    const client = clientMap.get(clientId);
-                    if (client) {
-                        clientData[clientId] = {
-                            clientId: clientId,
-                            clientName: client.name,
-                            totalIncome: 0,
-                            revenueBreakdown: {},
-                            totalLaborCost: 0,
-                            totalHours: 0,
-                            serviceCount: 0,
-                            currentServicePrice: client.current_service_price || 0,
-                            gstType: client.gst_type || 'inclusive',
-                        };
-                    }
-                }
-                
-                if (clientData[clientId]) {
-                    clientData[clientId].totalLaborCost += entry.total_amount || 0;
-                    clientData[clientId].totalHours += entry.hours || 0;
-                }
-            });
-
+            // Cargar gastos fijos guardados
             const fixedCostsForMonth = allFixedCosts.filter(fc => fc.period === monthValue);
             const currentFixedCostAmount = fixedCostsForMonth && fixedCostsForMonth.length > 0
                 ? fixedCostsForMonth[0].amount
                 : 0;
             setFixedCostInput(currentFixedCostAmount);
             setSavedFixedCosts(currentFixedCostAmount);
-
-            const monthlyOperationalCost = Object.values(clientData)
-                .filter(c => {
-                    const client = clientMap.get(c.clientId);
-                    return client?.client_type === 'operational_cost';
-                })
-                .reduce((sum, c) => sum + c.totalLaborCost, 0);
-
-            const totalFixedCostsWithTraining = currentFixedCostAmount + trainingAmount + monthlyOperationalCost;
-
-            const totalMonthlyHours = Object.values(clientData)
-                .filter(c => {
-                    const client = clientMap.get(c.clientId);
-                    return client?.client_type !== 'operational_cost';
-                })
-                .reduce((sum, c) => sum + c.totalHours, 0);
-
-            const profitData = Object.values(clientData).map(data => {
-                const client = clientMap.get(data.clientId);
-                const isCash = client?.payment_method === 'cash';
-                
-                const incomePerHour = data.totalHours > 0 ? data.totalIncome / data.totalHours : 0;
-                const laborCostPerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
-                const margin = data.totalIncome - data.totalLaborCost;
-                const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
-
-                const clientHourShare = totalMonthlyHours > 0 ? data.totalHours / totalMonthlyHours : 0;
-                const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
-                const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
-                const realMargin = margin - distributedFixedCost;
-                const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
-                const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
-
-                return {
-                    ...data,
-                    isCash,
-                    margin,
-                    profitPercentage: data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0,
-                    distributedFixedCost,
-                    realMargin,
-                    realProfitPercentage,
-                    incomePerHour,
-                    laborCostPerHour,
-                    marginPerHour,
-                    fixedCostPerHour,
-                    realMarginPerHour
-                };
-            }).filter(data => {
-                const client = clientMap.get(data.clientId);
-                return client?.client_type !== 'operational_cost' && (data.totalHours > 0 || data.totalIncome > 0);
-            });
-
-            setMonthlyProcessedClientAnalysis(profitData);
 
         } catch (err) {
             console.error("Error loading month data:", err);
