@@ -46,31 +46,6 @@ const isExcludedMonth = (dateString) => {
   return dateOnly && (dateOnly.startsWith('2025-08') || dateOnly.startsWith('2025-09'));
 };
 
-const isDateInRange = (dateString, rangeStart, rangeEnd) => {
-  if (!dateString || !rangeStart || !rangeEnd) return false;
-  
-  const date = extractDateOnly(dateString);
-  const startDate = format(rangeStart, 'yyyy-MM-dd');
-  const endDate = format(rangeEnd, 'yyyy-MM-dd');
-  
-  return date >= startDate && date <= endDate;
-};
-
-const calculateGST = (price, gstType) => {
-    const numPrice = parseFloat(price) || 0;
-    switch (gstType) {
-        case 'inclusive':
-            return { base: numPrice / 1.1, gst: numPrice - (numPrice / 1.1), total: numPrice };
-        case 'exclusive':
-            const gst = numPrice * 0.1;
-            return { base: numPrice, gst: gst, total: numPrice + gst };
-        case 'no_tax':
-            return { base: numPrice, gst: 0, total: numPrice };
-        default:
-            return { base: numPrice, gst: 0, total: numPrice };
-    }
-};
-
 const mergeRevenueBreakdowns = (currentBreakdown, newBreakdown) => {
     const merged = { ...currentBreakdown };
     for (const key in newBreakdown) {
