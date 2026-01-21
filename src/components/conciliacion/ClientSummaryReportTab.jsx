@@ -237,7 +237,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         let normalAmount = 0;
 
         monthlySchedules.forEach(service => {
-            if (isDateInRange(service.start_time, startDate, endDate)) {
+            if (isDateInRange(service.start_time, startDate, endDate) && service.xero_invoiced === true) {
                 const client = clients.get(service.client_id);
 
                 let amount = 0;
