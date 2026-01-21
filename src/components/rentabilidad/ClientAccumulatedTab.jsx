@@ -151,34 +151,37 @@ export default function ClientAccumulatedTab({
 
         const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
         const clientMap = new Map(activeClients.map(c => [c.id, c]));
-
-        const cumulativeIncomeDetailMap = new Map();
-        const invoicedSchedulesCumulative = allSchedules.filter(schedule => {
-            return isDateInRange(schedule.start_time, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
-                   schedule.xero_invoiced === true &&
-                   schedule.client_id !== trainingClientId &&
-                   clientMap.has(schedule.client_id);
-        });
-
-        const clientServiceCountFromSchedules = new Map();
         
-        invoicedSchedulesCumulative.forEach(schedule => {
+        // CRÍTICO: Usar exactamente la misma estructura que RentabilityAnalysisTab
+        const clientData = {};
+
+        // 1. Procesar schedules (igual que RentabilityAnalysisTab)
+        const cumulativeSchedules = allSchedules.filter(s => 
+            isDateInRange(s.start_time, cumulativeStartDate, endOfDay(cumulativeEndDate)) &&
+            s.xero_invoiced
+        );
+
+        cumulativeSchedules.forEach(schedule => {
+            if (schedule.client_id === trainingClientId) return;
+
             const client = clientMap.get(schedule.client_id);
             if (!client) return;
 
             const clientId = client.id;
-            
-            if (!clientServiceCountFromSchedules.has(clientId)) {
-                clientServiceCountFromSchedules.set(clientId, new Set());
+            if (!clientData[clientId]) {
+                clientData[clientId] = {
+                    clientId: clientId,
+                    clientName: client.name,
+                    totalIncome: 0,
+                    totalLaborCost: 0,
+                    totalHours: 0,
+                    serviceCount: 0,
+                    revenueBreakdown: {},
+                    currentServicePrice: client.current_service_price || 0,
+                    gstType: client.gst_type || 'inclusive',
+                };
             }
-            const scheduleDateOnly = extractDateOnly(schedule.start_time);
-            if (scheduleDateOnly) {
-                clientServiceCountFromSchedules.get(clientId).add(scheduleDateOnly);
-            }
-            
-            let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
 
-            // CRÍTICO: Usar la misma lógica que RentabilityAnalysisTab
             const priceData = getPriceForSchedule(schedule, client);
             const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
             
@@ -188,10 +191,13 @@ export default function ClientAccumulatedTab({
             for (const type in priceData.breakdown) {
                 netBreakdownForSchedule[type] = priceData.breakdown[type] * gstFactor;
             }
-            
-            cumulativeIncomeDetailMap.set(clientId, mergeRevenueBreakdowns(currentClientCumulativeBreakdown, netBreakdownForSchedule));
+
+            clientData[clientId].revenueBreakdown = mergeRevenueBreakdowns(clientData[clientId].revenueBreakdown, netBreakdownForSchedule);
+            clientData[clientId].totalIncome += calculateTotalIncomeFromBreakdown(netBreakdownForSchedule);
+            clientData[clientId].serviceCount += 1;
         });
 
+        // 2. Calcular training cost
         let cumulativeTrainingHours = 0;
         let cumulativeTrainingAmount = 0;
         allWorkEntries.forEach(entry => {
@@ -203,66 +209,41 @@ export default function ClientAccumulatedTab({
         });
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
 
-        // CRÍTICO: Filtrar WorkEntries excluyendo operational_cost
-        const cumulativeWorkEntries = allWorkEntries.filter(entry => {
-            const client = clientMap.get(entry.client_id);
-            return isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
-                   entry.client_id !== trainingClientId &&
-                   clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training' &&
-                   client?.client_type !== 'operational_cost';
-        });
+        // 3. Procesar work entries (igual que RentabilityAnalysisTab)
+        const cumulativeWorkEntries = allWorkEntries.filter(e => 
+            isDateInRange(e.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate)) &&
+            e.activity !== 'training'
+        );
 
-        const cumulativeClientProfitability = cumulativeWorkEntries.reduce((acc, entry) => {
-            if (!entry.client_id) return acc;
-            const client = clientMap.get(entry.client_id);
-            if (!client) return acc;
+        cumulativeWorkEntries.forEach(entry => {
+            const clientId = entry.client_id;
+            
+            if (clientId === trainingClientId) return;
 
-            if (!acc[client.id]) {
-                acc[client.id] = {
-                    clientId: client.id,
-                    clientName: client.name,
-                    totalIncome: 0,
-                    totalLaborCost: 0,
-                    totalHours: 0,
-                    serviceCount: 0,
-                    revenueBreakdown: {},
-                    currentServicePrice: client.current_service_price || 0,
-                    gstType: client.gst_type || 'inclusive',
-                };
-            }
-            acc[client.id].totalLaborCost += entry.total_amount || 0;
-            acc[client.id].totalHours += entry.hours || 0;
-            return acc;
-        }, {});
-
-        cumulativeIncomeDetailMap.forEach((breakdown, clientId) => {
-            if (cumulativeClientProfitability[clientId]) {
-                cumulativeClientProfitability[clientId].revenueBreakdown = breakdown;
-                cumulativeClientProfitability[clientId].totalIncome = calculateTotalIncomeFromBreakdown(breakdown);
-                
-                const uniqueServiceDates = clientServiceCountFromSchedules.get(clientId);
-                cumulativeClientProfitability[clientId].serviceCount = uniqueServiceDates ? uniqueServiceDates.size : 0;
-
-            } else {
+            if (!clientData[clientId]) {
                 const client = clientMap.get(clientId);
                 if (client) {
-                    const uniqueServiceDates = clientServiceCountFromSchedules.get(clientId);
-                    cumulativeClientProfitability[clientId] = {
+                    clientData[clientId] = {
                         clientId: clientId,
                         clientName: client.name,
-                        totalIncome: calculateTotalIncomeFromBreakdown(breakdown),
+                        totalIncome: 0,
+                        revenueBreakdown: {},
                         totalLaborCost: 0,
                         totalHours: 0,
-                        serviceCount: uniqueServiceDates ? uniqueServiceDates.size : 0,
-                        revenueBreakdown: breakdown,
+                        serviceCount: 0,
                         currentServicePrice: client.current_service_price || 0,
                         gstType: client.gst_type || 'inclusive',
                     };
                 }
             }
+            
+            if (clientData[clientId]) {
+                clientData[clientId].totalLaborCost += entry.total_amount || 0;
+                clientData[clientId].totalHours += entry.hours || 0;
+            }
         });
 
+        // 4. Calcular gastos fijos (igual que RentabilityAnalysisTab)
         const startPeriod = format(cumulativeStartDate, 'yyyy-MM');
         const endPeriod = format(cumulativeEndDate, 'yyyy-MM');
         const periodMonths = [];
@@ -279,34 +260,36 @@ export default function ClientAccumulatedTab({
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCosts;
 
-        const overallCumulativeTotalHours = Object.values(cumulativeClientProfitability).reduce((sum, entry) => sum + (entry.totalHours || 0), 0);
+        const totalCumulativeHours = Object.values(clientData)
+            .filter(c => {
+                const client = clientMap.get(c.clientId);
+                return client?.client_type !== 'operational_cost';
+            })
+            .reduce((sum, c) => sum + c.totalHours, 0);
 
-        const cumulativeFixedCostPerHourOverall = overallCumulativeTotalHours > 0 ? 
-            totalFixedCostsWithTraining / overallCumulativeTotalHours : 0;
-
-        const cumulativeClientAnalysis = Object.values(cumulativeClientProfitability).map(data => {
+        // 5. Calcular profitabilidad (igual que RentabilityAnalysisTab)
+        const cumulativeClientAnalysis = Object.values(clientData).map(data => {
             const client = clientMap.get(data.clientId);
             const isCash = client?.payment_method === 'cash';
             
-            const margin = data.totalIncome - data.totalLaborCost;
-            const profitPercentage = data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0;
-            
-            const distributedFixedCost = data.totalHours * cumulativeFixedCostPerHourOverall;
-            const realMargin = margin - distributedFixedCost;
-            const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
-
             const incomePerHour = data.totalHours > 0 ? data.totalIncome / data.totalHours : 0;
             const laborCostPerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
+            const margin = data.totalIncome - data.totalLaborCost;
             const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
+
+            const clientHourShare = totalCumulativeHours > 0 ? data.totalHours / totalCumulativeHours : 0;
+            const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
             const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
+            const realMargin = margin - distributedFixedCost;
             const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
+            const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
             const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
 
             return {
                 ...data,
                 isCash,
                 margin,
-                profitPercentage,
+                profitPercentage: data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0,
                 distributedFixedCost,
                 realMargin,
                 realProfitPercentage,
