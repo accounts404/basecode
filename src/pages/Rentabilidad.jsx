@@ -1,37 +1,15 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Client } from '@/entities/Client';
 import { WorkEntry } from '@/entities/WorkEntry';
 import { FixedCost } from '@/entities/FixedCost';
 import { PricingThreshold } from '@/entities/PricingThreshold';
 import { Schedule } from '@/entities/Schedule';
 import { User } from '@/entities/User';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, startOfMonth, endOfMonth, subMonths, addMonths, parseISO, startOfDay, endOfDay, differenceInMonths } from "date-fns";
-import { es } from "date-fns/locale";
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, X, Search, Settings, ArrowRightSquare, Clock9, GraduationCap, Send, History, Eye, EyeOff } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
-
-import ThresholdManager from '../components/rentabilidad/ThresholdManager';
-import PricingAnalysisTable from '../components/rentabilidad/PricingAnalysisTable';
-import ClientMultiSelect from '../components/work/ClientMultiSelect';
-import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Activity } from 'lucide-react';
+import RentabilityAnalysisTab from '../components/rentabilidad/RentabilityAnalysisTab';
+import ClientAccumulatedTab from '../components/rentabilidad/ClientAccumulatedTab';
+import PricingFrequencyTab from '../components/rentabilidad/PricingFrequencyTab';
 
 // Función para verificar si una fecha está en agosto o septiembre 2025
 const isExcludedMonth = (dateString) => {
