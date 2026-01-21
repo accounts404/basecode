@@ -733,7 +733,7 @@ export default function RentabilidadPage() {
 
         return { clientAnalysis: filteredClientAnalysis, summary };
 
-    }, [selectedPeriod, monthlyProcessedClientAnalysis, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
+    }, [selectedPeriod, monthlyProcessedClientAnalysis, clientSearchTerm, selectedClients, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts]);
 
     const monthlyOperationalCosts = useMemo(() => {
         if (!selectedPeriod) return 0;
