@@ -228,7 +228,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
 
         monthlySchedules.forEach(service => {
-            const serviceDate = new Date(service.start_time);
+            const serviceDate = parseISOAsLocal(service.start_time);
             if (serviceDate >= start && serviceDate <= end) {
                 const client = clients.get(service.client_id);
 
