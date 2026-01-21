@@ -24,12 +24,12 @@ function parseISOAsLocal(isoString) {
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
     const [startDate, setStartDate] = useState(
         monthlySchedules.length > 0 
-            ? new Date(monthlySchedules[0].start_time)
+            ? parseISOAsLocal(monthlySchedules[0].start_time)
             : new Date()
     );
     const [endDate, setEndDate] = useState(
         monthlySchedules.length > 0
-            ? new Date(monthlySchedules[monthlySchedules.length - 1].start_time)
+            ? parseISOAsLocal(monthlySchedules[monthlySchedules.length - 1].start_time)
             : new Date()
     );
     const [expandedClients, setExpandedClients] = useState({});
