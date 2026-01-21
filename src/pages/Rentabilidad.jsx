@@ -1333,6 +1333,16 @@ export default function RentabilidadPage() {
                                       <p className="text-xs text-orange-700 mt-1 font-medium">
                                           Fijos: ${parseFloat(fixedCostInput || 0).toFixed(2)} + TRN: ${monthlyTrainingCost.amount.toFixed(2)} + OP: ${monthlyOperationalCosts.toFixed(2)}
                                       </p>
+                                      <div className="mt-3 pt-3 border-t border-orange-200 space-y-1.5">
+                                          <div className="flex justify-between items-center">
+                                              <span className="text-xs text-green-700 font-medium">💵 Cash:</span>
+                                              <span className="text-sm font-bold text-green-900">${(profitabilityData.summary.cashFixedCosts || 0).toFixed(2)}</span>
+                                          </div>
+                                          <div className="flex justify-between items-center">
+                                              <span className="text-xs text-blue-700 font-medium">📄 Factura:</span>
+                                              <span className="text-sm font-bold text-blue-900">${(profitabilityData.summary.invoiceFixedCosts || 0).toFixed(2)}</span>
+                                          </div>
+                                      </div>
                                   </CardContent>
                              </Card>
 
