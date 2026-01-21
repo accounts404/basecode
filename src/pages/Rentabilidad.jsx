@@ -31,8 +31,9 @@ import {
 import ThresholdManager from '../components/rentabilidad/ThresholdManager';
 import PricingAnalysisTable from '../components/rentabilidad/PricingAnalysisTable';
 import ClientMultiSelect from '../components/work/ClientMultiSelect';
+import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
-const extractDateOnly = (isoString) => {
+const extractDateOnly_LOCAL = (isoString) => {
   if (!isoString) return null;
   return isoString.substring(0, 10);
 };
