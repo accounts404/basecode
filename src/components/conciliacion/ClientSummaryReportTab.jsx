@@ -84,7 +84,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
     // Filtrar servicios por rango de fechas y agrupar por cliente
     const clientReport = useMemo(() => {
         const filtered = monthlySchedules.filter(service => {
-            return isDateInRange(service.start_time, startDate, endDate);
+            return isDateInRange(service.start_time, startDate, endDate) && service.xero_invoiced === true;
         });
 
         // Agrupar por cliente
