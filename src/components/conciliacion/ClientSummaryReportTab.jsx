@@ -11,15 +11,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
 
-// Helper para parsear fechas ISO como hora local (evitar problemas de zona horaria)
-function parseISOAsLocal(isoString) {
-    if (!isoString) return new Date();
-    const dateStr = isoString.split('T')[0];
-    const timeStr = isoString.split('T')[1]?.split('.')[0] || '00:00:00';
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const [hour, minute, second] = timeStr.split(':').map(Number);
-    return new Date(year, month - 1, day, hour, minute, second);
-}
+// Helper para extraer solo la fecha (YYYY-MM-DD) de un ISO string
+const extractDateOnly = (isoString) => {
+    if (!isoString) return null;
+    return isoString.substring(0, 10);
+};
+
+// Helper para verificar si una fecha está en un rango
+const isDateInRange = (dateString, rangeStart, rangeEnd) => {
+    if (!dateString || !rangeStart || !rangeEnd) return false;
+    
+    const date = extractDateOnly(dateString);
+    const startDate = format(rangeStart, 'yyyy-MM-dd');
+    const endDate = format(rangeEnd, 'yyyy-MM-dd');
+    
+    return date >= startDate && date <= endDate;
+};
 
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
     const [startDate, setStartDate] = useState(
