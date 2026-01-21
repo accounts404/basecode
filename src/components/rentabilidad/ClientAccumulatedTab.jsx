@@ -203,11 +203,14 @@ export default function ClientAccumulatedTab({
         });
         setCumulativeTrainingCost({ hours: cumulativeTrainingHours, amount: cumulativeTrainingAmount });
 
+        // CRÍTICO: Filtrar WorkEntries excluyendo operational_cost
         const cumulativeWorkEntries = allWorkEntries.filter(entry => {
+            const client = clientMap.get(entry.client_id);
             return isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate)) && 
                    entry.client_id !== trainingClientId &&
                    clientMap.has(entry.client_id) &&
-                   entry.activity !== 'training';
+                   entry.activity !== 'training' &&
+                   client?.client_type !== 'operational_cost';
         });
 
         const cumulativeClientProfitability = cumulativeWorkEntries.reduce((acc, entry) => {
