@@ -29,16 +29,26 @@ const isDateInRange = (dateString, rangeStart, rangeEnd) => {
 };
 
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
-    const [startDate, setStartDate] = useState(
-        monthlySchedules.length > 0 
-            ? parseISOAsLocal(monthlySchedules[0].start_time)
-            : new Date()
-    );
-    const [endDate, setEndDate] = useState(
-        monthlySchedules.length > 0
-            ? parseISOAsLocal(monthlySchedules[monthlySchedules.length - 1].start_time)
-            : new Date()
-    );
+    const [startDate, setStartDate] = useState(() => {
+        if (monthlySchedules.length > 0) {
+            const dateStr = extractDateOnly(monthlySchedules[0].start_time);
+            if (dateStr) {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                return new Date(year, month - 1, day);
+            }
+        }
+        return new Date();
+    });
+    const [endDate, setEndDate] = useState(() => {
+        if (monthlySchedules.length > 0) {
+            const dateStr = extractDateOnly(monthlySchedules[monthlySchedules.length - 1].start_time);
+            if (dateStr) {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                return new Date(year, month - 1, day);
+            }
+        }
+        return new Date();
+    });
     const [expandedClients, setExpandedClients] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [reviewedClients, setReviewedClients] = useState({});
