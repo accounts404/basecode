@@ -236,13 +236,8 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         let cashAmount = 0;
         let normalAmount = 0;
 
-        // Recalcular totales incluyendo desglose de cash
-        const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0);
-        const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59);
-
         monthlySchedules.forEach(service => {
-            const serviceDate = parseISOAsLocal(service.start_time);
-            if (serviceDate >= start && serviceDate <= end) {
+            if (isDateInRange(service.start_time, startDate, endDate)) {
                 const client = clients.get(service.client_id);
 
                 let amount = 0;
