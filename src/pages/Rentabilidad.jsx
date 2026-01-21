@@ -701,18 +701,16 @@ export default function RentabilidadPage() {
     }, [selectedPeriod, monthlyProcessedClientAnalysis, clientSearchTerm, selectedClients, sortColumn, sortDirection]);
 
     const monthlyOperationalCosts = useMemo(() => {
-        if (!selectedPeriod) return [];
-        const [year, month] = selectedMonth.split('-');
-        const monthStart = startOfMonth(new Date(parseInt(year), parseInt(month) - 1));
-        const monthEnd = endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
+        if (!selectedPeriod) return 0;
         
-        return Object.values(monthlyProcessedClientAnalysis || [])
-            .map(data => {
-                const client = clients.find(c => c.id === data.clientId);
-                return client;
-            })
-            .filter(c => c?.client_type === 'operational_cost');
-    }, [selectedMonth, monthlyProcessedClientAnalysis, clients, selectedPeriod]);
+        const operationalCostEntries = allWorkEntries.filter(entry => {
+            const client = clients.find(c => c.id === entry.client_id);
+            return client?.client_type === 'operational_cost' && 
+                   isDateInRange(entry.work_date, selectedPeriod.start, selectedPeriod.end);
+        });
+        
+        return operationalCostEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
+    }, [allWorkEntries, clients, selectedPeriod]);
 
     const cumulativeOperationalCosts = useMemo(() => {
         if (!cumulativeStartDate || !cumulativeEndDate) return [];
