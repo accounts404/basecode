@@ -11,189 +11,24 @@ import RentabilityAnalysisTab from '../components/rentabilidad/RentabilityAnalys
 import ClientAccumulatedTab from '../components/rentabilidad/ClientAccumulatedTab';
 import PricingFrequencyTab from '../components/rentabilidad/PricingFrequencyTab';
 
-// Función para verificar si una fecha está en agosto o septiembre 2025
+import React, { useState, useEffect } from 'react';
+import { Client } from '@/entities/Client';
+import { WorkEntry } from '@/entities/WorkEntry';
+import { FixedCost } from '@/entities/FixedCost';
+import { PricingThreshold } from '@/entities/PricingThreshold';
+import { Schedule } from '@/entities/Schedule';
+import { User } from '@/entities/User';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Activity } from 'lucide-react';
+import RentabilityAnalysisTab from '../components/rentabilidad/RentabilityAnalysisTab';
+import ClientAccumulatedTab from '../components/rentabilidad/ClientAccumulatedTab';
+import PricingFrequencyTab from '../components/rentabilidad/PricingFrequencyTab';
+import { extractDateOnly } from '@/components/utils/priceCalculations';
+
 const isExcludedMonth = (dateString) => {
   if (!dateString) return false;
   const dateOnly = extractDateOnly(dateString);
-  // Excluir agosto 2025 (2025-08-XX) y septiembre 2025 (2025-09-XX)
   return dateOnly && (dateOnly.startsWith('2025-08') || dateOnly.startsWith('2025-09'));
-};
-
-const mergeRevenueBreakdowns = (currentBreakdown, newBreakdown) => {
-    const merged = { ...currentBreakdown };
-    for (const key in newBreakdown) {
-        merged[key] = (merged[key] || 0) + newBreakdown[key];
-    }
-    return merged;
-};
-
-const calculateTotalIncomeFromBreakdown = (breakdown) => {
-    let total = 0;
-    for (const type in breakdown) {
-        if (type === 'discount') {
-            total -= breakdown[type];
-        } else {
-            total += breakdown[type];
-        }
-    }
-    return total;
-};
-
-const frequencyLabels = {
-    'weekly': 'Semanal',
-    'fortnightly': 'Quincenal',
-    'every_3_weeks': 'Cada 3 Semanas',
-    'monthly': 'Mensual',
-    'one_off': 'Servicio Único'
-};
-
-const ProfitabilityRow = ({ data }) => {
-    const isGrossProfitable = data.margin > 0;
-    const grossProfitabilityClass = isGrossProfitable ? "text-blue-700" : "text-orange-700";
-
-    const isRealProfitable = data.realMargin > 0;
-    const realProfitabilityClass = isRealProfitable ? "text-emerald-700" : "text-rose-700";
-    const realProfitabilityIcon = isRealProfitable ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />;
-    
-    return (
-        <TableRow className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
-            <TableCell className="font-semibold text-slate-900 py-4">{data.clientName}</TableCell>
-            <TableCell className="text-center text-slate-700">{data.serviceCount}</TableCell>
-            <TableCell className="text-center font-medium text-slate-800">{data.totalHours.toFixed(2)}h</TableCell>
-            
-            <TableCell className="text-right">
-                <p className="font-semibold text-emerald-700">${data.totalIncome.toFixed(2)}</p>
-                <p className="text-xs text-slate-500 font-medium">(${data.incomePerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className="text-right">
-                <p className="font-semibold text-rose-700">${data.totalLaborCost.toFixed(2)}</p>
-                <p className="text-xs text-slate-500 font-medium">(${data.laborCostPerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className={`text-right font-semibold ${grossProfitabilityClass}`}>
-                <p className="text-base">${data.margin.toFixed(2)}</p>
-                <p className="text-xs font-normal text-slate-500">(${data.marginPerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className="text-right text-slate-600">
-                <p className="font-medium">(${data.distributedFixedCost.toFixed(2)})</p>
-                <p className="text-xs text-slate-500">(${data.fixedCostPerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className={`text-right font-bold text-lg ${realProfitabilityClass}`}>
-                <p>${data.realMargin.toFixed(2)}</p>
-                <p className="text-xs font-normal text-slate-500">(${data.realMarginPerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className={`text-right font-bold ${realProfitabilityClass}`}>
-                <div className="flex items-center justify-end gap-2">
-                    {realProfitabilityIcon}
-                    <span className="text-base">{data.realProfitPercentage.toFixed(1)}%</span>
-                </div>
-            </TableCell>
-        </TableRow>
-    );
-};
-
-const generateMonthOptions = () => {
-    const months = [];
-    const currentDate = new Date();
-    for (let i = 0; i < 12; i++) {
-        const date = subMonths(currentDate, i);
-        const monthValue = format(date, 'yyyy-MM');
-        
-        // EXCLUIR agosto y septiembre 2025
-        if (monthValue === '2025-08' || monthValue === '2025-09') {
-            continue;
-        }
-        
-        months.push({
-            value: monthValue,
-            label: format(date, 'MMMM yyyy', { locale: es })
-        });
-    }
-    return months;
-};
-
-const TotalsCard = ({ summary, title }) => {
-    const isGrossProfitable = summary.totalMargin > 0;
-    const isRealProfitable = summary.totalRealMargin > 0;
-    
-    const distributedFixedCostsForSummary = Math.abs(summary.totalMargin - summary.totalRealMargin);
-
-    return (
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 mb-6 shadow-2xl">
-            <h3 className="text-white text-lg font-bold mb-4 flex items-center gap-2">
-                <BarChart className="w-5 h-5" />
-                {title}
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                    <p className="text-slate-300 text-xs mb-1">Total Horas</p>
-                    <p className="text-white text-2xl font-bold">{summary.totalHours.toFixed(2)}h</p>
-                </div>
-
-                <div className="bg-emerald-500/20 backdrop-blur-sm rounded-lg p-4 border border-emerald-500/30">
-                    <p className="text-emerald-200 text-xs mb-1">Ingresos Totales</p>
-                    <p className="text-emerald-100 text-2xl font-bold">${summary.totalIncome.toFixed(2)}</p>
-                    <div className="mt-2 pt-2 border-t border-emerald-500/30 space-y-1">
-                        <div className="flex justify-between items-center">
-                            <span className="text-emerald-300 text-xs">💵 Cash:</span>
-                            <span className="text-emerald-100 text-sm font-semibold">${(summary.cashIncome || 0).toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-emerald-300 text-xs">📄 Factura:</span>
-                            <span className="text-emerald-100 text-sm font-semibold">${(summary.nonCashIncome || 0).toFixed(2)}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-rose-500/20 backdrop-blur-sm rounded-lg p-4 border border-rose-500/30">
-                    <p className="text-rose-200 text-xs mb-1">Costo Laboral</p>
-                    <p className="text-rose-100 text-2xl font-bold">${summary.totalLaborCost.toFixed(2)}</p>
-                </div>
-
-                <div className={`${isGrossProfitable ? 'bg-blue-500/20 border-blue-500/30' : 'bg-orange-500/20 border-orange-500/30'} backdrop-blur-sm rounded-lg p-4 border`}>
-                    <p className={`${isGrossProfitable ? 'text-blue-200' : 'text-orange-200'} text-xs mb-1`}>Margen Bruto</p>
-                    <p className={`${isGrossProfitable ? 'text-blue-100' : 'text-orange-100'} text-2xl font-bold`}>
-                        ${summary.totalMargin.toFixed(2)}
-                    </p>
-                </div>
-
-                <div className="bg-orange-500/20 backdrop-blur-sm rounded-lg p-4 border border-orange-500/30">
-                    <p className="text-orange-200 text-xs mb-1">Gastos Fijos</p>
-                    <p className="text-orange-100 text-2xl font-bold">
-                        (${distributedFixedCostsForSummary.toFixed(2)})
-                    </p>
-                </div>
-
-                <div className={`${isRealProfitable ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-rose-500/20 border-rose-500/30'} backdrop-blur-sm rounded-lg p-4 border`}>
-                    <p className={`${isRealProfitable ? 'text-emerald-200' : 'text-rose-200'} text-xs mb-1`}>Margen Neto Real</p>
-                    <p className={`${isRealProfitable ? 'text-emerald-100' : 'text-rose-100'} text-2xl font-bold`}>
-                        ${summary.totalRealMargin.toFixed(2)}
-                    </p>
-                </div>
-
-                <div className={`${isRealProfitable ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-rose-500/20 border-rose-500/30'} backdrop-blur-sm rounded-lg p-4 border`}>
-                    <p className={`${isRealProfitable ? 'text-emerald-200' : 'text-rose-200'} text-xs mb-1 flex items-center gap-1`}>
-                        <TrendingUp className="w-3 h-3" />
-                        Rentabilidad Real
-                    </p>
-                    <div className="flex items-baseline gap-2">
-                        <p className={`${isRealProfitable ? 'text-emerald-100' : 'text-rose-100'} text-2xl font-bold`}>
-                            {summary.totalRealProfitPercentage.toFixed(1)}%
-                        </p>
-                        {isRealProfitable ? (
-                            <TrendingUp className="w-5 h-5 text-emerald-300" />
-                        ) : (
-                            <TrendingDown className="w-5 h-5 text-rose-300" />
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 };
 
 export default function RentabilidadPage() {
