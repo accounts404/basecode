@@ -178,17 +178,18 @@ export default function ClientAccumulatedTab({
             
             let currentClientCumulativeBreakdown = cumulativeIncomeDetailMap.get(clientId) || {};
 
+            // CRÍTICO: Usar la misma lógica que RentabilityAnalysisTab
             const priceData = getPriceForSchedule(schedule, client);
             const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
             
             const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
             
-            let netBreakdownForService = {};
+            let netBreakdownForSchedule = {};
             for (const type in priceData.breakdown) {
-                netBreakdownForService[type] = priceData.breakdown[type] * gstFactor;
+                netBreakdownForSchedule[type] = priceData.breakdown[type] * gstFactor;
             }
             
-            cumulativeIncomeDetailMap.set(clientId, mergeRevenueBreakdowns(currentClientCumulativeBreakdown, netBreakdownForService));
+            cumulativeIncomeDetailMap.set(clientId, mergeRevenueBreakdowns(currentClientCumulativeBreakdown, netBreakdownForSchedule));
         });
 
         let cumulativeTrainingHours = 0;
