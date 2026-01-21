@@ -118,3 +118,23 @@ export const isDateInRange = (dateString, rangeStart, rangeEnd) => {
     
     return date >= startDate && date <= endDate;
 };
+
+export const mergeRevenueBreakdowns = (currentBreakdown, newBreakdown) => {
+    const merged = { ...currentBreakdown };
+    for (const key in newBreakdown) {
+        merged[key] = (merged[key] || 0) + newBreakdown[key];
+    }
+    return merged;
+};
+
+export const calculateTotalIncomeFromBreakdown = (breakdown) => {
+    let total = 0;
+    for (const type in breakdown) {
+        if (type === 'discount') {
+            total -= breakdown[type];
+        } else {
+            total += breakdown[type];
+        }
+    }
+    return total;
+};
