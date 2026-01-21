@@ -10,8 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { isDateInRange } from '@/components/utils/priceCalculations';
-import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilityCalculations';
+import { calculateTotalIncomeFromBreakdown, mergeRevenueBreakdowns } from '@/components/utils/priceCalculations';
+import { getPriceForSchedule, calculateGST, isDateInRange } from '@/components/utils/priceCalculations';
 
 const generateMonthOptions = () => {
     const months = [];
@@ -117,25 +117,94 @@ export default function RentabilityAnalysisTab({
             const monthEnd = endOfMonth(new Date(parseInt(year), parseInt(month) - 1));
             setSelectedPeriod({ start: monthStart, end: monthEnd });
 
-            const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
+            const clientMap = new Map(clients.map(c => [c.id, c]));
+            const clientData = {};
 
-            // USAR LA FUNCIÓN CENTRALIZADA
-            const result = calculateProfitabilityForPeriod({
-                periodStart: monthStart,
-                periodEnd: monthEnd,
-                clients: activeClients,
-                allSchedules,
-                allWorkEntries,
-                allFixedCosts,
-                trainingClientId,
-                sortColumn,
-                sortDirection
+            const monthlySchedules = allSchedules.filter(s => 
+                isDateInRange(s.start_time, monthStart, monthEnd) &&
+                s.xero_invoiced
+            );
+
+            monthlySchedules.forEach(schedule => {
+                if (schedule.client_id === trainingClientId) return;
+
+                const client = clientMap.get(schedule.client_id);
+                if (!client) return;
+
+                const clientId = client.id;
+                if (!clientData[clientId]) {
+                    clientData[clientId] = {
+                        clientId: clientId,
+                        clientName: client.name,
+                        totalIncome: 0,
+                        totalLaborCost: 0,
+                        totalHours: 0,
+                        serviceCount: 0,
+                        revenueBreakdown: {},
+                        currentServicePrice: client.current_service_price || 0,
+                        gstType: client.gst_type || 'inclusive',
+                    };
+                }
+
+                const priceData = getPriceForSchedule(schedule, client);
+                const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
+                
+                const gstFactor = priceData.rawAmount > 0 ? (netIncome / priceData.rawAmount) : 1;
+                
+                let netBreakdownForSchedule = {};
+                for (const type in priceData.breakdown) {
+                    netBreakdownForSchedule[type] = priceData.breakdown[type] * gstFactor;
+                }
+
+                clientData[clientId].revenueBreakdown = mergeRevenueBreakdowns(clientData[clientId].revenueBreakdown, netBreakdownForSchedule);
+                clientData[clientId].totalIncome += calculateTotalIncomeFromBreakdown(netBreakdownForSchedule);
+                clientData[clientId].serviceCount += 1;
             });
 
-            setMonthlyProcessedClientAnalysis(result.clientAnalysis);
-            setMonthlyTrainingCost(result.trainingCost);
+            let trainingHours = 0;
+            let trainingAmount = 0;
+            allWorkEntries.forEach(entry => {
+                if (entry.client_id === trainingClientId && 
+                    isDateInRange(entry.work_date, monthStart, monthEnd)) {
+                    trainingHours += entry.hours || 0;
+                    trainingAmount += entry.total_amount || 0;
+                }
+            });
+            setMonthlyTrainingCost({ hours: trainingHours, amount: trainingAmount });
 
-            // Cargar gastos fijos guardados
+            const monthlyWorkEntries = allWorkEntries.filter(e => 
+                isDateInRange(e.work_date, monthStart, monthEnd) &&
+                e.activity !== 'training'
+            );
+
+            monthlyWorkEntries.forEach(entry => {
+                const clientId = entry.client_id;
+                
+                if (clientId === trainingClientId) return;
+
+                if (!clientData[clientId]) {
+                    const client = clientMap.get(clientId);
+                    if (client) {
+                        clientData[clientId] = {
+                            clientId: clientId,
+                            clientName: client.name,
+                            totalIncome: 0,
+                            revenueBreakdown: {},
+                            totalLaborCost: 0,
+                            totalHours: 0,
+                            serviceCount: 0,
+                            currentServicePrice: client.current_service_price || 0,
+                            gstType: client.gst_type || 'inclusive',
+                        };
+                    }
+                }
+                
+                if (clientData[clientId]) {
+                    clientData[clientId].totalLaborCost += entry.total_amount || 0;
+                    clientData[clientId].totalHours += entry.hours || 0;
+                }
+            });
+
             const fixedCostsForMonth = allFixedCosts.filter(fc => fc.period === monthValue);
             const currentFixedCostAmount = fixedCostsForMonth && fixedCostsForMonth.length > 0
                 ? fixedCostsForMonth[0].amount
@@ -143,67 +212,173 @@ export default function RentabilityAnalysisTab({
             setFixedCostInput(currentFixedCostAmount);
             setSavedFixedCosts(currentFixedCostAmount);
 
+            const monthlyOperationalCost = Object.values(clientData)
+                .filter(c => {
+                    const client = clientMap.get(c.clientId);
+                    return client?.client_type === 'operational_cost';
+                })
+                .reduce((sum, c) => sum + c.totalLaborCost, 0);
+
+            const totalFixedCostsWithTraining = currentFixedCostAmount + trainingAmount + monthlyOperationalCost;
+
+            const totalMonthlyHours = Object.values(clientData)
+                .filter(c => {
+                    const client = clientMap.get(c.clientId);
+                    return client?.client_type !== 'operational_cost';
+                })
+                .reduce((sum, c) => sum + c.totalHours, 0);
+
+            const profitData = Object.values(clientData).map(data => {
+                const client = clientMap.get(data.clientId);
+                const isCash = client?.payment_method === 'cash';
+                
+                const incomePerHour = data.totalHours > 0 ? data.totalIncome / data.totalHours : 0;
+                const laborCostPerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
+                const margin = data.totalIncome - data.totalLaborCost;
+                const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
+
+                const clientHourShare = totalMonthlyHours > 0 ? data.totalHours / totalMonthlyHours : 0;
+                const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
+                const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
+                const realMargin = margin - distributedFixedCost;
+                const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
+                const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
+
+                return {
+                    ...data,
+                    isCash,
+                    margin,
+                    profitPercentage: data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0,
+                    distributedFixedCost,
+                    realMargin,
+                    realProfitPercentage,
+                    incomePerHour,
+                    laborCostPerHour,
+                    marginPerHour,
+                    fixedCostPerHour,
+                    realMarginPerHour
+                };
+            }).filter(data => {
+                const client = clientMap.get(data.clientId);
+                return client?.client_type !== 'operational_cost' && (data.totalHours > 0 || data.totalIncome > 0);
+            });
+
+            setMonthlyProcessedClientAnalysis(profitData);
+
         } catch (err) {
             console.error("Error loading month data:", err);
             setError("Error al cargar los datos del mes.");
         }
     };
 
-    const monthlyProfitResult = useMemo(() => {
-        if (!selectedPeriod) return null;
+    const monthlyOperationalCosts = useMemo(() => {
+        if (!selectedPeriod) return 0;
         
-        const activeClients = clients.filter(c => c.active !== false && c.id !== trainingClientId);
-
-        return calculateProfitabilityForPeriod({
-            periodStart: selectedPeriod.start,
-            periodEnd: selectedPeriod.end,
-            clients: activeClients,
-            allSchedules,
-            allWorkEntries,
-            allFixedCosts,
-            trainingClientId,
-            sortColumn,
-            sortDirection
+        const operationalCostEntries = allWorkEntries.filter(entry => {
+            const client = clients.find(c => c.id === entry.client_id);
+            return client?.client_type === 'operational_cost' && 
+                   isDateInRange(entry.work_date, selectedPeriod.start, selectedPeriod.end);
         });
-    }, [selectedPeriod, clients, allSchedules, allWorkEntries, allFixedCosts, trainingClientId, sortColumn, sortDirection]);
+        
+        return operationalCostEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
+    }, [allWorkEntries, clients, selectedPeriod]);
 
-    const monthlyOperationalCosts = monthlyProfitResult?.operationalCost || 0;
-    const monthlyOperationalCostsDetails = monthlyProfitResult?.operationalCostsDetails || [];
+    const monthlyOperationalCostsDetails = useMemo(() => {
+        if (!selectedPeriod) return [];
+        
+        const operationalCostEntries = allWorkEntries.filter(entry => {
+            const client = clients.find(c => c.id === entry.client_id);
+            return client?.client_type === 'operational_cost' && 
+                   isDateInRange(entry.work_date, selectedPeriod.start, selectedPeriod.end);
+        });
+
+        const costsByClient = {};
+        operationalCostEntries.forEach(entry => {
+            if (!costsByClient[entry.client_id]) {
+                costsByClient[entry.client_id] = {
+                    clientId: entry.client_id,
+                    clientName: entry.client_name,
+                    totalHours: 0,
+                    totalLaborCost: 0
+                };
+            }
+            costsByClient[entry.client_id].totalHours += entry.hours || 0;
+            costsByClient[entry.client_id].totalLaborCost += entry.total_amount || 0;
+        });
+
+        return Object.values(costsByClient);
+    }, [allWorkEntries, clients, selectedPeriod]);
 
     const profitabilityData = useMemo(() => {
-        if (!selectedPeriod || !monthlyProfitResult) {
-            return { 
-                clientAnalysis: [], 
-                summary: { 
-                    totalIncome: 0, 
-                    totalLaborCost: 0, 
-                    totalMargin: 0, 
-                    totalRealMargin: 0, 
-                    totalHours: 0, 
-                    totalRealProfitPercentage: 0,
-                    cashIncome: 0,
-                    nonCashIncome: 0,
-                    cashLaborCost: 0,
-                    invoiceLaborCost: 0,
-                    cashMargin: 0,
-                    invoiceMargin: 0,
-                    cashFixedCosts: 0,
-                    invoiceFixedCosts: 0,
-                    cashNetMargin: 0,
-                    invoiceNetMargin: 0,
-                    cashProfitability: 0,
-                    invoiceProfitability: 0
-                } 
-            };
+        if (!selectedPeriod || monthlyProcessedClientAnalysis.length === 0) {
+            return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 } };
         }
 
-        // Ya viene ordenado de la función central
-        return { 
-            clientAnalysis: monthlyProfitResult.clientAnalysis, 
-            summary: monthlyProfitResult.summary 
-        };
+        const sortedClientAnalysis = [...monthlyProcessedClientAnalysis].sort((a, b) => {
+            let aValue = a[sortColumn];
+            let bValue = b[sortColumn];
 
-    }, [selectedPeriod, monthlyProfitResult]);
+            if (sortColumn === 'clientName') {
+                aValue = aValue?.toLowerCase() || '';
+                bValue = bValue?.toLowerCase() || '';
+                return sortDirection === 'asc' ? 
+                    aValue.localeCompare(bValue) : 
+                    bValue.localeCompare(aValue);
+            }
+
+            aValue = parseFloat(aValue) || 0;
+            bValue = parseFloat(bValue) || 0;
+            
+            return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        });
+        
+        const summary = sortedClientAnalysis.reduce((acc, client) => {
+            acc.totalIncome += client.totalIncome;
+            acc.totalLaborCost += client.totalLaborCost;
+            acc.totalMargin += client.margin;
+            acc.totalHours += client.totalHours;
+            acc.totalRealMargin += client.realMargin;
+            if (client.isCash) {
+                acc.cashIncome += client.totalIncome;
+                acc.cashLaborCost += client.totalLaborCost;
+                acc.cashMargin += client.margin;
+            } else {
+                acc.nonCashIncome += client.totalIncome;
+                acc.invoiceLaborCost += client.totalLaborCost;
+                acc.invoiceMargin += client.margin;
+            }
+            return acc;
+        }, { 
+            totalIncome: 0, 
+            totalLaborCost: 0, 
+            totalMargin: 0, 
+            totalHours: 0, 
+            totalRealMargin: 0, 
+            cashIncome: 0, 
+            nonCashIncome: 0,
+            cashLaborCost: 0,
+            invoiceLaborCost: 0,
+            cashMargin: 0,
+            invoiceMargin: 0
+        });
+
+        const totalRealProfitPercentage = summary.totalIncome > 0 ? (summary.totalRealMargin / summary.totalIncome) * 100 : 0;
+        summary.totalRealProfitPercentage = totalRealProfitPercentage;
+        
+        const totalFixedCosts = parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts;
+        const cashRatio = summary.totalIncome > 0 ? summary.cashIncome / summary.totalIncome : 0;
+        const invoiceRatio = summary.totalIncome > 0 ? summary.nonCashIncome / summary.totalIncome : 0;
+        
+        summary.cashFixedCosts = totalFixedCosts * cashRatio;
+        summary.invoiceFixedCosts = totalFixedCosts * invoiceRatio;
+        summary.cashNetMargin = summary.cashMargin - summary.cashFixedCosts;
+        summary.invoiceNetMargin = summary.invoiceMargin - summary.invoiceFixedCosts;
+        summary.cashProfitability = summary.cashIncome > 0 ? (summary.cashNetMargin / summary.cashIncome) * 100 : 0;
+        summary.invoiceProfitability = summary.nonCashIncome > 0 ? (summary.invoiceNetMargin / summary.nonCashIncome) * 100 : 0;
+
+        return { clientAnalysis: sortedClientAnalysis, summary };
+
+    }, [selectedPeriod, monthlyProcessedClientAnalysis, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts]);
 
     const handleSaveFixedCosts = async () => {
         if (!selectedMonth) return;
