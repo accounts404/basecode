@@ -10,8 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { calculateTotalIncomeFromBreakdown, mergeRevenueBreakdowns } from '@/components/utils/priceCalculations';
-import { getPriceForSchedule, calculateGST, isDateInRange } from '@/components/utils/priceCalculations';
+import { isDateInRange } from '@/components/utils/priceCalculations';
+import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilityCalculations';
 
 const generateMonthOptions = () => {
     const months = [];
