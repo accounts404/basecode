@@ -118,31 +118,7 @@ export default function ClientAccumulatedTab({
     const [selectedClientForHistory, setSelectedClientForHistory] = useState(null);
     const [cumulativeTrainingCost, setCumulativeTrainingCost] = useState({ hours: 0, amount: 0 });
 
-    const cumulativeOperationalCosts = useMemo(() => {
-        if (!cumulativeStartDate || !cumulativeEndDate) return [];
-        
-        const operationalCostEntries = allWorkEntries.filter(entry => {
-            const client = clients.find(c => c.id === entry.client_id);
-            return client?.client_type === 'operational_cost' && 
-                   isDateInRange(entry.work_date, cumulativeStartDate, endOfDay(cumulativeEndDate));
-        });
 
-        const costsByClient = {};
-        operationalCostEntries.forEach(entry => {
-            if (!costsByClient[entry.client_id]) {
-                costsByClient[entry.client_id] = {
-                    clientId: entry.client_id,
-                    clientName: entry.client_name,
-                    totalHours: 0,
-                    totalLaborCost: 0
-                };
-            }
-            costsByClient[entry.client_id].totalHours += entry.hours || 0;
-            costsByClient[entry.client_id].totalLaborCost += entry.total_amount || 0;
-        });
-
-        return Object.values(costsByClient);
-    }, [allWorkEntries, clients, cumulativeStartDate, cumulativeEndDate]);
 
 import { extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilityCalculations';
