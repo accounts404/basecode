@@ -201,38 +201,16 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             if (isDateInRange(service.start_time, startDate, endDate) && service.xero_invoiced === true) {
                 const client = clients.get(service.client_id);
 
-                let amount = 0;
-                let gstType = client?.gst_type || 'inclusive';
+                // USAR FUNCIÓN UNIFICADA para calcular precio
+                const priceData = getPriceForSchedule(service, client);
+                const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
 
-                if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-                    amount = service.reconciliation_items.reduce((itemTotal, item) => {
-                        const itemAmount = parseFloat(item.amount) || 0;
-                        return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
-                    }, 0);
-                    if (service.xero_invoiced && service.billed_gst_type_snapshot) {
-                        gstType = service.billed_gst_type_snapshot;
-                    }
-                } else {
-                    if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                        amount = service.billed_price_snapshot;
-                        gstType = service.billed_gst_type_snapshot || 'inclusive';
-                    } else {
-                        amount = client?.current_service_price || 0;
-                    }
-                }
-
-                // Calcular base sin GST
-                let baseAmount = amount;
-                if (gstType === 'inclusive') {
-                    baseAmount = amount / 1.1;
-                }
-
-                totalAmount += baseAmount;
+                totalAmount += netIncome;
 
                 if (client?.payment_method === 'cash') {
-                    cashAmount += baseAmount;
+                    cashAmount += netIncome;
                 } else {
-                    normalAmount += baseAmount;
+                    normalAmount += netIncome;
                 }
             }
         });
