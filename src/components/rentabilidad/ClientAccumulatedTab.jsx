@@ -364,7 +364,7 @@ import { calculateProfitabilityForPeriod } from '@/components/utils/profitabilit
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {cumulativeOperationalCosts.map(data => {
+                                    {cumulativeProfitabilityData.operationalCostsDetails.map(data => {
                                         const totalRealHours = cumulativeProfitabilityData.clientAnalysis.reduce((sum, d) => sum + d.totalHours, 0);
                                         const distribution = totalRealHours > 0 ? (data.totalHours / totalRealHours) * 100 : 0;
                                         const valuePerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
