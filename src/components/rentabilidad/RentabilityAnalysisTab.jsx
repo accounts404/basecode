@@ -849,6 +849,22 @@ export default function RentabilityAnalysisTab({
                         </Card>
                     </div>
 
+                    {/* Buscador de Clientes */}
+                    <Card className="shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
+                        <CardContent className="p-6">
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
+                                <Input
+                                    type="text"
+                                    placeholder="Buscar cliente..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-12 h-12 text-base border-slate-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     {/* Gastos Operativos Detallados */}
                     <Card className="shadow-xl border border-orange-200/60 bg-gradient-to-br from-orange-50 to-white">
                         <CardHeader>
