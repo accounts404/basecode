@@ -260,15 +260,6 @@ export default function ClientAccumulatedTab({
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCosts;
 
-        // DEBUG: Log para verificar el cálculo
-        console.log('🔍 DEBUG ClientAccumulatedTab - Gastos Fijos:', {
-            totalCumulativeFixedCosts,
-            cumulativeTrainingAmount,
-            totalCumulativeOperationalCosts,
-            totalFixedCostsWithTraining,
-            rangoFechas: `${format(cumulativeStartDate, 'MMM yyyy', { locale: es })} - ${format(cumulativeEndDate, 'MMM yyyy', { locale: es })}`
-        });
-
         // CRÍTICO: Filtrar solo clientes productivos ANTES de calcular
         const productiveClients = Object.values(clientData).filter(data => {
             const client = clientMap.get(data.clientId);
@@ -278,10 +269,8 @@ export default function ClientAccumulatedTab({
         // CRÍTICO: Calcular horas totales solo de clientes productivos
         const totalCumulativeHours = productiveClients.reduce((sum, c) => sum + c.totalHours, 0);
 
-        console.log('🔍 DEBUG ClientAccumulatedTab - Total Horas:', {
-            totalCumulativeHours,
-            totalClientes: productiveClients.length
-        });
+        // CRÍTICO: Calcular costo fijo por hora del período
+        const fixedCostPerHourPeriod = totalCumulativeHours > 0 ? totalFixedCostsWithTraining / totalCumulativeHours : 0;
 
         const cumulativeClientAnalysis = productiveClients.map(data => {
             const client = clientMap.get(data.clientId);
@@ -292,23 +281,9 @@ export default function ClientAccumulatedTab({
             const margin = data.totalIncome - data.totalLaborCost;
             const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
 
-            // CRÍTICO: Distribuir gastos fijos proporcionalmente según las horas trabajadas
-            const clientHourShare = totalCumulativeHours > 0 ? data.totalHours / totalCumulativeHours : 0;
-            const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
-
-            // DEBUG: Log específico para Lola
-            if (data.clientName && data.clientName.toLowerCase().includes('lola')) {
-                console.log('🔍 DEBUG ClientAccumulatedTab - Lola:', {
-                    clientName: data.clientName,
-                    totalHours: data.totalHours,
-                    totalCumulativeHours,
-                    clientHourShare: (clientHourShare * 100).toFixed(4) + '%',
-                    totalFixedCostsWithTraining,
-                    distributedFixedCost,
-                    expectedFixedCost: 859.20
-                });
-            }
-            const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
+            // CRÍTICO: Gasto fijo del cliente = costo fijo por hora del período × horas del cliente
+            const distributedFixedCost = fixedCostPerHourPeriod * data.totalHours;
+            const fixedCostPerHour = fixedCostPerHourPeriod;
             const realMargin = margin - distributedFixedCost;
             const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
             const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
