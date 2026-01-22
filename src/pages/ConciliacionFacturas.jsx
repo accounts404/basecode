@@ -253,11 +253,11 @@ export default function ConciliacionFacturasPage() {
 
     const fetchMonthlyData = useCallback(async (date) => {
         try {
-            // Calcular inicio y fin del mes seleccionado
-            const monthStart = startOfMonth(date);
-            const monthEnd = endOfMonth(date);
+            console.log('[ConciliacionFacturas] 🔍 Cargando TODOS los servicios desde abril 2025...');
             
-            console.log('[ConciliacionFacturas] 🔍 Cargando servicios del mes:', format(monthStart, 'MMMM yyyy', { locale: es }));
+            // Cargar todos los servicios desde abril 2025 hasta hoy
+            const startOfRange = new Date(Date.UTC(2025, 3, 1, 0, 0, 0, 0)); // Abril 2025
+            const endOfRange = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 23, 59, 59, 999));
 
             const BATCH_SIZE = 5000;
             let allSchedules = [];
@@ -278,15 +278,15 @@ export default function ConciliacionFacturasPage() {
                 }
             }
 
-            // Filtrar servicios activos del mes seleccionado
+            // Filtrar servicios activos en el rango de fechas
             const activeSchedules = allSchedules.filter(schedule => {
                 if (schedule.status === 'cancelled') return false;
                 
                 const serviceDate = new Date(schedule.start_time);
-                return serviceDate >= monthStart && serviceDate <= monthEnd;
+                return serviceDate >= startOfRange && serviceDate <= endOfRange;
             }).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 
-            console.log(`[ConciliacionFacturas] ✅ Total de servicios del mes: ${activeSchedules.length}`);
+            console.log(`[ConciliacionFacturas] ✅ Total de servicios cargados: ${activeSchedules.length}`);
             setMonthlySchedules(activeSchedules);
         } catch (err) {
             console.error("Error fetching monthly data:", err);
