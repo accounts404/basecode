@@ -473,11 +473,17 @@ export default function ClientAccumulatedTab({
                                         onSelect={(date) => date && setCumulativeStartDate(date)}
                                         disabled={(date) => {
                                             const minDate = new Date('2025-04-01');
-                                            if (date < minDate) return true;
-                                            if (date > new Date()) return true;
-                                            if (date > cumulativeEndDate) return true;
-                                            const dateStr = format(date, 'yyyy-MM');
+                                            minDate.setHours(0, 0, 0, 0);
+                                            const checkDate = new Date(date);
+                                            checkDate.setHours(0, 0, 0, 0);
+                                            
+                                            if (checkDate < minDate) return true;
+                                            if (checkDate > new Date()) return true;
+                                            if (checkDate > cumulativeEndDate) return true;
+                                            
+                                            const dateStr = format(checkDate, 'yyyy-MM');
                                             if (dateStr === '2025-08' || dateStr === '2025-09') return true;
+                                            
                                             return false;
                                         }}
                                         initialFocus
