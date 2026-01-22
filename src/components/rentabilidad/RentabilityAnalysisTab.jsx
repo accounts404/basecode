@@ -301,6 +301,18 @@ export default function RentabilityAnalysisTab({
 
                 const clientHourShare = totalPeriodHours > 0 ? data.totalHours / totalPeriodHours : 0;
                 const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
+                
+                // Debug: log para verificar el cálculo
+                if (data.clientName && data.clientName.toLowerCase().includes('lola')) {
+                    console.log('DEBUG - Lola Nicolouleas:', {
+                        clientName: data.clientName,
+                        totalHours: data.totalHours,
+                        totalPeriodHours,
+                        clientHourShare,
+                        totalFixedCostsWithTraining,
+                        distributedFixedCost
+                    });
+                }
                 const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
                 const realMargin = margin - distributedFixedCost;
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
