@@ -260,7 +260,7 @@ export default function ClientAccumulatedTab({
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCosts;
 
-        // CRÍTICO: Calcular horas totales solo de clientes productivos (excluir operational_cost)
+        // 5. Calcular horas totales ANTES de mapear
         const totalCumulativeHours = Object.values(clientData)
             .filter(c => {
                 const client = clientMap.get(c.clientId);
@@ -268,13 +268,7 @@ export default function ClientAccumulatedTab({
             })
             .reduce((sum, c) => sum + c.totalHours, 0);
 
-        console.log('🔍 DEBUG Gastos Fijos Acumulados:', {
-            rangoFechas: `${format(cumulativeStartDate, 'd MMM yyyy', { locale: es })} - ${format(cumulativeEndDate, 'd MMM yyyy', { locale: es })}`,
-            totalFixedCostsWithTraining,
-            totalCumulativeHours,
-            fixedCostPerHourAverage: totalCumulativeHours > 0 ? totalFixedCostsWithTraining / totalCumulativeHours : 0
-        });
-
+        // 6. Calcular profitabilidad con las horas totales correctas
         const cumulativeClientAnalysis = Object.values(clientData).map(data => {
             const client = clientMap.get(data.clientId);
             const isCash = client?.payment_method === 'cash';
@@ -287,18 +281,6 @@ export default function ClientAccumulatedTab({
             // CRÍTICO: Distribuir gastos fijos proporcionalmente según las horas trabajadas
             const clientHourShare = totalCumulativeHours > 0 ? data.totalHours / totalCumulativeHours : 0;
             const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
-            
-            // Debug log para Lola
-            if (data.clientName && data.clientName.toLowerCase().includes('lola')) {
-                console.log('🔍 DEBUG - Lola Nicolouleas Acumulado:', {
-                    clientName: data.clientName,
-                    totalHours: data.totalHours,
-                    totalCumulativeHours,
-                    clientHourShare: (clientHourShare * 100).toFixed(2) + '%',
-                    totalFixedCostsWithTraining,
-                    distributedFixedCost
-                });
-            }
             const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
             const realMargin = margin - distributedFixedCost;
             const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
