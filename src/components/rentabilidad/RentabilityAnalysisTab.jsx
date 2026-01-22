@@ -291,6 +291,12 @@ export default function RentabilityAnalysisTab({
                 })
                 .reduce((sum, c) => sum + c.totalHours, 0);
 
+            console.log('🔍 DEBUG Gastos Fijos - Período:', format(periodStart, 'MMM yyyy', { locale: es }), {
+                totalFixedCostsWithTraining,
+                totalPeriodHours,
+                fixedCostPerHourAverage: totalPeriodHours > 0 ? totalFixedCostsWithTraining / totalPeriodHours : 0
+            });
+
             const profitData = Object.values(clientData).map(data => {
                 const client = clientMap.get(data.clientId);
                 const isCash = client?.payment_method === 'cash';
@@ -303,6 +309,18 @@ export default function RentabilityAnalysisTab({
                 // CRÍTICO: Distribuir gastos fijos proporcionalmente según las horas trabajadas
                 const clientHourShare = totalPeriodHours > 0 ? data.totalHours / totalPeriodHours : 0;
                 const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
+                
+                // Debug: log para verificar el cálculo de Lola
+                if (data.clientName && data.clientName.toLowerCase().includes('lola')) {
+                    console.log('🔍 DEBUG - Lola Nicolouleas:', {
+                        clientName: data.clientName,
+                        totalHours: data.totalHours,
+                        totalPeriodHours,
+                        clientHourShare: (clientHourShare * 100).toFixed(2) + '%',
+                        totalFixedCostsWithTraining,
+                        distributedFixedCost
+                    });
+                }
                 const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
                 const realMargin = margin - distributedFixedCost;
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
