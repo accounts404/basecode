@@ -710,8 +710,9 @@ export default function RentabilityAnalysisTab({
                                             selected={rangeStartDate}
                                             onSelect={(date) => date && setRangeStartDate(date)}
                                             disabled={(date) => {
-                                                const minDate = new Date('2025-04-01');
-                                                if (date < minDate) return true;
+                                                const minDate = startOfDay(new Date(2025, 3, 1)); // 1 abril 2025
+                                                const dateToCheck = startOfDay(date);
+                                                if (dateToCheck < minDate) return true;
                                                 if (date > new Date()) return true;
                                                 const dateStr = format(date, 'yyyy-MM');
                                                 if (dateStr === '2025-08' || dateStr === '2025-09') return true;
