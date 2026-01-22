@@ -2,7 +2,6 @@ import AdminTasksPanel from './pages/AdminTasksPanel';
 import AuditoriaWorkEntries from './pages/AuditoriaWorkEntries';
 import AumentoClientes from './pages/AumentoClientes';
 import Clientes from './pages/Clientes';
-import ConciliacionFacturas from './pages/ConciliacionFacturas';
 import ConciliacionHoras from './pages/ConciliacionHoras';
 import Configuracion from './pages/Configuracion';
 import Cotizaciones from './pages/Cotizaciones';
@@ -33,6 +32,7 @@ import ServicioActivo from './pages/ServicioActivo';
 import TVDashboard from './pages/TVDashboard';
 import TrabajoEntradas from './pages/TrabajoEntradas';
 import Vehiculos from './pages/Vehiculos';
+import ConciliacionFacturas from './pages/ConciliacionFacturas';
 import __Layout from './Layout.jsx';
 
 
@@ -41,7 +41,6 @@ export const PAGES = {
     "AuditoriaWorkEntries": AuditoriaWorkEntries,
     "AumentoClientes": AumentoClientes,
     "Clientes": Clientes,
-    "ConciliacionFacturas": ConciliacionFacturas,
     "ConciliacionHoras": ConciliacionHoras,
     "Configuracion": Configuracion,
     "Cotizaciones": Cotizaciones,
@@ -72,6 +71,7 @@ export const PAGES = {
     "TVDashboard": TVDashboard,
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
+    "ConciliacionFacturas": ConciliacionFacturas,
 }
 
 export const pagesConfig = {

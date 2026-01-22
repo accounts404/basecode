@@ -738,10 +738,10 @@ export default function ConciliacionFacturasPage() {
         }).filter(Boolean);
     };
 
-    // Calcular totales del mes separando cash y no-cash
+    // Calcular totales del mes separando cash y no-cash (solo del mes filtrado)
     const monthlyStats = useMemo(() => {
-        const invoiced = monthlySchedules.filter(s => s.xero_invoiced === true);
-        const pending = monthlySchedules.filter(s => s.xero_invoiced !== true);
+        const invoiced = filteredMonthlySchedules.filter(s => s.xero_invoiced === true);
+        const pending = filteredMonthlySchedules.filter(s => s.xero_invoiced !== true);
 
         const calculateTotals = (schedulesList) => {
             const totals = { base: 0, gst: 0, total: 0, cashBase: 0, nonCashBase: 0 };
@@ -808,14 +808,24 @@ export default function ConciliacionFacturasPage() {
             invoicedCount: invoiced.length,
             pendingCount: pending.length
         };
-    }, [monthlySchedules, clients]);
+    }, [filteredMonthlySchedules, clients]);
 
-    // Separar servicios cash y no-cash
+    // Filtrar servicios del mes seleccionado
+    const filteredMonthlySchedules = useMemo(() => {
+        const monthStart = startOfMonth(selectedMonth);
+        const monthEnd = endOfMonth(selectedMonth);
+        
+        return monthlySchedules.filter(service => 
+            isDateInRange(service.start_time, monthStart, monthEnd)
+        );
+    }, [monthlySchedules, selectedMonth]);
+
+    // Separar servicios cash y no-cash del mes filtrado
     const { cashSchedules, nonCashSchedules } = useMemo(() => {
         const cash = [];
         const nonCash = [];
         
-        monthlySchedules.forEach(service => {
+        filteredMonthlySchedules.forEach(service => {
             const client = clients.get(service.client_id);
             if (client?.payment_method === 'cash') {
                 cash.push(service);
@@ -825,7 +835,7 @@ export default function ConciliacionFacturasPage() {
         });
         
         return { cashSchedules: cash, nonCashSchedules: nonCash };
-    }, [monthlySchedules, clients]);
+    }, [filteredMonthlySchedules, clients]);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 p-6 md:p-8">
