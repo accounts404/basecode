@@ -19,6 +19,7 @@ import { CalendarIcon, Edit, CheckCircle, Clock, DollarSign, FileCheck, Circle, 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { processScheduleForWorkEntries } from '@/functions/processScheduleForWorkEntries';
+import { isDateInRange } from '@/components/utils/priceCalculations';
 
 // Función para extraer hora UTC
 const formatTimeUTC = (isoString) => {
