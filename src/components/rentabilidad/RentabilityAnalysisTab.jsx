@@ -1232,6 +1232,112 @@ export default function RentabilityAnalysisTab({
                             </TableBody>
                         </Table>
                     </div>
+
+                    {/* Modal para marcar como enviado */}
+                    <Dialog open={sendModalOpen} onOpenChange={setSendModalOpen}>
+                        <DialogContent className="sm:max-w-[500px]">
+                            <DialogHeader>
+                                <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                                    <Send className="w-5 h-5 text-blue-600" />
+                                    Marcar Aumento como Enviado
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Cliente: <span className="font-semibold">{selectedClientForSend?.clientName}</span>
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-semibold">Fecha de Envío</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-start text-left">
+                                                <Calendar className="mr-2 h-4 w-4" />
+                                                {format(sendDate, 'd MMMM yyyy', { locale: es })}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <CalendarComponent
+                                                mode="single"
+                                                selected={sendDate}
+                                                onSelect={(date) => date && setSendDate(date)}
+                                                disabled={(date) => date > new Date()}
+                                                initialFocus
+                                                locale={es}
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-semibold">Notas (Opcional)</Label>
+                                    <Textarea
+                                        placeholder="Ej: Enviado por email, Conversación telefónica, etc."
+                                        value={sendNotes}
+                                        onChange={(e) => setSendNotes(e.target.value)}
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setSendModalOpen(false)}>
+                                    Cancelar
+                                </Button>
+                                <Button onClick={handleMarkAsSent} className="bg-blue-600 hover:bg-blue-700">
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Confirmar
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Modal de historial */}
+                    <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+                        <DialogContent className="sm:max-w-[600px]">
+                            <DialogHeader>
+                                <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                                    <History className="w-5 h-5 text-blue-600" />
+                                    Historial de Envíos
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Cliente: <span className="font-semibold">{selectedClientForHistory?.clientName}</span>
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="py-4 max-h-[400px] overflow-y-auto">
+                                {selectedClientForHistory?.fullClient?.price_increase_notifications?.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {[...selectedClientForHistory.fullClient.price_increase_notifications]
+                                            .sort((a, b) => new Date(b.sent_date) - new Date(a.sent_date))
+                                            .map((notification, index) => (
+                                                <Card key={index} className="p-4 border border-slate-200">
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="space-y-1">
+                                                            <p className="font-semibold text-slate-900">
+                                                                {format(new Date(notification.sent_date), 'd MMMM yyyy', { locale: es })}
+                                                            </p>
+                                                            <p className="text-sm text-slate-600">
+                                                                {notification.notes || 'Sin notas'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            {Math.floor((new Date() - new Date(notification.sent_date)) / (1000 * 60 * 60 * 24 * 30))} meses
+                                                        </div>
+                                                    </div>
+                                                </Card>
+                                            ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                        <p>No hay historial de envíos</p>
+                                    </div>
+                                )}
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setHistoryModalOpen(false)}>
+                                    Cerrar
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </>
             )}
         </div>
