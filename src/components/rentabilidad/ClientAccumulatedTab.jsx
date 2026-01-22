@@ -260,16 +260,15 @@ export default function ClientAccumulatedTab({
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCosts;
 
-        // CRÍTICO: Filtrar solo clientes productivos ANTES de calcular
-        const productiveClients = Object.values(clientData).filter(data => {
-            const client = clientMap.get(data.clientId);
-            return client?.client_type !== 'operational_cost' && (data.totalHours > 0 || data.totalIncome > 0);
-        });
+        // CRÍTICO: Calcular horas totales solo de clientes productivos (excluir operational_cost)
+        const totalCumulativeHours = Object.values(clientData)
+            .filter(c => {
+                const client = clientMap.get(c.clientId);
+                return client?.client_type !== 'operational_cost';
+            })
+            .reduce((sum, c) => sum + c.totalHours, 0);
 
-        // CRÍTICO: Calcular horas totales solo de clientes productivos
-        const totalCumulativeHours = productiveClients.reduce((sum, c) => sum + c.totalHours, 0);
-
-        const cumulativeClientAnalysis = productiveClients.map(data => {
+        const cumulativeClientAnalysis = Object.values(clientData).map(data => {
             const client = clientMap.get(data.clientId);
             const isCash = client?.payment_method === 'cash';
             
@@ -302,6 +301,9 @@ export default function ClientAccumulatedTab({
                 realMarginPerHour,
                 totalCostPerHour
             };
+        }).filter(data => {
+             const client = clientMap.get(data.clientId);
+             return client?.client_type !== 'operational_cost' && (data.totalHours > 0 || data.totalIncome > 0);
         });
 
         const sortedCumulativeAnalysis = [...cumulativeClientAnalysis].sort((a, b) => {
