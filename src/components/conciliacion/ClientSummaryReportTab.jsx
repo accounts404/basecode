@@ -417,8 +417,8 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                             // USAR FUNCIÓN UNIFICADA para calcular precio
                                             const client = clients.get(service.client_id);
                                             const priceData = getPriceForSchedule(service, client);
-                                            const { base: serviceBaseAmount } = calculateGST(priceData.rawAmount, priceData.gstType);
-                                            const serviceAmount = priceData.rawAmount;
+                                            const { base: serviceBaseAmount, total: totalWithGST } = calculateGST(priceData.rawAmount, priceData.gstType);
+                                            const serviceAmount = priceData.gstType === 'exclusive' ? totalWithGST : priceData.rawAmount;
 
                                             // Parsear fecha del servicio desde el string (YYYY-MM-DD)
                                             const serviceDateStr = extractDateOnly(service.start_time);
