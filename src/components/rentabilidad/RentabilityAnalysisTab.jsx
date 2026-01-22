@@ -154,7 +154,8 @@ export default function RentabilityAnalysisTab({
             setFixedCostInput(totalRangeFixedCosts);
             setSavedFixedCosts(totalRangeFixedCosts);
 
-            processData(periodStart, periodEnd);
+            // CRÍTICO: Pasar el valor calculado directamente para evitar condición de carrera
+            processData(periodStart, periodEnd, totalRangeFixedCosts);
         } catch (err) {
             console.error("Error loading range data:", err);
             setError("Error al cargar los datos del rango.");
@@ -176,15 +177,18 @@ export default function RentabilityAnalysisTab({
             setFixedCostInput(currentFixedCostAmount);
             setSavedFixedCosts(currentFixedCostAmount);
 
-            processData(monthStart, monthEnd);
+            // CRÍTICO: Pasar el valor calculado directamente para evitar condición de carrera
+            processData(monthStart, monthEnd, currentFixedCostAmount);
         } catch (err) {
             console.error("Error loading month data:", err);
             setError("Error al cargar los datos del mes.");
         }
     };
 
-    const processData = (periodStart, periodEnd) => {
+    const processData = (periodStart, periodEnd, fixedCostsValue = null) => {
         try {
+            // Usar el valor pasado si existe, sino usar el del estado
+            const currentFixedCosts = fixedCostsValue !== null ? fixedCostsValue : (filterMode === 'month' ? savedFixedCosts : fixedCostInput);
 
             const clientMap = new Map(clients.map(c => [c.id, c]));
             const clientData = {};
@@ -281,7 +285,8 @@ export default function RentabilityAnalysisTab({
                 })
                 .reduce((sum, c) => sum + c.totalLaborCost, 0);
 
-            const totalFixedCostsWithTraining = (filterMode === 'month' ? savedFixedCosts : fixedCostInput) + trainingAmount + periodOperationalCost;
+            // CRÍTICO: Usar el valor correcto de gastos fijos
+            const totalFixedCostsWithTraining = currentFixedCosts + trainingAmount + periodOperationalCost;
 
             const totalPeriodHours = Object.values(clientData)
                 .filter(c => {
