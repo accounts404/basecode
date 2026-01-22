@@ -283,12 +283,19 @@ export default function RentabilityAnalysisTab({
 
             const totalFixedCostsWithTraining = (filterMode === 'month' ? savedFixedCosts : fixedCostInput) + trainingAmount + periodOperationalCost;
 
+            // CRÍTICO: Calcular horas totales solo de clientes productivos (excluir operational_cost)
             const totalPeriodHours = Object.values(clientData)
                 .filter(c => {
                     const client = clientMap.get(c.clientId);
                     return client?.client_type !== 'operational_cost';
                 })
                 .reduce((sum, c) => sum + c.totalHours, 0);
+
+            console.log('🔍 DEBUG Gastos Fijos - Período:', format(periodStart, 'MMM yyyy', { locale: es }), {
+                totalFixedCostsWithTraining,
+                totalPeriodHours,
+                fixedCostPerHourAverage: totalPeriodHours > 0 ? totalFixedCostsWithTraining / totalPeriodHours : 0
+            });
 
             const profitData = Object.values(clientData).map(data => {
                 const client = clientMap.get(data.clientId);
@@ -299,16 +306,17 @@ export default function RentabilityAnalysisTab({
                 const margin = data.totalIncome - data.totalLaborCost;
                 const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
 
+                // CRÍTICO: Distribuir gastos fijos proporcionalmente según las horas trabajadas
                 const clientHourShare = totalPeriodHours > 0 ? data.totalHours / totalPeriodHours : 0;
                 const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
                 
-                // Debug: log para verificar el cálculo
+                // Debug: log para verificar el cálculo de Lola
                 if (data.clientName && data.clientName.toLowerCase().includes('lola')) {
-                    console.log('DEBUG - Lola Nicolouleas:', {
+                    console.log('🔍 DEBUG - Lola Nicolouleas:', {
                         clientName: data.clientName,
                         totalHours: data.totalHours,
                         totalPeriodHours,
-                        clientHourShare,
+                        clientHourShare: (clientHourShare * 100).toFixed(2) + '%',
                         totalFixedCostsWithTraining,
                         distributedFixedCost
                     });
