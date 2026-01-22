@@ -260,6 +260,7 @@ export default function ClientAccumulatedTab({
 
         const totalFixedCostsWithTraining = totalCumulativeFixedCosts + cumulativeTrainingAmount + totalCumulativeOperationalCosts;
 
+        // 5. Calcular horas totales ANTES de mapear
         const totalCumulativeHours = Object.values(clientData)
             .filter(c => {
                 const client = clientMap.get(c.clientId);
@@ -267,7 +268,7 @@ export default function ClientAccumulatedTab({
             })
             .reduce((sum, c) => sum + c.totalHours, 0);
 
-        // 5. Calcular profitabilidad (igual que RentabilityAnalysisTab)
+        // 6. Calcular profitabilidad con las horas totales correctas
         const cumulativeClientAnalysis = Object.values(clientData).map(data => {
             const client = clientMap.get(data.clientId);
             const isCash = client?.payment_method === 'cash';
@@ -277,6 +278,7 @@ export default function ClientAccumulatedTab({
             const margin = data.totalIncome - data.totalLaborCost;
             const marginPerHour = data.totalHours > 0 ? margin / data.totalHours : 0;
 
+            // CRÍTICO: Distribuir gastos fijos proporcionalmente según las horas trabajadas
             const clientHourShare = totalCumulativeHours > 0 ? data.totalHours / totalCumulativeHours : 0;
             const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
             const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
