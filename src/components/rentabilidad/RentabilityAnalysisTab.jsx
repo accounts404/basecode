@@ -281,8 +281,7 @@ export default function RentabilityAnalysisTab({
                 })
                 .reduce((sum, c) => sum + c.totalLaborCost, 0);
 
-            // CRÍTICO: Usar siempre fixedCostInput para el cálculo, no savedFixedCosts
-            const totalFixedCostsWithTraining = parseFloat(fixedCostInput || 0) + trainingAmount + periodOperationalCost;
+            const totalFixedCostsWithTraining = (filterMode === 'month' ? savedFixedCosts : fixedCostInput) + trainingAmount + periodOperationalCost;
 
             const totalPeriodHours = Object.values(clientData)
                 .filter(c => {
