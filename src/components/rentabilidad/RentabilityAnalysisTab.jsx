@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FixedCost } from '@/entities/FixedCost';
-import { format, startOfMonth, endOfMonth, endOfDay, subMonths, addMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, endOfDay, startOfDay, subMonths, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
