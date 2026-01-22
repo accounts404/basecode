@@ -936,9 +936,25 @@ export default function RentabilityAnalysisTab({
                         </Card>
                     </div>
 
-                    {/* Buscador de Clientes */}
+                    {/* Buscador y Filtros */}
                     <Card className="shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
-                        <CardContent className="p-6">
+                        <CardContent className="p-6 space-y-4">
+                            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+                                <div className="flex items-center gap-3">
+                                    <Switch
+                                        id="hide-sent"
+                                        checked={hideSentClients}
+                                        onCheckedChange={setHideSentClients}
+                                    />
+                                    <Label htmlFor="hide-sent" className="text-sm font-semibold text-slate-700 cursor-pointer flex items-center gap-2">
+                                        {hideSentClients ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        Ocultar clientes con aumento enviado
+                                    </Label>
+                                </div>
+                                <div className="text-xs text-slate-500 bg-slate-100 px-3 py-2 rounded-lg">
+                                    Los envíos se resetean automáticamente después de 9 meses
+                                </div>
+                            </div>
                             <div className="relative">
                                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
                                 <Input
@@ -1023,9 +1039,26 @@ export default function RentabilityAnalysisTab({
                                         onClick={() => handleSort('totalHours')}
                                     >
                                         <div className="flex items-center justify-center gap-2">
-                                            <Clock className="w-4 h-4"/>
-                                            Horas
+                                            Horas Acum.
                                             {getSortIcon('totalHours')}
+                                        </div>
+                                    </TableHead>
+                                    <TableHead 
+                                        className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700 bg-blue-50"
+                                        onClick={() => handleSort('incomePerHour')}
+                                    >
+                                        <div className="flex items-center justify-end gap-2">
+                                            Valor Venta/Hora
+                                            {getSortIcon('incomePerHour')}
+                                        </div>
+                                    </TableHead>
+                                    <TableHead 
+                                        className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700 bg-orange-50"
+                                        onClick={() => handleSort('totalCostPerHour')}
+                                    >
+                                        <div className="flex items-center justify-end gap-2">
+                                            Costo Total/Hora
+                                            {getSortIcon('totalCostPerHour')}
                                         </div>
                                     </TableHead>
                                     <TableHead 
@@ -1033,7 +1066,7 @@ export default function RentabilityAnalysisTab({
                                         onClick={() => handleSort('totalIncome')}
                                     >
                                         <div className="flex items-center justify-end gap-2">
-                                            Ingresos
+                                            Ingresos Acum.
                                             {getSortIcon('totalIncome')}
                                         </div>
                                     </TableHead>
@@ -1042,7 +1075,7 @@ export default function RentabilityAnalysisTab({
                                         onClick={() => handleSort('totalLaborCost')}
                                     >
                                         <div className="flex items-center justify-end gap-2">
-                                            Costo Laboral
+                                            Costo Laboral Acum.
                                             {getSortIcon('totalLaborCost')}
                                         </div>
                                     </TableHead>
@@ -1051,7 +1084,7 @@ export default function RentabilityAnalysisTab({
                                         onClick={() => handleSort('margin')}
                                     >
                                         <div className="flex items-center justify-end gap-2">
-                                            Margen Bruto
+                                            Margen Bruto Acum.
                                             {getSortIcon('margin')}
                                         </div>
                                     </TableHead>
@@ -1060,7 +1093,7 @@ export default function RentabilityAnalysisTab({
                                         onClick={() => handleSort('distributedFixedCost')}
                                     >
                                         <div className="flex items-center justify-end gap-2">
-                                            Gasto Fijo
+                                            Gasto Fijo Acum.
                                             {getSortIcon('distributedFixedCost')}
                                         </div>
                                     </TableHead>
@@ -1082,12 +1115,120 @@ export default function RentabilityAnalysisTab({
                                             {getSortIcon('realProfitPercentage')}
                                         </div>
                                     </TableHead>
+                                    <TableHead className="text-center font-bold text-slate-700 bg-yellow-50">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <Send className="w-4 h-4" />
+                                            Aumento Enviado
+                                        </div>
+                                    </TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {profitabilityData.clientAnalysis.map(data => (
-                                    <ProfitabilityRow key={data.clientId} data={data} />
-                                ))}
+                                {profitabilityData.clientAnalysis
+                                    .filter(data => {
+                                        if (!hideSentClients) return true;
+                                        const client = clients.find(c => c.id === data.clientId);
+                                        const status = getClientSendStatus(client);
+                                        return !status.sent || status.expired;
+                                    })
+                                    .map(data => {
+                                        const client = clients.find(c => c.id === data.clientId);
+                                        const sendStatus = getClientSendStatus(client);
+                                        return (
+                                            <TableRow key={data.clientId} className={`hover:bg-slate-50/50 transition-colors border-b border-slate-100 ${sendStatus.sent && !sendStatus.expired ? 'bg-green-50/30' : ''}`}>
+                                                <TableCell className="font-semibold text-slate-900 py-4">{data.clientName}</TableCell>
+                                                <TableCell className="text-center text-slate-700">{data.serviceCount}</TableCell>
+                                                <TableCell className="text-center font-medium text-slate-800">{data.totalHours.toFixed(2)}h</TableCell>
+                                                <TableCell className="text-right font-bold text-blue-700 bg-blue-50">${data.incomePerHour.toFixed(2)}/h</TableCell>
+                                                <TableCell className="text-right font-bold text-orange-700 bg-orange-50">
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div className="cursor-help">
+                                                                    ${data.totalCostPerHour.toFixed(2)}/h
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent className="bg-slate-900 text-white p-3">
+                                                                <div className="space-y-1">
+                                                                    <p className="text-sm font-semibold">Desglose por hora:</p>
+                                                                    <p className="text-xs">Mano de obra: ${data.laborCostPerHour.toFixed(2)}/h</p>
+                                                                    <p className="text-xs">Gastos fijos: ${data.fixedCostPerHour.toFixed(2)}/h</p>
+                                                                    <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
+                                                                        Total: ${data.totalCostPerHour.toFixed(2)}/h
+                                                                    </p>
+                                                                </div>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
+                                                </TableCell>
+                                                <TableCell className="text-right font-semibold text-emerald-700">${data.totalIncome.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right font-semibold text-rose-700">${data.totalLaborCost.toFixed(2)}</TableCell>
+                                                <TableCell className={`text-right font-semibold ${data.margin > 0 ? 'text-blue-700' : 'text-orange-700'}`}>${data.margin.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right text-slate-600 font-medium">(${data.distributedFixedCost.toFixed(2)})</TableCell>
+                                                <TableCell className={`text-right font-bold text-lg ${data.realMargin > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${data.realMargin.toFixed(2)}</TableCell>
+                                                <TableCell className={`text-right font-bold ${data.realProfitPercentage > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        {data.realProfitPercentage > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                                        <span className="text-base">{data.realProfitPercentage.toFixed(1)}%</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center bg-yellow-50">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        {sendStatus.sent && !sendStatus.expired ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleViewHistory(data)}
+                                                                    className="h-auto py-0.5 px-1 hover:bg-green-100"
+                                                                >
+                                                                    <div className="flex items-center gap-1 text-green-700">
+                                                                        <CheckCircle className="w-3.5 h-3.5" />
+                                                                        <span className="text-xs font-semibold">
+                                                                            {format(new Date(client.current_price_increase_sent_date), 'd MMM', { locale: es })}
+                                                                        </span>
+                                                                        <span className="text-xs text-slate-500">
+                                                                            ({sendStatus.monthsSince}m)
+                                                                        </span>
+                                                                    </div>
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() => handleUnmarkSent(data)}
+                                                                    className="h-6 w-6 p-0"
+                                                                >
+                                                                    <X className="w-3 h-3 text-red-600" />
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-1">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => handleOpenSendModal(data)}
+                                                                    className="h-7 px-2 text-xs"
+                                                                >
+                                                                    <Send className="w-3 h-3 mr-1" />
+                                                                    Marcar
+                                                                </Button>
+                                                                {client?.price_increase_notifications?.length > 0 && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        onClick={() => handleViewHistory(data)}
+                                                                        className="h-6 w-6 p-0"
+                                                                    >
+                                                                        <History className="w-3 h-3 text-slate-600" />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                             </TableBody>
                         </Table>
                     </div>
