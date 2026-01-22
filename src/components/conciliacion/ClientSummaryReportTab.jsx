@@ -111,20 +111,13 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
 
                 // USAR FUNCIÓN UNIFICADA para calcular precio
                 const priceData = getPriceForSchedule(service, client);
-                const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
+                const { base: netIncome, total: totalWithGST } = calculateGST(priceData.rawAmount, priceData.gstType);
 
-                // DEBUG LOG para julio 2025
-                if (extractDateOnly(service.start_time)?.startsWith('2025-07') && client.name === 'David Muzverney') {
-                    console.log('[ClientSummaryReportTab] DEBUG - David Muzverney julio 2025:', {
-                        serviceId: service.id,
-                        date: extractDateOnly(service.start_time),
-                        priceData,
-                        netIncome,
-                        runningTotal: group.totalAmount + priceData.rawAmount
-                    });
-                }
+                // Para GST exclusive, totalAmount debe incluir el GST
+                // Para GST inclusive y no_tax, rawAmount ya es el total correcto
+                const amountToAdd = priceData.gstType === 'exclusive' ? totalWithGST : priceData.rawAmount;
 
-                group.totalAmount += priceData.rawAmount;
+                group.totalAmount += amountToAdd;
                 if (!group.baseAmount) group.baseAmount = 0;
                 group.baseAmount += netIncome;
             });
