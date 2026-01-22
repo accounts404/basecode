@@ -1230,6 +1230,52 @@ export default function RentabilityAnalysisTab({
                                         );
                                     })}
                             </TableBody>
+                            <tfoot>
+                                <TableRow className="bg-gradient-to-r from-slate-100 to-slate-50 font-bold text-slate-900 sticky bottom-0 border-t-2 border-slate-300">
+                                    <TableCell colSpan="2" className="text-right text-xl py-5">TOTAL</TableCell>
+                                    <TableCell className="text-center text-xl">{profitabilityData.summary.totalHours.toFixed(2)}h</TableCell>
+                                    <TableCell className="text-right text-xl text-blue-800 bg-blue-50">
+                                        ${(profitabilityData.summary.totalHours > 0 ? profitabilityData.summary.totalIncome / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                    </TableCell>
+                                    <TableCell className="text-right text-xl text-orange-800 bg-orange-50">
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <div className="cursor-help">
+                                                        ${(profitabilityData.summary.totalHours > 0 ? (profitabilityData.summary.totalLaborCost + (profitabilityData.overallTotalFixedCosts + monthlyTrainingCost.amount + monthlyOperationalCosts)) / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                    </div>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="bg-slate-900 text-white p-3">
+                                                    <div className="space-y-1">
+                                                        <p className="text-sm font-semibold">Desglose promedio por hora:</p>
+                                                        <p className="text-xs">
+                                                            Mano de obra: ${(profitabilityData.summary.totalHours > 0 ? profitabilityData.summary.totalLaborCost / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                        </p>
+                                                        <p className="text-xs">
+                                                            Gastos fijos: ${(profitabilityData.summary.totalHours > 0 ? (profitabilityData.overallTotalFixedCosts + monthlyTrainingCost.amount + monthlyOperationalCosts) / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                        </p>
+                                                        <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
+                                                            Total: ${(profitabilityData.summary.totalHours > 0 ? (profitabilityData.summary.totalLaborCost + (profitabilityData.overallTotalFixedCosts + monthlyTrainingCost.amount + monthlyOperationalCosts)) / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
+                                                        </p>
+                                                    </div>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </TableCell>
+                                    <TableCell className="text-right text-xl text-emerald-800">${profitabilityData.summary.totalIncome.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right text-xl text-rose-800">${profitabilityData.summary.totalLaborCost.toFixed(2)}</TableCell>
+                                    <TableCell className={`text-right text-xl ${profitabilityData.summary.totalMargin > 0 ? 'text-blue-800' : 'text-orange-800'}`}>${profitabilityData.summary.totalMargin.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right text-xl text-slate-700">(${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts).toFixed(2)})</TableCell>
+                                    <TableCell className={`text-right text-xl ${profitabilityData.summary.totalRealMargin > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${profitabilityData.summary.totalRealMargin.toFixed(2)}</TableCell>
+                                    <TableCell className={`text-right text-xl ${profitabilityData.summary.totalRealProfitPercentage > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                                        <div className="flex items-center justify-end gap-2">
+                                            {profitabilityData.summary.totalRealProfitPercentage > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                                            {profitabilityData.summary.totalRealProfitPercentage.toFixed(1)}%
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-center bg-yellow-50"></TableCell>
+                                </TableRow>
+                            </tfoot>
                         </Table>
                     </div>
 
