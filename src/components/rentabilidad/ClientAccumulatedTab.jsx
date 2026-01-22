@@ -302,9 +302,6 @@ export default function ClientAccumulatedTab({
                 realMarginPerHour,
                 totalCostPerHour
             };
-        }).filter(data => {
-             const client = clientMap.get(data.clientId);
-             return client?.client_type !== 'operational_cost' && (data.totalHours > 0 || data.totalIncome > 0);
         });
 
         const sortedCumulativeAnalysis = [...cumulativeClientAnalysis].sort((a, b) => {
