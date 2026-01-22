@@ -524,11 +524,52 @@ export default function ConciliacionFacturasPage() {
 
     const totalDelDia = useMemo(() => {
         return schedules.reduce((total, service) => {
-...
+            let amount = 0;
+            let gstType = 'inclusive';
+            
+            if (service.reconciliation_items && service.reconciliation_items.length > 0) {
+                amount = service.reconciliation_items.reduce((itemTotal, item) => {
+                    const itemAmount = parseFloat(item.amount) || 0;
+                    return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
+                }, 0);
+                
+                if (service.xero_invoiced && service.billed_gst_type_snapshot) {
+                    gstType = service.billed_gst_type_snapshot;
+                } else {
+                    const client = clients.get(service.client_id);
+                    const priceForDate = getPriceForDate(client, service.start_time);
+                    gstType = priceForDate.gstType;
+                }
+            } else {
+                if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
+                    amount = service.billed_price_snapshot;
+                    gstType = service.billed_gst_type_snapshot || 'inclusive';
+                } else {
+                    const client = clients.get(service.client_id);
+                    const priceForDate = getPriceForDate(client, service.start_time);
+                    amount = priceForDate.price;
+                    gstType = priceForDate.gstType;
+                }
+            }
+            
+            let baseAmount = amount;
+            if (gstType === 'inclusive') {
+                baseAmount = amount / 1.1;
+            }
+            
+            return total + baseAmount;
         }, 0);
     }, [schedules, clients]);
 
-
+    // Filtrar servicios del mes seleccionado
+    const filteredMonthlySchedules = useMemo(() => {
+        const monthStart = startOfMonth(selectedMonth);
+        const monthEnd = endOfMonth(selectedMonth);
+        
+        return monthlySchedules.filter(service => 
+            isDateInRange(service.start_time, monthStart, monthEnd)
+        );
+    }, [monthlySchedules, selectedMonth]);
 
     const renderReconciledAmountBreakdown = (service) => {
         const client = clients.get(service.client_id);
@@ -703,6 +744,23 @@ export default function ConciliacionFacturasPage() {
         }).filter(Boolean);
     };
 
+    // Separar servicios cash y no-cash del mes filtrado
+    const { cashSchedules, nonCashSchedules } = useMemo(() => {
+        const cash = [];
+        const nonCash = [];
+        
+        filteredMonthlySchedules.forEach(service => {
+            const client = clients.get(service.client_id);
+            if (client?.payment_method === 'cash') {
+                cash.push(service);
+            } else {
+                nonCash.push(service);
+            }
+        });
+        
+        return { cashSchedules: cash, nonCashSchedules: nonCash };
+    }, [filteredMonthlySchedules, clients]);
+
     // Calcular totales del mes separando cash y no-cash (solo del mes filtrado)
     const monthlyStats = useMemo(() => {
         const invoiced = filteredMonthlySchedules.filter(s => s.xero_invoiced === true);
@@ -773,33 +831,6 @@ export default function ConciliacionFacturasPage() {
             invoicedCount: invoiced.length,
             pendingCount: pending.length
         };
-    }, [filteredMonthlySchedules, clients]);
-
-    // Filtrar servicios del mes seleccionado
-    const filteredMonthlySchedules = useMemo(() => {
-        const monthStart = startOfMonth(selectedMonth);
-        const monthEnd = endOfMonth(selectedMonth);
-        
-        return monthlySchedules.filter(service => 
-            isDateInRange(service.start_time, monthStart, monthEnd)
-        );
-    }, [monthlySchedules, selectedMonth]);
-
-    // Separar servicios cash y no-cash del mes filtrado
-    const { cashSchedules, nonCashSchedules } = useMemo(() => {
-        const cash = [];
-        const nonCash = [];
-        
-        filteredMonthlySchedules.forEach(service => {
-            const client = clients.get(service.client_id);
-            if (client?.payment_method === 'cash') {
-                cash.push(service);
-            } else {
-                nonCash.push(service);
-            }
-        });
-        
-        return { cashSchedules: cash, nonCashSchedules: nonCash };
     }, [filteredMonthlySchedules, clients]);
 
     return (
