@@ -4,7 +4,7 @@ import { format, startOfMonth, endOfMonth, endOfDay, subMonths, addMonths } from
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, GraduationCap, Search } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, GraduationCap, Search, Send, X, History, Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from '@/components/ui/textarea';
+import { Client } from '@/entities/Client';
+import { User } from '@/entities/User';
 import { calculateTotalIncomeFromBreakdown, mergeRevenueBreakdowns } from '@/components/utils/priceCalculations';
 import { getPriceForSchedule, calculateGST, isDateInRange, extractDateOnly } from '@/components/utils/priceCalculations';
 
@@ -108,6 +114,13 @@ export default function RentabilityAnalysisTab({
     const [monthlyTrainingCost, setMonthlyTrainingCost] = useState({ hours: 0, amount: 0 });
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [hideSentClients, setHideSentClients] = useState(false);
+    const [sendModalOpen, setSendModalOpen] = useState(false);
+    const [selectedClientForSend, setSelectedClientForSend] = useState(null);
+    const [sendDate, setSendDate] = useState(new Date());
+    const [sendNotes, setSendNotes] = useState('');
+    const [historyModalOpen, setHistoryModalOpen] = useState(false);
+    const [selectedClientForHistory, setSelectedClientForHistory] = useState(null);
 
     useEffect(() => {
         if (clients.length > 0) {
@@ -292,6 +305,7 @@ export default function RentabilityAnalysisTab({
                 const realMargin = margin - distributedFixedCost;
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
                 const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
+                const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
 
                 return {
                     ...data,
@@ -305,7 +319,8 @@ export default function RentabilityAnalysisTab({
                     laborCostPerHour,
                     marginPerHour,
                     fixedCostPerHour,
-                    realMarginPerHour
+                    realMarginPerHour,
+                    totalCostPerHour
                 };
             }).filter(data => {
                 const client = clientMap.get(data.clientId);
@@ -434,9 +449,9 @@ export default function RentabilityAnalysisTab({
         summary.cashProfitability = summary.cashIncome > 0 ? (summary.cashNetMargin / summary.cashIncome) * 100 : 0;
         summary.invoiceProfitability = summary.nonCashIncome > 0 ? (summary.invoiceNetMargin / summary.nonCashIncome) * 100 : 0;
 
-        return { clientAnalysis: sortedClientAnalysis, summary };
+        return { clientAnalysis: sortedClientAnalysis, summary, overallTotalFixedCosts: parseFloat(fixedCostInput || 0) };
 
-    }, [selectedPeriod, monthlyProcessedClientAnalysis, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts]);
+    }, [selectedPeriod, monthlyProcessedClientAnalysis, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts, searchTerm]);
 
     const handleSaveFixedCosts = async () => {
         if (filterMode !== 'month' || !selectedMonth) return;
@@ -468,6 +483,78 @@ export default function RentabilityAnalysisTab({
         }
         
         setSavingFixedCosts(false);
+    };
+
+    const isNotificationExpired = (sentDate) => {
+        if (!sentDate) return true;
+        const monthsSince = Math.floor((new Date() - new Date(sentDate)) / (1000 * 60 * 60 * 24 * 30));
+        return monthsSince >= 9;
+    };
+
+    const getClientSendStatus = (client) => {
+        if (!client.current_price_increase_sent_date) {
+            return { sent: false, expired: true, monthsSince: null };
+        }
+        const expired = isNotificationExpired(client.current_price_increase_sent_date);
+        const monthsSince = Math.floor((new Date() - new Date(client.current_price_increase_sent_date)) / (1000 * 60 * 60 * 24 * 30));
+        return { sent: true, expired, monthsSince };
+    };
+
+    const handleOpenSendModal = (clientData) => {
+        const client = clients.find(c => c.id === clientData.clientId);
+        setSelectedClientForSend({ ...clientData, fullClient: client });
+        setSendDate(new Date());
+        setSendNotes('');
+        setSendModalOpen(true);
+    };
+
+    const handleMarkAsSent = async () => {
+        if (!selectedClientForSend) return;
+        
+        try {
+            const client = selectedClientForSend.fullClient;
+            const currentHistory = client.price_increase_notifications || [];
+            const currentUser = await User.me();
+            
+            await Client.update(client.id, {
+                current_price_increase_sent_date: sendDate.toISOString(),
+                current_price_increase_notes: sendNotes,
+                price_increase_notifications: [
+                    ...currentHistory,
+                    {
+                        sent_date: sendDate.toISOString(),
+                        notes: sendNotes,
+                        sent_by_admin: currentUser?.id || 'unknown'
+                    }
+                ]
+            });
+            
+            setSendModalOpen(false);
+            setSelectedClientForSend(null);
+            setSendNotes('');
+        } catch (error) {
+            console.error('Error al marcar como enviado:', error);
+        }
+    };
+
+    const handleUnmarkSent = async (clientData) => {
+        if (!confirm('¿Desmarcar el envío de aumento para este cliente?')) return;
+        
+        try {
+            const client = clients.find(c => c.id === clientData.clientId);
+            await Client.update(client.id, {
+                current_price_increase_sent_date: null,
+                current_price_increase_notes: null
+            });
+        } catch (error) {
+            console.error('Error al desmarcar:', error);
+        }
+    };
+
+    const handleViewHistory = (clientData) => {
+        const client = clients.find(c => c.id === clientData.clientId);
+        setSelectedClientForHistory({ ...clientData, fullClient: client });
+        setHistoryModalOpen(true);
     };
 
     const getSortIcon = (column) => {
