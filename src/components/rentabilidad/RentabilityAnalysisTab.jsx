@@ -4,7 +4,7 @@ import { format, startOfMonth, endOfMonth, endOfDay, subMonths, addMonths } from
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, GraduationCap } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, GraduationCap, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -107,6 +107,7 @@ export default function RentabilityAnalysisTab({
     const [monthlyProcessedClientAnalysis, setMonthlyProcessedClientAnalysis] = useState([]);
     const [monthlyTrainingCost, setMonthlyTrainingCost] = useState({ hours: 0, amount: 0 });
     const [error, setError] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (clients.length > 0) {
@@ -362,7 +363,16 @@ export default function RentabilityAnalysisTab({
             return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 } };
         }
 
-        const sortedClientAnalysis = [...monthlyProcessedClientAnalysis].sort((a, b) => {
+        let filteredClientAnalysis = monthlyProcessedClientAnalysis;
+
+        // Aplicar filtro de búsqueda
+        if (searchTerm.trim()) {
+            filteredClientAnalysis = filteredClientAnalysis.filter(client => 
+                client.clientName.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+        }
+
+        const sortedClientAnalysis = [...filteredClientAnalysis].sort((a, b) => {
             let aValue = a[sortColumn];
             let bValue = b[sortColumn];
 
