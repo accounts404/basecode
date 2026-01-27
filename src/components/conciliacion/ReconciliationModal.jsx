@@ -33,6 +33,7 @@ const paymentMethodLabels = {
 export default function ReconciliationModal({ service, client, onSave, onCancel, userRole, isReadOnly = false }) {
     const [items, setItems] = useState([]);
     const [paymentMethod, setPaymentMethod] = useState('');
+    const [gstType, setGstType] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
@@ -54,6 +55,13 @@ export default function ReconciliationModal({ service, client, onSave, onCancel,
                 setPaymentMethod(service.billed_payment_method_snapshot);
             } else {
                 setPaymentMethod(client.payment_method || 'bank_transfer');
+            }
+            
+            // Inicializar gst_type: usar snapshot si existe, sino usar el actual del cliente
+            if (service.billed_gst_type_snapshot) {
+                setGstType(service.billed_gst_type_snapshot);
+            } else {
+                setGstType(client.gst_type || 'inclusive');
             }
         }
     }, [service, client]);
@@ -101,7 +109,7 @@ export default function ReconciliationModal({ service, client, onSave, onCancel,
         if (isReadOnly) return;
 
         setIsLoading(true);
-        await onSave(service.id, items, paymentMethod);
+        await onSave(service.id, items, paymentMethod, gstType);
         setIsLoading(false);
     };
     
@@ -154,28 +162,54 @@ export default function ReconciliationModal({ service, client, onSave, onCancel,
                         <h3 className="font-semibold text-slate-800 mb-2 flex items-center gap-2"><Info className="w-5 h-5 text-blue-500" /> Información Original</h3>
                         <p className="text-sm">Precio recurrente del cliente: <span className="font-bold">${(client.current_service_price || 0).toFixed(2)} AUD</span></p>
                         
-                        <div className="pt-3 border-t">
-                            <Label className="text-sm font-medium text-slate-700">Método de Pago</Label>
-                            <Select
-                                value={paymentMethod}
-                                onValueChange={setPaymentMethod}
-                                disabled={isReadOnly}
-                            >
-                                <SelectTrigger className="mt-1">
-                                    <SelectValue placeholder="Seleccionar método de pago" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {Object.entries(paymentMethodLabels).map(([value, label]) => (
-                                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {service.billed_payment_method_snapshot && (
-                                <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                                    <CheckCircle className="w-3 h-3" />
-                                    Método de pago facturado
-                                </p>
-                            )}
+                        <div className="pt-3 border-t space-y-3">
+                            <div>
+                                <Label className="text-sm font-medium text-slate-700">Método de Pago</Label>
+                                <Select
+                                    value={paymentMethod}
+                                    onValueChange={setPaymentMethod}
+                                    disabled={isReadOnly}
+                                >
+                                    <SelectTrigger className="mt-1">
+                                        <SelectValue placeholder="Seleccionar método de pago" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.entries(paymentMethodLabels).map(([value, label]) => (
+                                            <SelectItem key={value} value={value}>{label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {service.billed_payment_method_snapshot && (
+                                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                                        <CheckCircle className="w-3 h-3" />
+                                        Método de pago facturado
+                                    </p>
+                                )}
+                            </div>
+                            
+                            <div>
+                                <Label className="text-sm font-medium text-slate-700">Tipo de GST</Label>
+                                <Select
+                                    value={gstType}
+                                    onValueChange={setGstType}
+                                    disabled={isReadOnly}
+                                >
+                                    <SelectTrigger className="mt-1">
+                                        <SelectValue placeholder="Seleccionar tipo de GST" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="inclusive">GST Incluido</SelectItem>
+                                        <SelectItem value="exclusive">GST Exclusivo</SelectItem>
+                                        <SelectItem value="no_tax">Sin Impuestos</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                {service.billed_gst_type_snapshot && (
+                                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                                        <CheckCircle className="w-3 h-3" />
+                                        Tipo de GST facturado
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     </div>
 

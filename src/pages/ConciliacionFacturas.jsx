@@ -294,11 +294,12 @@ export default function ConciliacionFacturasPage() {
         }
     }, []);
 
-    const handleSaveReconciliation = async (serviceId, items, paymentMethod) => {
+    const handleSaveReconciliation = async (serviceId, items, paymentMethod, gstType) => {
         try {
             await Schedule.update(serviceId, { 
                 reconciliation_items: items,
-                billed_payment_method_snapshot: paymentMethod
+                billed_payment_method_snapshot: paymentMethod,
+                billed_gst_type_snapshot: gstType
             });
             setEditingService(null);
             fetchDataForDate(selectedDate);
@@ -379,14 +380,15 @@ export default function ConciliacionFacturasPage() {
             // CRÍTICO: Tomar "fotografía" del precio, GST y payment_method en el momento de facturación
             const priceSnapshot = getPriceForDate(client, service.start_time);
             
-            // CRÍTICO: Si ya existe un snapshot de payment_method (guardado desde el modal), MANTENERLO
-            // Solo usar el payment_method del cliente si NO existe snapshot previo
+            // CRÍTICO: Si ya existen snapshots (guardados desde el modal), MANTENERLOS
+            // Solo usar los valores del cliente si NO existen snapshots previos
             const finalPaymentMethod = service.billed_payment_method_snapshot || client.payment_method || 'bank_transfer';
+            const finalGstType = service.billed_gst_type_snapshot || priceSnapshot.gstType;
             
             await Schedule.update(serviceId, { 
                 xero_invoiced: true,
                 billed_price_snapshot: priceSnapshot.price,
-                billed_gst_type_snapshot: priceSnapshot.gstType,
+                billed_gst_type_snapshot: finalGstType,
                 billed_payment_method_snapshot: finalPaymentMethod,
                 billed_at: new Date().toISOString()
             });
@@ -396,7 +398,7 @@ export default function ConciliacionFacturasPage() {
                     ...s, 
                     xero_invoiced: true,
                     billed_price_snapshot: priceSnapshot.price,
-                    billed_gst_type_snapshot: priceSnapshot.gstType,
+                    billed_gst_type_snapshot: finalGstType,
                     billed_payment_method_snapshot: finalPaymentMethod,
                     billed_at: new Date().toISOString()
                 } : s
