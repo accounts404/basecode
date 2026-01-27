@@ -9,10 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity } from 'lucide-react';
 import RentabilityAnalysisTab from '../components/rentabilidad/RentabilityAnalysisTab';
 import PricingFrequencyTab from '../components/rentabilidad/PricingFrequencyTab';
-import CleanerEfficiencyTab from '../components/rentabilidad/CleanerEfficiencyTab';
-import TrendsAnalysisTab from '../components/rentabilidad/TrendsAnalysisTab';
-import ExtraServicesTab from '../components/rentabilidad/ExtraServicesTab';
-import ProjectionsTab from '../components/rentabilidad/ProjectionsTab';
 import { extractDateOnly } from '@/components/utils/priceCalculations';
 
 const isExcludedMonth = (dateString) => {
@@ -126,13 +122,9 @@ export default function RentabilidadPage() {
                 </div>
 
                 <Tabs defaultValue="monthly" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                    <TabsList className="grid w-full max-w-2xl grid-cols-2">
                         <TabsTrigger value="monthly">Análisis Mensual</TabsTrigger>
-                        <TabsTrigger value="efficiency">Eficiencia</TabsTrigger>
-                        <TabsTrigger value="trends">Tendencias</TabsTrigger>
-                        <TabsTrigger value="extras">Servicios Extras</TabsTrigger>
-                        <TabsTrigger value="projections">Proyecciones</TabsTrigger>
-                        <TabsTrigger value="pricing">Precios</TabsTrigger>
+                        <TabsTrigger value="pricing">Precios por Frecuencia</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="monthly" className="space-y-6">
@@ -145,39 +137,6 @@ export default function RentabilidadPage() {
                             sortColumn={sortColumn}
                             sortDirection={sortDirection}
                             handleSort={handleSort}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="efficiency" className="space-y-6">
-                        <CleanerEfficiencyTab 
-                            clients={clients}
-                            allWorkEntries={allWorkEntries}
-                            allSchedules={allSchedules}
-                            trainingClientId={trainingClientId}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="trends" className="space-y-6">
-                        <TrendsAnalysisTab 
-                            clients={clients}
-                            allWorkEntries={allWorkEntries}
-                            allSchedules={allSchedules}
-                            trainingClientId={trainingClientId}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="extras" className="space-y-6">
-                        <ExtraServicesTab 
-                            clients={clients}
-                            allSchedules={allSchedules}
-                            trainingClientId={trainingClientId}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="projections" className="space-y-6">
-                        <ProjectionsTab 
-                            clients={clients}
-                            trainingClientId={trainingClientId}
                         />
                     </TabsContent>
 
