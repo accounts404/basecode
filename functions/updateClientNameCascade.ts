@@ -27,14 +27,32 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.WorkEntry.update(entry.id, { client_name: new_name })
         );
 
+        // Actualizar ServiceReports
+        const serviceReports = await base44.asServiceRole.entities.ServiceReport.filter({ client_name: { $exists: true } });
+        const clientReports = serviceReports.filter(report => {
+            const schedule = schedules.find(s => s.id === report.schedule_id);
+            return schedule && schedule.client_id === client_id;
+        });
+        const reportUpdates = clientReports.map(report =>
+            base44.asServiceRole.entities.ServiceReport.update(report.id, { client_name: new_name })
+        );
+
+        // Actualizar Tasks relacionadas
+        const tasks = await base44.asServiceRole.entities.Task.filter({ related_client_id: client_id });
+        const taskUpdates = tasks.map(task =>
+            base44.asServiceRole.entities.Task.update(task.id, { related_client_name: new_name })
+        );
+
         // Ejecutar todas las actualizaciones en paralelo
-        await Promise.all([...scheduleUpdates, ...workEntryUpdates]);
+        await Promise.all([...scheduleUpdates, ...workEntryUpdates, ...reportUpdates, ...taskUpdates]);
 
         return Response.json({
             success: true,
             updated: {
                 schedules: schedules.length,
-                workEntries: workEntries.length
+                workEntries: workEntries.length,
+                serviceReports: clientReports.length,
+                tasks: tasks.length
             }
         });
     } catch (error) {
