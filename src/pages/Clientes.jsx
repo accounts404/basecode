@@ -197,12 +197,18 @@ export default function ClientesPage() {
                 // Si cambió el nombre, actualizar en cascada ANTES de actualizar el cliente
                 if (editingClient.name !== cleanedFormData.name) {
                     console.log('[Clientes] Nombre cambió, actualizando registros relacionados...');
-                    await base44.functions.invoke('updateClientNameCascade', {
+                    const result = await base44.functions.invoke('updateClientNameCascade', {
                         client_id: editingClient.id,
                         old_name: editingClient.name,
                         new_name: cleanedFormData.name
                     });
-                    console.log('[Clientes] Nombre actualizado en cascada.');
+                    console.log('[Clientes] Nombre actualizado en cascada:', result);
+                    
+                    toast({
+                        title: "Nombre actualizado",
+                        description: `Se actualizaron ${result.updated.schedules} servicios, ${result.updated.workEntries} entradas de trabajo, ${result.updated.reconciliationReviews} revisiones de conciliación`,
+                        duration: 5000,
+                    });
                 }
                 
                 await Client.update(editingClient.id, cleanedFormData);
