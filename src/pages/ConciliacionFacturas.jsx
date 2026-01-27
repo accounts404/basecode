@@ -379,11 +379,15 @@ export default function ConciliacionFacturasPage() {
             // CRÍTICO: Tomar "fotografía" del precio, GST y payment_method en el momento de facturación
             const priceSnapshot = getPriceForDate(client, service.start_time);
             
+            // CRÍTICO: Si ya existe un snapshot de payment_method (guardado desde el modal), MANTENERLO
+            // Solo usar el payment_method del cliente si NO existe snapshot previo
+            const finalPaymentMethod = service.billed_payment_method_snapshot || client.payment_method || 'bank_transfer';
+            
             await Schedule.update(serviceId, { 
                 xero_invoiced: true,
                 billed_price_snapshot: priceSnapshot.price,
                 billed_gst_type_snapshot: priceSnapshot.gstType,
-                billed_payment_method_snapshot: client.payment_method || 'bank_transfer',
+                billed_payment_method_snapshot: finalPaymentMethod,
                 billed_at: new Date().toISOString()
             });
 
@@ -393,7 +397,7 @@ export default function ConciliacionFacturasPage() {
                     xero_invoiced: true,
                     billed_price_snapshot: priceSnapshot.price,
                     billed_gst_type_snapshot: priceSnapshot.gstType,
-                    billed_payment_method_snapshot: client.payment_method || 'bank_transfer',
+                    billed_payment_method_snapshot: finalPaymentMethod,
                     billed_at: new Date().toISOString()
                 } : s
             ).sort((a, b) => {
