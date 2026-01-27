@@ -20,6 +20,7 @@ import StructuredServiceNotes from '../components/clients/StructuredServiceNotes
 import { createPageUrl } from '@/utils';
 
 export default function ClientesPage() {
+    const { toast } = useToast();
     const [clients, setClients] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -197,7 +198,7 @@ export default function ClientesPage() {
                 // Si cambió el nombre, actualizar en cascada ANTES de actualizar el cliente
                 if (editingClient.name !== cleanedFormData.name) {
                     console.log('[Clientes] Nombre cambió, actualizando registros relacionados...');
-                    const result = await base44.functions.invoke('updateClientNameCascade', {
+                    const { data: result } = await base44.functions.invoke('updateClientNameCascade', {
                         client_id: editingClient.id,
                         old_name: editingClient.name,
                         new_name: cleanedFormData.name
