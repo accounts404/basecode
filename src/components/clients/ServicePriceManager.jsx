@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +22,15 @@ const gstTypeLabels = {
   inclusive: "GST Incluido",
   exclusive: "GST Exclusivo",
   no_tax: "Sin Impuestos"
+};
+
+const paymentMethodLabels = {
+  bank_transfer: "Transferencia Bancaria",
+  cash: "Efectivo (Cash)",
+  credit_card: "Tarjeta de Crédito",
+  gocardless: "GoCardless",
+  stripe: "Stripe",
+  other: "Otro"
 };
 
 const calculateGST = (price, gstType) => {
@@ -336,7 +344,8 @@ function PriceConfigurationSection({
     new_price: "",
     effective_date: "",
     comments: "",
-    gst_type: initialData.gst_type || "inclusive"
+    gst_type: initialData.gst_type || "inclusive",
+    payment_method: ""
   });
 
   const [error, setError] = useState('');
@@ -348,7 +357,8 @@ function PriceConfigurationSection({
     setPriceHistory(initialData.history || []);
     setNewIncrement(prev => ({
       ...prev,
-      gst_type: initialData.gst_type || "inclusive"
+      gst_type: initialData.gst_type || "inclusive",
+      payment_method: ""
     }));
   }, [initialData]);
 
@@ -408,7 +418,8 @@ function PriceConfigurationSection({
       effective_date: newIncrement.effective_date,
       percentage_increase: Math.round(percentageIncrease * 100) / 100,
       comments: newIncrement.comments.trim(),
-      gst_type: newIncrement.gst_type
+      gst_type: newIncrement.gst_type,
+      payment_method: newIncrement.payment_method || ""
     };
 
     const newHistory = [...priceHistory, increment];
@@ -427,7 +438,8 @@ function PriceConfigurationSection({
       new_price: "",
       effective_date: "",
       comments: "",
-      gst_type: newIncrement.gst_type
+      gst_type: newIncrement.gst_type,
+      payment_method: ""
     });
     setError('');
   };
@@ -583,21 +595,43 @@ function PriceConfigurationSection({
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor={`${title.replace(/\s/g, '_')}_increment_gst_type`}>Tipo de GST para Nuevo Precio</Label>
-                      <Select
-                        value={newIncrement.gst_type}
-                        onValueChange={(value) => setNewIncrement(prev => ({ ...prev, gst_type: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar tipo de GST" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(gstTypeLabels).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>{label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor={`${title.replace(/\s/g, '_')}_increment_gst_type`}>Tipo de GST para Nuevo Precio</Label>
+                        <Select
+                          value={newIncrement.gst_type}
+                          onValueChange={(value) => setNewIncrement(prev => ({ ...prev, gst_type: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar tipo de GST" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(gstTypeLabels).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`${title.replace(/\s/g, '_')}_payment_method`}>Método de Pago</Label>
+                        <Select
+                          value={newIncrement.payment_method}
+                          onValueChange={(value) => setNewIncrement(prev => ({ ...prev, payment_method: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar método de pago" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bank_transfer">Transferencia Bancaria</SelectItem>
+                            <SelectItem value="cash">Efectivo (Cash)</SelectItem>
+                            <SelectItem value="credit_card">Tarjeta de Crédito</SelectItem>
+                            <SelectItem value="gocardless">GoCardless</SelectItem>
+                            <SelectItem value="stripe">Stripe</SelectItem>
+                            <SelectItem value="other">Otro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
 
                     {/* Preview del nuevo incremento con GST */}
@@ -682,10 +716,15 @@ function PriceConfigurationSection({
                                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                       {gstTypeLabels[increment.gst_type || currentGstType]}
                                     </span>
-                                  </div>
-                                  <p className="text-sm text-slate-600 mb-2">
+                                    {increment.payment_method && (
+                                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        {paymentMethodLabels[increment.payment_method]}
+                                      </span>
+                                    )}
+                                    </div>
+                                    <p className="text-sm text-slate-600 mb-2">
                                     Efectivo desde: {format(new Date(increment.effective_date), "d MMM, yyyy", { locale: es })}
-                                  </p>
+                                    </p>
                                   {increment.comments && (
                                     <p className="text-sm text-slate-500 italic">"{increment.comments}"</p>
                                   )}

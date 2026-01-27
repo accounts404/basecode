@@ -211,7 +211,10 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
 
                 totalAmount += netIncome;
 
-                if (client?.payment_method === 'cash') {
+                // CRÍTICO: Usar snapshot de payment_method si existe, sino usar el actual del cliente
+                const effectivePaymentMethod = service.billed_payment_method_snapshot || client?.payment_method;
+                
+                if (effectivePaymentMethod === 'cash') {
                     cashAmount += netIncome;
                 } else {
                     normalAmount += netIncome;

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Trash2, PlusCircle, DollarSign, List, Info, FileSignature } from 'lucide-react';
+import { Trash2, PlusCircle, DollarSign, List, Info, FileSignature, CheckCircle } from 'lucide-react';
 
 const itemTypes = {
     base_service: 'Servicio Base',
@@ -22,8 +21,18 @@ const itemTypes = {
     discount: 'Descuento'
 };
 
+const paymentMethodLabels = {
+    bank_transfer: "Transferencia Bancaria",
+    cash: "Efectivo (Cash)",
+    credit_card: "Tarjeta de Crédito",
+    gocardless: "GoCardless",
+    stripe: "Stripe",
+    other: "Otro"
+};
+
 export default function ReconciliationModal({ service, client, onSave, onCancel, userRole, isReadOnly = false }) {
     const [items, setItems] = useState([]);
+    const [paymentMethod, setPaymentMethod] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
@@ -38,6 +47,13 @@ export default function ReconciliationModal({ service, client, onSave, onCancel,
                     description: 'Servicio recurrente',
                     amount: client.current_service_price || 0
                 }]);
+            }
+            
+            // Inicializar payment_method: usar snapshot si existe, sino usar el actual del cliente
+            if (service.billed_payment_method_snapshot) {
+                setPaymentMethod(service.billed_payment_method_snapshot);
+            } else {
+                setPaymentMethod(client.payment_method || 'bank_transfer');
             }
         }
     }, [service, client]);
@@ -85,7 +101,7 @@ export default function ReconciliationModal({ service, client, onSave, onCancel,
         if (isReadOnly) return;
 
         setIsLoading(true);
-        await onSave(service.id, items);
+        await onSave(service.id, items, paymentMethod);
         setIsLoading(false);
     };
     
@@ -134,9 +150,33 @@ export default function ReconciliationModal({ service, client, onSave, onCancel,
                         </div>
                     )}
 
-                    <div className="bg-slate-50 p-4 rounded-lg border">
+                    <div className="bg-slate-50 p-4 rounded-lg border space-y-2">
                         <h3 className="font-semibold text-slate-800 mb-2 flex items-center gap-2"><Info className="w-5 h-5 text-blue-500" /> Información Original</h3>
                         <p className="text-sm">Precio recurrente del cliente: <span className="font-bold">${(client.current_service_price || 0).toFixed(2)} AUD</span></p>
+                        
+                        <div className="pt-3 border-t">
+                            <Label className="text-sm font-medium text-slate-700">Método de Pago</Label>
+                            <Select
+                                value={paymentMethod}
+                                onValueChange={setPaymentMethod}
+                                disabled={isReadOnly}
+                            >
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Seleccionar método de pago" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(paymentMethodLabels).map(([value, label]) => (
+                                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {service.billed_payment_method_snapshot && (
+                                <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                                    <CheckCircle className="w-3 h-3" />
+                                    Método de pago facturado
+                                </p>
+                            )}
+                        </div>
                     </div>
 
                     <div className="space-y-4">

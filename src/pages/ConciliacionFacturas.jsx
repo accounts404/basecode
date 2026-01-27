@@ -294,9 +294,12 @@ export default function ConciliacionFacturasPage() {
         }
     }, []);
 
-    const handleSaveReconciliation = async (serviceId, items) => {
+    const handleSaveReconciliation = async (serviceId, items, paymentMethod) => {
         try {
-            await Schedule.update(serviceId, { reconciliation_items: items });
+            await Schedule.update(serviceId, { 
+                reconciliation_items: items,
+                billed_payment_method_snapshot: paymentMethod
+            });
             setEditingService(null);
             fetchDataForDate(selectedDate);
         } catch (err) {
@@ -373,13 +376,14 @@ export default function ConciliacionFacturasPage() {
             const service = schedules.find(s => s.id === serviceId);
             const client = clients.get(service.client_id);
             
-            // CRÍTICO: Tomar "fotografía" del precio y GST en el momento de facturación
+            // CRÍTICO: Tomar "fotografía" del precio, GST y payment_method en el momento de facturación
             const priceSnapshot = getPriceForDate(client, service.start_time);
             
             await Schedule.update(serviceId, { 
                 xero_invoiced: true,
                 billed_price_snapshot: priceSnapshot.price,
                 billed_gst_type_snapshot: priceSnapshot.gstType,
+                billed_payment_method_snapshot: client.payment_method || 'bank_transfer',
                 billed_at: new Date().toISOString()
             });
 
@@ -389,6 +393,7 @@ export default function ConciliacionFacturasPage() {
                     xero_invoiced: true,
                     billed_price_snapshot: priceSnapshot.price,
                     billed_gst_type_snapshot: priceSnapshot.gstType,
+                    billed_payment_method_snapshot: client.payment_method || 'bank_transfer',
                     billed_at: new Date().toISOString()
                 } : s
             ).sort((a, b) => {
@@ -752,7 +757,10 @@ export default function ConciliacionFacturasPage() {
         
         filteredMonthlySchedules.forEach(service => {
             const client = clients.get(service.client_id);
-            if (client?.payment_method === 'cash') {
+            // CRÍTICO: Usar snapshot de payment_method si existe, sino usar el actual del cliente
+            const effectivePaymentMethod = service.billed_payment_method_snapshot || client?.payment_method;
+            
+            if (effectivePaymentMethod === 'cash') {
                 cash.push(service);
             } else {
                 nonCash.push(service);
@@ -772,7 +780,9 @@ export default function ConciliacionFacturasPage() {
             
             schedulesList.forEach(service => {
                 const client = clients.get(service.client_id);
-                const isCash = client?.payment_method === 'cash';
+                // CRÍTICO: Usar snapshot de payment_method si existe, sino usar el actual del cliente
+                const effectivePaymentMethod = service.billed_payment_method_snapshot || client?.payment_method;
+                const isCash = effectivePaymentMethod === 'cash';
                 
                 let amount = 0;
                 let gstType = 'inclusive';
