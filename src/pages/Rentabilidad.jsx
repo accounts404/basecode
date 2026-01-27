@@ -8,7 +8,6 @@ import { User } from '@/entities/User';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity } from 'lucide-react';
 import RentabilityAnalysisTab from '../components/rentabilidad/RentabilityAnalysisTab';
-import ClientAccumulatedTab from '../components/rentabilidad/ClientAccumulatedTab';
 import PricingFrequencyTab from '../components/rentabilidad/PricingFrequencyTab';
 import { extractDateOnly } from '@/components/utils/priceCalculations';
 
@@ -123,27 +122,13 @@ export default function RentabilidadPage() {
                 </div>
 
                 <Tabs defaultValue="monthly" className="space-y-6">
-                    <TabsList className="grid w-full max-w-3xl grid-cols-3">
+                    <TabsList className="grid w-full max-w-2xl grid-cols-2">
                         <TabsTrigger value="monthly">Análisis Mensual</TabsTrigger>
-                        <TabsTrigger value="accumulated">Acumulado por Cliente</TabsTrigger>
                         <TabsTrigger value="pricing">Precios por Frecuencia</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="monthly" className="space-y-6">
                         <RentabilityAnalysisTab 
-                            clients={clients}
-                            allWorkEntries={allWorkEntries}
-                            allSchedules={allSchedules}
-                            allFixedCosts={allFixedCosts}
-                            trainingClientId={trainingClientId}
-                            sortColumn={sortColumn}
-                            sortDirection={sortDirection}
-                            handleSort={handleSort}
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="accumulated" className="space-y-6">
-                        <ClientAccumulatedTab 
                             clients={clients}
                             allWorkEntries={allWorkEntries}
                             allSchedules={allSchedules}
