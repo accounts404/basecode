@@ -400,6 +400,7 @@ export default function RentabilityAnalysisTab({
             return { clientAnalysis: [], summary: { totalIncome: 0, totalLaborCost: 0, totalMargin: 0, totalRealMargin: 0, totalHours: 0, totalRealProfitPercentage: 0 } };
         }
 
+        const clientMap = new Map(clients.map(c => [c.id, c]));
         let filteredClientAnalysis = monthlyProcessedClientAnalysis;
 
         // Aplicar filtro de búsqueda
@@ -506,7 +507,7 @@ export default function RentabilityAnalysisTab({
 
         return { clientAnalysis: sortedClientAnalysis, summary, overallTotalFixedCosts: parseFloat(fixedCostInput || 0) };
 
-    }, [selectedPeriod, monthlyProcessedClientAnalysis, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts, searchTerm]);
+    }, [selectedPeriod, monthlyProcessedClientAnalysis, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts, searchTerm, clients, periodSchedules]);
 
     const handleSaveFixedCosts = async () => {
         if (filterMode !== 'month' || !selectedMonth) return;
