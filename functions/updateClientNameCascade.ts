@@ -15,6 +15,10 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'client_id y new_name son requeridos' }, { status: 400 });
         }
 
+        // Obtener el nombre anterior del cliente
+        const client = await base44.asServiceRole.entities.Client.get(client_id);
+        const old_name = client.name;
+
         // Actualizar Schedules
         const schedules = await base44.asServiceRole.entities.Schedule.filter({ client_id });
         const scheduleUpdates = schedules.map(schedule =>
@@ -43,8 +47,14 @@ Deno.serve(async (req) => {
             base44.asServiceRole.entities.Task.update(task.id, { related_client_name: new_name })
         );
 
+        // Actualizar ClientReconciliationReview
+        const reviews = await base44.asServiceRole.entities.ClientReconciliationReview.filter({ client_name: old_name });
+        const reviewUpdates = reviews.map(review =>
+            base44.asServiceRole.entities.ClientReconciliationReview.update(review.id, { client_name: new_name })
+        );
+
         // Ejecutar todas las actualizaciones en paralelo
-        await Promise.all([...scheduleUpdates, ...workEntryUpdates, ...reportUpdates, ...taskUpdates]);
+        await Promise.all([...scheduleUpdates, ...workEntryUpdates, ...reportUpdates, ...taskUpdates, ...reviewUpdates]);
 
         return Response.json({
             success: true,
@@ -52,7 +62,8 @@ Deno.serve(async (req) => {
                 schedules: schedules.length,
                 workEntries: workEntries.length,
                 serviceReports: clientReports.length,
-                tasks: tasks.length
+                tasks: tasks.length,
+                reconciliationReviews: reviews.length
             }
         });
     } catch (error) {
