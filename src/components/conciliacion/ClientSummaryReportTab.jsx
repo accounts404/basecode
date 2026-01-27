@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
 import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
-export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
+export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap, onRefresh }) {
     // Persistir fechas en localStorage
     const [startDate, setStartDate] = useState(() => {
         const saved = localStorage.getItem('clientSummary_startDate');
@@ -49,6 +49,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
     const [searchTerm, setSearchTerm] = useState('');
     const [reviewedClients, setReviewedClients] = useState({});
     const [currentPeriod, setCurrentPeriod] = useState('');
+    const [isRefreshing, setIsRefreshing] = useState(false);
     
     // Guardar fechas en localStorage cuando cambien
     useEffect(() => {
@@ -315,13 +316,18 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                         <Button 
                             variant="outline" 
                             className="border-blue-600 text-blue-700 hover:bg-blue-50"
-                            onClick={() => {
-                                // Forzar re-renderizado actualizando las fechas
-                                setStartDate(new Date(startDate));
+                            disabled={isRefreshing}
+                            onClick={async () => {
+                                setIsRefreshing(true);
+                                try {
+                                    await onRefresh();
+                                } finally {
+                                    setIsRefreshing(false);
+                                }
                             }}
                         >
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Actualizar
+                            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            {isRefreshing ? 'Actualizando...' : 'Actualizar'}
                         </Button>
                     </div>
                 </div>

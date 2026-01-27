@@ -1549,6 +1549,7 @@ export default function ConciliacionFacturasPage() {
                             monthlySchedules={monthlySchedules} 
                             clients={clients}
                             usersMap={usersMap}
+                            onRefresh={() => fetchMonthlyData(selectedMonth)}
                         />
                     </TabsContent>
                 </Tabs>
