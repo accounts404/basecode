@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronUp, Search, CheckCircle } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, Search, CheckCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,7 +13,13 @@ import { base44 } from '@/api/base44Client';
 import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
+    // Persistir fechas en localStorage
     const [startDate, setStartDate] = useState(() => {
+        const saved = localStorage.getItem('clientSummary_startDate');
+        if (saved) {
+            return parseISO(saved);
+        }
+        
         if (monthlySchedules.length > 0) {
             const dateStr = extractDateOnly(monthlySchedules[0].start_time);
             if (dateStr) {
@@ -23,7 +29,13 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         }
         return new Date();
     });
+    
     const [endDate, setEndDate] = useState(() => {
+        const saved = localStorage.getItem('clientSummary_endDate');
+        if (saved) {
+            return parseISO(saved);
+        }
+        
         if (monthlySchedules.length > 0) {
             const dateStr = extractDateOnly(monthlySchedules[monthlySchedules.length - 1].start_time);
             if (dateStr) {
@@ -37,6 +49,19 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
     const [searchTerm, setSearchTerm] = useState('');
     const [reviewedClients, setReviewedClients] = useState({});
     const [currentPeriod, setCurrentPeriod] = useState('');
+    
+    // Guardar fechas en localStorage cuando cambien
+    useEffect(() => {
+        if (startDate) {
+            localStorage.setItem('clientSummary_startDate', format(startDate, 'yyyy-MM-dd'));
+        }
+    }, [startDate]);
+    
+    useEffect(() => {
+        if (endDate) {
+            localStorage.setItem('clientSummary_endDate', format(endDate, 'yyyy-MM-dd'));
+        }
+    }, [endDate]);
 
     // Cargar el estado de revisión guardado
     useEffect(() => {
@@ -286,6 +311,18 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                 </PopoverContent>
                             </Popover>
                         </div>
+                        
+                        <Button 
+                            variant="outline" 
+                            className="border-blue-600 text-blue-700 hover:bg-blue-50"
+                            onClick={() => {
+                                // Forzar re-renderizado actualizando las fechas
+                                setStartDate(new Date(startDate));
+                            }}
+                        >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Actualizar
+                        </Button>
                     </div>
                 </div>
             </div>
