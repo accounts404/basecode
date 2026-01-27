@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar, ChevronDown, ChevronUp, Search, CheckCircle } from 'lucide-react';
@@ -13,6 +13,7 @@ import { base44 } from '@/api/base44Client';
 import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap }) {
+    const scrollRef = useRef(null);
     const [startDate, setStartDate] = useState(() => {
         if (monthlySchedules.length > 0) {
             const dateStr = extractDateOnly(monthlySchedules[0].start_time);
@@ -41,6 +42,9 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
     // Cargar el estado de revisión guardado
     useEffect(() => {
         const loadReviewedStatus = async () => {
+            // Guardar posición actual del scroll
+            const currentScrollPos = scrollRef.current?.scrollTop || 0;
+            
             const period = format(startDate, 'yyyy-MM');
             setCurrentPeriod(period);
             
@@ -57,6 +61,13 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                 });
                 
                 setReviewedClients(reviewedMap);
+                
+                // Restaurar posición del scroll después de la actualización
+                setTimeout(() => {
+                    if (scrollRef.current) {
+                        scrollRef.current.scrollTop = currentScrollPos;
+                    }
+                }, 0);
             } catch (error) {
                 console.error('Error cargando estado de revisión:', error);
             }
@@ -327,7 +338,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                     </p>
                 </div>
                 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto" ref={scrollRef}>
                     <Table>
                         <TableHeader className="bg-slate-100">
                             <TableRow>
