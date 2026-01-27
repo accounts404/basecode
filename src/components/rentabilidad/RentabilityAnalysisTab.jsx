@@ -112,6 +112,7 @@ export default function RentabilityAnalysisTab({
     const [monthOptions] = useState(generateMonthOptions());
     const [monthlyProcessedClientAnalysis, setMonthlyProcessedClientAnalysis] = useState([]);
     const [monthlyTrainingCost, setMonthlyTrainingCost] = useState({ hours: 0, amount: 0 });
+    const [periodSchedules, setPeriodSchedules] = useState([]);
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [hideSentClients, setHideSentClients] = useState(false);
@@ -193,12 +194,14 @@ export default function RentabilityAnalysisTab({
             const clientMap = new Map(clients.map(c => [c.id, c]));
             const clientData = {};
 
-            const periodSchedules = allSchedules.filter(s => 
+            const filteredPeriodSchedules = allSchedules.filter(s => 
                 isDateInRange(s.start_time, periodStart, periodEnd) &&
                 s.xero_invoiced
             );
+            
+            setPeriodSchedules(filteredPeriodSchedules);
 
-            periodSchedules.forEach(schedule => {
+            filteredPeriodSchedules.forEach(schedule => {
                 if (schedule.client_id === trainingClientId) return;
 
                 const client = clientMap.get(schedule.client_id);
