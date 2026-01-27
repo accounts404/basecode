@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Client } from '@/entities/Client';
+import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -194,6 +195,16 @@ export default function ClientesPage() {
                 console.log('[Clientes] Actualizando cliente con notas estructuradas:', cleanedFormData.structured_service_notes ? 'Sí' : 'No');
                 await Client.update(editingClient.id, cleanedFormData);
                 console.log('[Clientes] Cliente actualizado exitosamente, incluyendo notas estructuradas.');
+                
+                // Si cambió el nombre, actualizar en cascada
+                if (editingClient.name !== cleanedFormData.name) {
+                    console.log('[Clientes] Nombre cambió, actualizando registros relacionados...');
+                    await base44.functions.invoke('updateClientNameCascade', {
+                        client_id: editingClient.id,
+                        new_name: cleanedFormData.name
+                    });
+                    console.log('[Clientes] Nombre actualizado en cascada.');
+                }
             } else {
                 console.log('[Clientes] Creando nuevo cliente con notas estructuradas:', cleanedFormData.structured_service_notes ? 'Sí' : 'No');
                 await Client.create(cleanedFormData);
