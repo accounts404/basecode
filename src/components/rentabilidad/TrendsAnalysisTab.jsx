@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, DollarSign } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { getPriceForSchedule, extractDateOnly, isWithinRange } from '@/components/utils/priceCalculations';
+import { getPriceForSchedule } from '@/components/utils/priceCalculations';
 
 export default function TrendsAnalysisTab({ 
     clients, 
@@ -35,7 +35,8 @@ export default function TrendsAnalysisTab({
             }
 
             const data = monthMap.get(month);
-            const price = getPriceForSchedule(schedule, client);
+            const priceResult = getPriceForSchedule(schedule, client);
+            const price = priceResult.rawAmount || 0;
             data.revenue += price;
             data.serviceCount += 1;
             data.clientCount.add(schedule.client_id);

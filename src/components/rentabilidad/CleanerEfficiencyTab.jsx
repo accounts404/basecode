@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Users, DollarSign, Clock, Target } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { getPriceForSchedule, extractDateOnly, isWithinRange } from '@/components/utils/priceCalculations';
+import { getPriceForSchedule, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
 export default function CleanerEfficiencyTab({ 
     clients, 
@@ -32,14 +32,12 @@ export default function CleanerEfficiencyTab({
 
         // Filtrar servicios del mes
         const monthSchedules = allSchedules.filter(s => {
-            const scheduleDate = extractDateOnly(s.start_time);
-            return scheduleDate && isWithinRange(scheduleDate, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd'));
+            return isDateInRange(s.start_time, startDate, endDate);
         });
 
         // Filtrar work entries del mes
         const monthWorkEntries = allWorkEntries.filter(w => {
-            const workDate = extractDateOnly(w.work_date);
-            return workDate && isWithinRange(workDate, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd'));
+            return isDateInRange(w.work_date, startDate, endDate);
         });
 
         const cleanerMap = new Map();
@@ -52,7 +50,8 @@ export default function CleanerEfficiencyTab({
             const client = clients.find(c => c.id === schedule.client_id);
             if (!client) return;
 
-            const totalPrice = getPriceForSchedule(schedule, client);
+            const priceResult = getPriceForSchedule(schedule, client);
+            const totalPrice = priceResult.rawAmount || 0;
             const pricePerCleaner = totalPrice / schedule.cleaner_ids.length;
 
             schedule.cleaner_ids.forEach(cleanerId => {

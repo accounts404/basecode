@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkles, DollarSign, TrendingUp, Users } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { extractDateOnly, isWithinRange } from '@/components/utils/priceCalculations';
+import { isDateInRange } from '@/components/utils/priceCalculations';
 
 export default function ExtraServicesTab({ 
     clients, 
@@ -33,8 +33,7 @@ export default function ExtraServicesTab({
             const endDate = endOfMonth(startDate);
             
             filteredSchedules = allSchedules.filter(s => {
-                const scheduleDate = extractDateOnly(s.start_time);
-                return scheduleDate && isWithinRange(scheduleDate, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd'));
+                return isDateInRange(s.start_time, startDate, endDate);
             });
         }
 
