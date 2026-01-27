@@ -297,7 +297,9 @@ export default function RentabilityAnalysisTab({
 
             const profitData = Object.values(clientData).map(data => {
                 const client = clientMap.get(data.clientId);
-                const isCash = client?.payment_method === 'cash';
+                // CRÍTICO: Necesitamos calcular isCash basado en los snapshots de cada servicio del cliente
+                // No podemos usar solo client.payment_method porque es el actual, no el histórico
+                const isCash = false; // Se calculará en el summary basado en snapshots
                 
                 const incomePerHour = data.totalHours > 0 ? data.totalIncome / data.totalHours : 0;
                 const laborCostPerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
@@ -422,21 +424,54 @@ export default function RentabilityAnalysisTab({
             return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
         });
         
+        // CRÍTICO: Recalcular cash vs non-cash basado en snapshots reales de cada servicio
         const summary = sortedClientAnalysis.reduce((acc, client) => {
             acc.totalIncome += client.totalIncome;
             acc.totalLaborCost += client.totalLaborCost;
             acc.totalMargin += client.margin;
             acc.totalHours += client.totalHours;
             acc.totalRealMargin += client.realMargin;
-            if (client.isCash) {
-                acc.cashIncome += client.totalIncome;
-                acc.cashLaborCost += client.totalLaborCost;
-                acc.cashMargin += client.margin;
-            } else {
-                acc.nonCashIncome += client.totalIncome;
-                acc.invoiceLaborCost += client.totalLaborCost;
-                acc.invoiceMargin += client.margin;
-            }
+            
+            // Calcular cash vs non-cash por servicio individual, no por cliente
+            const clientSchedules = periodSchedules.filter(s => s.client_id === client.clientId);
+            
+            clientSchedules.forEach(schedule => {
+                const clientData = clientMap.get(schedule.client_id);
+                // CRÍTICO: Usar snapshot si existe, sino usar el actual del cliente
+                const effectivePaymentMethod = schedule.billed_payment_method_snapshot || clientData?.payment_method;
+                
+                const priceData = getPriceForSchedule(schedule, clientData);
+                const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
+                
+                // Calcular costo laboral proporcional para este servicio
+                const serviceHours = (() => {
+                    if (schedule.cleaner_schedules && Array.isArray(schedule.cleaner_schedules)) {
+                        return schedule.cleaner_schedules.reduce((total, cs) => {
+                            const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
+                            const end = new Date(cs.end_time.endsWith('Z') ? cs.end_time : `${cs.end_time}Z`);
+                            return total + ((end - start) / (1000 * 60 * 60));
+                        }, 0);
+                    } else {
+                        const start = new Date(schedule.start_time.endsWith('Z') ? schedule.start_time : `${schedule.start_time}Z`);
+                        const end = new Date(schedule.end_time.endsWith('Z') ? schedule.end_time : `${schedule.end_time}Z`);
+                        return (end - start) / (1000 * 60 * 60);
+                    }
+                })();
+                
+                const serviceLaborCost = client.totalHours > 0 ? (serviceHours / client.totalHours) * client.totalLaborCost : 0;
+                const serviceMargin = netIncome - serviceLaborCost;
+                
+                if (effectivePaymentMethod === 'cash') {
+                    acc.cashIncome += netIncome;
+                    acc.cashLaborCost += serviceLaborCost;
+                    acc.cashMargin += serviceMargin;
+                } else {
+                    acc.nonCashIncome += netIncome;
+                    acc.invoiceLaborCost += serviceLaborCost;
+                    acc.invoiceMargin += serviceMargin;
+                }
+            });
+            
             return acc;
         }, { 
             totalIncome: 0, 
