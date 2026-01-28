@@ -1,3 +1,52 @@
+/**
+ * pages.config.js - Page routing configuration
+ * 
+ * This file is AUTO-GENERATED. Do not add imports or modify PAGES manually.
+ * Pages are auto-registered when you create files in the ./pages/ folder.
+ * 
+ * THE ONLY EDITABLE VALUE: mainPage
+ * This controls which page is the landing page (shown when users visit the app).
+ * 
+ * Example file structure:
+ * 
+ *   import HomePage from './pages/HomePage';
+ *   import Dashboard from './pages/Dashboard';
+ *   import Settings from './pages/Settings';
+ *   
+ *   export const PAGES = {
+ *       "HomePage": HomePage,
+ *       "Dashboard": Dashboard,
+ *       "Settings": Settings,
+ *   }
+ *   
+ *   export const pagesConfig = {
+ *       mainPage: "HomePage",
+ *       Pages: PAGES,
+ *   };
+ * 
+ * Example with Layout (wraps all pages):
+ *
+ *   import Home from './pages/Home';
+ *   import Settings from './pages/Settings';
+ *   import __Layout from './Layout.jsx';
+ *
+ *   export const PAGES = {
+ *       "Home": Home,
+ *       "Settings": Settings,
+ *   }
+ *
+ *   export const pagesConfig = {
+ *       mainPage: "Home",
+ *       Pages: PAGES,
+ *       Layout: __Layout,
+ *   };
+ *
+ * To change the main page from HomePage to Dashboard, use find_replace:
+ *   Old: mainPage: "HomePage",
+ *   New: mainPage: "Dashboard",
+ *
+ * The mainPage value must match a key in the PAGES object exactly.
+ */
 import AdminTasksPanel from './pages/AdminTasksPanel';
 import AuditoriaWorkEntries from './pages/AuditoriaWorkEntries';
 import AumentoClientes from './pages/AumentoClientes';
@@ -24,6 +73,7 @@ import QuoteDetail from './pages/QuoteDetail';
 import QuoteItemization from './pages/QuoteItemization';
 import QuoteSettings from './pages/QuoteSettings';
 import RegistrarTrabajo from './pages/RegistrarTrabajo';
+import Rentabilidad from './pages/Rentabilidad';
 import Reportes from './pages/Reportes';
 import ReportesServicio from './pages/ReportesServicio';
 import RevisionPrecios from './pages/RevisionPrecios';
@@ -32,7 +82,6 @@ import ServicioActivo from './pages/ServicioActivo';
 import TVDashboard from './pages/TVDashboard';
 import TrabajoEntradas from './pages/TrabajoEntradas';
 import Vehiculos from './pages/Vehiculos';
-import Rentabilidad from './pages/Rentabilidad';
 import __Layout from './Layout.jsx';
 
 
@@ -63,6 +112,7 @@ export const PAGES = {
     "QuoteItemization": QuoteItemization,
     "QuoteSettings": QuoteSettings,
     "RegistrarTrabajo": RegistrarTrabajo,
+    "Rentabilidad": Rentabilidad,
     "Reportes": Reportes,
     "ReportesServicio": ReportesServicio,
     "RevisionPrecios": RevisionPrecios,
@@ -71,7 +121,6 @@ export const PAGES = {
     "TVDashboard": TVDashboard,
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
-    "Rentabilidad": Rentabilidad,
 }
 
 export const pagesConfig = {

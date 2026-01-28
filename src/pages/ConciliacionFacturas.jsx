@@ -3,6 +3,7 @@ import { Schedule } from '@/entities/Schedule';
 import { Client } from '@/entities/Client';
 import { DailyReconciliation } from '@/entities/DailyReconciliation';
 import { User } from '@/entities/User';
+import { WorkEntry } from '@/entities/WorkEntry';
 import ReconciliationModal from '../components/conciliacion/ReconciliationModal';
 import ClientSummaryReportTab from '../components/conciliacion/ClientSummaryReportTab';
 import { Button } from '@/components/ui/button';
@@ -123,6 +124,7 @@ export default function ConciliacionFacturasPage() {
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [schedules, setSchedules] = useState([]);
     const [monthlySchedules, setMonthlySchedules] = useState([]);
+    const [allWorkEntries, setAllWorkEntries] = useState([]);
     const [clients, setClients] = useState(new Map());
     const [users, setUsers] = useState([]);
     const [dailyReconciliation, setDailyReconciliation] = useState(null);
@@ -181,6 +183,15 @@ export default function ConciliacionFacturasPage() {
         }
     }, []);
 
+    const fetchWorkEntries = useCallback(async () => {
+        try {
+            const workEntriesList = await loadAllRecords(WorkEntry, '-work_date');
+            setAllWorkEntries(Array.isArray(workEntriesList) ? workEntriesList : []);
+        } catch (e) {
+            console.error("Failed to fetch work entries", e);
+        }
+    }, []);
+
     const fetchDataForDate = useCallback(async (date) => {
         setLoading(true);
         setError(null);
@@ -234,11 +245,12 @@ export default function ConciliacionFacturasPage() {
         const init = async () => {
             await fetchClients();
             await fetchUsers();
+            await fetchWorkEntries();
             const user = await User.me();
             setCurrentUser(user);
         };
         init();
-    }, [fetchClients, fetchUsers]);
+    }, [fetchClients, fetchUsers, fetchWorkEntries]);
 
     useEffect(() => {
         if (clients.size > 0 && users.length > 0) {
@@ -1549,6 +1561,7 @@ export default function ConciliacionFacturasPage() {
                             monthlySchedules={monthlySchedules} 
                             clients={clients}
                             usersMap={usersMap}
+                            allWorkEntries={allWorkEntries}
                             onRefresh={() => fetchMonthlyData(selectedMonth)}
                         />
                     </TabsContent>

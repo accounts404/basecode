@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
 import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
-export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap, onRefresh }) {
+export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap, allWorkEntries, onRefresh }) {
     // Persistir fechas en localStorage
     const [startDate, setStartDate] = useState(() => {
         const saved = localStorage.getItem('clientSummary_startDate');
@@ -107,6 +107,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                     services: [],
                     totalHours: 0,
                     totalAmount: 0,
+                    totalWorkEntryHours: 0,
                     activities: {}
                 };
             }
@@ -147,6 +148,15 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                 if (!group.baseAmount) group.baseAmount = 0;
                 group.baseAmount += netIncome;
             });
+
+            // Calcular horas de WorkEntries para este cliente en el mismo rango
+            if (allWorkEntries && Array.isArray(allWorkEntries)) {
+                const clientWorkEntries = allWorkEntries.filter(entry => 
+                    entry.client_id === clientId && 
+                    isDateInRange(entry.work_date, startDate, endDate)
+                );
+                group.totalWorkEntryHours = clientWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
+            }
         });
 
         // Convertir a array y ordenar por nombre de cliente
@@ -378,7 +388,8 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                 <TableHead className="font-bold text-slate-700 w-12"></TableHead>
                                 <TableHead className="font-bold text-slate-700">Cliente</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Servicios</TableHead>
-                                <TableHead className="text-right font-bold text-slate-700">Horas</TableHead>
+                                <TableHead className="text-right font-bold text-slate-700">Horas Sched.</TableHead>
+                                <TableHead className="text-right font-bold text-slate-700">Horas WE</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Tarifa Promedio</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Base (sin GST)</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Monto Total</TableHead>
