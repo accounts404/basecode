@@ -9,11 +9,15 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 403 });
         }
 
-        const { client_id, old_name, new_name } = await req.json();
+        const { client_id, new_name } = await req.json();
 
-        if (!client_id || !old_name || !new_name) {
-            return Response.json({ error: 'client_id, old_name y new_name son requeridos' }, { status: 400 });
+        if (!client_id || !new_name) {
+            return Response.json({ error: 'client_id y new_name son requeridos' }, { status: 400 });
         }
+
+        // Obtener el nombre anterior del cliente
+        const client = await base44.asServiceRole.entities.Client.get(client_id);
+        const old_name = client.name;
 
         // Actualizar Schedules
         const schedules = await base44.asServiceRole.entities.Schedule.filter({ client_id });

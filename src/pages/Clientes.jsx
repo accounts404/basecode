@@ -193,20 +193,18 @@ export default function ClientesPage() {
 
             if (editingClient) {
                 console.log('[Clientes] Actualizando cliente con notas estructuradas:', cleanedFormData.structured_service_notes ? 'Sí' : 'No');
+                await Client.update(editingClient.id, cleanedFormData);
+                console.log('[Clientes] Cliente actualizado exitosamente, incluyendo notas estructuradas.');
                 
-                // Si cambió el nombre, actualizar en cascada ANTES de actualizar el cliente
+                // Si cambió el nombre, actualizar en cascada
                 if (editingClient.name !== cleanedFormData.name) {
                     console.log('[Clientes] Nombre cambió, actualizando registros relacionados...');
                     await base44.functions.invoke('updateClientNameCascade', {
                         client_id: editingClient.id,
-                        old_name: editingClient.name,
                         new_name: cleanedFormData.name
                     });
                     console.log('[Clientes] Nombre actualizado en cascada.');
                 }
-                
-                await Client.update(editingClient.id, cleanedFormData);
-                console.log('[Clientes] Cliente actualizado exitosamente, incluyendo notas estructuradas.');
             } else {
                 console.log('[Clientes] Creando nuevo cliente con notas estructuradas:', cleanedFormData.structured_service_notes ? 'Sí' : 'No');
                 await Client.create(cleanedFormData);
