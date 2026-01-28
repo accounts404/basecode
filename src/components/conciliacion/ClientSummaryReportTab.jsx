@@ -474,6 +474,15 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                                 serviceHours = (end - start) / (1000 * 60 * 60);
                                             }
 
+                                            // Calcular horas de WorkEntry para este servicio específico
+                                            let serviceWorkEntryHours = 0;
+                                            if (allWorkEntries && Array.isArray(allWorkEntries)) {
+                                                const serviceWorkEntries = allWorkEntries.filter(entry => entry.schedule_id === service.id);
+                                                serviceWorkEntryHours = serviceWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
+                                            }
+
+                                            const hoursMatch = Math.abs(serviceHours - serviceWorkEntryHours) < 0.01;
+
                                             // USAR FUNCIÓN UNIFICADA para calcular precio
                                             const client = clients.get(service.client_id);
                                             const priceData = getPriceForSchedule(service, client);
@@ -504,6 +513,9 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                                     <TableCell className="text-right text-slate-600">1</TableCell>
                                                     <TableCell className="text-right text-slate-600">
                                                         {serviceHours.toFixed(2)}h
+                                                    </TableCell>
+                                                    <TableCell className={`text-right ${hoursMatch ? 'text-slate-600' : 'text-orange-700 bg-orange-50 font-semibold'}`}>
+                                                        {serviceWorkEntryHours.toFixed(2)}h
                                                     </TableCell>
                                                     <TableCell className="text-right text-slate-600">
                                                         ${(serviceAmount / serviceHours).toFixed(2)}/h
