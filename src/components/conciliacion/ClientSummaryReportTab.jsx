@@ -161,7 +161,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
 
         // Convertir a array y ordenar por nombre de cliente
         return Object.values(grouped).sort((a, b) => a.clientName.localeCompare(b.clientName));
-        }, [monthlySchedules, clients, startDate, endDate]);
+        }, [monthlySchedules, clients, startDate, endDate, allWorkEntries]);
 
         // Filtrar y ordenar clientes: no revisados primero, revisados al final
         const filteredClientReport = useMemo(() => {
@@ -398,7 +398,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                         <TableBody>
                             {filteredClientReport.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan="7" className="text-center py-12">
+                                    <TableCell colSpan="9" className="text-center py-12">
                                         <div className="flex flex-col items-center gap-3">
                                             <Search className="w-12 h-12 text-slate-300" />
                                             <p className="text-slate-600 font-medium">
@@ -442,6 +442,9 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                             </TableCell>
                                             <TableCell className={`text-right font-semibold ${isReviewed ? 'text-green-800' : 'text-slate-700'}`} onClick={() => toggleExpand(index)}>
                                                 {clientGroup.totalHours.toFixed(2)}h
+                                            </TableCell>
+                                            <TableCell className={`text-right font-semibold ${clientGroup.totalWorkEntryHours !== clientGroup.totalHours ? 'text-orange-700 bg-orange-50' : (isReviewed ? 'text-green-800' : 'text-slate-700')}`} onClick={() => toggleExpand(index)}>
+                                                {clientGroup.totalWorkEntryHours.toFixed(2)}h
                                             </TableCell>
                                             <TableCell className={`text-right font-semibold ${isReviewed ? 'text-green-800' : 'text-slate-700'}`} onClick={() => toggleExpand(index)}>
                                                 ${avgRate.toFixed(2)}/h
