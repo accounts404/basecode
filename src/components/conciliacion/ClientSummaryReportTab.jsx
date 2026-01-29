@@ -102,8 +102,12 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         filtered.forEach(service => {
             const clientId = service.client_id;
             if (!grouped[clientId]) {
+                const client = clients.get(clientId);
+                const effectivePaymentMethod = service.billed_payment_method_snapshot || client?.payment_method || 'bank_transfer';
+                
                 grouped[clientId] = {
                     clientName: service.client_name,
+                    paymentMethod: effectivePaymentMethod,
                     services: [],
                     totalHours: 0,
                     totalAmount: 0,
@@ -387,6 +391,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                 <TableHead className="font-bold text-slate-700 w-12 text-center">✓</TableHead>
                                 <TableHead className="font-bold text-slate-700 w-12"></TableHead>
                                 <TableHead className="font-bold text-slate-700">Cliente</TableHead>
+                                <TableHead className="text-center font-bold text-slate-700">Método Pago</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Servicios</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Horas Sched.</TableHead>
                                 <TableHead className="text-right font-bold text-slate-700">Horas WE</TableHead>
@@ -398,7 +403,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                         <TableBody>
                             {filteredClientReport.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan="9" className="text-center py-12">
+                                    <TableCell colSpan="10" className="text-center py-12">
                                         <div className="flex flex-col items-center gap-3">
                                             <Search className="w-12 h-12 text-slate-300" />
                                             <p className="text-slate-600 font-medium">
@@ -411,6 +416,15 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                 const avgRate = clientGroup.totalHours > 0 ? clientGroup.totalAmount / clientGroup.totalHours : 0;
                                 const isExpanded = expandedClients[index];
                                 const isReviewed = reviewedClients[clientGroup.clientName] || false;
+
+                                const paymentMethodLabels = {
+                                    'bank_transfer': 'Transferencia',
+                                    'cash': 'Efectivo',
+                                    'credit_card': 'Tarjeta',
+                                    'gocardless': 'GoCardless',
+                                    'stripe': 'Stripe',
+                                    'other': 'Otro'
+                                };
 
                                 return (
                                     <React.Fragment key={index}>
@@ -436,6 +450,9 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                                     {clientGroup.clientName}
                                                     {isReviewed && <CheckCircle className="w-4 h-4 text-green-600" />}
                                                 </div>
+                                            </TableCell>
+                                            <TableCell className={`text-center text-xs font-semibold ${isReviewed ? 'text-green-800' : 'text-slate-700'}`} onClick={() => toggleExpand(index)}>
+                                                {paymentMethodLabels[clientGroup.paymentMethod] || clientGroup.paymentMethod}
                                             </TableCell>
                                             <TableCell className={`text-right font-semibold ${isReviewed ? 'text-green-800' : 'text-slate-700'}`} onClick={() => toggleExpand(index)}>
                                                 {clientGroup.services.length}
@@ -510,6 +527,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                                                             {format(serviceDate, "d MMM", { locale: es })} @ {hour.toString().padStart(2, '0')}:{minute.toString().padStart(2, '0')}
                                                         </span>
                                                     </TableCell>
+                                                    <TableCell></TableCell>
                                                     <TableCell className="text-right text-slate-600">1</TableCell>
                                                     <TableCell className="text-right text-slate-600">
                                                         {serviceHours.toFixed(2)}h
