@@ -5,9 +5,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, UserPlus } from 'lucide-react';
 
-export default function AcceptedServicesDialog({ open, onOpenChange, quote, onConfirm }) {
+export default function AcceptedServicesDialog({ open, onOpenChange, quote, onConfirm, onCreateClient }) {
   const [selectedServices, setSelectedServices] = useState([]);
   const [schedulingNotes, setSchedulingNotes] = useState('');
 
@@ -48,6 +48,7 @@ export default function AcceptedServicesDialog({ open, onOpenChange, quote, onCo
   const commercialServices = quote?.selected_services?.filter(s => s.service_type === 'commercial') || [];
 
   const hasMultipleServices = (quote?.selected_services?.length || 0) > 1;
+  const needsClientCreation = quote && !quote.client_id;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -58,6 +59,33 @@ export default function AcceptedServicesDialog({ open, onOpenChange, quote, onCo
             Selecciona cuáles servicios de la cotización el cliente aceptó. Solo estos se incluirán en ZenMaid.
           </DialogDescription>
         </DialogHeader>
+
+        {needsClientCreation && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-amber-900 font-semibold mb-2">
+                Cliente Temporal - Requiere Crear Cliente
+              </p>
+              <p className="text-sm text-amber-800 mb-3">
+                Esta cotización tiene datos de un cliente nuevo que aún no existe en la base de datos.
+                Debes crear el cliente antes de poder agendar.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  if (onCreateClient) onCreateClient();
+                }}
+                className="border-amber-400 text-amber-700 hover:bg-amber-100"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Crear Cliente Ahora
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-6 py-4">
           {!hasMultipleServices && (

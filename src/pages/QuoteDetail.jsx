@@ -341,8 +341,14 @@ export default function QuoteDetailPage() {
     const handleSaveQuote = async () => {
         setIsSaving(true);
 
-        if (!quote.client_id || !quote.service_address) {
-            toast.error("Por favor, selecciona un cliente y añade una dirección de servicio.");
+        if (!quote.service_address) {
+            toast.error("Por favor, añade una dirección de servicio.");
+            setIsSaving(false);
+            return;
+        }
+
+        if (!quote.client_id && !quote.client_name) {
+            toast.error("Por favor, selecciona un cliente existente o ingresa el nombre del nuevo cliente.");
             setIsSaving(false);
             return;
         }
@@ -353,8 +359,10 @@ export default function QuoteDetailPage() {
             const client = clients.find(c => c.id === quote.client_id);
             
             const dataToSave = {
-                client_id: quote.client_id,
-                client_name: client?.name || 'N/A',
+                client_id: quote.client_id || '',
+                client_name: client?.name || quote.client_name || '',
+                client_phone: quote.client_phone || '',
+                client_email: quote.client_email || '',
                 service_address: quote.service_address,
                 quote_date: quote.quote_date,
                 status: quote.status,
@@ -510,15 +518,65 @@ export default function QuoteDetailPage() {
                                 <div className="flex items-end gap-3">
                                     <div className="flex-grow space-y-2">
                                         <Label className="text-base">Cliente</Label>
-                                        <Select value={quote.client_id || ''} onValueChange={v => handleQuoteChange('client_id', v)}>
+                                        <Select value={quote.client_id || 'new_client'} onValueChange={v => {
+                                            if (v === 'new_client') {
+                                                handleQuoteChange('client_id', '');
+                                            } else {
+                                                handleQuoteChange('client_id', v);
+                                            }
+                                        }}>
                                             <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Selecciona un cliente" /></SelectTrigger>
-                                            <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id} className="text-base py-3">{c.name}</SelectItem>)}</SelectContent>
+                                            <SelectContent>
+                                                <SelectItem value="new_client" className="text-base py-3 font-semibold text-blue-600">
+                                                    + Nuevo Cliente (Crear después)
+                                                </SelectItem>
+                                                {clients.map(c => <SelectItem key={c.id} value={c.id} className="text-base py-3">{c.name}</SelectItem>)}
+                                            </SelectContent>
                                         </Select>
                                     </div>
                                     {canModifyClients && (
                                         <Button variant="outline" onClick={() => handleOpenClientForm()} className="h-12 w-12 flex-shrink-0"><UserPlus className="w-5 h-5" /></Button>
                                     )}
                                 </div>
+
+                                {!quote.client_id && (
+                                    <div className="bg-amber-50 p-5 rounded-lg border border-amber-300">
+                                        <h4 className="font-semibold text-amber-900 text-base mb-4">Datos del Cliente Nuevo</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="client_name">Nombre del Cliente</Label>
+                                                <Input
+                                                    id="client_name"
+                                                    value={quote.client_name || ''}
+                                                    onChange={(e) => handleQuoteChange('client_name', e.target.value)}
+                                                    placeholder="Nombre completo"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label htmlFor="client_phone">Teléfono</Label>
+                                                <Input
+                                                    id="client_phone"
+                                                    value={quote.client_phone || ''}
+                                                    onChange={(e) => handleQuoteChange('client_phone', e.target.value)}
+                                                    placeholder="0412345678"
+                                                />
+                                            </div>
+                                            <div className="space-y-2 md:col-span-2">
+                                                <Label htmlFor="client_email">Email</Label>
+                                                <Input
+                                                    id="client_email"
+                                                    type="email"
+                                                    value={quote.client_email || ''}
+                                                    onChange={(e) => handleQuoteChange('client_email', e.target.value)}
+                                                    placeholder="cliente@ejemplo.com"
+                                                />
+                                            </div>
+                                        </div>
+                                        <p className="text-sm text-amber-700 mt-3">
+                                            💡 Este cliente se creará en la base de datos cuando se apruebe la cotización y desde la pestaña "Para Agendar".
+                                        </p>
+                                    </div>
+                                )}
 
                                 {selectedClient && (
                                     <div className="bg-blue-50 p-5 rounded-lg border border-blue-200">

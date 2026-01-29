@@ -1052,6 +1052,12 @@ export default function CotizacionesPage() {
                 onOpenChange={(open) => !open && setApprovingQuote(null)}
                 quote={approvingQuote}
                 onConfirm={handleConfirmAcceptedServices}
+                onCreateClient={() => {
+                    if (approvingQuote) {
+                        setCreatingClientFromQuote(approvingQuote);
+                        setApprovingQuote(null);
+                    }
+                }}
             />
 
             <Dialog open={showReports} onOpenChange={setShowReports}>
