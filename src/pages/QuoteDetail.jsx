@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
 import { ArrowLeft, Save, UserPlus, Building, Clock, FileText, Calculator, Sparkles, PlusCircle, Edit, XCircle } from 'lucide-react';
+import QuoteClientSelector from '@/components/quotes/QuoteClientSelector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -515,27 +516,25 @@ export default function QuoteDetailPage() {
                         <Card>
                             <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="w-6 h-6" />Información de la Cotización</CardTitle></CardHeader>
                             <CardContent className="space-y-5">
-                                <div className="flex items-end gap-3">
-                                    <div className="flex-grow space-y-2">
-                                        <Label className="text-base">Cliente</Label>
-                                        <Select value={quote.client_id || 'new_client'} onValueChange={v => {
-                                            if (v === 'new_client') {
-                                                handleQuoteChange('client_id', '');
-                                            } else {
-                                                handleQuoteChange('client_id', v);
-                                            }
-                                        }}>
-                                            <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Selecciona un cliente" /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="new_client" className="text-base py-3 font-semibold text-blue-600">
-                                                    + Nuevo Cliente (Crear después)
-                                                </SelectItem>
-                                                {clients.map(c => <SelectItem key={c.id} value={c.id} className="text-base py-3">{c.name}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    {canModifyClients && (
-                                        <Button variant="outline" onClick={() => handleOpenClientForm()} className="h-12 w-12 flex-shrink-0"><UserPlus className="w-5 h-5" /></Button>
+                                <div className="space-y-2">
+                                    <Label className="text-base">Cliente</Label>
+                                    <QuoteClientSelector
+                                        clients={clients}
+                                        selectedClientId={quote.client_id}
+                                        onClientSelect={(clientId) => handleQuoteChange('client_id', clientId)}
+                                        onCreateNewClient={() => {}}
+                                        placeholder="Buscar cliente existente o crear nuevo..."
+                                    />
+                                    {canModifyClients && selectedClient && (
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => handleOpenClientForm(selectedClient)} 
+                                            className="w-full"
+                                        >
+                                            <Edit className="w-4 h-4 mr-2" />
+                                            Editar Cliente
+                                        </Button>
                                     )}
                                 </div>
 
