@@ -3,6 +3,7 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Toaster, toast } from 'sonner';
 import { ArrowLeft, Save, UserPlus, Building, Clock, FileText, Calculator, Sparkles, PlusCircle, Edit, XCircle } from 'lucide-react';
 import QuoteClientSelector from '@/components/quotes/QuoteClientSelector';
+import AddressAutocomplete from '@/components/quotes/AddressAutocomplete';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -611,7 +612,12 @@ export default function QuoteDetailPage() {
                                 <div className="space-y-2">
                                     <Label className="text-base">Dirección del Servicio</Label>
                                     <div className="flex items-center gap-3">
-                                        <Input value={quote.service_address || ''} onChange={e => handleQuoteChange('service_address', e.target.value)} placeholder="Ingresa la dirección del servicio" className="h-12 text-base" />
+                                        <AddressAutocomplete
+                                            value={quote.service_address || ''}
+                                            onChange={(address) => handleQuoteChange('service_address', address)}
+                                            placeholder="Buscar dirección del servicio..."
+                                            className="h-12 text-base"
+                                        />
                                         {quote.service_address && (
                                             <a href={getGoogleMapsLink(quote.service_address)} target="_blank" rel="noopener noreferrer">
                                                 <Button variant="outline" size="icon" className="h-12 w-12 flex-shrink-0"><Building className="w-5 h-5" /></Button>
