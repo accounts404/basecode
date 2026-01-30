@@ -114,6 +114,17 @@ export default function ZenMaidTransferItem({ transfer, clientInfo, quote, onCom
               <ExternalLink className="w-4 h-4" />
             </Button>
           </Link>
+          {onCreateClient && (
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-8 w-8 border-green-300 text-green-600 hover:bg-green-50"
+              onClick={onCreateClient}
+              title="Crear cliente"
+            >
+              <UserPlus className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
 
