@@ -426,6 +426,11 @@ export default function QuoteItemizationPage() {
       return;
     }
 
+    if (!quote.service_address || quote.service_address.trim() === '') {
+      toast.error("La dirección del servicio es obligatoria. Por favor, completa la dirección en los detalles de la cotización.");
+      return;
+    }
+
     setIsSending(true);
     
     try {
