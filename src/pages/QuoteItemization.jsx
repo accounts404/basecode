@@ -420,7 +420,7 @@ export default function QuoteItemizationPage() {
 
       const pdfBlob = pdfDoc.output('blob', { compress: true });
       
-      const clientNameClean = client.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+      const clientNameClean = (clientData.name || 'Cliente').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
       const dateStr = format(new Date(), 'dd-MM-yyyy');
       const filename = `${clientNameClean}_Quote_${dateStr}.pdf`;
       
