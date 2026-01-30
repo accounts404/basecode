@@ -406,9 +406,15 @@ export default function QuoteItemizationPage() {
 
       const updatedQuote = await base44.entities.Quote.get(quote.id);
 
+      const clientData = client || {
+        name: updatedQuote.temp_client_name || 'Cliente Temporal',
+        email: updatedQuote.temp_client_email || '',
+        mobile_number: updatedQuote.temp_client_phone || ''
+      };
+
       const pdfDoc = await generateQuotePDF({
         quote: updatedQuote,
-        client,
+        client: clientData,
         systemSettings: settings
       });
 
