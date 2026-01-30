@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar, Check, User, MapPin, ExternalLink, FileText, Home, Bed, Bath } from 'lucide-react';
+import { Calendar, Check, User, MapPin, ExternalLink, FileText, Home, Bed, Bath, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
