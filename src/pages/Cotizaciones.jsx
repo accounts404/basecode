@@ -852,47 +852,64 @@ export default function CotizacionesPage() {
                                           </div>
                                         ) : (
                                           pendingTransfers.map(transfer => {
-                                            const quote = quotes.find(q => q.id === transfer.quote_id);
-                                            return (
-                                              <div key={transfer.id} className="relative">
-                                                <AlertDialog>
-                                                  <AlertDialogTrigger asChild>
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="icon"
-                                                      className="absolute top-2 right-2 z-10 h-8 w-8 text-red-500 hover:bg-red-50"
-                                                      title="Eliminar"
-                                                    >
-                                                      <Trash className="w-4 h-4" />
-                                                    </Button>
-                                                  </AlertDialogTrigger>
-                                                  <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                      <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                                                      <AlertDialogDescription>
-                                                        Esta acción no se puede deshacer. La transferencia será eliminada permanentemente.
-                                                      </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                      <AlertDialogAction
-                                                        onClick={() => handleDeleteTransfer(transfer.id)}
-                                                        className="bg-red-600 hover:bg-red-700"
-                                                      >
-                                                        Eliminar
-                                                      </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                  </AlertDialogContent>
-                                                </AlertDialog>
-                                                <ZenMaidTransferItem 
-                                                  transfer={transfer}
-                                                  clientInfo={getClientInfo(transfer.client_id)}
-                                                  quote={quote}
-                                                  onComplete={handleCompleteTransfer}
-                                                />
-                                              </div>
-                                            );
-                                            })
+                                           const quote = quotes.find(q => q.id === transfer.quote_id);
+                                           return (
+                                             <div key={transfer.id} className="relative">
+                                               <AlertDialog>
+                                                 <AlertDialogTrigger asChild>
+                                                   <Button
+                                                     variant="ghost"
+                                                     size="icon"
+                                                     className="absolute top-2 right-2 z-10 h-8 w-8 text-red-500 hover:bg-red-50"
+                                                     title="Eliminar"
+                                                   >
+                                                     <Trash className="w-4 h-4" />
+                                                   </Button>
+                                                 </AlertDialogTrigger>
+                                                 <AlertDialogContent>
+                                                   <AlertDialogHeader>
+                                                     <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                                                     <AlertDialogDescription>
+                                                       Esta acción no se puede deshacer. La transferencia será eliminada permanentemente.
+                                                     </AlertDialogDescription>
+                                                   </AlertDialogHeader>
+                                                   <AlertDialogFooter>
+                                                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                     <AlertDialogAction
+                                                       onClick={() => handleDeleteTransfer(transfer.id)}
+                                                       className="bg-red-600 hover:bg-red-700"
+                                                     >
+                                                       Eliminar
+                                                     </AlertDialogAction>
+                                                   </AlertDialogFooter>
+                                                 </AlertDialogContent>
+                                               </AlertDialog>
+                                               {!transfer.client_id && quote && (
+                                                 <div className="mb-3 px-4">
+                                                   <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-300 rounded-lg">
+                                                     <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                                                     <p className="text-sm text-orange-800 flex-1">Cliente temporal - debe crearse antes de agendar</p>
+                                                     <Button
+                                                       variant="default"
+                                                       size="sm"
+                                                       onClick={() => setCreatingClientFromQuote(quote)}
+                                                       className="bg-green-600 hover:bg-green-700"
+                                                     >
+                                                       <UserPlus className="w-4 h-4 mr-2" />
+                                                       Crear Cliente
+                                                     </Button>
+                                                   </div>
+                                                 </div>
+                                               )}
+                                               <ZenMaidTransferItem 
+                                                 transfer={transfer}
+                                                 clientInfo={getClientInfo(transfer.client_id)}
+                                                 quote={quote}
+                                                 onComplete={handleCompleteTransfer}
+                                               />
+                                             </div>
+                                           );
+                                           })
                                         )}
                                       </div>
                                     </div>
