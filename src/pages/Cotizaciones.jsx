@@ -884,28 +884,12 @@ export default function CotizacionesPage() {
                                                    </AlertDialogFooter>
                                                  </AlertDialogContent>
                                                </AlertDialog>
-                                               {!transfer.client_id && quote && (
-                                                 <div className="mb-3 px-4">
-                                                   <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-300 rounded-lg">
-                                                     <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0" />
-                                                     <p className="text-sm text-orange-800 flex-1">Cliente temporal - debe crearse antes de agendar</p>
-                                                     <Button
-                                                       variant="default"
-                                                       size="sm"
-                                                       onClick={() => setCreatingClientFromQuote(quote)}
-                                                       className="bg-green-600 hover:bg-green-700"
-                                                     >
-                                                       <UserPlus className="w-4 h-4 mr-2" />
-                                                       Crear Cliente
-                                                     </Button>
-                                                   </div>
-                                                 </div>
-                                               )}
                                                <ZenMaidTransferItem 
                                                  transfer={transfer}
                                                  clientInfo={getClientInfo(transfer.client_id)}
                                                  quote={quote}
                                                  onComplete={handleCompleteTransfer}
+                                                 onCreateClient={!transfer.client_id && quote ? () => setCreatingClientFromQuote(quote) : null}
                                                />
                                              </div>
                                            );
