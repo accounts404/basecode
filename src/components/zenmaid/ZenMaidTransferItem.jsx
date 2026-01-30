@@ -8,7 +8,7 @@ import { Calendar, Check, User, MapPin, ExternalLink, FileText, Home, Bed, Bath,
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
-export default function ZenMaidTransferItem({ transfer, clientInfo, quote, onComplete }) {
+export default function ZenMaidTransferItem({ transfer, clientInfo, quote, onComplete, onCreateClient }) {
   const [selectedDate, setSelectedDate] = useState('');
 
   const handleComplete = () => {
