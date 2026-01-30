@@ -394,43 +394,6 @@ export default function QuoteItemizationPage() {
   };
 
   const handleFinalizeSend = async () => {
-    const hasInitialSelections = hasInitialServices() && Object.values(areaSelectionsInitial).some(sel => 
-      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
-    );
-
-    const hasRegularSelections = hasRegularServices() && Object.values(areaSelectionsRegular).some(sel => 
-      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
-    );
-
-    const hasCommercialSelections = hasCommercialServices() && Object.values(areaSelectionsCommercial).some(sel => 
-      sel && sel.selection_type !== 'not_included' && (sel.selection_type === 'full' || sel.selected_items.length > 0)
-    );
-
-    if (hasInitialServices() && !hasInitialSelections) {
-      toast.error("Por favor, selecciona al menos un área para los servicios iniciales");
-      return;
-    }
-
-    if (hasRegularServices() && !hasRegularSelections) {
-      toast.error("Por favor, selecciona al menos un área para los servicios regulares");
-      return;
-    }
-
-    if (hasCommercialServices() && !hasCommercialSelections) {
-      toast.error("Por favor, selecciona al menos un área para los servicios comerciales");
-      return;
-    }
-
-    if (!client || !client.email) {
-      toast.error("El cliente no tiene un email registrado");
-      return;
-    }
-
-    if (!quote.service_address || quote.service_address.trim() === '') {
-      toast.error("La dirección del servicio es obligatoria. Por favor, completa la dirección en los detalles de la cotización.");
-      return;
-    }
-
     setIsSending(true);
     
     try {
