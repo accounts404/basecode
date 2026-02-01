@@ -273,8 +273,9 @@ export default function AuditoriaWorkEntriesPage() {
     setSuccess("");
     
     try {
-      const workDate = new Date(result.schedule.start_time);
-      const workDateStr = format(workDate, 'yyyy-MM-dd');
+      // Extraer solo la fecha sin considerar la hora (zona horaria)
+      const workDateStr = result.schedule.start_time.split('T')[0];
+      const workDate = new Date(workDateStr + 'T00:00:00');
       
       const workEntryData = {
         cleaner_id: result.cleanerId,
@@ -323,8 +324,9 @@ export default function AuditoriaWorkEntriesPage() {
 
     for (const result of itemsToCreate) {
       try {
-        const workDate = new Date(result.schedule.start_time);
-        const workDateStr = format(workDate, 'yyyy-MM-dd');
+        // Extraer solo la fecha sin considerar la hora (zona horaria)
+        const workDateStr = result.schedule.start_time.split('T')[0];
+        const workDate = new Date(workDateStr + 'T00:00:00');
         
         const workEntryData = {
           cleaner_id: result.cleanerId,
