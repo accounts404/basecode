@@ -22,7 +22,6 @@ export default function RentabilidadPage() {
     const [allWorkEntries, setAllWorkEntries] = useState([]);
     const [allSchedules, setAllSchedules] = useState([]);
     const [allFixedCosts, setAllFixedCosts] = useState([]);
-    const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [sortColumn, setSortColumn] = useState('realMargin');
@@ -56,13 +55,12 @@ export default function RentabilidadPage() {
         setLoading(true);
         setError('');
         try {
-            const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData, usersData] = await Promise.all([
+            const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData] = await Promise.all([
                 loadAllRecords(Client, '-created_date'),
                 loadAllRecords(WorkEntry, '-work_date'),
                 loadAllRecords(PricingThreshold, '-created_date'),
                 loadAllRecords(Schedule, '-start_time'),
                 loadAllRecords(FixedCost, '-created_date'),
-                loadAllRecords(User, '-created_date'),
             ]);
             
             const filteredWorkEntries = (workEntriesData || []).filter(e => !isExcludedMonth(e.work_date));
@@ -73,7 +71,6 @@ export default function RentabilidadPage() {
             setPricingThresholds(thresholdsData || []);
             setAllSchedules(filteredSchedules);
             setAllFixedCosts(fixedCostsData || []);
-            setUsers(usersData || []);
             
             const trainingClient = (clientsData || []).find(c => c.name === 'TRAINING' || c.client_type === 'training');
             if (trainingClient) {
@@ -136,7 +133,6 @@ export default function RentabilidadPage() {
                             allWorkEntries={allWorkEntries}
                             allSchedules={allSchedules}
                             allFixedCosts={allFixedCosts}
-                            users={users}
                             trainingClientId={trainingClientId}
                             sortColumn={sortColumn}
                             sortDirection={sortDirection}
