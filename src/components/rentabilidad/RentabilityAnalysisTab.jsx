@@ -4,7 +4,7 @@ import { format, startOfMonth, endOfMonth, endOfDay, startOfDay, subMonths, addM
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, GraduationCap, Search, Send, X, History, Eye, EyeOff, FileText, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, GraduationCap, Search, Send, X, History, Eye, EyeOff, FileText, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -122,8 +122,7 @@ export default function RentabilityAnalysisTab({
     const [sendNotes, setSendNotes] = useState('');
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [selectedClientForHistory, setSelectedClientForHistory] = useState(null);
-    const [detailModalOpen, setDetailModalOpen] = useState(false);
-    const [selectedClientForDetail, setSelectedClientForDetail] = useState(null);
+    const [expandedClients, setExpandedClients] = useState(new Set());
 
     useEffect(() => {
         if (clients.length > 0) {
@@ -622,25 +621,16 @@ export default function RentabilityAnalysisTab({
         setHistoryModalOpen(true);
     };
 
-    const handleOpenDetail = (clientData) => {
-        const client = clients.find(c => c.id === clientData.clientId);
-        
-        // Filtrar schedules del cliente en el período
-        const clientSchedules = periodSchedules.filter(s => s.client_id === clientData.clientId);
-        
-        // Filtrar work entries del cliente en el período
-        const clientWorkEntries = allWorkEntries.filter(we => 
-            we.client_id === clientData.clientId &&
-            isDateInRange(we.work_date, selectedPeriod.start, selectedPeriod.end)
-        );
-        
-        setSelectedClientForDetail({ 
-            ...clientData, 
-            fullClient: client,
-            schedules: clientSchedules,
-            workEntries: clientWorkEntries
+    const toggleClientExpand = (clientId) => {
+        setExpandedClients(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(clientId)) {
+                newSet.delete(clientId);
+            } else {
+                newSet.add(clientId);
+            }
+            return newSet;
         });
-        setDetailModalOpen(true);
     };
 
     const getSortIcon = (column) => {
@@ -1219,22 +1209,35 @@ export default function RentabilityAnalysisTab({
                                     .map(data => {
                                         const client = clients.find(c => c.id === data.clientId);
                                         const sendStatus = getClientSendStatus(client);
+                                        const isExpanded = expandedClients.has(data.clientId);
+
+                                        // Datos para la fila expandida
+                                        const clientSchedules = periodSchedules.filter(s => s.client_id === data.clientId);
+                                        const clientWorkEntries = allWorkEntries.filter(we => 
+                                            we.client_id === data.clientId &&
+                                            isDateInRange(we.work_date, selectedPeriod.start, selectedPeriod.end)
+                                        );
+
                                         return (
-                                           <TableRow key={data.clientId} className={`hover:bg-slate-50/50 transition-colors border-b border-slate-100 ${sendStatus.sent && !sendStatus.expired ? 'bg-green-50/30' : ''}`}>
-                                               <TableCell className="font-semibold text-slate-900 py-4">
-                                                   <div className="flex items-center gap-2">
-                                                       <span>{data.clientName}</span>
-                                                       <Button
-                                                           variant="ghost"
-                                                           size="sm"
-                                                           onClick={() => handleOpenDetail(data)}
-                                                           className="h-6 w-6 p-0"
-                                                           title="Ver detalle de servicios"
-                                                       >
-                                                           <FileText className="w-4 h-4 text-blue-600" />
-                                                       </Button>
-                                                   </div>
-                                               </TableCell>
+                                            <React.Fragment key={data.clientId}>
+                                                <TableRow className={`hover:bg-slate-50/50 transition-colors border-b border-slate-100 ${sendStatus.sent && !sendStatus.expired ? 'bg-green-50/30' : ''}`}>
+                                                    <TableCell className="font-semibold text-slate-900 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => toggleClientExpand(data.clientId)}
+                                                                className="h-6 w-6 p-0"
+                                                            >
+                                                                {isExpanded ? (
+                                                                    <ChevronDown className="w-4 h-4 text-slate-600" />
+                                                                ) : (
+                                                                    <ChevronRight className="w-4 h-4 text-slate-600" />
+                                                                )}
+                                                            </Button>
+                                                            <span>{data.clientName}</span>
+                                                        </div>
+                                                    </TableCell>
                                                 <TableCell className="text-center text-slate-700">{data.serviceCount}</TableCell>
                                                 <TableCell className="text-center font-medium text-slate-800">{data.totalHours.toFixed(2)}h</TableCell>
                                                 <TableCell className="text-right font-bold text-blue-700 bg-blue-50">${data.incomePerHour.toFixed(2)}/h</TableCell>
@@ -1325,6 +1328,139 @@ export default function RentabilityAnalysisTab({
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
+                                            
+                                            {/* Fila expandida con detalles */}
+                                            {isExpanded && (
+                                                <TableRow>
+                                                    <TableCell colSpan={12} className="bg-slate-50 p-6">
+                                                        <div className="space-y-6">
+                                                            {/* Servicios Facturados */}
+                                                            <div>
+                                                                <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                                                                    <Calendar className="w-4 h-4 text-blue-600" />
+                                                                    Servicios Facturados ({clientSchedules.length})
+                                                                </h4>
+                                                                {clientSchedules.length > 0 ? (
+                                                                    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                                                                        <Table>
+                                                                            <TableHeader className="bg-slate-100">
+                                                                                <TableRow>
+                                                                                    <TableHead className="text-xs">Fecha</TableHead>
+                                                                                    <TableHead className="text-xs">Hora</TableHead>
+                                                                                    <TableHead className="text-xs">Limpiadores</TableHead>
+                                                                                    <TableHead className="text-right text-xs">Valor</TableHead>
+                                                                                    <TableHead className="text-right text-xs">Horas</TableHead>
+                                                                                    <TableHead className="text-xs">GST</TableHead>
+                                                                                    <TableHead className="text-xs">Pago</TableHead>
+                                                                                </TableRow>
+                                                                            </TableHeader>
+                                                                            <TableBody>
+                                                                                {clientSchedules.map((schedule) => {
+                                                                                    const priceData = getPriceForSchedule(schedule, client);
+                                                                                    const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
+                                                                                    const serviceHours = (() => {
+                                                                                        if (schedule.cleaner_schedules && Array.isArray(schedule.cleaner_schedules)) {
+                                                                                            return schedule.cleaner_schedules.reduce((total, cs) => {
+                                                                                                const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
+                                                                                                const end = new Date(cs.end_time.endsWith('Z') ? cs.end_time : `${cs.end_time}Z`);
+                                                                                                return total + ((end - start) / (1000 * 60 * 60));
+                                                                                            }, 0);
+                                                                                        } else {
+                                                                                            const start = new Date(schedule.start_time.endsWith('Z') ? schedule.start_time : `${schedule.start_time}Z`);
+                                                                                            const end = new Date(schedule.end_time.endsWith('Z') ? schedule.end_time : `${schedule.end_time}Z`);
+                                                                                            return (end - start) / (1000 * 60 * 60);
+                                                                                        }
+                                                                                    })();
+                                                                                    const paymentMethod = schedule.billed_payment_method_snapshot || client?.payment_method || 'N/A';
+                                                                                    
+                                                                                    return (
+                                                                                        <TableRow key={schedule.id} className="text-xs hover:bg-slate-50">
+                                                                                            <TableCell>{format(new Date(schedule.start_time), 'd MMM yyyy', { locale: es })}</TableCell>
+                                                                                            <TableCell className="text-slate-600">
+                                                                                                {format(new Date(schedule.start_time), 'HH:mm')} - {format(new Date(schedule.end_time), 'HH:mm')}
+                                                                                            </TableCell>
+                                                                                            <TableCell className="text-slate-700">{schedule.cleaner_ids?.length || 0}</TableCell>
+                                                                                            <TableCell className="text-right font-bold text-green-700">${netIncome.toFixed(2)}</TableCell>
+                                                                                            <TableCell className="text-right">{serviceHours.toFixed(2)}h</TableCell>
+                                                                                            <TableCell>
+                                                                                                <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                                                                                    {priceData.gstType === 'inclusive' ? 'Inc' : priceData.gstType === 'exclusive' ? 'Exc' : 'N/A'}
+                                                                                                </Badge>
+                                                                                            </TableCell>
+                                                                                            <TableCell>
+                                                                                                <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                                                                                    {paymentMethod === 'cash' ? '💵' : '📄'}
+                                                                                                </Badge>
+                                                                                            </TableCell>
+                                                                                        </TableRow>
+                                                                                    );
+                                                                                })}
+                                                                            </TableBody>
+                                                                        </Table>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="text-center py-4 text-slate-500 text-xs border border-slate-200 rounded-lg bg-white">
+                                                                        No hay servicios facturados
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Work Entries */}
+                                                            <div>
+                                                                <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                                                                    <Users className="w-4 h-4 text-orange-600" />
+                                                                    Entradas de Trabajo ({clientWorkEntries.length})
+                                                                </h4>
+                                                                {clientWorkEntries.length > 0 ? (
+                                                                    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                                                                        <Table>
+                                                                            <TableHeader className="bg-slate-100">
+                                                                                <TableRow>
+                                                                                    <TableHead className="text-xs">Fecha</TableHead>
+                                                                                    <TableHead className="text-xs">Limpiador</TableHead>
+                                                                                    <TableHead className="text-xs">Actividad</TableHead>
+                                                                                    <TableHead className="text-right text-xs">Horas</TableHead>
+                                                                                    <TableHead className="text-right text-xs">Tarifa/h</TableHead>
+                                                                                    <TableHead className="text-right text-xs">Total</TableHead>
+                                                                                    <TableHead className="text-center text-xs">Facturada</TableHead>
+                                                                                </TableRow>
+                                                                            </TableHeader>
+                                                                            <TableBody>
+                                                                                {clientWorkEntries.map((we) => (
+                                                                                    <TableRow key={we.id} className="text-xs hover:bg-slate-50">
+                                                                                        <TableCell>{format(new Date(we.work_date), 'd MMM yyyy', { locale: es })}</TableCell>
+                                                                                        <TableCell className="text-slate-700">{we.cleaner_name}</TableCell>
+                                                                                        <TableCell>
+                                                                                            <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                                                                                {we.activity}
+                                                                                            </Badge>
+                                                                                        </TableCell>
+                                                                                        <TableCell className="text-right">{we.hours.toFixed(2)}h</TableCell>
+                                                                                        <TableCell className="text-right">${we.hourly_rate.toFixed(2)}</TableCell>
+                                                                                        <TableCell className="text-right font-bold text-orange-700">${we.total_amount.toFixed(2)}</TableCell>
+                                                                                        <TableCell className="text-center">
+                                                                                            {we.invoiced ? (
+                                                                                                <CheckCircle className="w-3 h-3 text-green-600 mx-auto" />
+                                                                                            ) : (
+                                                                                                <Clock className="w-3 h-3 text-orange-600 mx-auto" />
+                                                                                            )}
+                                                                                        </TableCell>
+                                                                                    </TableRow>
+                                                                                ))}
+                                                                            </TableBody>
+                                                                        </Table>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="text-center py-4 text-slate-500 text-xs border border-slate-200 rounded-lg bg-white">
+                                                                        No hay entradas de trabajo
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </React.Fragment>
                                         );
                                     })}
                             </TableBody>
@@ -1477,206 +1613,6 @@ export default function RentabilityAnalysisTab({
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" onClick={() => setHistoryModalOpen(false)}>
-                                    Cerrar
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-
-                    {/* Modal de Detalle del Cliente */}
-                    <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-                        <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                                    <FileText className="w-5 h-5 text-blue-600" />
-                                    Detalle de Servicios - {selectedClientForDetail?.clientName}
-                                </DialogTitle>
-                                <DialogDescription>
-                                    Período: {selectedPeriod && format(selectedPeriod.start, 'd MMM yyyy', { locale: es })} - {selectedPeriod && format(selectedPeriod.end, 'd MMM yyyy', { locale: es })}
-                                </DialogDescription>
-                            </DialogHeader>
-                            
-                            {selectedClientForDetail && (
-                                <div className="space-y-6 py-4">
-                                    {/* Resumen */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <Card className="bg-blue-50 border-blue-200">
-                                            <CardContent className="p-4">
-                                                <p className="text-xs text-blue-700 font-semibold mb-1">Servicios</p>
-                                                <p className="text-2xl font-bold text-blue-900">{selectedClientForDetail.serviceCount}</p>
-                                            </CardContent>
-                                        </Card>
-                                        <Card className="bg-green-50 border-green-200">
-                                            <CardContent className="p-4">
-                                                <p className="text-xs text-green-700 font-semibold mb-1">Ingresos</p>
-                                                <p className="text-2xl font-bold text-green-900">${selectedClientForDetail.totalIncome.toFixed(2)}</p>
-                                            </CardContent>
-                                        </Card>
-                                        <Card className="bg-orange-50 border-orange-200">
-                                            <CardContent className="p-4">
-                                                <p className="text-xs text-orange-700 font-semibold mb-1">Costo Laboral</p>
-                                                <p className="text-2xl font-bold text-orange-900">${selectedClientForDetail.totalLaborCost.toFixed(2)}</p>
-                                            </CardContent>
-                                        </Card>
-                                        <Card className="bg-purple-50 border-purple-200">
-                                            <CardContent className="p-4">
-                                                <p className="text-xs text-purple-700 font-semibold mb-1">Horas Totales</p>
-                                                <p className="text-2xl font-bold text-purple-900">{selectedClientForDetail.totalHours.toFixed(2)}h</p>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
-
-                                    {/* Servicios Facturados */}
-                                    <div>
-                                        <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
-                                            <Calendar className="w-5 h-5 text-blue-600" />
-                                            Servicios Facturados ({selectedClientForDetail.schedules?.length || 0})
-                                        </h3>
-                                        {selectedClientForDetail.schedules && selectedClientForDetail.schedules.length > 0 ? (
-                                            <div className="border border-slate-200 rounded-lg overflow-hidden">
-                                                <Table>
-                                                    <TableHeader className="bg-slate-100">
-                                                        <TableRow>
-                                                            <TableHead className="font-bold">Fecha</TableHead>
-                                                            <TableHead className="font-bold">Hora</TableHead>
-                                                            <TableHead className="font-bold">Limpiadores</TableHead>
-                                                            <TableHead className="text-right font-bold">Valor Facturado</TableHead>
-                                                            <TableHead className="text-right font-bold">Horas</TableHead>
-                                                            <TableHead className="font-bold">GST</TableHead>
-                                                            <TableHead className="font-bold">Método Pago</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {selectedClientForDetail.schedules.map((schedule) => {
-                                                            const priceData = getPriceForSchedule(schedule, selectedClientForDetail.fullClient);
-                                                            const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
-                                                            const serviceHours = (() => {
-                                                                if (schedule.cleaner_schedules && Array.isArray(schedule.cleaner_schedules)) {
-                                                                    return schedule.cleaner_schedules.reduce((total, cs) => {
-                                                                        const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
-                                                                        const end = new Date(cs.end_time.endsWith('Z') ? cs.end_time : `${cs.end_time}Z`);
-                                                                        return total + ((end - start) / (1000 * 60 * 60));
-                                                                    }, 0);
-                                                                } else {
-                                                                    const start = new Date(schedule.start_time.endsWith('Z') ? schedule.start_time : `${schedule.start_time}Z`);
-                                                                    const end = new Date(schedule.end_time.endsWith('Z') ? schedule.end_time : `${schedule.end_time}Z`);
-                                                                    return (end - start) / (1000 * 60 * 60);
-                                                                }
-                                                            })();
-                                                            const cleanerNames = schedule.cleaner_ids?.map(cid => {
-                                                                const u = users.find(user => user.id === cid);
-                                                                return u?.full_name || u?.invoice_name || 'N/A';
-                                                            }).join(', ') || 'N/A';
-                                                            const paymentMethod = schedule.billed_payment_method_snapshot || selectedClientForDetail.fullClient?.payment_method || 'N/A';
-                                                            
-                                                            return (
-                                                                <TableRow key={schedule.id} className="hover:bg-slate-50">
-                                                                    <TableCell className="font-medium">
-                                                                        {format(new Date(schedule.start_time), 'd MMM yyyy', { locale: es })}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-sm text-slate-600">
-                                                                        {format(new Date(schedule.start_time), 'HH:mm', { locale: es })} - {format(new Date(schedule.end_time), 'HH:mm', { locale: es })}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-sm">{cleanerNames}</TableCell>
-                                                                    <TableCell className="text-right font-bold text-green-700">
-                                                                        ${netIncome.toFixed(2)}
-                                                                    </TableCell>
-                                                                    <TableCell className="text-right font-medium">
-                                                                        {serviceHours.toFixed(2)}h
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <Badge variant="outline" className="text-xs">
-                                                                            {priceData.gstType === 'inclusive' ? 'Incluido' : priceData.gstType === 'exclusive' ? 'Exclusivo' : 'Sin GST'}
-                                                                        </Badge>
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <Badge variant="outline" className="text-xs">
-                                                                            {paymentMethod === 'cash' ? '💵 Cash' : paymentMethod === 'bank_transfer' ? '🏦 Transf' : paymentMethod}
-                                                                        </Badge>
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            );
-                                                        })}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8 text-slate-500 border border-slate-200 rounded-lg">
-                                                <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                                <p>No hay servicios facturados en este período</p>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Work Entries */}
-                                    <div>
-                                        <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
-                                            <Users className="w-5 h-5 text-orange-600" />
-                                            Entradas de Trabajo ({selectedClientForDetail.workEntries?.length || 0})
-                                        </h3>
-                                        {selectedClientForDetail.workEntries && selectedClientForDetail.workEntries.length > 0 ? (
-                                            <div className="border border-slate-200 rounded-lg overflow-hidden">
-                                                <Table>
-                                                    <TableHeader className="bg-slate-100">
-                                                        <TableRow>
-                                                            <TableHead className="font-bold">Fecha</TableHead>
-                                                            <TableHead className="font-bold">Limpiador</TableHead>
-                                                            <TableHead className="font-bold">Actividad</TableHead>
-                                                            <TableHead className="text-right font-bold">Horas</TableHead>
-                                                            <TableHead className="text-right font-bold">Tarifa/h</TableHead>
-                                                            <TableHead className="text-right font-bold">Total</TableHead>
-                                                            <TableHead className="font-bold">Período</TableHead>
-                                                            <TableHead className="text-center font-bold">Facturada</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {selectedClientForDetail.workEntries.map((we) => (
-                                                            <TableRow key={we.id} className="hover:bg-slate-50">
-                                                                <TableCell className="font-medium">
-                                                                    {format(new Date(we.work_date), 'd MMM yyyy', { locale: es })}
-                                                                </TableCell>
-                                                                <TableCell>{we.cleaner_name}</TableCell>
-                                                                <TableCell>
-                                                                    <Badge variant="outline" className="text-xs">
-                                                                        {we.activity}
-                                                                    </Badge>
-                                                                </TableCell>
-                                                                <TableCell className="text-right font-medium">
-                                                                    {we.hours.toFixed(2)}h
-                                                                </TableCell>
-                                                                <TableCell className="text-right">
-                                                                    ${we.hourly_rate.toFixed(2)}
-                                                                </TableCell>
-                                                                <TableCell className="text-right font-bold text-orange-700">
-                                                                    ${we.total_amount.toFixed(2)}
-                                                                </TableCell>
-                                                                <TableCell className="text-sm text-slate-600">
-                                                                    {we.period}
-                                                                </TableCell>
-                                                                <TableCell className="text-center">
-                                                                    {we.invoiced ? (
-                                                                        <CheckCircle className="w-4 h-4 text-green-600 mx-auto" />
-                                                                    ) : (
-                                                                        <Clock className="w-4 h-4 text-orange-600 mx-auto" />
-                                                                    )}
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8 text-slate-500 border border-slate-200 rounded-lg">
-                                                <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                                <p>No hay entradas de trabajo en este período</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                            
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setDetailModalOpen(false)}>
                                     Cerrar
                                 </Button>
                             </DialogFooter>
