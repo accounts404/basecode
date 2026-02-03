@@ -403,6 +403,12 @@ export default function RentabilityAnalysisTab({
         const clientMap = new Map(clients.map(c => [c.id, c]));
         let filteredClientAnalysis = monthlyProcessedClientAnalysis;
 
+        // FILTRAR clientes inactivos de la tabla (pero se mantienen en cálculos del summary)
+        filteredClientAnalysis = filteredClientAnalysis.filter(clientAnalysis => {
+            const client = clientMap.get(clientAnalysis.clientId);
+            return client && client.active !== false; // Solo mostrar clientes activos en la tabla
+        });
+
         // Aplicar filtro de búsqueda
         if (searchTerm.trim()) {
             filteredClientAnalysis = filteredClientAnalysis.filter(client => 
@@ -429,7 +435,8 @@ export default function RentabilityAnalysisTab({
         });
         
         // CRÍTICO: Recalcular cash vs non-cash basado en snapshots reales de cada servicio
-        const summary = sortedClientAnalysis.reduce((acc, client) => {
+        // IMPORTANTE: El summary incluye TODOS los clientes (activos e inactivos) para cálculos precisos
+        const summary = monthlyProcessedClientAnalysis.reduce((acc, client) => {
             acc.totalIncome += client.totalIncome;
             acc.totalLaborCost += client.totalLaborCost;
             acc.totalMargin += client.margin;
