@@ -6,7 +6,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Trash2, PlusCircle, DollarSign, List, Info, FileSignature, CheckCircle } from 'lucide-react';
-import { format } from 'date-fns';
 
 const itemTypes = {
     base_service: 'Servicio Base',
@@ -31,86 +30,23 @@ const paymentMethodLabels = {
     other: "Otro"
 };
 
-    // FUNCIÓN PARA OBTENER EL PRECIO CORRECTO SEGÚN LA FECHA DEL SERVICIO
-    const getPriceForDate = (client, serviceDate) => {
-        if (!client || !serviceDate) return { price: 0, gstType: 'inclusive' };
-        
-        // Si el cliente no tiene historial de precios, usar el precio actual
-        if (!client.price_history || client.price_history.length === 0) {
-            return {
-                price: client.current_service_price || 0,
-                gstType: client.gst_type || 'inclusive'
-            };
-        }
-        
-        // Convertir la fecha del servicio a formato comparable (YYYY-MM-DD)
-        const serviceDateStr = format(new Date(serviceDate), 'yyyy-MM-dd');
-        
-        // Ordenar el historial por fecha efectiva (más reciente primero)
-        const sortedHistory = [...client.price_history].sort((a, b) => {
-            return new Date(b.effective_date) - new Date(a.effective_date);
-        });
-        
-        // Buscar el precio que estaba vigente en la fecha del servicio
-        for (const historyEntry of sortedHistory) {
-            if (historyEntry.effective_date <= serviceDateStr) {
-                return {
-                    price: historyEntry.new_price || client.current_service_price || 0,
-                    gstType: historyEntry.gst_type || client.gst_type || 'inclusive'
-                };
-            }
-        }
-        
-        // Si no encontramos ninguna entrada en el historial que aplique,
-        // usar el precio más antiguo del historial o el actual como fallback
-        const oldestEntry = sortedHistory[sortedHistory.length - 1];
-        if (oldestEntry) {
-            return {
-                price: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0,
-                gstType: oldestEntry.gst_type || client.gst_type || 'inclusive'
-            };
-        }
-        
-        // Fallback final: precio actual del cliente
-        return {
-            price: client.current_service_price || 0,
-            gstType: client.gst_type || 'inclusive'
-        };
-    };
-
 export default function ReconciliationModal({ service, client, onSave, onCancel, userRole, isReadOnly = false }) {
     const [items, setItems] = useState([]);
     const [paymentMethod, setPaymentMethod] = useState('');
     const [gstType, setGstType] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [historicalPrice, setHistoricalPrice] = useState(null);
 
     useEffect(() => {
         if (service && client) {
-            // CRÍTICO: Obtener el precio que estaba vigente en la fecha del servicio
-            let priceToUse, gstTypeToUse;
-            
-            // Si el servicio está facturado, usar el snapshot
-            if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                priceToUse = service.billed_price_snapshot;
-                gstTypeToUse = service.billed_gst_type_snapshot || 'inclusive';
-            } else {
-                // Si no está facturado, buscar el precio vigente en la fecha del servicio
-                const priceData = getPriceForDate(client, service.start_time);
-                priceToUse = priceData.price;
-                gstTypeToUse = priceData.gstType;
-                setHistoricalPrice(priceData.price);
-            }
-            
             // Si el servicio ya tiene items de conciliación, los usamos.
             if (service.reconciliation_items && service.reconciliation_items.length > 0) {
                 setItems(service.reconciliation_items);
             } else {
-                // Si no, creamos el item base con el precio correcto según la fecha
+                // Si no, creamos el item base con el precio recurrente del cliente.
                 setItems([{
                     type: 'base_service',
                     description: 'Servicio recurrente',
-                    amount: priceToUse
+                    amount: client.current_service_price || 0
                 }]);
             }
             
@@ -121,11 +57,11 @@ export default function ReconciliationModal({ service, client, onSave, onCancel,
                 setPaymentMethod(client.payment_method || 'bank_transfer');
             }
             
-            // Inicializar gst_type: usar snapshot si existe, sino usar el del precio histórico
+            // Inicializar gst_type: usar snapshot si existe, sino usar el actual del cliente
             if (service.billed_gst_type_snapshot) {
                 setGstType(service.billed_gst_type_snapshot);
             } else {
-                setGstType(gstTypeToUse);
+                setGstType(client.gst_type || 'inclusive');
             }
         }
     }, [service, client]);
@@ -224,29 +160,7 @@ export default function ReconciliationModal({ service, client, onSave, onCancel,
 
                     <div className="bg-slate-50 p-4 rounded-lg border space-y-2">
                         <h3 className="font-semibold text-slate-800 mb-2 flex items-center gap-2"><Info className="w-5 h-5 text-blue-500" /> Información Original</h3>
-                        {service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null ? (
-                            <div className="space-y-1">
-                                <p className="text-sm flex items-center gap-2">
-                                    <CheckCircle className="w-4 h-4 text-green-600" />
-                                    Precio facturado: <span className="font-bold text-green-700">${service.billed_price_snapshot.toFixed(2)} AUD</span>
-                                </p>
-                                <p className="text-xs text-slate-600">
-                                    Precio actual del cliente: ${(client.current_service_price || 0).toFixed(2)} AUD
-                                </p>
-                            </div>
-                        ) : historicalPrice !== null && historicalPrice !== client.current_service_price ? (
-                            <div className="space-y-1">
-                                <p className="text-sm flex items-center gap-2">
-                                    <Info className="w-4 h-4 text-blue-600" />
-                                    Precio vigente en {format(new Date(service.start_time), 'dd/MM/yyyy')}: <span className="font-bold text-blue-700">${historicalPrice.toFixed(2)} AUD</span>
-                                </p>
-                                <p className="text-xs text-slate-600">
-                                    Precio actual del cliente: ${(client.current_service_price || 0).toFixed(2)} AUD
-                                </p>
-                            </div>
-                        ) : (
-                            <p className="text-sm">Precio recurrente del cliente: <span className="font-bold">${(client.current_service_price || 0).toFixed(2)} AUD</span></p>
-                        )}
+                        <p className="text-sm">Precio recurrente del cliente: <span className="font-bold">${(client.current_service_price || 0).toFixed(2)} AUD</span></p>
                         
                         <div className="pt-3 border-t space-y-3">
                             <div>
