@@ -6,7 +6,41 @@ import { format, parseISO } from 'date-fns';
  * para garantizar que ambos reportes muestren los mismos valores.
  */
 export const getPriceForSchedule = (schedule, client) => {
-    // PRIORIDAD 1: Si tiene reconciliation_items, usar esos
+    // PRIORIDAD 1: Si está facturado con snapshot (INMUTABLE - máxima prioridad)
+    if (schedule.xero_invoiced && schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
+        // Si tiene reconciliation_items, usar esos para el breakdown, pero el snapshot es el monto base
+        if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
+            let tempRawBreakdown = {};
+            let totalRawReconciledAmount = 0;
+
+            schedule.reconciliation_items.forEach(item => {
+                const type = item.type || 'other_extra';
+                const amount = parseFloat(item.amount) || 0;
+                tempRawBreakdown[type] = (tempRawBreakdown[type] || 0) + amount;
+                
+                if (type === 'discount') {
+                    totalRawReconciledAmount -= amount;
+                } else {
+                    totalRawReconciledAmount += amount;
+                }
+            });
+            
+            return { 
+                rawAmount: totalRawReconciledAmount, 
+                breakdown: tempRawBreakdown,
+                gstType: schedule.billed_gst_type_snapshot || 'inclusive'
+            };
+        }
+        
+        // Si no tiene reconciliation_items, usar el snapshot directamente
+        return {
+            rawAmount: schedule.billed_price_snapshot,
+            breakdown: { base_service: schedule.billed_price_snapshot },
+            gstType: schedule.billed_gst_type_snapshot || 'inclusive'
+        };
+    }
+    
+    // PRIORIDAD 2: Si tiene reconciliation_items pero NO está facturado aún
     if (schedule.reconciliation_items && schedule.reconciliation_items.length > 0) {
         let tempRawBreakdown = {};
         let totalRawReconciledAmount = 0;
@@ -26,16 +60,7 @@ export const getPriceForSchedule = (schedule, client) => {
         return { 
             rawAmount: totalRawReconciledAmount, 
             breakdown: tempRawBreakdown,
-            gstType: schedule.billed_gst_type_snapshot || client?.gst_type || 'inclusive'
-        };
-    }
-    
-    // PRIORIDAD 2: Si está facturado con snapshot (INMUTABLE)
-    if (schedule.xero_invoiced && schedule.billed_price_snapshot !== undefined && schedule.billed_price_snapshot !== null) {
-        return {
-            rawAmount: schedule.billed_price_snapshot,
-            breakdown: { base_service: schedule.billed_price_snapshot },
-            gstType: schedule.billed_gst_type_snapshot || 'inclusive'
+            gstType: client?.gst_type || 'inclusive'
         };
     }
     
