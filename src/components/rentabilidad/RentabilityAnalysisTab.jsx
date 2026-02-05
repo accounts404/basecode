@@ -330,6 +330,7 @@ export default function RentabilityAnalysisTab({
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
                 const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
                 const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
+                const realMarginPerMonth = filterMode === 'range' ? realMargin / monthsInRange : realMargin;
 
                 return {
                     ...data,
@@ -338,6 +339,7 @@ export default function RentabilityAnalysisTab({
                     profitPercentage: data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0,
                     distributedFixedCost,
                     realMargin,
+                    realMarginPerMonth,
                     realProfitPercentage,
                     incomePerHour,
                     laborCostPerHour,
@@ -396,6 +398,20 @@ export default function RentabilityAnalysisTab({
 
         return Object.values(costsByClient);
     }, [allWorkEntries, clients, selectedPeriod]);
+
+    // Calcular número de meses en el rango
+    const monthsInRange = useMemo(() => {
+        if (!selectedPeriod || filterMode !== 'range') return 1;
+        
+        const start = new Date(selectedPeriod.start);
+        const end = new Date(selectedPeriod.end);
+        
+        const yearsDiff = end.getFullYear() - start.getFullYear();
+        const monthsDiff = end.getMonth() - start.getMonth();
+        const totalMonths = yearsDiff * 12 + monthsDiff + 1; // +1 para incluir el mes final
+        
+        return totalMonths;
+    }, [selectedPeriod, filterMode]);
 
     const profitabilityData = useMemo(() => {
         if (!selectedPeriod || monthlyProcessedClientAnalysis.length === 0) {
@@ -513,6 +529,7 @@ export default function RentabilityAnalysisTab({
         summary.invoiceNetMargin = summary.invoiceMargin - summary.invoiceFixedCosts;
         summary.cashProfitability = summary.cashIncome > 0 ? (summary.cashNetMargin / summary.cashIncome) * 100 : 0;
         summary.invoiceProfitability = summary.nonCashIncome > 0 ? (summary.invoiceNetMargin / summary.nonCashIncome) * 100 : 0;
+        summary.totalRealMarginPerMonth = filterMode === 'range' ? summary.totalRealMargin / monthsInRange : summary.totalRealMargin;
 
         return { clientAnalysis: sortedClientAnalysis, summary, overallTotalFixedCosts: parseFloat(fixedCostInput || 0) };
 
@@ -1182,6 +1199,17 @@ export default function RentabilityAnalysisTab({
                                             {getSortIcon('realMargin')}
                                         </div>
                                     </TableHead>
+                                    {filterMode === 'range' && (
+                                        <TableHead 
+                                            className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700 bg-purple-50"
+                                            onClick={() => handleSort('realMarginPerMonth')}
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                Margen Neto/Mes
+                                                {getSortIcon('realMarginPerMonth')}
+                                            </div>
+                                        </TableHead>
+                                    )}
                                     <TableHead 
                                         className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700"
                                         onClick={() => handleSort('realProfitPercentage')}
@@ -1268,6 +1296,11 @@ export default function RentabilityAnalysisTab({
                                                 <TableCell className={`text-right font-semibold ${data.margin > 0 ? 'text-blue-700' : 'text-orange-700'}`}>${data.margin.toFixed(2)}</TableCell>
                                                 <TableCell className="text-right text-slate-600 font-medium">(${data.distributedFixedCost.toFixed(2)})</TableCell>
                                                 <TableCell className={`text-right font-bold text-lg ${data.realMargin > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${data.realMargin.toFixed(2)}</TableCell>
+                                                {filterMode === 'range' && (
+                                                    <TableCell className={`text-right font-bold bg-purple-50 ${data.realMarginPerMonth > 0 ? 'text-purple-700' : 'text-rose-700'}`}>
+                                                        ${data.realMarginPerMonth.toFixed(2)}
+                                                    </TableCell>
+                                                )}
                                                 <TableCell className={`text-right font-bold ${data.realProfitPercentage > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                                     <div className="flex items-center justify-end gap-2">
                                                         {data.realProfitPercentage > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
@@ -1514,6 +1547,11 @@ export default function RentabilityAnalysisTab({
                                     <TableCell className={`text-right text-xl ${profitabilityData.summary.totalMargin > 0 ? 'text-blue-800' : 'text-orange-800'}`}>${profitabilityData.summary.totalMargin.toFixed(2)}</TableCell>
                                     <TableCell className="text-right text-xl text-slate-700">(${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts).toFixed(2)})</TableCell>
                                     <TableCell className={`text-right text-xl ${profitabilityData.summary.totalRealMargin > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${profitabilityData.summary.totalRealMargin.toFixed(2)}</TableCell>
+                                    {filterMode === 'range' && (
+                                        <TableCell className={`text-right text-xl bg-purple-50 ${profitabilityData.summary.totalRealMarginPerMonth > 0 ? 'text-purple-800' : 'text-rose-800'}`}>
+                                            ${profitabilityData.summary.totalRealMarginPerMonth.toFixed(2)}
+                                        </TableCell>
+                                    )}
                                     <TableCell className={`text-right text-xl ${profitabilityData.summary.totalRealProfitPercentage > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
                                         <div className="flex items-center justify-end gap-2">
                                             {profitabilityData.summary.totalRealProfitPercentage > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
