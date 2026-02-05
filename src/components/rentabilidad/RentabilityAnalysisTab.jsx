@@ -1374,12 +1374,15 @@ export default function RentabilityAnalysisTab({
                                                                                     })();
                                                                                     const paymentMethod = schedule.billed_payment_method_snapshot || client?.payment_method || 'N/A';
                                                                                     
+                                                                                    // Extraer solo la fecha (sin considerar hora ni timezone)
+                                                                                    const serviceDate = extractDateOnly(schedule.start_time);
+
                                                                                     return (
-                                                                                        <TableRow key={schedule.id} className="text-xs hover:bg-slate-50">
-                                                                                            <TableCell>{format(new Date(schedule.start_time), 'd MMM yyyy', { locale: es })}</TableCell>
-                                                                                            <TableCell className="text-slate-600">
-                                                                                                {format(new Date(schedule.start_time), 'HH:mm')} - {format(new Date(schedule.end_time), 'HH:mm')}
-                                                                                            </TableCell>
+                                                                                       <TableRow key={schedule.id} className="text-xs hover:bg-slate-50">
+                                                                                           <TableCell>{format(new Date(serviceDate), 'd MMM yyyy', { locale: es })}</TableCell>
+                                                                                           <TableCell className="text-slate-600">
+                                                                                               {format(new Date(schedule.start_time), 'HH:mm')} - {format(new Date(schedule.end_time), 'HH:mm')}
+                                                                                           </TableCell>
                                                                                             <TableCell className="text-slate-700">{schedule.cleaner_ids?.length || 0}</TableCell>
                                                                                             <TableCell className="text-right font-bold text-green-700">${netIncome.toFixed(2)}</TableCell>
                                                                                             <TableCell className="text-right">{serviceHours.toFixed(2)}h</TableCell>
@@ -1427,9 +1430,13 @@ export default function RentabilityAnalysisTab({
                                                                                 </TableRow>
                                                                             </TableHeader>
                                                                             <TableBody>
-                                                                                {clientWorkEntries.map((we) => (
+                                                                                {clientWorkEntries.map((we) => {
+                                                                                    // Extraer solo la fecha (sin considerar hora ni timezone)
+                                                                                    const workDateOnly = extractDateOnly(we.work_date);
+                                                                                    
+                                                                                    return (
                                                                                     <TableRow key={we.id} className="text-xs hover:bg-slate-50">
-                                                                                        <TableCell>{format(new Date(we.work_date), 'd MMM yyyy', { locale: es })}</TableCell>
+                                                                                        <TableCell>{format(new Date(workDateOnly), 'd MMM yyyy', { locale: es })}</TableCell>
                                                                                         <TableCell className="text-slate-700">{we.cleaner_name}</TableCell>
                                                                                         <TableCell>
                                                                                             <Badge variant="outline" className="text-[10px] px-1 py-0">
@@ -1447,7 +1454,8 @@ export default function RentabilityAnalysisTab({
                                                                                             )}
                                                                                         </TableCell>
                                                                                     </TableRow>
-                                                                                ))}
+                                                                                    );
+                                                                                })}
                                                                             </TableBody>
                                                                         </Table>
                                                                     </div>
