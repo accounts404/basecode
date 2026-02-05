@@ -331,7 +331,6 @@ export default function RentabilityAnalysisTab({
                 const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
                 const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
                 const realMarginPerMonth = filterMode === 'range' ? realMargin / monthsInRange : realMargin;
-                const realMarginPerService = data.serviceCount > 0 ? realMargin / data.serviceCount : 0;
 
                 return {
                     ...data,
@@ -341,7 +340,6 @@ export default function RentabilityAnalysisTab({
                     distributedFixedCost,
                     realMargin,
                     realMarginPerMonth,
-                    realMarginPerService,
                     realProfitPercentage,
                     incomePerHour,
                     laborCostPerHour,
@@ -532,9 +530,6 @@ export default function RentabilityAnalysisTab({
         summary.cashProfitability = summary.cashIncome > 0 ? (summary.cashNetMargin / summary.cashIncome) * 100 : 0;
         summary.invoiceProfitability = summary.nonCashIncome > 0 ? (summary.invoiceNetMargin / summary.nonCashIncome) * 100 : 0;
         summary.totalRealMarginPerMonth = filterMode === 'range' ? summary.totalRealMargin / monthsInRange : summary.totalRealMargin;
-        
-        const totalServices = monthlyProcessedClientAnalysis.reduce((sum, c) => sum + c.serviceCount, 0);
-        summary.totalRealMarginPerService = totalServices > 0 ? summary.totalRealMargin / totalServices : 0;
 
         return { clientAnalysis: sortedClientAnalysis, summary, overallTotalFixedCosts: parseFloat(fixedCostInput || 0) };
 
@@ -1216,15 +1211,6 @@ export default function RentabilityAnalysisTab({
                                         </TableHead>
                                     )}
                                     <TableHead 
-                                        className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700 bg-indigo-50"
-                                        onClick={() => handleSort('realMarginPerService')}
-                                    >
-                                        <div className="flex items-center justify-end gap-2">
-                                            Margen Neto/Servicio
-                                            {getSortIcon('realMarginPerService')}
-                                        </div>
-                                    </TableHead>
-                                    <TableHead 
                                         className="text-right cursor-pointer hover:bg-slate-200/50 select-none font-bold text-slate-700"
                                         onClick={() => handleSort('realProfitPercentage')}
                                     >
@@ -1315,9 +1301,6 @@ export default function RentabilityAnalysisTab({
                                                         ${data.realMarginPerMonth.toFixed(2)}
                                                     </TableCell>
                                                 )}
-                                                <TableCell className={`text-right font-bold bg-indigo-50 ${data.realMarginPerService > 0 ? 'text-indigo-700' : 'text-rose-700'}`}>
-                                                    ${data.realMarginPerService.toFixed(2)}
-                                                </TableCell>
                                                 <TableCell className={`text-right font-bold ${data.realProfitPercentage > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                                                     <div className="flex items-center justify-end gap-2">
                                                         {data.realProfitPercentage > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
@@ -1569,9 +1552,6 @@ export default function RentabilityAnalysisTab({
                                             ${profitabilityData.summary.totalRealMarginPerMonth.toFixed(2)}
                                         </TableCell>
                                     )}
-                                    <TableCell className={`text-right text-xl bg-indigo-50 ${profitabilityData.summary.totalRealMarginPerService > 0 ? 'text-indigo-800' : 'text-rose-800'}`}>
-                                        ${profitabilityData.summary.totalRealMarginPerService.toFixed(2)}
-                                    </TableCell>
                                     <TableCell className={`text-right text-xl ${profitabilityData.summary.totalRealProfitPercentage > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
                                         <div className="flex items-center justify-end gap-2">
                                             {profitabilityData.summary.totalRealProfitPercentage > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
