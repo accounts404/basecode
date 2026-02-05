@@ -151,34 +151,22 @@ export default function HistorialClientes() {
     }, [clients, searchTerm]);
 
     const calculateServiceAmount = (service, client) => {
-        let baseAmount = 0;
-        
-        // Primero: verificar si hay reconciliation_items (esto es lo que realmente se facturó)
+        let total = 0;
         if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-            baseAmount = service.reconciliation_items.reduce((sum, item) => {
+            total = service.reconciliation_items.reduce((sum, item) => {
                 const amount = parseFloat(item.amount) || 0;
                 return item.type === 'discount' ? sum - amount : sum + amount;
             }, 0);
-        }
-        // Segundo: usar el snapshot del precio facturado si existe
-        else if (service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-            baseAmount = service.billed_price_snapshot;
-        }
-        // Tercero: fallback al precio actual del cliente
-        else {
-            baseAmount = client?.current_service_price || 0;
+        } else {
+            total = client?.current_service_price || 0;
         }
 
-        // Determinar el GST type a usar
-        const gstType = service.billed_gst_type_snapshot || client?.gst_type || 'inclusive';
-
-        // El baseAmount ya viene sin GST (es el precio neto)
-        // Solo ajustar si el GST es exclusivo (agregar el 10%)
-        if (gstType === 'exclusive') {
-            return baseAmount * 1.10;
+        // Ajustar por GST si es exclusivo
+        if (client?.gst_type === 'exclusive') {
+            total = total * 1.10;
         }
 
-        return baseAmount;
+        return total;
     };
 
     const pastServices = useMemo(() => {
