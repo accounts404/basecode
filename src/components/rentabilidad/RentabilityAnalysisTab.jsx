@@ -1374,13 +1374,9 @@ export default function RentabilityAnalysisTab({
                                                                                     })();
                                                                                     const paymentMethod = schedule.billed_payment_method_snapshot || client?.payment_method || 'N/A';
                                                                                     
-                                                                                    const displayDate = schedule.billed_at 
-                                                                                        ? new Date(schedule.billed_at) 
-                                                                                        : new Date(schedule.start_time);
-                                                                                    
                                                                                     return (
                                                                                         <TableRow key={schedule.id} className="text-xs hover:bg-slate-50">
-                                                                                            <TableCell>{format(displayDate, 'd MMM yyyy', { locale: es })}</TableCell>
+                                                                                            <TableCell>{format(new Date(schedule.start_time), 'd MMM yyyy', { locale: es })}</TableCell>
                                                                                             <TableCell className="text-slate-600">
                                                                                                 {format(new Date(schedule.start_time), 'HH:mm')} - {format(new Date(schedule.end_time), 'HH:mm')}
                                                                                             </TableCell>
