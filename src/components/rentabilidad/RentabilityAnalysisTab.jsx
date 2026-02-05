@@ -1374,12 +1374,14 @@ export default function RentabilityAnalysisTab({
                                                                                     })();
                                                                                     const paymentMethod = schedule.billed_payment_method_snapshot || client?.payment_method || 'N/A';
                                                                                     
-                                                                                    // Extraer solo la fecha (sin considerar hora ni timezone)
+                                                                                    // Extraer solo la fecha y parsear en hora local (evitar desfase UTC)
                                                                                     const serviceDate = extractDateOnly(schedule.start_time);
+                                                                                    const [year, month, day] = serviceDate.split('-');
+                                                                                    const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 
                                                                                     return (
                                                                                        <TableRow key={schedule.id} className="text-xs hover:bg-slate-50">
-                                                                                           <TableCell>{format(new Date(serviceDate), 'd MMM yyyy', { locale: es })}</TableCell>
+                                                                                           <TableCell>{format(localDate, 'd MMM yyyy', { locale: es })}</TableCell>
                                                                                            <TableCell className="text-slate-600">
                                                                                                {format(new Date(schedule.start_time), 'HH:mm')} - {format(new Date(schedule.end_time), 'HH:mm')}
                                                                                            </TableCell>
@@ -1431,12 +1433,14 @@ export default function RentabilityAnalysisTab({
                                                                             </TableHeader>
                                                                             <TableBody>
                                                                                 {clientWorkEntries.map((we) => {
-                                                                                    // Extraer solo la fecha (sin considerar hora ni timezone)
+                                                                                    // Extraer solo la fecha y parsear en hora local (evitar desfase UTC)
                                                                                     const workDateOnly = extractDateOnly(we.work_date);
+                                                                                    const [year, month, day] = workDateOnly.split('-');
+                                                                                    const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
                                                                                     
                                                                                     return (
                                                                                     <TableRow key={we.id} className="text-xs hover:bg-slate-50">
-                                                                                        <TableCell>{format(new Date(workDateOnly), 'd MMM yyyy', { locale: es })}</TableCell>
+                                                                                        <TableCell>{format(localDate, 'd MMM yyyy', { locale: es })}</TableCell>
                                                                                         <TableCell className="text-slate-700">{we.cleaner_name}</TableCell>
                                                                                         <TableCell>
                                                                                             <Badge variant="outline" className="text-[10px] px-1 py-0">
