@@ -60,6 +60,7 @@ import Facturas from './pages/Facturas';
 import GestionCamisas from './pages/GestionCamisas';
 import GestionFlota from './pages/GestionFlota';
 import GestionServiciosAdmin from './pages/GestionServiciosAdmin';
+import HistorialClientes from './pages/HistorialClientes';
 import Home from './pages/Home';
 import Horario from './pages/Horario';
 import Limpiadores from './pages/Limpiadores';
@@ -81,7 +82,6 @@ import ServicioActivo from './pages/ServicioActivo';
 import TVDashboard from './pages/TVDashboard';
 import TrabajoEntradas from './pages/TrabajoEntradas';
 import Vehiculos from './pages/Vehiculos';
-import HistorialClientes from './pages/HistorialClientes';
 import __Layout from './Layout.jsx';
 
 
@@ -99,6 +99,7 @@ export const PAGES = {
     "GestionCamisas": GestionCamisas,
     "GestionFlota": GestionFlota,
     "GestionServiciosAdmin": GestionServiciosAdmin,
+    "HistorialClientes": HistorialClientes,
     "Home": Home,
     "Horario": Horario,
     "Limpiadores": Limpiadores,
@@ -120,7 +121,6 @@ export const PAGES = {
     "TVDashboard": TVDashboard,
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
-    "HistorialClientes": HistorialClientes,
 }
 
 export const pagesConfig = {
