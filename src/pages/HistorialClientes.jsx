@@ -30,6 +30,7 @@ import {
 import { format, parseISO, isFuture, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createPageUrl } from '@/utils';
+import { getPriceForSchedule, calculateGST } from '@/components/utils/priceCalculations';
 
 // Helper para interpretar fechas ISO en hora local (sin forzar UTC)
 const parseISOAsLocal = (isoString) => {
@@ -151,21 +152,9 @@ export default function HistorialClientes() {
     }, [clients, searchTerm]);
 
     const calculateServiceAmount = (service, client) => {
-        let total = 0;
-        if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-            total = service.reconciliation_items.reduce((sum, item) => {
-                const amount = parseFloat(item.amount) || 0;
-                return item.type === 'discount' ? sum - amount : sum + amount;
-            }, 0);
-        } else {
-            total = client?.current_service_price || 0;
-        }
-
-        // Ajustar por GST si es exclusivo
-        if (client?.gst_type === 'exclusive') {
-            total = total * 1.10;
-        }
-
+        // Usar la función unificada que respeta snapshots de precio y GST
+        const priceData = getPriceForSchedule(service, client);
+        const { total } = calculateGST(priceData.rawAmount, priceData.gstType);
         return total;
     };
 
