@@ -331,7 +331,7 @@ export default function RentabilityAnalysisTab({
                 const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
                 const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
                 const realMarginPerMonth = filterMode === 'range' ? realMargin / monthsInRange : realMargin;
-                const realMarginPerService = data.totalServices > 0 ? realMargin / data.totalServices : 0;
+                const realMarginPerService = data.serviceCount > 0 ? realMargin / data.serviceCount : 0;
 
                 return {
                     ...data,
@@ -533,7 +533,7 @@ export default function RentabilityAnalysisTab({
         summary.invoiceProfitability = summary.nonCashIncome > 0 ? (summary.invoiceNetMargin / summary.nonCashIncome) * 100 : 0;
         summary.totalRealMarginPerMonth = filterMode === 'range' ? summary.totalRealMargin / monthsInRange : summary.totalRealMargin;
         
-        const totalServices = sortedClientAnalysis.reduce((sum, client) => sum + (client.totalServices || 0), 0);
+        const totalServices = sortedClientAnalysis.reduce((sum, client) => sum + (client.serviceCount || 0), 0);
         summary.totalRealMarginPerService = totalServices > 0 ? summary.totalRealMargin / totalServices : 0;
 
         return { clientAnalysis: sortedClientAnalysis, summary, overallTotalFixedCosts: parseFloat(fixedCostInput || 0) };
