@@ -612,11 +612,27 @@ export default function ConciliacionFacturasPage() {
             displayGstType = priceForDate.gstType;
         }
 
+        // CRÍTICO: Calcular el monto total correcto según el tipo de GST
+        // Para GST inclusive: el precio guardado YA incluye el GST, usar directamente
+        // Para GST exclusive: el precio guardado NO incluye el GST, sumar 10%
+        // Para no_tax: el precio es el precio final sin GST
+        let totalAmount;
+        if (displayGstType === 'inclusive') {
+            // El precio YA incluye el GST, este es el monto facturado al cliente
+            totalAmount = displayPrice;
+        } else if (displayGstType === 'exclusive') {
+            // El precio NO incluye el GST, agregar 10%
+            totalAmount = displayPrice * 1.1;
+        } else {
+            // no_tax: el precio es el total
+            totalAmount = displayPrice;
+        }
+
         if (!service.reconciliation_items || service.reconciliation_items.length === 0) {
             return (
                 <div className="space-y-2">
                     <div className="font-bold text-lg text-blue-700">
-                        ${displayPrice.toFixed(2)}
+                        ${totalAmount.toFixed(2)}
                     </div>
                     <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
                         {gstTypeLabels[displayGstType]}
@@ -637,7 +653,7 @@ export default function ConciliacionFacturasPage() {
             return (
                 <div className="space-y-2">
                     <div className="font-bold text-lg text-blue-700">
-                        ${displayPrice.toFixed(2)}
+                        ${totalAmount.toFixed(2)}
                     </div>
                     <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
                         {gstTypeLabels[displayGstType]}
@@ -653,6 +669,17 @@ export default function ConciliacionFacturasPage() {
         }
 
         const total = getReconciledAmount(service);
+        
+        // Para reconciliation_items, también calcular el total correcto
+        let reconciledTotalAmount;
+        if (displayGstType === 'inclusive') {
+            reconciledTotalAmount = total;
+        } else if (displayGstType === 'exclusive') {
+            reconciledTotalAmount = total * 1.1;
+        } else {
+            reconciledTotalAmount = total;
+        }
+        
         const itemLabels = {
             base_service: 'Servicio Base',
             windows_cleaning: 'Ventanas',
@@ -675,7 +702,7 @@ export default function ConciliacionFacturasPage() {
                 ))}
                 <div className="border-t border-slate-300 pt-2 mt-2 flex justify-between items-center">
                     <span className="text-sm font-bold text-blue-700">Total:</span>
-                    <span className="font-bold text-lg text-blue-700">${total.toFixed(2)}</span>
+                    <span className="font-bold text-lg text-blue-700">${reconciledTotalAmount.toFixed(2)}</span>
                 </div>
                 <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
                     {gstTypeLabels[displayGstType]}
