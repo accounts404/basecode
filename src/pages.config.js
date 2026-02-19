@@ -51,6 +51,7 @@ import AdminTasksPanel from './pages/AdminTasksPanel';
 import AuditoriaWorkEntries from './pages/AuditoriaWorkEntries';
 import AumentoClientes from './pages/AumentoClientes';
 import Clientes from './pages/Clientes';
+import ConciliacionFacturas from './pages/ConciliacionFacturas';
 import ConciliacionHoras from './pages/ConciliacionHoras';
 import Configuracion from './pages/Configuracion';
 import Cotizaciones from './pages/Cotizaciones';
@@ -59,6 +60,7 @@ import Facturas from './pages/Facturas';
 import GestionCamisas from './pages/GestionCamisas';
 import GestionFlota from './pages/GestionFlota';
 import GestionServiciosAdmin from './pages/GestionServiciosAdmin';
+import HistorialClientes from './pages/HistorialClientes';
 import Home from './pages/Home';
 import Horario from './pages/Horario';
 import Limpiadores from './pages/Limpiadores';
@@ -80,8 +82,6 @@ import ServicioActivo from './pages/ServicioActivo';
 import TVDashboard from './pages/TVDashboard';
 import TrabajoEntradas from './pages/TrabajoEntradas';
 import Vehiculos from './pages/Vehiculos';
-import ConciliacionFacturas from './pages/ConciliacionFacturas';
-import HistorialClientes from './pages/HistorialClientes';
 import __Layout from './Layout.jsx';
 
 
@@ -90,6 +90,7 @@ export const PAGES = {
     "AuditoriaWorkEntries": AuditoriaWorkEntries,
     "AumentoClientes": AumentoClientes,
     "Clientes": Clientes,
+    "ConciliacionFacturas": ConciliacionFacturas,
     "ConciliacionHoras": ConciliacionHoras,
     "Configuracion": Configuracion,
     "Cotizaciones": Cotizaciones,
@@ -98,6 +99,7 @@ export const PAGES = {
     "GestionCamisas": GestionCamisas,
     "GestionFlota": GestionFlota,
     "GestionServiciosAdmin": GestionServiciosAdmin,
+    "HistorialClientes": HistorialClientes,
     "Home": Home,
     "Horario": Horario,
     "Limpiadores": Limpiadores,
@@ -119,8 +121,6 @@ export const PAGES = {
     "TVDashboard": TVDashboard,
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
-    "ConciliacionFacturas": ConciliacionFacturas,
-    "HistorialClientes": HistorialClientes,
 }
 
 export const pagesConfig = {
