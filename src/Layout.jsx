@@ -54,7 +54,6 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import CleanerMobileLayout from '@/components/layout/CleanerMobileLayout';
-import FloatingAssistant from '@/components/assistant/FloatingAssistant';
 
 const adminMenuItems = [
     { name: 'Dashboard', path: 'Dashboard', icon: BarChart },
@@ -349,7 +348,6 @@ function LayoutContent({ children, currentPageName }) {
         isScoringParticipant={isScoringParticipant}
       >
         {children}
-        <FloatingAssistant user={user} />
       </CleanerMobileLayout>
     );
   }
@@ -504,7 +502,6 @@ function LayoutContent({ children, currentPageName }) {
             {children}
           </div>
         </main>
-        <FloatingAssistant user={user} />
       </div>
     </SidebarProvider>
   );
