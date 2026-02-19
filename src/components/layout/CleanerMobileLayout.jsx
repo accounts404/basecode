@@ -14,8 +14,7 @@ import {
   Activity,
   Trophy,
   FileText,
-  DollarSign,
-  Bot
+  DollarSign
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -116,12 +115,6 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       url: createPageUrl("MiPuntuacion"),
       icon: Trophy,
       show: isScoringParticipant
-    },
-    {
-      title: "Asistente",
-      url: createPageUrl("Asistente"),
-      icon: Bot,
-      show: true
     },
     {
       title: "Perfil",

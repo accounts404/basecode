@@ -34,7 +34,6 @@ import {
   Shirt,
   History,
   ListChecks,
-  Bot,
 } from "lucide-react";
 import {
   Sidebar,
@@ -78,7 +77,6 @@ const adminMenuItems = [
   { name: 'Gestión de Uniformes', path: 'GestionCamisas', icon: Shirt },
   { name: 'Historial Clientes', path: 'HistorialClientes', icon: History },
   { name: 'Configuración', path: 'Configuracion', icon: Settings },
-  { name: '🤖 Asistente IA', path: 'Asistente', icon: Bot },
 ];
 
 const adminNavigation = adminMenuItems.map(item => ({
