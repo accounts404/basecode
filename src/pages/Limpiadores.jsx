@@ -464,103 +464,200 @@ function CleanerCard({ cleaner, onToggleActive, onEdit, onManageRates }) {
 
           {/* Contenido Expandible */}
           <AccordionContent className="px-6 pb-6">
-            <div className="bg-slate-50/70 rounded-lg p-6 border border-slate-200">
+            <div className="bg-slate-50/70 rounded-lg p-6 border border-slate-200 space-y-6">
+              
+              {/* Fila 1: Contacto + Info General */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Columna 1: Info General */}
+                {/* Columna 1: Contacto */}
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2">
-                    Información General
+                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2 flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-blue-500" />
+                    Contacto
                   </h4>
                   <div className="flex items-start gap-3">
-                    <Calendar className="w-5 h-5 mt-1 text-blue-500" />
+                    <Phone className="w-5 h-5 mt-0.5 text-blue-500 flex-shrink-0" />
                     <div>
-                      <p className="font-medium text-slate-700">Fecha de Inicio</p>
-                      <p className="text-slate-600">
-                        {cleaner.start_date ? format(new Date(cleaner.start_date), "d MMM yyyy", { locale: es }) : "No especificada"}
-                      </p>
-                      <p className="text-xs text-slate-500 bg-blue-50 px-2 py-1 rounded-full inline-block mt-1">
-                        Antigüedad: {calculateTenure(cleaner.start_date)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Gift className="w-5 h-5 mt-1 text-purple-500" />
-                    <div>
-                      <p className="font-medium text-slate-700">Cumpleaños</p>
-                      <p className="text-slate-600">
-                        {cleaner.birth_date ? format(new Date(cleaner.birth_date), "d 'de' MMMM", { locale: es }) : "No especificada"}
-                      </p>
-                      <p className="text-xs text-slate-500 bg-purple-50 px-2 py-1 rounded-full inline-block mt-1">
-                        {calculateAge(cleaner.birth_date)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Contact className="w-5 h-5 mt-1 text-orange-500" />
-                    <div>
-                      <p className="font-medium text-slate-700">Contacto de Emergencia</p>
-                      {cleaner.emergency_contact_name || cleaner.emergency_contact_phone ? (
-                          <>
-                              <p className="text-slate-600 font-medium">{cleaner.emergency_contact_name}</p>
-                              <p className="text-sm text-slate-500">{cleaner.emergency_contact_phone}</p>
-                          </>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Teléfono</p>
+                      {cleaner.mobile_number ? (
+                        <a href={`tel:${cleaner.mobile_number}`} className="text-blue-600 font-semibold hover:underline">
+                          {cleaner.mobile_number}
+                        </a>
                       ) : (
-                          <p className="text-sm text-slate-500 italic">No especificado</p>
+                        <p className="text-slate-500 italic text-sm">No especificado</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Mail className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Email</p>
+                      <p className="text-slate-700 text-sm break-all">{cleaner.email || 'No especificado'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <IdCard className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Dirección</p>
+                      <p className="text-slate-700 text-sm">{cleaner.address || 'No especificada'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Contact className="w-5 h-5 mt-0.5 text-orange-500 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Contacto de Emergencia</p>
+                      {cleaner.emergency_contact_name || cleaner.emergency_contact_phone ? (
+                        <>
+                          <p className="text-slate-700 font-medium text-sm">{cleaner.emergency_contact_name}</p>
+                          {cleaner.emergency_contact_phone && (
+                            <a href={`tel:${cleaner.emergency_contact_phone}`} className="text-blue-600 text-sm hover:underline">
+                              {cleaner.emergency_contact_phone}
+                            </a>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-slate-500 italic text-sm">No especificado</p>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Columna 2: Disponibilidad y Documentos */}
+                {/* Columna 2: Info General */}
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2">
-                    Disponibilidad & Documentos
+                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-purple-500" />
+                    Información General
                   </h4>
                   <div className="flex items-start gap-3">
-                    <Clock2 className="w-5 h-5 mt-1 text-green-500" />
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-700 mb-2">Disponibilidad Semanal</p>
-                      <AvailabilityDisplay availability={cleaner.availability} />
+                    <Calendar className="w-5 h-5 mt-0.5 text-blue-500 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Fecha de Inicio</p>
+                      <p className="text-slate-700 text-sm">
+                        {cleaner.start_date ? format(new Date(cleaner.start_date), "d MMM yyyy", { locale: es }) : "No especificada"}
+                      </p>
+                      {cleaner.start_date && (
+                        <p className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                          {calculateTenure(cleaner.start_date)}
+                        </p>
+                      )}
                     </div>
                   </div>
-                   <div className="space-y-3">
-                     <h5 className="font-medium text-slate-700 flex items-center gap-2">
-                       <FileText className="w-5 h-5 text-indigo-500" />
-                       Documentos Adjuntos
-                     </h5>
-                     <div className="grid grid-cols-1 gap-2 text-sm">
-                        <DocumentLink url={cleaner.passport_url} label="Pasaporte" icon={Contact} />
-                        <DocumentLink url={cleaner.visa_url} label="Visa" icon={Stamp} />
-                        <DocumentLink url={cleaner.police_check_url} label="Police Check" icon={ShieldCheck} />
-                        <DocumentLink url={cleaner.drivers_license_url} label="Licencia" icon={Car} />
-                     </div>
+                  <div className="flex items-start gap-3">
+                    <Gift className="w-5 h-5 mt-0.5 text-purple-500 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Cumpleaños</p>
+                      <p className="text-slate-700 text-sm">
+                        {cleaner.birth_date ? format(new Date(cleaner.birth_date), "d 'de' MMMM", { locale: es }) : "No especificado"}
+                      </p>
+                      {cleaner.birth_date && (
+                        <p className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                          {calculateAge(cleaner.birth_date)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FileText className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Nombre en Facturas</p>
+                      <p className="text-slate-700 text-sm">{cleaner.invoice_name || cleaner.full_name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Users2 className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Nombre Corto (Horario)</p>
+                      <p className="text-slate-700 text-sm">{cleaner.display_name || 'No especificado'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <IdCard className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">ABN</p>
+                      <p className="text-slate-700 text-sm font-mono">{cleaner.abn || 'No especificado'}</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Columna 3: Notas */}
+                {/* Columna 3: Datos Bancarios */}
                 <div className="space-y-4">
-                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2">
-                    Notas y Observaciones
+                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-green-500" />
+                    Datos Bancarios
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Banco</p>
+                      <p className="text-slate-700 text-sm">{cleaner.bank || 'No especificado'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Titular de Cuenta</p>
+                      <p className="text-slate-700 text-sm">{cleaner.account_name || 'No especificado'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">BSB</p>
+                      <p className="text-slate-700 text-sm font-mono">{cleaner.bsb || 'No especificado'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Número de Cuenta</p>
+                      <p className="text-slate-700 text-sm font-mono">{cleaner.account_number || 'No especificado'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tarifa Actual</p>
+                      {currentRate ? (
+                        <p className="text-green-700 font-bold">${currentRate.rate.toFixed(2)}/hr</p>
+                      ) : (
+                        <p className="text-slate-500 italic text-sm">Sin tarifa registrada</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fila 2: Disponibilidad + Documentos + Notas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4 border-t border-slate-200">
+                {/* Disponibilidad */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                    <Clock2 className="w-4 h-4 text-green-500" />
+                    Disponibilidad Semanal
+                  </h4>
+                  <AvailabilityDisplay availability={cleaner.availability} />
+                </div>
+
+                {/* Documentos */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-indigo-500" />
+                    Documentos Adjuntos
+                  </h4>
+                  <div className="grid grid-cols-1 gap-2 text-sm">
+                    <DocumentLink url={cleaner.passport_url} label="Pasaporte" icon={Contact} />
+                    <DocumentLink url={cleaner.visa_url} label="Visa" icon={Stamp} />
+                    <DocumentLink url={cleaner.police_check_url} label="Police Check" icon={ShieldCheck} />
+                    <DocumentLink url={cleaner.drivers_license_url} label="Licencia" icon={Car} />
+                  </div>
+                </div>
+
+                {/* Notas */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-yellow-500" />
+                    Notas de RRHH
                   </h4>
                   {cleaner.hr_notes ? (
                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm font-medium text-yellow-800 mb-2 flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4" />
-                        Notas de RRHH:
-                      </p>
                       <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
                         {cleaner.hr_notes}
                       </p>
                     </div>
                   ) : (
                     <div className="p-4 bg-slate-100 border border-slate-200 rounded-lg text-center">
-                      <p className="text-sm text-slate-500 italic">
-                        No hay notas adicionales registradas
-                      </p>
+                      <p className="text-sm text-slate-500 italic">Sin notas registradas</p>
                     </div>
                   )}
                 </div>
               </div>
+
             </div>
           </AccordionContent>
         </AccordionItem>
