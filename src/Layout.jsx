@@ -349,6 +349,7 @@ function LayoutContent({ children, currentPageName }) {
         isScoringParticipant={isScoringParticipant}
       >
         {children}
+        <FloatingAssistant user={user} />
       </CleanerMobileLayout>
     );
   }
