@@ -504,6 +504,7 @@ function LayoutContent({ children, currentPageName }) {
             {children}
           </div>
         </main>
+        <FloatingAssistant user={user} />
       </div>
     </SidebarProvider>
   );
