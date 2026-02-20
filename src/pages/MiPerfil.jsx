@@ -99,12 +99,13 @@ export default function MiPerfilPage() {
     setError("");
     setSuccess("");
     try {
-      await User.updateMyUserData({ [documentType]: fileUrl });
-      const docName = documentType.replace('_url', '').replace('_', ' ').replace('profile photo', 'foto de perfil');
-      setSuccess(`¡${docName} actualizado!`);
+      await base44.auth.updateMe({ [documentType]: fileUrl });
+      const docName = documentType.replace('_url', '').replace(/_/g, ' ');
+      setSuccess(`¡${docName} actualizado correctamente!`);
+      setFormData(prev => ({ ...prev, [documentType]: fileUrl }));
       loadUserData();
     } catch (error) {
-      setError("Error al actualizar el documento.");
+      setError("Error al actualizar el documento: " + error.message);
     } finally {
       setSaving(false);
     }
