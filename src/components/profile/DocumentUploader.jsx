@@ -1,16 +1,22 @@
 import React, { useState, useRef } from "react";
+import { base44 } from "@/api/base44Client";
 import { UploadFile } from "@/integrations/Core";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, AlertCircle, UploadCloud, Loader2, File, ExternalLink, Save, X } from "lucide-react";
+import { CheckCircle, AlertCircle, UploadCloud, Loader2, FileText, ExternalLink, Save, X } from "lucide-react";
 
-export default function DocumentUploader({ title, fileUrl, onUploadSuccess, documentType }) {
+export default function DocumentUploader({ title, fileUrl: initialFileUrl, documentType }) {
+  const [currentFileUrl, setCurrentFileUrl] = useState(initialFileUrl || "");
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState("");
-  const [pendingFile, setPendingFile] = useState(null); // { name, url }
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null); // { name, url }
   const fileInputRef = useRef(null);
+
+  // Sync if parent prop changes (e.g. after reload)
+  React.useEffect(() => {
+    setCurrentFileUrl(initialFileUrl || "");
+  }, [initialFileUrl]);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -25,10 +31,8 @@ export default function DocumentUploader({ title, fileUrl, onUploadSuccess, docu
       setPendingFile({ name: file.name, url: file_url });
     } catch (err) {
       setError("Error al subir el archivo. Inténtalo de nuevo.");
-      console.error("Upload error:", err);
     } finally {
       setUploading(false);
-      // Reset input so same file can be selected again
       e.target.value = "";
     }
   };
@@ -38,12 +42,13 @@ export default function DocumentUploader({ title, fileUrl, onUploadSuccess, docu
     setSaving(true);
     setError("");
     try {
-      await onUploadSuccess(documentType, pendingFile.url);
-      setSaved(true);
+      await base44.auth.updateMe({ [documentType]: pendingFile.url });
+      setCurrentFileUrl(pendingFile.url);
       setPendingFile(null);
-      setTimeout(() => setSaved(false), 3000);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4000);
     } catch (err) {
-      setError("Error al guardar el documento.");
+      setError("Error al guardar. Inténtalo de nuevo.");
     } finally {
       setSaving(false);
     }
@@ -54,72 +59,77 @@ export default function DocumentUploader({ title, fileUrl, onUploadSuccess, docu
     setError("");
   };
 
-  const triggerFileSelect = () => {
-    fileInputRef.current.click();
-  };
-
   return (
-    <div className="border border-slate-200 rounded-lg p-4 space-y-3">
-      {/* Fila principal */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <File className="w-6 h-6 text-slate-500 flex-shrink-0" />
-          <div>
-            <p className="font-medium text-slate-800">{title}</p>
+    <div className="border border-slate-200 rounded-xl p-4 bg-white space-y-3">
+      {/* Cabecera */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${currentFileUrl ? 'bg-green-100' : 'bg-slate-100'}`}>
+            <FileText className={`w-5 h-5 ${currentFileUrl ? 'text-green-600' : 'text-slate-400'}`} />
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-slate-800 text-sm">{title}</p>
             {saved ? (
-              <div className="flex items-center gap-1 text-sm text-green-600 mt-1">
-                <CheckCircle className="w-4 h-4" />
-                <span>¡Guardado correctamente!</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                <span className="text-xs text-green-600 font-medium">¡Guardado correctamente!</span>
               </div>
-            ) : fileUrl ? (
-              <div className="flex items-center gap-1 text-sm text-green-600 mt-1">
-                <CheckCircle className="w-4 h-4" />
-                <span>Documento adjuntado</span>
+            ) : currentFileUrl ? (
+              <div className="flex items-center gap-1 mt-0.5">
+                <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                <span className="text-xs text-green-600">Documento adjuntado</span>
               </div>
             ) : (
-              <div className="flex items-center gap-1 text-sm text-amber-600 mt-1">
-                <AlertCircle className="w-4 h-4" />
-                <span>Pendiente de adjuntar</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-xs text-amber-600">Pendiente de adjuntar</span>
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex gap-2 w-full sm:w-auto">
-          {fileUrl && !pendingFile && (
-            <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none">
-              <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Ver
-              </a>
-            </Button>
-          )}
-          {!pendingFile && (
-            <Button onClick={triggerFileSelect} disabled={uploading} size="sm" className="flex-1 sm:flex-none">
+        {/* Botones de acción */}
+        {!pendingFile && (
+          <div className="flex gap-2 flex-shrink-0">
+            {currentFileUrl && (
+              <Button asChild variant="outline" size="sm">
+                <a href={currentFileUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-4 h-4 mr-1" />
+                  Ver
+                </a>
+              </Button>
+            )}
+            <Button
+              onClick={() => fileInputRef.current.click()}
+              disabled={uploading}
+              size="sm"
+              variant={currentFileUrl ? "outline" : "default"}
+              className={!currentFileUrl ? "bg-blue-600 hover:bg-blue-700" : ""}
+            >
               {uploading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Subiendo...</>
               ) : (
-                <UploadCloud className="w-4 h-4 mr-2" />
+                <><UploadCloud className="w-4 h-4 mr-1" />{currentFileUrl ? "Reemplazar" : "Adjuntar"}</>
               )}
-              {uploading ? "Subiendo..." : fileUrl ? "Reemplazar" : "Adjuntar"}
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Archivo pendiente de guardar */}
+      {/* Panel de confirmación de archivo pendiente */}
       {pendingFile && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-3">
-          <div className="flex items-center gap-2">
-            <File className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            <p className="text-sm text-blue-800 font-medium truncate">
-              Archivo seleccionado: <span className="font-bold">{pendingFile.name}</span>
-            </p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+          <div className="flex items-start gap-2">
+            <FileText className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-xs text-blue-600 font-medium">Archivo listo para guardar:</p>
+              <p className="text-sm font-bold text-blue-900 break-all">{pendingFile.name}</p>
+            </div>
           </div>
           <p className="text-xs text-blue-600">
-            Haz clic en "Guardar" para confirmar el cambio del documento.
+            Presiona <strong>Guardar</strong> para confirmar que este documento quede registrado.
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-1">
             <Button
               onClick={handleSave}
               disabled={saving}
@@ -127,11 +137,10 @@ export default function DocumentUploader({ title, fileUrl, onUploadSuccess, docu
               className="flex-1 bg-green-600 hover:bg-green-700 text-white"
             >
               {saving ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Guardando...</>
               ) : (
-                <Save className="w-4 h-4 mr-2" />
+                <><Save className="w-4 h-4 mr-1" />Guardar</>
               )}
-              {saving ? "Guardando..." : "Guardar"}
             </Button>
             <Button
               onClick={handleCancel}
@@ -140,10 +149,17 @@ export default function DocumentUploader({ title, fileUrl, onUploadSuccess, docu
               variant="outline"
               className="flex-1"
             >
-              <X className="w-4 h-4 mr-2" />
+              <X className="w-4 h-4 mr-1" />
               Cancelar
             </Button>
           </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg p-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {error}
         </div>
       )}
 
@@ -154,12 +170,6 @@ export default function DocumentUploader({ title, fileUrl, onUploadSuccess, docu
         className="hidden"
         accept="image/*,.pdf"
       />
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
     </div>
   );
 }
