@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { UploadFile } from "@/integrations/Core";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,7 @@ export default function DocumentUploader({ title, fileUrl: initialFileUrl, docum
   const [pendingFile, setPendingFile] = useState(null); // { name, url }
   const fileInputRef = useRef(null);
 
-  // Sync if parent prop changes (e.g. after reload)
-  React.useEffect(() => {
+  useEffect(() => {
     setCurrentFileUrl(initialFileUrl || "");
   }, [initialFileUrl]);
 
@@ -88,18 +87,22 @@ export default function DocumentUploader({ title, fileUrl: initialFileUrl, docum
           </div>
         </div>
 
-        {/* Botones de acción */}
+        {/* Botones - CRÍTICO: type="button" para no disparar submit del form padre */}
         {!pendingFile && (
           <div className="flex gap-2 flex-shrink-0">
             {currentFileUrl && (
-              <Button asChild variant="outline" size="sm">
-                <a href={currentFileUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-4 h-4 mr-1" />
-                  Ver
-                </a>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(currentFileUrl, '_blank')}
+              >
+                <ExternalLink className="w-4 h-4 mr-1" />
+                Ver
               </Button>
             )}
             <Button
+              type="button"
               onClick={() => fileInputRef.current.click()}
               disabled={uploading}
               size="sm"
@@ -131,6 +134,7 @@ export default function DocumentUploader({ title, fileUrl: initialFileUrl, docum
           </p>
           <div className="flex gap-2 pt-1">
             <Button
+              type="button"
               onClick={handleSave}
               disabled={saving}
               size="sm"
@@ -143,6 +147,7 @@ export default function DocumentUploader({ title, fileUrl: initialFileUrl, docum
               )}
             </Button>
             <Button
+              type="button"
               onClick={handleCancel}
               disabled={saving}
               size="sm"
