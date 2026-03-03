@@ -153,10 +153,10 @@ export default function ClientForm({ client, onSave, onCancel }) {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="address">Dirección</Label>
-                            <Input 
-                                id="address" 
-                                value={formData.address} 
-                                onChange={(e) => setFormData({...formData, address: e.target.value})} 
+                            <AddressAutocomplete
+                                value={formData.address}
+                                onChange={(val) => setFormData({...formData, address: val})}
+                                placeholder="Buscar dirección en Australia..."
                             />
                         </div>
                         <div className="space-y-2">
