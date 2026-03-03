@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,6 @@ import ServicePriceManager from './ServicePriceManager';
 import FamilyAndPetsManager from './FamilyAndPetsManager';
 import ClientHistory from './ClientHistory';
 import StructuredServiceNotes from './StructuredServiceNotes';
-import AddressAutocomplete from './AddressAutocomplete';
 
 export default function ClientForm({ client, onSave, onCancel }) {
     const [saving, setSaving] = useState(false);
@@ -153,10 +153,10 @@ export default function ClientForm({ client, onSave, onCancel }) {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="address">Dirección</Label>
-                            <AddressAutocomplete
-                                value={formData.address}
-                                onChange={(val) => setFormData({...formData, address: val})}
-                                placeholder="Buscar dirección en Australia..."
+                            <Input 
+                                id="address" 
+                                value={formData.address} 
+                                onChange={(e) => setFormData({...formData, address: e.target.value})} 
                             />
                         </div>
                         <div className="space-y-2">
