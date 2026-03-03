@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { MapPin, Loader2 } from 'lucide-react';
+import { autocompleteAddress } from '@/functions/autocompleteAddress';
 
 export default function AddressAutocomplete({ value, onChange, placeholder = "Buscar dirección..." }) {
     const [query, setQuery] = useState(value || '');
@@ -10,12 +11,10 @@ export default function AddressAutocomplete({ value, onChange, placeholder = "Bu
     const debounceRef = useRef(null);
     const containerRef = useRef(null);
 
-    // Sync if external value changes
     useEffect(() => {
         setQuery(value || '');
     }, [value]);
 
-    // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (containerRef.current && !containerRef.current.contains(e.target)) {
@@ -27,7 +26,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder = "Bu
     }, []);
 
     const search = async (text) => {
-        if (text.length < 4) {
+        if (text.length < 3) {
             setSuggestions([]);
             setShowDropdown(false);
             return;
@@ -35,13 +34,10 @@ export default function AddressAutocomplete({ value, onChange, placeholder = "Bu
 
         setLoading(true);
         try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=au&q=${encodeURIComponent(text)}`,
-                { headers: { 'Accept-Language': 'es' } }
-            );
-            const data = await res.json();
-            setSuggestions(data);
-            setShowDropdown(data.length > 0);
+            const res = await autocompleteAddress({ input: text });
+            const predictions = res.data?.predictions || [];
+            setSuggestions(predictions);
+            setShowDropdown(predictions.length > 0);
         } catch (err) {
             setSuggestions([]);
         } finally {
@@ -59,7 +55,7 @@ export default function AddressAutocomplete({ value, onChange, placeholder = "Bu
     };
 
     const handleSelect = (suggestion) => {
-        const formatted = suggestion.display_name;
+        const formatted = suggestion.description;
         setQuery(formatted);
         onChange(formatted);
         setSuggestions([]);
@@ -83,14 +79,14 @@ export default function AddressAutocomplete({ value, onChange, placeholder = "Bu
 
             {showDropdown && suggestions.length > 0 && (
                 <ul className="absolute z-50 w-full bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
-                    {suggestions.map((s) => (
+                    {suggestions.map((s, i) => (
                         <li
-                            key={s.place_id}
+                            key={s.place_id || i}
                             className="flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 text-sm border-b border-slate-100 last:border-0"
                             onMouseDown={() => handleSelect(s)}
                         >
                             <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
-                            <span className="text-slate-700 leading-snug">{s.display_name}</span>
+                            <span className="text-slate-700 leading-snug">{s.description}</span>
                         </li>
                     ))}
                 </ul>
