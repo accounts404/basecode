@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +13,7 @@ import ServicePriceManager from './ServicePriceManager';
 import FamilyAndPetsManager from './FamilyAndPetsManager';
 import ClientHistory from './ClientHistory';
 import StructuredServiceNotes from './StructuredServiceNotes';
+import AddressAutocomplete from './AddressAutocomplete';
 
 export default function ClientForm({ client, onSave, onCancel }) {
     const [saving, setSaving] = useState(false);
