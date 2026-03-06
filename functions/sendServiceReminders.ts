@@ -1,8 +1,7 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.0';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
 import Twilio from 'npm:twilio@5.2.0';
 import { DateTime } from 'npm:luxon@3.4.4';
 
-// Función para formatear números de teléfono
 const formatAustralianPhoneNumber = (phoneNumber) => {
     if (!phoneNumber) return null;
     let cleanNumber = phoneNumber.replace(/[\s\-()]/g, '');
@@ -13,28 +12,23 @@ const formatAustralianPhoneNumber = (phoneNumber) => {
     return null;
 };
 
-// Esta función se puede ejecutar como cron job O llamar manualmente desde la aplicación
 Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const log = (message) => console.log(`[sendServiceReminders] ${message}`);
 
-    // --- INICIO: CHEQUEO DE SEGURIDAD ---
+    // --- CHEQUEO DE SEGURIDAD ---
     try {
-        // Verificar si es una llamada de cron job (con API key) o de usuario autenticado
         const providedApiKey = req.headers.get('api_key');
         const expectedApiKey = Deno.env.get('CRON_API_KEY');
         
         let isAuthorized = false;
         let executionType = '';
 
-        // Opción 1: Llamada de cron job con API key
         if (providedApiKey && expectedApiKey && providedApiKey === expectedApiKey) {
             isAuthorized = true;
             executionType = 'cron_job';
             log('Cron job execution authorized successfully.');
-        }
-        // Opción 2: Llamada desde aplicación con usuario autenticado
-        else {
+        } else {
             try {
                 const user = await base44.auth.me();
                 if (user && user.role === 'admin') {
@@ -48,136 +42,138 @@ Deno.serve(async (req) => {
         }
 
         if (!isAuthorized) {
-            log('Unauthorized attempt: Invalid API key and no valid admin user found.');
-            return new Response(JSON.stringify({ error: 'Unauthorized: Invalid API Key or insufficient permissions' }), { 
-                status: 401,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         log(`Authorized execution type: ${executionType}`);
 
     } catch (e) {
-        log(`Authorization error: ${e.message}`);
-        return new Response(JSON.stringify({ error: 'Authorization error' }), { 
-            status: 400,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return Response.json({ error: 'Authorization error' }, { status: 400 });
     }
-    // --- FIN: CHEQUEO DE SEGURIDAD ---
 
     try {
         log('Starting reminder check...');
 
-        // 1. Obtener la configuración del administrador (usando rol de servicio)
-        const admins = await base44.asServiceRole.entities.User.filter({ role: 'admin' });
-        if (!admins || admins.length === 0) {
+        // 1. Obtener config del admin
+        const adminsRaw = await base44.asServiceRole.entities.User.filter({ role: 'admin' }, '-created_date', 10);
+        const admins = Array.isArray(adminsRaw) ? adminsRaw : (adminsRaw?.items || adminsRaw?.data || []);
+        
+        log(`Found ${admins.length} admin users`);
+        
+        // Buscar el admin que tiene la config de recordatorios
+        const adminUser = admins.find(a => a.reminder_config?.enabled) || admins[0];
+        
+        if (!adminUser) {
             log('No admin user found. Skipping.');
-            return new Response(JSON.stringify({ message: 'No admin user found.' }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return Response.json({ message: 'No admin user found.' });
         }
-        const adminUser = admins[0];
+
+        log(`Using admin: ${adminUser.email}`);
+        log(`Reminder config: ${JSON.stringify(adminUser.reminder_config)}`);
+
         const config = adminUser.reminder_config;
 
-        // 2. Verificar si la función está habilitada
+        // 2. Verificar si está habilitado
         if (!config || !config.enabled) {
             log('Reminders are disabled in configuration. Skipping.');
-            return new Response(JSON.stringify({ message: 'Reminders disabled.' }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return Response.json({ message: 'Reminders disabled.' });
         }
 
-        // 3. Verificar si es la hora correcta para enviar, usando la zona horaria de Melbourne
+        // 3. Verificar hora de Melbourne
         const melbourneNow = DateTime.now().setZone('Australia/Melbourne');
         const melbourneCurrentHour = melbourneNow.hour.toString().padStart(2, '0');
-        const configuredHour = config.time_of_day.split(':')[0];
+        const configuredHour = (config.time_of_day || '09:00').split(':')[0].padStart(2, '0');
+
+        log(`Melbourne time now: ${melbourneNow.toFormat('HH:mm')} (hour: ${melbourneCurrentHour}), configured hour: ${configuredHour}`);
 
         if (melbourneCurrentHour !== configuredHour) {
-            log(`Current Melbourne hour (${melbourneCurrentHour}) does not match configured hour (${configuredHour}). Skipping.`);
-            return new Response(JSON.stringify({ message: 'Not the configured time to send.' }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            log(`Not the right hour. Current: ${melbourneCurrentHour}, Configured: ${configuredHour}. Skipping.`);
+            return Response.json({ message: `Not sending time. Current hour: ${melbourneCurrentHour}, configured: ${configuredHour}` });
         }
         
         log(`It's sending time in Melbourne! (Hour: ${melbourneCurrentHour})`);
 
-        // 4. Calcular la fecha objetivo para los recordatorios
+        // 4. Calcular fecha objetivo
         const targetDateTime = melbourneNow.plus({ days: config.days_before || 1 });
         const targetDateString = targetDateTime.toISODate();
         log(`Looking for services scheduled on: ${targetDateString}`);
 
-        // 5. Obtener todos los servicios programados
-        const allSchedules = await base44.asServiceRole.entities.Schedule.filter({ status: 'scheduled' }, '-start_time', 2000);
-        const schedulesArray = Array.isArray(allSchedules) ? allSchedules : (allSchedules?.items || allSchedules?.data || []);
-        
-        // 6. Filtrar servicios para la fecha objetivo
-        const scheduledForTargetDate = schedulesArray.filter(s => {
-            if (!s.start_time || s.status !== 'scheduled' || s.reminder_sent_at) {
-                return false;
-            }
+        // 5. Obtener servicios programados
+        const schedulesRaw = await base44.asServiceRole.entities.Schedule.filter({ status: 'scheduled' }, '-start_time', 2000);
+        const allSchedules = Array.isArray(schedulesRaw) ? schedulesRaw : (schedulesRaw?.items || schedulesRaw?.data || []);
+        log(`Total scheduled services fetched: ${allSchedules.length}`);
+
+        // 6. Filtrar para fecha objetivo (sin reminder_sent_at)
+        const scheduledForTargetDate = allSchedules.filter(s => {
+            if (!s.start_time) return false;
+            if (s.reminder_sent_at) return false;
             try {
                 const serviceDateTime = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
                 const serviceDateString = serviceDateTime.toISODate();
                 return serviceDateString === targetDateString;
-            } catch (error) {
-                log(`Error parsing date for schedule ${s.id}: ${error.message}`);
+            } catch (e) {
                 return false;
             }
         });
 
+        log(`Services for ${targetDateString} needing reminder: ${scheduledForTargetDate.length}`);
+
         if (scheduledForTargetDate.length === 0) {
-            log('No services found for the target date that need a reminder. All done.');
-            return new Response(JSON.stringify({ message: 'No services to remind today.' }), {
-                status: 200,
-                headers: { 'Content-Type': 'application/json' }
+            // Log para debug: cuantos hay para esa fecha aunque ya tengan reminder
+            const allForDate = allSchedules.filter(s => {
+                if (!s.start_time) return false;
+                try {
+                    const serviceDateTime = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
+                    return serviceDateTime.toISODate() === targetDateString;
+                } catch(e) { return false; }
             });
+            log(`(Debug) Total services for ${targetDateString} including already reminded: ${allForDate.length}`);
+            return Response.json({ message: 'No services to remind today.', target_date: targetDateString, total_for_date: allForDate.length });
         }
 
-        log(`Found ${scheduledForTargetDate.length} services to remind.`);
-
-        // 7. Obtener clientes y credenciales de Twilio
-        const allClientsRaw = await base44.asServiceRole.entities.Client.list('-created_date', 2000);
-        const allClients = Array.isArray(allClientsRaw) ? allClientsRaw : (allClientsRaw?.items || allClientsRaw?.data || []);
+        // 7. Obtener clientes
+        const clientsRaw = await base44.asServiceRole.entities.Client.list('-created_date', 2000);
+        const allClients = Array.isArray(clientsRaw) ? clientsRaw : (clientsRaw?.items || clientsRaw?.data || []);
         const clientMap = new Map(allClients.map(c => [c.id, c]));
-        
+        log(`Clients loaded: ${allClients.length}`);
+
+        // 8. Credenciales Twilio
         const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
         const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
         const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
 
         if (!accountSid || !authToken || !twilioPhone) {
             log('ERROR: Twilio credentials are not set.');
-            throw new Error('Twilio service is not configured.');
+            return Response.json({ error: 'Twilio not configured.' }, { status: 500 });
         }
 
         const twilioClient = new Twilio(accountSid, authToken);
-        const defaultTemplate = `Hola {client_name}, te recordamos tu servicio de limpieza de RedOak programado para el {service_date} a las {service_time}. ¡Gracias!`;
+        const defaultTemplate = `Hi {client_name}, your cleaning service is scheduled for {service_date} at {service_time}. Call 0491829501 for any changes. Redoak Cleaning.`;
         const messageTemplate = adminUser.sms_templates?.service_reminder || defaultTemplate;
 
-        // 8. Iterar y enviar los SMS
+        // 9. Enviar SMS
         let sentCount = 0;
+        const results = [];
+
         for (const schedule of scheduledForTargetDate) {
             const client = clientMap.get(schedule.client_id);
             if (!client || !client.mobile_number) {
-                log(`Skipping schedule ${schedule.id}: client or phone number not found.`);
+                log(`Skipping schedule ${schedule.id}: client not found or no phone number.`);
+                results.push({ schedule_id: schedule.id, status: 'skipped', reason: 'no client or phone' });
                 continue;
             }
 
-            // Formatear ambos números
             const phoneNumber = formatAustralianPhoneNumber(client.mobile_number);
-            const secondaryPhoneNumber = client.secondary_mobile_number 
-                ? formatAustralianPhoneNumber(client.secondary_mobile_number) 
+            const secondaryPhoneNumber = client.secondary_mobile_number
+                ? formatAustralianPhoneNumber(client.secondary_mobile_number)
                 : null;
 
             if (!phoneNumber) {
-                log(`Skipping schedule ${schedule.id}: invalid primary phone number format for ${client.mobile_number}.`);
+                log(`Skipping schedule ${schedule.id}: invalid phone format: ${client.mobile_number}`);
+                results.push({ schedule_id: schedule.id, status: 'skipped', reason: 'invalid phone format' });
                 continue;
             }
 
-            // Usar sms_name si existe, sino usar name como respaldo
             const clientNameForSMS = client.sms_name || client.name;
             const serviceMelbourneTime = DateTime.fromISO(schedule.start_time).setZone('Australia/Melbourne');
             const messageBody = messageTemplate
@@ -189,37 +185,26 @@ Deno.serve(async (req) => {
 
             // Enviar al número principal
             try {
-                await twilioClient.messages.create({
-                    body: messageBody,
-                    from: twilioPhone,
-                    to: phoneNumber
-                });
-                
-                log(`Successfully sent reminder to primary number for schedule ${schedule.id} to ${client.name}.`);
+                await twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: phoneNumber });
+                log(`✅ SMS sent to PRIMARY ${phoneNumber} for ${client.name} (schedule ${schedule.id})`);
                 sentToAtLeastOne = true;
-
+                results.push({ schedule_id: schedule.id, client: client.name, phone: phoneNumber, status: 'sent' });
             } catch (error) {
-                log(`ERROR sending SMS to primary number for schedule ${schedule.id}: ${error.message}`);
+                log(`❌ ERROR sending to primary ${phoneNumber}: ${error.message}`);
+                results.push({ schedule_id: schedule.id, client: client.name, phone: phoneNumber, status: 'error', error: error.message });
             }
 
-            // Enviar al número secundario si existe
+            // Enviar al número secundario
             if (secondaryPhoneNumber) {
                 try {
-                    await twilioClient.messages.create({
-                        body: messageBody,
-                        from: twilioPhone,
-                        to: secondaryPhoneNumber
-                    });
-                    
-                    log(`Successfully sent reminder to secondary number for schedule ${schedule.id} to ${client.name}.`);
+                    await twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: secondaryPhoneNumber });
+                    log(`✅ SMS sent to SECONDARY ${secondaryPhoneNumber} for ${client.name}`);
                     sentToAtLeastOne = true;
-
                 } catch (error) {
-                    log(`ERROR sending SMS to secondary number for schedule ${schedule.id}: ${error.message}`);
+                    log(`❌ ERROR sending to secondary ${secondaryPhoneNumber}: ${error.message}`);
                 }
             }
 
-            // Marcar como enviado si al menos se envió a un número
             if (sentToAtLeastOne) {
                 await base44.asServiceRole.entities.Schedule.update(schedule.id, {
                     reminder_sent_at: new Date().toISOString()
@@ -229,16 +214,10 @@ Deno.serve(async (req) => {
         }
 
         log(`Process finished. Sent ${sentCount} reminders.`);
-        return new Response(JSON.stringify({ success: true, reminders_sent: sentCount }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return Response.json({ success: true, reminders_sent: sentCount, target_date: targetDateString, results });
 
     } catch (error) {
         log(`FATAL ERROR: ${error.message}`);
-        return new Response(JSON.stringify({ error: error.message }), { 
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return Response.json({ error: error.message }, { status: 500 });
     }
 });
