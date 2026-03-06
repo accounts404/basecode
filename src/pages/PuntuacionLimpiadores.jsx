@@ -445,7 +445,7 @@ export default function PuntuacionLimpiadoresPage() {
             {/* Header */}
             <Card className="bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200">
                 <CardHeader>
-                    <div className="flex justify-between items-center">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex items-center gap-3">
                             <Trophy className="w-8 h-8 text-yellow-600" />
                             <div>
@@ -453,7 +453,7 @@ export default function PuntuacionLimpiadoresPage() {
                                 <p className="text-yellow-700">Gestiona el ranking mensual de limpiadores</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
                                 <Label>Mes:</Label>
                                 <Input
@@ -465,19 +465,19 @@ export default function PuntuacionLimpiadoresPage() {
                             </div>
                             <Button onClick={handleConfigureParticipants} className="bg-yellow-600 hover:bg-yellow-700">
                                 <Users className="w-4 h-4 mr-2" />
-                                Configurar Participantes
+                                Participantes
                             </Button>
                             <Button onClick={handleSemestralBonus} variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-50">
                                 <Star className="w-4 h-4 mr-2" />
-                                Bonificación Semestral
+                                Bono Semestral
                             </Button>
                         </div>
                     </div>
                 </CardHeader>
             </Card>
 
-            {/* Estadísticas */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card>
                     <CardContent className="p-4 text-center">
                         <Users className="w-8 h-8 text-blue-600 mx-auto mb-2" />
@@ -488,9 +488,7 @@ export default function PuntuacionLimpiadoresPage() {
                 <Card>
                     <CardContent className="p-4 text-center">
                         <Crown className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-yellow-900">
-                            {ranking[0]?.current_score || 0}
-                        </p>
+                        <p className="text-2xl font-bold text-yellow-900">{ranking[0]?.current_score || 0}</p>
                         <p className="text-sm text-yellow-600">Puntuación Líder</p>
                     </CardContent>
                 </Card>
@@ -514,95 +512,149 @@ export default function PuntuacionLimpiadoresPage() {
                 </Card>
             </div>
 
-            {/* Ranking */}
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CardTitle className="flex items-center gap-2">
-                            <Medal className="w-5 h-5" />
-                            Ranking Actual
-                            {isMonthClosed && (
-                                <Badge className="bg-green-100 text-green-800 ml-2">
-                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                    Mes Cerrado
-                                </Badge>
-                            )}
-                        </CardTitle>
-                        {!isMonthClosed && ranking.length > 0 && (
-                            <Button onClick={handleFinishMonth} className="bg-green-600 hover:bg-green-700">
-                                <Gift className="w-4 h-4 mr-2" />
-                                Finalizar Mes y Otorgar Bonificación
-                            </Button>
-                        )}
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-3">
-                        {ranking.map((cleaner, index) => {
-                            const rankIcon = index === 0 ? <Crown className="w-6 h-6 text-yellow-500" /> :
-                                           index === 1 ? <Medal className="w-6 h-6 text-gray-400" /> :
-                                           index === 2 ? <Award className="w-6 h-6 text-amber-600" /> :
-                                           <div className="w-6 h-6 flex items-center justify-center bg-slate-200 rounded-full text-sm font-bold">{index + 1}</div>;
+            {/* TABS PRINCIPALES */}
+            <Tabs defaultValue="ranking">
+                <TabsList className="grid w-full grid-cols-5 h-12">
+                    <TabsTrigger value="ranking" className="flex items-center gap-1 text-xs md:text-sm">
+                        <Trophy className="w-4 h-4" /><span className="hidden sm:inline">Ranking</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="performance" className="flex items-center gap-1 text-xs md:text-sm">
+                        <ClipboardList className="w-4 h-4" /><span className="hidden sm:inline">Performance</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="punctuality" className="flex items-center gap-1 text-xs md:text-sm">
+                        <Clock className="w-4 h-4" /><span className="hidden sm:inline">Puntualidad</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="vehicle" className="flex items-center gap-1 text-xs md:text-sm">
+                        <Car className="w-4 h-4" /><span className="hidden sm:inline">Vehículos</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="feedback" className="flex items-center gap-1 text-xs md:text-sm">
+                        <MessageSquare className="w-4 h-4" /><span className="hidden sm:inline">Feedback</span>
+                    </TabsTrigger>
+                </TabsList>
 
-                            return (
-                                <div key={cleaner.id} className={`flex items-center justify-between p-4 rounded-lg border ${
-                                    index === 0 ? 'bg-yellow-50 border-yellow-200' :
-                                    index === 1 ? 'bg-gray-50 border-gray-200' :
-                                    index === 2 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'
-                                }`}>
-                                    <div className="flex items-center gap-4">
-                                        {rankIcon}
-                                        <div>
-                                            <p className="font-semibold">{cleaner.cleaner_name}</p>
-                                            <p className="text-sm text-slate-600">Puesto #{index + 1}</p>
-                                            {cleaner.monthly_bonus_amount && (
-                                                <Badge className="bg-green-100 text-green-800 text-xs mt-1">
-                                                    Bonificación: ${cleaner.monthly_bonus_amount} AUD
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-right">
-                                            <p className="text-2xl font-bold">{cleaner.current_score}</p>
-                                            <p className="text-sm text-slate-600">puntos</p>
-                                        </div>
-                                        {!isMonthClosed && (
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleViewHistory(cleaner)} // NEW: View History button
-                                                    className="flex items-center gap-1"
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                    Historial
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => handleScoreAdjustment(cleaner)}
-                                                >
-                                                    <Plus className="w-4 h-4 mr-1" />
-                                                    Ajustar
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-
-                        {ranking.length === 0 && (
-                            <div className="text-center py-8 text-slate-500">
-                                <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                <p>No hay participantes configurados para este mes</p>
-                                <p className="text-sm">Haz clic en "Configurar Participantes" para comenzar</p>
+                {/* TAB 1: RANKING */}
+                <TabsContent value="ranking" className="mt-4">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Medal className="w-5 h-5" />
+                                    Ranking Actual
+                                    {isMonthClosed && (
+                                        <Badge className="bg-green-100 text-green-800 ml-2">
+                                            <CheckCircle className="w-3 h-3 mr-1" />
+                                            Mes Cerrado
+                                        </Badge>
+                                    )}
+                                </CardTitle>
+                                {!isMonthClosed && ranking.length > 0 && (
+                                    <Button onClick={handleFinishMonth} className="bg-green-600 hover:bg-green-700">
+                                        <Gift className="w-4 h-4 mr-2" />
+                                        Finalizar Mes
+                                    </Button>
+                                )}
                             </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {ranking.map((cleaner, index) => {
+                                    const rankIcon = index === 0 ? <Crown className="w-6 h-6 text-yellow-500" /> :
+                                                   index === 1 ? <Medal className="w-6 h-6 text-gray-400" /> :
+                                                   index === 2 ? <Award className="w-6 h-6 text-amber-600" /> :
+                                                   <div className="w-6 h-6 flex items-center justify-center bg-slate-200 rounded-full text-sm font-bold">{index + 1}</div>;
+                                    return (
+                                        <div key={cleaner.id} className={`flex items-center justify-between p-4 rounded-lg border ${
+                                            index === 0 ? 'bg-yellow-50 border-yellow-200' :
+                                            index === 1 ? 'bg-gray-50 border-gray-200' :
+                                            index === 2 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'
+                                        }`}>
+                                            <div className="flex items-center gap-4">
+                                                {rankIcon}
+                                                <div>
+                                                    <p className="font-semibold">{cleaner.cleaner_name}</p>
+                                                    <p className="text-sm text-slate-600">Puesto #{index + 1}</p>
+                                                    {cleaner.monthly_bonus_amount && (
+                                                        <Badge className="bg-green-100 text-green-800 text-xs mt-1">
+                                                            Bono: ${cleaner.monthly_bonus_amount} AUD
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-right">
+                                                    <p className="text-2xl font-bold">{cleaner.current_score}</p>
+                                                    <p className="text-sm text-slate-600">puntos</p>
+                                                </div>
+                                                {!isMonthClosed && (
+                                                    <div className="flex gap-2">
+                                                        <Button variant="outline" size="sm" onClick={() => handleViewHistory(cleaner)}>
+                                                            <Eye className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button variant="outline" size="sm" onClick={() => handleScoreAdjustment(cleaner)}>
+                                                            <Plus className="w-4 h-4 mr-1" /> Ajustar
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {ranking.length === 0 && (
+                                    <div className="text-center py-8 text-slate-500">
+                                        <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                        <p>No hay participantes configurados para este mes</p>
+                                        <p className="text-sm">Haz clic en "Participantes" para comenzar</p>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* TAB 2: PERFORMANCE */}
+                <TabsContent value="performance" className="mt-4">
+                    <PerformanceTab
+                        monthPeriod={selectedMonth}
+                        limpiadores={limpiadores}
+                        monthlyScores={monthlyScores}
+                        user={user}
+                        onScoreApplied={loadMonthlyScores}
+                    />
+                </TabsContent>
+
+                {/* TAB 3: PUNTUALIDAD */}
+                <TabsContent value="punctuality" className="mt-4">
+                    <PunctualityTab
+                        monthPeriod={selectedMonth}
+                        limpiadores={limpiadores}
+                        monthlyScores={monthlyScores}
+                        user={user}
+                        onScoreApplied={loadMonthlyScores}
+                    />
+                </TabsContent>
+
+                {/* TAB 4: VEHÍCULOS */}
+                <TabsContent value="vehicle" className="mt-4">
+                    <VehicleChecklistTab
+                        monthPeriod={selectedMonth}
+                        limpiadores={limpiadores}
+                        monthlyScores={monthlyScores}
+                        user={user}
+                        onScoreApplied={loadMonthlyScores}
+                    />
+                </TabsContent>
+
+                {/* TAB 5: FEEDBACK */}
+                <TabsContent value="feedback" className="mt-4">
+                    <ClientFeedbackTab
+                        monthPeriod={selectedMonth}
+                        limpiadores={limpiadores}
+                        monthlyScores={monthlyScores}
+                        user={user}
+                        onScoreApplied={loadMonthlyScores}
+                    />
+                </TabsContent>
+            </Tabs>
 
             {/* Dialog - Configurar Participantes */}
             <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
