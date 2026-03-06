@@ -14,11 +14,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Trophy, TrendingUp, TrendingDown, Users, Calendar, Plus, History, Medal, Crown, Award, Gift, Star, CheckCircle, Eye } from "lucide-react"; // Added Eye icon
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Trophy, TrendingUp, TrendingDown, Users, Calendar, Plus, History, Medal, Crown, Award, Gift, Star, CheckCircle, Eye, ClipboardList, Clock, Car, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import CategorySelector from "../components/scoring/CategorySelector";
-import CleanerScoreHistoryDialog from "../components/scoring/CleanerScoreHistoryDialog"; // NEW: Import the new dialog
+import CleanerScoreHistoryDialog from "../components/scoring/CleanerScoreHistoryDialog";
+import PerformanceTab from "../components/scoring/PerformanceTab";
+import PunctualityTab from "../components/scoring/PunctualityTab";
+import VehicleChecklistTab from "../components/scoring/VehicleChecklistTab";
+import ClientFeedbackTab from "../components/scoring/ClientFeedbackTab";
 
 export default function PuntuacionLimpiadoresPage() {
     const [user, setUser] = useState(null);
