@@ -140,7 +140,8 @@ Deno.serve(async (req) => {
         log(`Found ${scheduledForTargetDate.length} services to remind.`);
 
         // 7. Obtener clientes y credenciales de Twilio
-        const allClients = await base44.asServiceRole.entities.Client.list();
+        const allClientsRaw = await base44.asServiceRole.entities.Client.list('-created_date', 2000);
+        const allClients = Array.isArray(allClientsRaw) ? allClientsRaw : (allClientsRaw?.items || allClientsRaw?.data || []);
         const clientMap = new Map(allClients.map(c => [c.id, c]));
         
         const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
