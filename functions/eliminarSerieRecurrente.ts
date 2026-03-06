@@ -91,10 +91,10 @@ Deno.serve(async (req) => {
                     throw new Error(`No se pudieron obtener los servicios de la serie: ${filterError.message}`);
                 }
                 
-                // Asegurarse de que seriesSchedules es un array
+                // Asegurarse de que seriesSchedules es un array (el SDK puede devolver objeto paginado)
                 if (!Array.isArray(seriesSchedules)) {
-                    console.error('[eliminarSerieRecurrente] seriesSchedules no es un array:', seriesSchedules);
-                    throw new Error('La respuesta del filtro no es un array válido');
+                    seriesSchedules = seriesSchedules?.items || seriesSchedules?.data || [];
+                    console.log(`[eliminarSerieRecurrente] Convertido a array, total: ${seriesSchedules.length}`);
                 }
                 
                 if (seriesSchedules.length === 0) {
