@@ -98,10 +98,17 @@ Deno.serve(async (req) => {
         const targetDateString = targetDateTime.toISODate();
         log(`Looking for services scheduled on: ${targetDateString}`);
 
-        // 5. Obtener servicios programados
-        const schedulesRaw = await base44.asServiceRole.entities.Schedule.filter({ status: 'scheduled' }, '-start_time', 2000);
+        // 5. Obtener servicios programados - ordenados por start_time ASC para llegar a los futuros
+        const schedulesRaw = await base44.asServiceRole.entities.Schedule.filter({ status: 'scheduled' }, 'start_time', 2000);
         const allSchedules = Array.isArray(schedulesRaw) ? schedulesRaw : (schedulesRaw?.items || schedulesRaw?.data || []);
         log(`Total scheduled services fetched: ${allSchedules.length}`);
+        
+        // Debug: mostrar rango de fechas de los servicios obtenidos
+        if (allSchedules.length > 0) {
+            const firstDate = allSchedules[0].start_time;
+            const lastDate = allSchedules[allSchedules.length - 1].start_time;
+            log(`Date range of fetched services: ${firstDate} to ${lastDate}`);
+        }
 
         // 6. Filtrar para fecha objetivo (sin reminder_sent_at)
         const scheduledForTargetDate = allSchedules.filter(s => {
