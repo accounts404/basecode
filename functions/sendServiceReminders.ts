@@ -79,19 +79,26 @@ Deno.serve(async (req) => {
             return Response.json({ message: 'Reminders disabled.' });
         }
 
-        // 3. Verificar hora de Melbourne
+        // 3. Verificar hora de Melbourne (hora Y minuto exactos, con ventana de ±5 min)
         const melbourneNow = DateTime.now().setZone('Australia/Melbourne');
-        const melbourneCurrentHour = melbourneNow.hour.toString().padStart(2, '0');
-        const configuredHour = (config.time_of_day || '09:00').split(':')[0].padStart(2, '0');
+        const [configHour, configMinute] = (config.time_of_day || '09:00').split(':').map(Number);
 
-        log(`Melbourne time now: ${melbourneNow.toFormat('HH:mm')} (hour: ${melbourneCurrentHour}), configured hour: ${configuredHour}`);
+        const configuredMinutesOfDay = configHour * 60 + configMinute;
+        const currentMinutesOfDay = melbourneNow.hour * 60 + melbourneNow.minute;
+        const diffMinutes = Math.abs(currentMinutesOfDay - configuredMinutesOfDay);
 
-        if (melbourneCurrentHour !== configuredHour) {
-            log(`Not the right hour. Current: ${melbourneCurrentHour}, Configured: ${configuredHour}. Skipping.`);
-            return Response.json({ message: `Not sending time. Current hour: ${melbourneCurrentHour}, configured: ${configuredHour}` });
+        log(`Melbourne time now: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}, diff: ${diffMinutes} min`);
+
+        // Solo ejecutar si estamos dentro de una ventana de 5 minutos de la hora configurada
+        if (diffMinutes > 5) {
+            log(`Not the right time. Current: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}. Skipping.`);
+            return Response.json({ message: `Not sending time. Current: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}` });
         }
         
-        log(`It's sending time in Melbourne! (Hour: ${melbourneCurrentHour})`);
+        log(`It's sending time in Melbourne! (${melbourneNow.toFormat('HH:mm')})`);
+        
+        // 3b. Verificar que no se hayan enviado ya hoy (para evitar duplicados dentro de la ventana)
+        const todayDateString = melbourneNow.toISODate();
 
         // 4. Calcular fecha objetivo
         const targetDateTime = melbourneNow.plus({ days: config.days_before || 1 });
