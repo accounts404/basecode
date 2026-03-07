@@ -897,10 +897,20 @@ export default function HorarioPage() {
             return;
         }
 
+        // Extraer hora/minuto UTC (el calendario los pasa como UTC)
+        const hours = dateTime.getUTCHours();
+        const minutes = dateTime.getUTCMinutes();
+        const startTimeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        const endHours = hours + 4;
+        const endTimeStr = `${String(endHours % 24).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+
+        // Extraer la fecha UTC directamente del ISO string para evitar conversión de zona horaria
+        const datePart = dateTime.toISOString().slice(0, 10);
+
         setSelectedEvent({
-            preselected_date: format(dateTime, 'yyyy-MM-dd'),
-            preselected_start_time: format(dateTime, 'HH:mm'),
-            preselected_end_time: format(new Date(dateTime.getTime() + 4 * 60 * 60 * 1000), 'HH:mm')
+            preselected_date: datePart,
+            preselected_start_time: startTimeStr,
+            preselected_end_time: endTimeStr
         });
         setShowForm(true);
     };
