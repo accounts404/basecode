@@ -202,7 +202,12 @@ Deno.serve(async (req) => {
             }
 
             const clientNameForSMS = client.sms_name || client.name;
-            const serviceMelbourneTime = DateTime.fromISO(schedule.start_time).setZone('Australia/Melbourne');
+            let serviceMelbourneTime;
+            if (schedule.start_time.endsWith('Z') || schedule.start_time.includes('+') || schedule.start_time.includes('-', 10)) {
+                serviceMelbourneTime = DateTime.fromISO(schedule.start_time).setZone('Australia/Melbourne');
+            } else {
+                serviceMelbourneTime = DateTime.fromISO(schedule.start_time, { zone: 'Australia/Melbourne' });
+            }
             const messageBody = messageTemplate
                 .replace(/\{client_name\}/g, clientNameForSMS)
                 .replace(/\{service_date\}/g, serviceMelbourneTime.toFormat('dd/MM/yy'))
