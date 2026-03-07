@@ -105,9 +105,12 @@ Deno.serve(async (req) => {
         const targetDateString = targetDateTime.toISODate();
         log(`Looking for services scheduled on: ${targetDateString}`);
 
-        // 5. Obtener servicios programados DIRECTAMENTE para la fecha objetivo (±1 día de margen UTC)
-        const targetStartUTC = `${targetDateString}T00:00:00.000Z`;
-        const targetEndUTC = `${targetDateString}T23:59:59.999Z`;
+        // 5. Obtener servicios programados para la fecha objetivo
+        // Usamos un rango amplio para capturar tanto strings UTC (con Z) como naive strings (sin Z)
+        // Melbourne es UTC+10/+11, así que el día Melbourne puede abarcar hasta el día siguiente en UTC.
+        // También incluimos naive strings del día objetivo (sin Z) que la BD trata como strings literales.
+        const targetStartUTC = `${targetDateString}T00:00:00.000`;  // captura naive strings del día
+        const targetEndUTC = `${targetDateString}T23:59:59.999Z`;   // captura hasta fin del día UTC
         
         const schedulesRaw = await base44.asServiceRole.entities.Schedule.filter({
             status: 'scheduled',
