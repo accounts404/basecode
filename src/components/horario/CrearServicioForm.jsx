@@ -651,8 +651,8 @@ export default function CrearServicioForm({
                     const csEndTime = cs.end_time ? cs.end_time.slice(11, 16) : formData.end_time;
                     return {
                         ...cs,
-                        start_time: `${formData.start_date}T${csStartTime}:00.000`,
-                        end_time: `${formData.start_date}T${csEndTime}:00.000`
+                        start_time: `${formData.start_date}T${csStartTime}:00.000Z`,
+                        end_time: `${formData.start_date}T${csEndTime}:00.000Z`
                     };
                 }) : null,
                 service_specific_notes: formData.service_specific_notes || '',
