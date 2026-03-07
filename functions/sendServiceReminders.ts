@@ -117,11 +117,20 @@ Deno.serve(async (req) => {
         log(`Total scheduled services fetched for ${targetDateString}: ${allSchedules.length}`);
 
         // 6. Filtrar para fecha objetivo exacta en Melbourne (sin reminder_sent_at)
+        // IMPORTANTE: strings sin 'Z' se tratan como hora Melbourne (naive local),
+        // strings con 'Z' o offset se convierten normalmente.
         const scheduledForTargetDate = allSchedules.filter(s => {
             if (!s.start_time) return false;
             if (s.reminder_sent_at) return false;
             try {
-                const serviceDateTime = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
+                let serviceDateTime;
+                if (s.start_time.endsWith('Z') || s.start_time.includes('+') || s.start_time.includes('-', 10)) {
+                    // Tiene timezone explícito, convertir a Melbourne
+                    serviceDateTime = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
+                } else {
+                    // Sin timezone: tratar directamente como hora Melbourne
+                    serviceDateTime = DateTime.fromISO(s.start_time, { zone: 'Australia/Melbourne' });
+                }
                 const serviceDateString = serviceDateTime.toISODate();
                 return serviceDateString === targetDateString;
             } catch (e) {
