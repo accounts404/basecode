@@ -105,19 +105,18 @@ Deno.serve(async (req) => {
         const targetDateString = targetDateTime.toISODate();
         log(`Looking for services scheduled on: ${targetDateString}`);
 
-        // 5. Obtener servicios programados - ordenados por start_time ASC para llegar a los futuros
-        const schedulesRaw = await base44.asServiceRole.entities.Schedule.filter({ status: 'scheduled' }, 'start_time', 2000);
-        const allSchedules = Array.isArray(schedulesRaw) ? schedulesRaw : (schedulesRaw?.items || schedulesRaw?.data || []);
-        log(`Total scheduled services fetched: ${allSchedules.length}`);
+        // 5. Obtener servicios programados DIRECTAMENTE para la fecha objetivo (±1 día de margen UTC)
+        const targetStartUTC = `${targetDateString}T00:00:00.000Z`;
+        const targetEndUTC = `${targetDateString}T23:59:59.999Z`;
         
-        // Debug: mostrar rango de fechas de los servicios obtenidos
-        if (allSchedules.length > 0) {
-            const firstDate = allSchedules[0].start_time;
-            const lastDate = allSchedules[allSchedules.length - 1].start_time;
-            log(`Date range of fetched services: ${firstDate} to ${lastDate}`);
-        }
+        const schedulesRaw = await base44.asServiceRole.entities.Schedule.filter({
+            status: 'scheduled',
+            start_time: { $gte: targetStartUTC, $lte: targetEndUTC }
+        }, 'start_time', 500);
+        const allSchedules = Array.isArray(schedulesRaw) ? schedulesRaw : (schedulesRaw?.items || schedulesRaw?.data || []);
+        log(`Total scheduled services fetched for ${targetDateString}: ${allSchedules.length}`);
 
-        // 6. Filtrar para fecha objetivo (sin reminder_sent_at)
+        // 6. Filtrar para fecha objetivo exacta en Melbourne (sin reminder_sent_at)
         const scheduledForTargetDate = allSchedules.filter(s => {
             if (!s.start_time) return false;
             if (s.reminder_sent_at) return false;
