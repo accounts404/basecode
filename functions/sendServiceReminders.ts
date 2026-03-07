@@ -145,8 +145,13 @@ Deno.serve(async (req) => {
             const allForDate = allSchedules.filter(s => {
                 if (!s.start_time) return false;
                 try {
-                    const serviceDateTime = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
-                    return serviceDateTime.toISODate() === targetDateString;
+                    let dt;
+                    if (s.start_time.endsWith('Z') || s.start_time.includes('+') || s.start_time.includes('-', 10)) {
+                        dt = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
+                    } else {
+                        dt = DateTime.fromISO(s.start_time, { zone: 'Australia/Melbourne' });
+                    }
+                    return dt.toISODate() === targetDateString;
                 } catch(e) { return false; }
             });
             log(`(Debug) Total services for ${targetDateString} including already reminded: ${allForDate.length}`);
