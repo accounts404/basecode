@@ -647,15 +647,12 @@ export default function CrearServicioForm({
                 start_time: startDateTime.toISOString(),
                 end_time: endDateTime.toISOString(),
                 cleaner_schedules: cleanerSchedules.length > 0 ? cleanerSchedules.map(cs => {
-                    const csStart = parseISO(cs.start_time);
-                    const csEnd = parseISO(cs.end_time);
-                    csStart.setFullYear(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate());
-                    csEnd.setFullYear(startDateTime.getFullYear(), startDateTime.getMonth(), startDateTime.getDate());
-
+                    const csStartTime = cs.start_time ? cs.start_time.slice(11, 16) : formData.start_time;
+                    const csEndTime = cs.end_time ? cs.end_time.slice(11, 16) : formData.end_time;
                     return {
                         ...cs,
-                        start_time: csStart.toISOString(),
-                        end_time: csEnd.toISOString()
+                        start_time: `${formData.start_date}T${csStartTime}:00.000`,
+                        end_time: `${formData.start_date}T${csEndTime}:00.000`
                     };
                 }) : null,
                 service_specific_notes: formData.service_specific_notes || '',
