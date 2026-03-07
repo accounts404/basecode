@@ -631,7 +631,7 @@ export default function CrearServicioForm({
             return;
         }
 
-        if (endDateTime <= startDateTime) {
+        if (endDateTime.getTime() <= startDateTime.getTime()) {
             setError('La hora de finalización debe ser posterior a la hora de inicio.');
             setSaving(false);
             return;
