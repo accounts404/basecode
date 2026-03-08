@@ -173,15 +173,14 @@ Deno.serve(async (req) => {
             // Log para debug: cuantos hay para esa fecha aunque ya tengan reminder
             const allForDate = allSchedules.filter(s => {
                 if (!s.start_time) return false;
+                const naiveDatePart = s.start_time.substring(0, 10);
+                if (naiveDatePart === targetDateString) return true;
                 try {
-                    let dt;
-                    if (s.start_time.endsWith('Z') || s.start_time.includes('+') || s.start_time.includes('-', 10)) {
-                        dt = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
-                    } else {
-                        dt = DateTime.fromISO(s.start_time, { zone: 'Australia/Melbourne' });
+                    if (s.start_time.endsWith('Z') || s.start_time.includes('+')) {
+                        return DateTime.fromISO(s.start_time).setZone('Australia/Melbourne').toISODate() === targetDateString;
                     }
-                    return dt.toISODate() === targetDateString;
-                } catch(e) { return false; }
+                } catch(e) {}
+                return false;
             });
             log(`(Debug) Total services for ${targetDateString} including already reminded: ${allForDate.length}`);
             return Response.json({ message: 'No services to remind today.', target_date: targetDateString, total_for_date: allForDate.length });
