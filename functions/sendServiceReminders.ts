@@ -108,30 +108,18 @@ Deno.serve(async (req) => {
         log(`Looking for services scheduled on: ${targetDateString}`);
 
         // 5. Obtener servicios programados para la fecha objetivo
-        // Se hacen DOS queries para capturar ambos tipos de timestamps:
-        // - Con Z (nuevos): guardados como objetos de fecha, requieren bounds con Z
-        // - Sin Z (viejos): guardados como strings naivos, requieren bounds sin Z
-        const schedulesWithZ = await base44.asServiceRole.entities.Schedule.filter({
+        // Usamos un rango amplio para capturar tanto strings UTC (con Z) como naive strings (sin Z)
+        // Melbourne es UTC+10/+11, así que el día Melbourne puede abarcar hasta el día siguiente en UTC.
+        // También incluimos naive strings del día objetivo (sin Z) que la BD trata como strings literales.
+        const targetStartUTC = `${targetDateString}T00:00:00.000`;  // captura naive strings del día
+        const targetEndUTC = `${targetDateString}T23:59:59.999Z`;   // captura hasta fin del día UTC
+        
+        const schedulesRaw = await base44.asServiceRole.entities.Schedule.filter({
             status: 'scheduled',
-            start_time: { $gte: `${targetDateString}T00:00:00.000Z`, $lte: `${targetDateString}T23:59:59.999Z` }
+            start_time: { $gte: targetStartUTC, $lte: targetEndUTC }
         }, 'start_time', 500);
-
-        const schedulesNaive = await base44.asServiceRole.entities.Schedule.filter({
-            status: 'scheduled',
-            start_time: { $gte: `${targetDateString}T00:00:00.000`, $lte: `${targetDateString}T23:59:59.999` }
-        }, 'start_time', 500);
-
-        const listWithZ = Array.isArray(schedulesWithZ) ? schedulesWithZ : (schedulesWithZ?.items || schedulesWithZ?.data || []);
-        const listNaive = Array.isArray(schedulesNaive) ? schedulesNaive : (schedulesNaive?.items || schedulesNaive?.data || []);
-
-        // Combinar y deduplicar por ID
-        const seenIds = new Set();
-        const allSchedules = [...listWithZ, ...listNaive].filter(s => {
-            if (seenIds.has(s.id)) return false;
-            seenIds.add(s.id);
-            return true;
-        });
-        log(`Total scheduled services fetched for ${targetDateString}: ${allSchedules.length} (withZ: ${listWithZ.length}, naive: ${listNaive.length})`);
+        const allSchedules = Array.isArray(schedulesRaw) ? schedulesRaw : (schedulesRaw?.items || schedulesRaw?.data || []);
+        log(`Total scheduled services fetched for ${targetDateString}: ${allSchedules.length}`);
 
         // 6. Filtrar para fecha objetivo exacta en Melbourne (sin reminder_sent_at)
         // IMPORTANTE: strings sin 'Z' se tratan como hora Melbourne (naive local),
