@@ -89,10 +89,8 @@ Deno.serve(async (req) => {
 
         log(`Melbourne time now: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}, diff: ${diffMinutes} min`);
 
-        // Ejecutar si estamos dentro de una ventana de 55 minutos de la hora configurada.
-        // El cron corre cada hora pero no en el minuto exacto, así que necesitamos una ventana amplia.
-        // Los duplicados se evitan con el campo reminder_sent_at en cada servicio.
-        if (diffMinutes > 55) {
+        // Solo ejecutar si estamos dentro de una ventana de 5 minutos de la hora configurada
+        if (diffMinutes > 5) {
             log(`Not the right time. Current: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}. Skipping.`);
             return Response.json({ message: `Not sending time. Current: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}` });
         }
