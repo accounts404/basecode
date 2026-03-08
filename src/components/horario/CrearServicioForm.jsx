@@ -622,8 +622,8 @@ export default function CrearServicioForm({
             return;
         }
 
-        const startDateTime = new Date(`${formData.start_date}T${formData.start_time}:00`); // local Melbourne → .toISOString() da UTC correcto
-        const endDateTime = new Date(`${formData.start_date}T${formData.end_time}:00`);
+        const startDateTime = { toISOString: () => `${formData.start_date}T${formData.start_time}:00.000`, getTime: () => new Date(`${formData.start_date}T${formData.start_time}`).getTime() };
+        const endDateTime = { toISOString: () => `${formData.start_date}T${formData.end_time}:00.000`, getTime: () => new Date(`${formData.start_date}T${formData.end_time}`).getTime() };
 
         if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
             setError('Las fechas y horas ingresadas no son válidas.');
