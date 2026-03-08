@@ -89,11 +89,19 @@ Deno.serve(async (req) => {
 
         log(`Melbourne time now: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}, diff: ${diffMinutes} min`);
 
+        // Verificar si viene con force=true para saltear el chequeo de hora (útil para testing)
+        const url = new URL(req.url);
+        const forceTest = url.searchParams.get('force') === 'true';
+        const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
+        const isForced = forceTest || body.force === true;
+
         // Solo ejecutar si estamos dentro de una ventana de 5 minutos de la hora configurada
-        if (diffMinutes > 5) {
+        if (diffMinutes > 5 && !isForced) {
             log(`Not the right time. Current: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}. Skipping.`);
             return Response.json({ message: `Not sending time. Current: ${melbourneNow.toFormat('HH:mm')}, configured: ${config.time_of_day}` });
         }
+        
+        if (isForced) log(`⚡ Force mode enabled - skipping time check.`);
         
         log(`It's sending time in Melbourne! (${melbourneNow.toFormat('HH:mm')})`);
         
