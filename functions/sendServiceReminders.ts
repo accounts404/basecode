@@ -108,63 +108,58 @@ Deno.serve(async (req) => {
         log(`Looking for services scheduled on: ${targetDateString}`);
 
         // 5. Obtener servicios programados para la fecha objetivo
-        // Hay DOS tipos de datos en la base:
-        // A) "Naive con Z": start_time almacenado como hora Melbourne pero con sufijo Z (ej: 13:45Z = 1:45pm Melbourne)
-        // B) "True UTC": start_time correctamente en UTC (ej: 20:15Z el día anterior = 7:15am Melbourne del día siguiente)
-        //
-        // Se usan TRES queries para capturar todos los casos y se deduplicán por ID:
+        // Se hacen DOS queries para capturar ambos tipos de timestamps:
+        // - Con Z (nuevos): guardados en UTC, hay que convertir el día Melbourne a rango UTC correcto
+        // - Sin Z (viejos): guardados como strings naivos en hora Melbourne, buscar por la fecha directamente
 
-        // Query 1 (naive con Z): cubre caso A - horas Melbourne almacenadas con Z
-        const schedulesNaiveZ = await base44.asServiceRole.entities.Schedule.filter({
-            status: 'scheduled',
-            start_time: { $gte: `${targetDateString}T00:00:00.000Z`, $lte: `${targetDateString}T23:59:59.999Z` }
-        }, 'start_time', 500);
-
-        // Query 2 (true UTC): cubre caso B - horas Melbourne correctamente en UTC (mañanas tempranas)
+        // Para timestamps UTC: Melbourne es UTC+11 (o UTC+10 sin DST)
+        // El día Melbourne "targetDate" comienza en UTC = targetDate - 11h y termina en UTC = targetDate+1 - 11h
         const targetDayStartUTC = targetDateTime.startOf('day').toUTC().toISO();
         const targetDayEndUTC = targetDateTime.endOf('day').toUTC().toISO();
         log(`UTC range for Melbourne ${targetDateString}: ${targetDayStartUTC} to ${targetDayEndUTC}`);
-        const schedulesUTC = await base44.asServiceRole.entities.Schedule.filter({
+
+        const schedulesWithZ = await base44.asServiceRole.entities.Schedule.filter({
             status: 'scheduled',
             start_time: { $gte: targetDayStartUTC, $lte: targetDayEndUTC }
         }, 'start_time', 500);
 
-        // Query 3 (naive sin Z): cubre datos legacy sin sufijo Z
         const schedulesNaive = await base44.asServiceRole.entities.Schedule.filter({
             status: 'scheduled',
             start_time: { $gte: `${targetDateString}T00:00:00.000`, $lte: `${targetDateString}T23:59:59.999` }
         }, 'start_time', 500);
 
-        const listNaiveZ = Array.isArray(schedulesNaiveZ) ? schedulesNaiveZ : (schedulesNaiveZ?.items || schedulesNaiveZ?.data || []);
-        const listUTC = Array.isArray(schedulesUTC) ? schedulesUTC : (schedulesUTC?.items || schedulesUTC?.data || []);
+        const listWithZ = Array.isArray(schedulesWithZ) ? schedulesWithZ : (schedulesWithZ?.items || schedulesWithZ?.data || []);
         const listNaive = Array.isArray(schedulesNaive) ? schedulesNaive : (schedulesNaive?.items || schedulesNaive?.data || []);
 
         // Combinar y deduplicar por ID
         const seenIds = new Set();
-        const allSchedules = [...listNaiveZ, ...listUTC, ...listNaive].filter(s => {
+        const allSchedules = [...listWithZ, ...listNaive].filter(s => {
             if (seenIds.has(s.id)) return false;
             seenIds.add(s.id);
             return true;
         });
-        log(`Total services fetched for ${targetDateString}: ${allSchedules.length} (naiveZ: ${listNaiveZ.length}, utc: ${listUTC.length}, naive: ${listNaive.length})`);
+        log(`Total scheduled services fetched for ${targetDateString}: ${allSchedules.length} (withZ: ${listWithZ.length}, naive: ${listNaive.length})`);
 
-        // 6. Filtrar los que no tienen reminder_sent_at y verificar que la fecha sea correcta.
-        // Para datos naive (con o sin Z): usar el date portion del string directamente.
-        // Para true UTC: convertir a Melbourne y verificar la fecha.
+        // 6. Filtrar para fecha objetivo exacta en Melbourne (sin reminder_sent_at)
+        // IMPORTANTE: strings sin 'Z' se tratan como hora Melbourne (naive local),
+        // strings con 'Z' o offset se convierten normalmente.
         const scheduledForTargetDate = allSchedules.filter(s => {
             if (!s.start_time) return false;
             if (s.reminder_sent_at) return false;
-            // Verificación 1: date portion naive (cubre caso A y legacy)
-            const naiveDatePart = s.start_time.substring(0, 10);
-            if (naiveDatePart === targetDateString) return true;
-            // Verificación 2: conversión UTC→Melbourne (cubre caso B)
             try {
-                if (s.start_time.endsWith('Z') || s.start_time.includes('+')) {
-                    const melbDate = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne').toISODate();
-                    return melbDate === targetDateString;
+                let serviceDateTime;
+                if (s.start_time.endsWith('Z') || s.start_time.includes('+') || s.start_time.includes('-', 10)) {
+                    // Tiene timezone explícito, convertir a Melbourne
+                    serviceDateTime = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
+                } else {
+                    // Sin timezone: tratar directamente como hora Melbourne
+                    serviceDateTime = DateTime.fromISO(s.start_time, { zone: 'Australia/Melbourne' });
                 }
-            } catch (e) {}
-            return false;
+                const serviceDateString = serviceDateTime.toISODate();
+                return serviceDateString === targetDateString;
+            } catch (e) {
+                return false;
+            }
         });
 
         log(`Services for ${targetDateString} needing reminder: ${scheduledForTargetDate.length}`);
@@ -173,14 +168,15 @@ Deno.serve(async (req) => {
             // Log para debug: cuantos hay para esa fecha aunque ya tengan reminder
             const allForDate = allSchedules.filter(s => {
                 if (!s.start_time) return false;
-                const naiveDatePart = s.start_time.substring(0, 10);
-                if (naiveDatePart === targetDateString) return true;
                 try {
-                    if (s.start_time.endsWith('Z') || s.start_time.includes('+')) {
-                        return DateTime.fromISO(s.start_time).setZone('Australia/Melbourne').toISODate() === targetDateString;
+                    let dt;
+                    if (s.start_time.endsWith('Z') || s.start_time.includes('+') || s.start_time.includes('-', 10)) {
+                        dt = DateTime.fromISO(s.start_time).setZone('Australia/Melbourne');
+                    } else {
+                        dt = DateTime.fromISO(s.start_time, { zone: 'Australia/Melbourne' });
                     }
-                } catch(e) {}
-                return false;
+                    return dt.toISODate() === targetDateString;
+                } catch(e) { return false; }
             });
             log(`(Debug) Total services for ${targetDateString} including already reminded: ${allForDate.length}`);
             return Response.json({ message: 'No services to remind today.', target_date: targetDateString, total_for_date: allForDate.length });
