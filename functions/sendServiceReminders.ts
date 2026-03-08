@@ -109,18 +109,11 @@ Deno.serve(async (req) => {
 
         // 5. Obtener servicios programados para la fecha objetivo
         // Se hacen DOS queries para capturar ambos tipos de timestamps:
-        // - Con Z (nuevos): guardados en UTC, hay que convertir el día Melbourne a rango UTC correcto
-        // - Sin Z (viejos): guardados como strings naivos en hora Melbourne, buscar por la fecha directamente
-
-        // Para timestamps UTC: Melbourne es UTC+11 (o UTC+10 sin DST)
-        // El día Melbourne "targetDate" comienza en UTC = targetDate - 11h y termina en UTC = targetDate+1 - 11h
-        const targetDayStartUTC = targetDateTime.startOf('day').toUTC().toISO();
-        const targetDayEndUTC = targetDateTime.endOf('day').toUTC().toISO();
-        log(`UTC range for Melbourne ${targetDateString}: ${targetDayStartUTC} to ${targetDayEndUTC}`);
-
+        // - Con Z (nuevos): guardados como objetos de fecha, requieren bounds con Z
+        // - Sin Z (viejos): guardados como strings naivos, requieren bounds sin Z
         const schedulesWithZ = await base44.asServiceRole.entities.Schedule.filter({
             status: 'scheduled',
-            start_time: { $gte: targetDayStartUTC, $lte: targetDayEndUTC }
+            start_time: { $gte: `${targetDateString}T00:00:00.000Z`, $lte: `${targetDateString}T23:59:59.999Z` }
         }, 'start_time', 500);
 
         const schedulesNaive = await base44.asServiceRole.entities.Schedule.filter({
