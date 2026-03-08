@@ -644,7 +644,7 @@ export default function CrearServicioForm({
                 client_name: selectedClient.name,
                 client_address: formData.client_address || '', // Snapshot of address at time of saving
                 cleaner_ids: formData.cleaner_ids,
-                start_time: startDateTime.toISOString(),
+                start_time: startDateTime.toISOString(), // UTC desde hora local Melbourne
                 end_time: endDateTime.toISOString(),
                 cleaner_schedules: cleanerSchedules.length > 0 ? cleanerSchedules.map(cs => {
                     const csStartTime = cs.start_time ? cs.start_time.slice(11, 16) : formData.start_time;
