@@ -301,8 +301,19 @@ export default function HorarioPage() {
             
             console.log('[Horario] 🚗 Buscando vehículo y equipo para:', selectedDateStr);
 
-            // OPTIMIZADO: filtrar solo por la fecha en lugar de traer todos los registros
-            const matchingAssignments = await DailyTeamAssignment.filter({ date: selectedDateStr });
+            const allAssignments = await DailyTeamAssignment.list();
+            const matchingAssignments = allAssignments.filter(assignment => {
+                if (!assignment.date) return false;
+
+                let assignmentDateStr;
+                if (typeof assignment.date === 'string') {
+                    assignmentDateStr = assignment.date.slice(0, 10);
+                } else {
+                    return false;
+                }
+
+                return assignmentDateStr === selectedDateStr;
+            });
 
             const myAssignment = matchingAssignments.find(a =>
                 a.team_member_ids && 
@@ -1346,16 +1357,11 @@ export default function HorarioPage() {
             pollingRef.current = null;
         }
 
-        // OPTIMIZADO: polling menos frecuente para reducir rate limit
-        const pollingInterval = user?.role === 'admin' ? 90000 : 45000; // 90s admin, 45s cleaner
-        let slowPollCounter = 0; // para tareas y asignaciones (cada 5 min para admin)
+        const pollingInterval = user?.role === 'admin' ? 30000 : 15000;
 
         console.log(`[Horario] 🔄 Polling cada ${pollingInterval/1000}s`);
 
         pollingRef.current = setInterval(async () => {
-            // No pollear si la pestaña no está visible
-            if (document.hidden) return;
-
             if (navigationInProgressRef.current || clockInProcessingRef.current) {
                 console.log('[Horario] 🚫 Operación en progreso, saltando polling...');
                 return;
@@ -1363,18 +1369,15 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    slowPollCounter++;
-                    // Schedules en cada ciclo, tasks/assignments cada ~5 min (cada 3 ciclos de 90s)
-                    const allSchedules = await loadAllRecords('Schedule', '-start_time');
+                    // Obtener TODOS los registros con paginación automática
+                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                        loadAllRecords('Schedule', '-start_time'),
+                        loadAllRecords('Task', '-created_date'),
+                        loadAllRecords('DailyTeamAssignment', '-date')
+                    ]);
                     setSchedules(allSchedules);
-                    if (slowPollCounter % 3 === 0) {
-                        const [allTasks, allAssignments] = await Promise.all([
-                            loadAllRecords('Task', '-created_date'),
-                            loadAllRecords('DailyTeamAssignment', '-date')
-                        ]);
-                        setTasks(allTasks);
-                        setDailyTeamAssignments(allAssignments);
-                    }
+                    setTasks(allTasks);
+                    setDailyTeamAssignments(allAssignments);
                 } else {
                     await loadCleanerSpecificData(currentDateRef.current, true);
                 }
