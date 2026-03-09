@@ -301,19 +301,8 @@ export default function HorarioPage() {
             
             console.log('[Horario] 🚗 Buscando vehículo y equipo para:', selectedDateStr);
 
-            const allAssignments = await DailyTeamAssignment.list();
-            const matchingAssignments = allAssignments.filter(assignment => {
-                if (!assignment.date) return false;
-
-                let assignmentDateStr;
-                if (typeof assignment.date === 'string') {
-                    assignmentDateStr = assignment.date.slice(0, 10);
-                } else {
-                    return false;
-                }
-
-                return assignmentDateStr === selectedDateStr;
-            });
+            // OPTIMIZADO: filtrar solo por la fecha en lugar de traer todos los registros
+            const matchingAssignments = await DailyTeamAssignment.filter({ date: selectedDateStr });
 
             const myAssignment = matchingAssignments.find(a =>
                 a.team_member_ids && 
