@@ -1346,11 +1346,16 @@ export default function HorarioPage() {
             pollingRef.current = null;
         }
 
-        const pollingInterval = user?.role === 'admin' ? 30000 : 15000;
+        // OPTIMIZADO: polling menos frecuente para reducir rate limit
+        const pollingInterval = user?.role === 'admin' ? 90000 : 45000; // 90s admin, 45s cleaner
+        let slowPollCounter = 0; // para tareas y asignaciones (cada 5 min para admin)
 
         console.log(`[Horario] 🔄 Polling cada ${pollingInterval/1000}s`);
 
         pollingRef.current = setInterval(async () => {
+            // No pollear si la pestaña no está visible
+            if (document.hidden) return;
+
             if (navigationInProgressRef.current || clockInProcessingRef.current) {
                 console.log('[Horario] 🚫 Operación en progreso, saltando polling...');
                 return;
@@ -1358,15 +1363,18 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // Obtener TODOS los registros con paginación automática
-                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        loadAllRecords('Schedule', '-start_time'),
-                        loadAllRecords('Task', '-created_date'),
-                        loadAllRecords('DailyTeamAssignment', '-date')
-                    ]);
+                    slowPollCounter++;
+                    // Schedules en cada ciclo, tasks/assignments cada ~5 min (cada 3 ciclos de 90s)
+                    const allSchedules = await loadAllRecords('Schedule', '-start_time');
                     setSchedules(allSchedules);
-                    setTasks(allTasks);
-                    setDailyTeamAssignments(allAssignments);
+                    if (slowPollCounter % 3 === 0) {
+                        const [allTasks, allAssignments] = await Promise.all([
+                            loadAllRecords('Task', '-created_date'),
+                            loadAllRecords('DailyTeamAssignment', '-date')
+                        ]);
+                        setTasks(allTasks);
+                        setDailyTeamAssignments(allAssignments);
+                    }
                 } else {
                     await loadCleanerSpecificData(currentDateRef.current, true);
                 }
