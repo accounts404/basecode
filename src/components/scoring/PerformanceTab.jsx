@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,43 +6,58 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, CheckSquare } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import SimplePagination from "@/components/ui/simple-pagination";
 
-// 5 áreas de limpieza con puntos distribuidos sobre 100
 const AREAS = [
-  { key: "bathrooms",          name: "Baños",                   max: 25, color: "blue" },
-  { key: "kitchen_and_pantry", name: "Cocina y Despensa",       max: 25, color: "orange" },
-  { key: "floors",             name: "Pisos",                   max: 20, color: "green" },
+  { key: "bathrooms",          name: "Baños",                      max: 25, color: "blue" },
+  { key: "kitchen_and_pantry", name: "Cocina y Despensa",          max: 25, color: "orange" },
+  { key: "floors",             name: "Pisos",                      max: 20, color: "green" },
   { key: "dusting_wiping",     name: "Dusting / Limpieza General", max: 15, color: "purple" },
-  { key: "other_areas",        name: "Otras Áreas",             max: 15, color: "slate" },
+  { key: "other_areas",        name: "Otras Áreas",                max: 15, color: "slate" },
 ];
 
-const AREA_COLORS = {
-  blue:   { bg: "bg-blue-50",   border: "border-blue-200",  text: "text-blue-700",   bar: "bg-blue-500" },
-  orange: { bg: "bg-orange-50", border: "border-orange-200",text: "text-orange-700", bar: "bg-orange-500" },
-  green:  { bg: "bg-green-50",  border: "border-green-200", text: "text-green-700",  bar: "bg-green-500" },
-  purple: { bg: "bg-purple-50", border: "border-purple-200",text: "text-purple-700", bar: "bg-purple-500" },
-  slate:  { bg: "bg-slate-50",  border: "border-slate-200", text: "text-slate-700",  bar: "bg-slate-500" },
+// Checklists por área — puntos suman exactamente al max del área
+const AREA_CHECKLISTS = {
+  bathrooms: [
+    { key: "sink_mirrors",  label: "Lavamanos y espejos limpios",      points: 7 },
+    { key: "toilet",        label: "Inodoro desinfectado",              points: 6 },
+    { key: "shower_tub",    label: "Ducha / bañera limpia",             points: 6 },
+    { key: "floors_tiles",  label: "Pisos y azulejos",                  points: 6 },
+  ],
+  kitchen_and_pantry: [
+    { key: "countertops",   label: "Mesadas y superficies",             points: 7 },
+    { key: "appliances",    label: "Exterior de electrodomésticos",      points: 6 },
+    { key: "sink",          label: "Fregadero limpio",                   points: 6 },
+    { key: "pantry",        label: "Despensa organizada",               points: 6 },
+  ],
+  floors: [
+    { key: "vacuumed",      label: "Aspirado",                          points: 10 },
+    { key: "mopped",        label: "Trapeado / lavado",                 points: 10 },
+  ],
+  dusting_wiping: [
+    { key: "surfaces",      label: "Superficies desempolvadas",         points: 8 },
+    { key: "glass_mirrors", label: "Vidrios y espejos interiores",      points: 7 },
+  ],
+  other_areas: [
+    { key: "general_order", label: "Orden general",                     points: 8 },
+    { key: "special_areas", label: "Áreas especiales (lavandería, etc.)",points: 7 },
+  ],
 };
 
-function ScoreBar({ score, max, color }) {
-  const pct = max > 0 ? Math.round((score / max) * 100) : 0;
-  const colors = AREA_COLORS[color];
-  return (
-    <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-      <div
-        className={`h-full rounded-full transition-all duration-300 ${colors.bar}`}
-        style={{ width: `${pct}%` }}
-      />
-    </div>
-  );
-}
+const AREA_COLORS = {
+  blue:   { bg: "bg-blue-50",   border: "border-blue-200",   text: "text-blue-700",   bar: "bg-blue-500",   badgeBg: "bg-blue-100",   badgeText: "text-blue-800" },
+  orange: { bg: "bg-orange-50", border: "border-orange-200", text: "text-orange-700", bar: "bg-orange-500", badgeBg: "bg-orange-100", badgeText: "text-orange-800" },
+  green:  { bg: "bg-green-50",  border: "border-green-200",  text: "text-green-700",  bar: "bg-green-500",  badgeBg: "bg-green-100",  badgeText: "text-green-800" },
+  purple: { bg: "bg-purple-50", border: "border-purple-200", text: "text-purple-700", bar: "bg-purple-500", badgeBg: "bg-purple-100", badgeText: "text-purple-800" },
+  slate:  { bg: "bg-slate-50",  border: "border-slate-200",  text: "text-slate-700",  bar: "bg-slate-500",  badgeBg: "bg-slate-100",  badgeText: "text-slate-800" },
+};
 
 function ScoreBadge({ score }) {
   const cls = score >= 90 ? "bg-green-100 text-green-800"
@@ -52,6 +67,40 @@ function ScoreBadge({ score }) {
   return <Badge className={cls}>{Math.round(score)} / 100</Badge>;
 }
 
+// Calcula el puntaje general normalizado a 100 basado en las áreas incluidas
+function computeOverallScore(areaStates) {
+  const includedAreas = areaStates.filter(a => a.included);
+  if (includedAreas.length === 0) return 100;
+
+  const totalMax = includedAreas.reduce((sum, a) => {
+    const area = AREAS.find(ar => ar.key === a.area_key);
+    return sum + (area?.max || 0);
+  }, 0);
+
+  const totalEarned = includedAreas.reduce((sum, a) => {
+    const items = AREA_CHECKLISTS[a.area_key] || [];
+    return sum + items.reduce((s, item) => s + (a.checklist[item.key] ? item.points : 0), 0);
+  }, 0);
+
+  return totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 100;
+}
+
+function getAreaEarned(areaState) {
+  if (!areaState.included) return null;
+  const items = AREA_CHECKLISTS[areaState.area_key] || [];
+  return items.reduce((s, item) => s + (areaState.checklist[item.key] ? item.points : 0), 0);
+}
+
+const initAreaStates = () =>
+  AREAS.map(a => ({
+    area_key: a.key,
+    included: true,
+    notes: "",
+    checklist: Object.fromEntries(
+      (AREA_CHECKLISTS[a.key] || []).map(item => [item.key, true])
+    ),
+  }));
+
 // Card resumen de un limpiador
 function CleanerCard({ cleaner, reviews, onNew }) {
   const [expanded, setExpanded] = useState(false);
@@ -59,15 +108,6 @@ function CleanerCard({ cleaner, reviews, onNew }) {
   const avg = cleanerReviews.length > 0
     ? cleanerReviews.reduce((s, r) => s + (r.overall_score || 0), 0) / cleanerReviews.length
     : null;
-
-  // Promedio por área
-  const areaAverages = AREAS.map(area => {
-    const vals = cleanerReviews.map(r => {
-      const a = (r.area_scores || []).find(s => s.area_key === area.key);
-      return a ? a.score : null;
-    }).filter(v => v !== null);
-    return { ...area, avg: vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null };
-  });
 
   return (
     <Card className="border-0 shadow-md">
@@ -85,18 +125,6 @@ function CleanerCard({ cleaner, reviews, onNew }) {
 
         {cleanerReviews.length > 0 && (
           <>
-            <div className="space-y-2 mb-3">
-              {areaAverages.filter(a => a.avg !== null).map(area => (
-                <div key={area.key}>
-                  <div className="flex justify-between text-xs text-slate-600 mb-0.5">
-                    <span>{area.name}</span>
-                    <span>{Math.round(area.avg)}/{area.max}</span>
-                  </div>
-                  <ScoreBar score={area.avg} max={area.max} color={area.color} />
-                </div>
-              ))}
-            </div>
-
             <button
               onClick={() => setExpanded(!expanded)}
               className="text-xs text-blue-600 hover:underline flex items-center gap-1 mb-3"
@@ -130,9 +158,6 @@ function CleanerCard({ cleaner, reviews, onNew }) {
   );
 }
 
-const INITIAL_AREA_SCORES = () =>
-  AREAS.map(a => ({ area_key: a.key, area_name: a.name, max_points: a.max, score: a.max, notes: "" }));
-
 export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores, user, onScoreApplied }) {
   const [reviews, setReviews] = useState([]);
   const [clients, setClients] = useState([]);
@@ -143,7 +168,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
-  const [areaScores, setAreaScores] = useState(INITIAL_AREA_SCORES());
+  const [areaStates, setAreaStates] = useState(initAreaStates());
   const [generalNotes, setGeneralNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
@@ -170,7 +195,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setSelectedClientId("");
     setClientSearch("");
     setShowClientDropdown(false);
-    setAreaScores(INITIAL_AREA_SCORES());
+    setAreaStates(initAreaStates());
     setGeneralNotes("");
     setShowDialog(true);
   };
@@ -185,17 +210,27 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setShowClientDropdown(false);
   };
 
-  const totalScore = areaScores.reduce((s, a) => s + a.score, 0);
-
-  const updateAreaScore = (key, score) => {
-    setAreaScores(prev => prev.map(a => a.area_key === key ? { ...a, score } : a));
+  const toggleAreaIncluded = (areaKey) => {
+    setAreaStates(prev => prev.map(a =>
+      a.area_key === areaKey ? { ...a, included: !a.included } : a
+    ));
   };
 
-  const updateAreaNotes = (key, notes) => {
-    setAreaScores(prev => prev.map(a => a.area_key === key ? { ...a, notes } : a));
+  const toggleChecklistItem = (areaKey, itemKey) => {
+    setAreaStates(prev => prev.map(a =>
+      a.area_key === areaKey
+        ? { ...a, checklist: { ...a.checklist, [itemKey]: !a.checklist[itemKey] } }
+        : a
+    ));
   };
 
-  // Impacto en puntuación del ranking: la diferencia con respecto al 100 ideal
+  const updateAreaNotes = (areaKey, notes) => {
+    setAreaStates(prev => prev.map(a => a.area_key === areaKey ? { ...a, notes } : a));
+  };
+
+  const overallScore = computeOverallScore(areaStates);
+  const includedCount = areaStates.filter(a => a.included).length;
+
   const calcPointsImpact = (total) => {
     const deduction = 100 - total;
     return deduction > 0 ? -deduction : 0;
@@ -206,7 +241,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setSaving(true);
     try {
       const client = clients.find(c => c.id === selectedClientId);
-      const impact = calcPointsImpact(totalScore);
+      const impact = calcPointsImpact(overallScore);
       const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
       let adjustmentId = null;
 
@@ -218,7 +253,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           adjustment_type: "deduction",
           category: "Evaluación de Performance",
           points_impact: impact,
-          notes: `Puntaje: ${totalScore}/100${client ? ` · Cliente: ${client.name}` : ""}${generalNotes ? ` · ${generalNotes}` : ""}`,
+          notes: `Puntaje: ${overallScore}/100 (${includedCount} áreas evaluadas)${client ? ` · Cliente: ${client.name}` : ""}${generalNotes ? ` · ${generalNotes}` : ""}`,
           admin_id: user.id,
           admin_name: user.full_name,
           date_applied: new Date().toISOString()
@@ -227,6 +262,21 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         const newScore = Math.max(0, monthlyScore.current_score + impact);
         await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
       }
+
+      // Build area_scores for saving
+      const areaScoresForSave = areaStates.map(state => {
+        const area = AREAS.find(a => a.key === state.area_key);
+        const earned = getAreaEarned(state);
+        return {
+          area_key: state.area_key,
+          area_name: area?.name || state.area_key,
+          max_points: area?.max || 0,
+          score: earned !== null ? earned : 0,
+          included: state.included,
+          checklist: state.checklist,
+          notes: state.notes,
+        };
+      });
 
       await base44.entities.PerformanceReview.create({
         cleaner_id: selectedCleaner.id,
@@ -237,8 +287,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         client_name: client?.name || "",
         reviewed_by_admin: user.id,
         reviewed_by_admin_name: user.full_name,
-        area_scores: areaScores,
-        overall_score: totalScore,
+        area_scores: areaScoresForSave,
+        overall_score: overallScore,
         general_notes: generalNotes,
         points_impact: impact,
         score_adjustment_id: adjustmentId
@@ -267,7 +317,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
       <div className="flex justify-between items-center">
         <div>
           <h3 className="text-lg font-semibold text-slate-800">Evaluaciones de Performance por Casa</h3>
-          <p className="text-sm text-slate-500">Evalúa cada área de limpieza sobre 100 puntos por limpiador</p>
+          <p className="text-sm text-slate-500">Evalúa por área con checklist — las áreas no realizadas se excluyen del cálculo</p>
         </div>
         <div className="flex items-center gap-3">
           <Badge className="bg-blue-100 text-blue-800">{reviews.length} evaluaciones este mes</Badge>
@@ -281,15 +331,9 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" /></div>
       ) : (
         <>
-          {/* Grid de limpiadores */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {participatingCleaners.map(cleaner => (
-              <CleanerCard
-                key={cleaner.id}
-                cleaner={cleaner}
-                reviews={reviews}
-                onNew={openDialog}
-              />
+              <CleanerCard key={cleaner.id} cleaner={cleaner} reviews={reviews} onNew={openDialog} />
             ))}
             {participatingCleaners.length === 0 && (
               <div className="col-span-3 text-center py-12 text-slate-500">
@@ -299,7 +343,6 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
             )}
           </div>
 
-          {/* Historial global */}
           {reviews.length > 0 && (
             <Card className="border-0 shadow-md">
               <CardHeader>
@@ -362,10 +405,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
               </Label>
               <Select
                 value={selectedCleaner?.id || ""}
-                onValueChange={(id) => {
-                  const c = limpiadores.find(l => l.id === id);
-                  setSelectedCleaner(c || null);
-                }}
+                onValueChange={(id) => setSelectedCleaner(limpiadores.find(l => l.id === id) || null)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar limpiador..." />
@@ -384,47 +424,30 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                 <Label className="font-semibold flex items-center gap-1 mb-1">
                   <CalendarDays className="w-4 h-4" /> Fecha del Servicio
                 </Label>
-                <Input
-                  type="date"
-                  value={reviewDate}
-                  onChange={e => setReviewDate(e.target.value)}
-                />
+                <Input type="date" value={reviewDate} onChange={e => setReviewDate(e.target.value)} />
               </div>
               <div>
                 <Label className="font-semibold flex items-center gap-1 mb-1">
                   <Home className="w-4 h-4" /> Cliente / Casa
                 </Label>
                 <div className="relative">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
-                      value={clientSearch}
-                      onChange={e => {
-                        setClientSearch(e.target.value);
-                        setSelectedClientId("");
-                        setShowClientDropdown(true);
-                      }}
-                      onFocus={() => setShowClientDropdown(true)}
-                      placeholder="Buscar cliente..."
-                      className="pl-9 pr-8"
-                    />
-                    {clientSearch && (
-                      <button
-                        onClick={() => { setClientSearch(""); setSelectedClientId(""); }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    value={clientSearch}
+                    onChange={e => { setClientSearch(e.target.value); setSelectedClientId(""); setShowClientDropdown(true); }}
+                    onFocus={() => setShowClientDropdown(true)}
+                    placeholder="Buscar cliente..."
+                    className="pl-9 pr-8"
+                  />
+                  {clientSearch && (
+                    <button onClick={() => { setClientSearch(""); setSelectedClientId(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                   {showClientDropdown && filteredClients.length > 0 && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {filteredClients.map(c => (
-                        <button
-                          key={c.id}
-                          onClick={() => selectClient(c)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0"
-                        >
+                        <button key={c.id} onClick={() => selectClient(c)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">
                           {c.name}
                         </button>
                       ))}
@@ -436,46 +459,81 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
 
             {/* Áreas de evaluación */}
             <div>
-              <Label className="text-base font-semibold mb-3 block">Evaluación por Área</Label>
-              <div className="space-y-4">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-base font-semibold">Evaluación por Área</Label>
+                <span className="text-xs text-slate-500">{includedCount} de {AREAS.length} áreas incluidas</span>
+              </div>
+
+              <div className="space-y-3">
                 {AREAS.map(area => {
-                  const aScore = areaScores.find(a => a.area_key === area.key);
+                  const state = areaStates.find(a => a.area_key === area.key);
+                  if (!state) return null;
                   const colors = AREA_COLORS[area.color];
-                  const pct = Math.round((aScore.score / area.max) * 100);
+                  const items = AREA_CHECKLISTS[area.key] || [];
+                  const earned = getAreaEarned(state);
+                  const allChecked = items.every(i => state.checklist[i.key]);
+                  const anyChecked = items.some(i => state.checklist[i.key]);
 
                   return (
-                    <div key={area.key} className={`p-4 rounded-lg border ${colors.bg} ${colors.border}`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <Label className={`font-semibold ${colors.text}`}>{area.name}</Label>
-                        <span className={`text-xl font-bold ${colors.text}`}>
-                          {aScore.score} <span className="text-sm font-normal text-slate-500">/ {area.max} pts</span>
-                        </span>
+                    <div key={area.key} className={`rounded-lg border transition-all ${state.included ? `${colors.bg} ${colors.border}` : "bg-slate-50 border-slate-200 opacity-60"}`}>
+                      {/* Header del área */}
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            checked={state.included}
+                            onCheckedChange={() => toggleAreaIncluded(area.key)}
+                          />
+                          <div>
+                            <span className={`font-semibold text-sm ${state.included ? colors.text : "text-slate-500"}`}>
+                              {area.name}
+                            </span>
+                            {!state.included && (
+                              <span className="ml-2 text-xs text-slate-400">(no se realizó en este servicio)</span>
+                            )}
+                          </div>
+                        </div>
+                        {state.included && (
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-bold ${colors.text}`}>
+                              {earned} / {area.max} pts
+                            </span>
+                            <Badge className={`text-xs ${allChecked ? "bg-green-100 text-green-800" : anyChecked ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}`}>
+                              {Math.round((earned / area.max) * 100)}%
+                            </Badge>
+                          </div>
+                        )}
                       </div>
 
-                      <Slider
-                        value={[aScore.score]}
-                        min={0}
-                        max={area.max}
-                        step={1}
-                        onValueChange={([v]) => updateAreaScore(area.key, v)}
-                        className="mb-2"
-                      />
-
-                      <div className="flex justify-between text-xs text-slate-500 mb-2">
-                        <span>0</span>
-                        <span className={pct < 60 ? "text-red-500 font-medium" : pct < 80 ? "text-yellow-600 font-medium" : "text-green-600 font-medium"}>
-                          {pct}%
-                        </span>
-                        <span>{area.max}</span>
-                      </div>
-
-                      <Textarea
-                        value={aScore.notes}
-                        onChange={e => updateAreaNotes(area.key, e.target.value)}
-                        placeholder={`¿Qué no está haciendo bien en ${area.name.toLowerCase()}? (opcional)`}
-                        rows={2}
-                        className="text-sm mt-1"
-                      />
+                      {/* Checklist items */}
+                      {state.included && (
+                        <div className="px-3 pb-3 space-y-2 border-t border-opacity-30" style={{ borderColor: "currentColor" }}>
+                          <div className="pt-2 space-y-2">
+                            {items.map(item => (
+                              <label key={item.key} className="flex items-center justify-between gap-3 cursor-pointer group">
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    checked={state.checklist[item.key]}
+                                    onCheckedChange={() => toggleChecklistItem(area.key, item.key)}
+                                  />
+                                  <span className={`text-sm ${state.checklist[item.key] ? "text-slate-700" : "text-slate-400 line-through"}`}>
+                                    {item.label}
+                                  </span>
+                                </div>
+                                <span className={`text-xs font-medium flex-shrink-0 ${state.checklist[item.key] ? colors.text : "text-slate-300"}`}>
+                                  {state.checklist[item.key] ? `+${item.points}` : `0/${item.points}`} pts
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                          <Textarea
+                            value={state.notes}
+                            onChange={e => updateAreaNotes(area.key, e.target.value)}
+                            placeholder={`Observaciones de ${area.name.toLowerCase()}... (opcional)`}
+                            rows={1}
+                            className="text-sm mt-2"
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -483,17 +541,20 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
             </div>
 
             {/* Resumen de puntaje */}
-            <div className={`p-4 rounded-lg border ${totalScore >= 90 ? "bg-green-50 border-green-200" : totalScore >= 75 ? "bg-blue-50 border-blue-200" : totalScore >= 60 ? "bg-yellow-50 border-yellow-200" : "bg-red-50 border-red-200"}`}>
+            <div className={`p-4 rounded-lg border ${overallScore >= 90 ? "bg-green-50 border-green-200" : overallScore >= 75 ? "bg-blue-50 border-blue-200" : overallScore >= 60 ? "bg-yellow-50 border-yellow-200" : "bg-red-50 border-red-200"}`}>
               <div className="flex justify-between items-center">
-                <span className="font-semibold">Puntaje Total</span>
-                <span className="text-3xl font-bold">{totalScore} <span className="text-base font-normal text-slate-500">/ 100</span></span>
+                <div>
+                  <span className="font-semibold">Puntaje Total</span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Normalizado sobre {includedCount} área{includedCount !== 1 ? "s" : ""} incluida{includedCount !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <span className="text-3xl font-bold">{overallScore} <span className="text-base font-normal text-slate-500">/ 100</span></span>
               </div>
-              {calcPointsImpact(totalScore) < 0 && (
-                <p className="text-sm text-red-600 mt-1">
-                  Impacto en ranking: {calcPointsImpact(totalScore)} pts
-                </p>
+              {calcPointsImpact(overallScore) < 0 && (
+                <p className="text-sm text-red-600 mt-1">Impacto en ranking: {calcPointsImpact(overallScore)} pts</p>
               )}
-              {totalScore === 100 && (
+              {overallScore === 100 && (
                 <p className="text-sm text-green-600 mt-1">✅ ¡Evaluación perfecta! Sin impacto en ranking.</p>
               )}
             </div>
