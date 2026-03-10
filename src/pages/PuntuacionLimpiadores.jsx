@@ -527,42 +527,6 @@ export default function PuntuacionLimpiadoresPage() {
                 </TabsContent>
             </Tabs>
 
-            {/* Dialog - Configurar Participantes */}
-            <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Configurar Participantes - {format(new Date(selectedMonth + '-01'), 'MMMM yyyy', { locale: es })}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 max-h-96 overflow-y-auto">
-                        {limpiadores.map(cleaner => (
-                            <div key={cleaner.id} className="flex items-center justify-between p-3 border rounded-lg">
-                                <div>
-                                    <p className="font-medium">{cleaner.invoice_name || cleaner.full_name}</p>
-                                    <p className="text-sm text-slate-600">{cleaner.email}</p>
-                                </div>
-                                <Switch
-                                    checked={participantConfig[cleaner.id] || false}
-                                    onCheckedChange={(checked) =>
-                                        setParticipantConfig(prev => ({
-                                            ...prev,
-                                            [cleaner.id]: checked
-                                        }))
-                                    }
-                                />
-                            </div>
-                        ))}
-                    </div>
-                    <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="outline" onClick={() => setShowConfigDialog(false)}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleSaveParticipants}>
-                            Guardar Configuración
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
             {/* Dialog - Ajuste de Puntos */}
             <Dialog open={showAdjustDialog} onOpenChange={setShowAdjustDialog}>
                 <DialogContent>
