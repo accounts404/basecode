@@ -454,7 +454,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
               <Label className="font-semibold flex items-center gap-1 mb-1">
                 <Car className="w-4 h-4" /> Vehículo
               </Label>
-              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+              <Select value={selectedVehicleId} onValueChange={handleVehicleChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar vehículo..." />
                 </SelectTrigger>
