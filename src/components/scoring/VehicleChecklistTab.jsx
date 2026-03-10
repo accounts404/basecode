@@ -324,9 +324,9 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     }
   };
 
-  const handleObservationConfirm = (notes) => {
+  const handleObservationConfirm = (notes, photos = []) => {
     setChecklist(prev => prev.map((item, i) =>
-      i === pendingFailIndex ? { ...item, passed: false, notes } : item
+      i === pendingFailIndex ? { ...item, passed: false, notes, photos } : item
     ));
     setPendingFailIndex(null);
   };
