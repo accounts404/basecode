@@ -6,39 +6,36 @@ import { Button } from "@/components/ui/button";
 import { Crown, Medal, Award, Trophy, ClipboardList, Clock, Car, MessageSquare, Eye, RefreshCw } from "lucide-react";
 import SimplePagination from "@/components/ui/simple-pagination";
 
-// Pesos por área (deben sumar 1)
-const WEIGHTS = {
-  performance: 0.50,   // 50%
-  punctuality: 0.10,   // 10%
-  vehicles:    0.18,   // 18%
-  feedback:    0.22,   // 22%
+// Puntos máximos por categoría (deben sumar 100)
+const MAX_PTS = {
+  performance: 50,
+  punctuality: 10,
+  vehicles:    18,
+  feedback:    22,
 };
 
-const VEHICLE_TOTAL_POSSIBLE = 18; // suma de puntos del DEFAULT_CHECKLIST
+const VEHICLE_TOTAL_POSSIBLE = 18;
 
-function calcComposite({ perfScore, punctScore, vehicleScore, feedbackScore }) {
-  return Math.round(
-    perfScore    * WEIGHTS.performance +
-    punctScore   * WEIGHTS.punctuality +
-    vehicleScore * WEIGHTS.vehicles    +
-    feedbackScore * WEIGHTS.feedback
-  );
+// Convierte score 0-100 a puntos ponderados
+function toPts(score, category) {
+  return Math.round(score * MAX_PTS[category] / 100);
 }
 
-function MiniBar({ score, colorClass }) {
+function MiniBar({ pts, max, colorClass }) {
+  const pct = max > 0 ? (pts / max) * 100 : 0;
   return (
     <div className="h-1.5 w-14 bg-slate-200 rounded-full overflow-hidden inline-block align-middle">
-      <div className={`h-full rounded-full ${colorClass}`} style={{ width: `${Math.max(0, Math.min(100, score))}%` }} />
+      <div className={`h-full rounded-full ${colorClass}`} style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
     </div>
   );
 }
 
-function AreaScore({ icon: Icon, score, colorClass, label }) {
+function AreaScore({ icon: Icon, pts, max, colorClass, label }) {
   return (
-    <span className="flex items-center gap-1 text-xs text-slate-500">
+    <span className="flex items-center gap-1 text-xs text-slate-500" title={label}>
       <Icon className={`w-3 h-3 ${colorClass}`} />
-      <span className="font-medium">{score}</span>
-      <MiniBar score={score} colorClass={colorClass.replace("text-", "bg-")} />
+      <span className={`font-medium ${pts === 0 ? 'text-slate-300' : ''}`}>{pts}<span className="text-slate-300">/{max}</span></span>
+      <MiniBar pts={pts} max={max} colorClass={colorClass.replace("text-", "bg-")} />
     </span>
   );
 }
