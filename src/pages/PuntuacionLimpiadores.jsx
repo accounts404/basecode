@@ -19,6 +19,7 @@ import { Trophy, TrendingUp, TrendingDown, Users, Calendar, Plus, History, Medal
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import CategorySelector from "../components/scoring/CategorySelector";
+import SimplePagination from "../components/ui/simple-pagination";
 import CleanerScoreHistoryDialog from "../components/scoring/CleanerScoreHistoryDialog";
 import PerformanceTab from "../components/scoring/PerformanceTab";
 import PunctualityTab from "../components/scoring/PunctualityTab";
