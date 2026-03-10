@@ -165,6 +165,8 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
   const [reportTo, setReportTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const [reportRecords, setReportRecords] = useState([]);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [reportVehicleId, setReportVehicleId] = useState("all");
+  const [reportCleanerId, setReportCleanerId] = useState("all");
   const [applyingMonthly, setApplyingMonthly] = useState(false);
 
   // Calcular promedio mensual por limpiador a partir de las revisiones del mes
