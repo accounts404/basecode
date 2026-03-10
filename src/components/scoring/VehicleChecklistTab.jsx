@@ -253,32 +253,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
         reviewed_by_admin_name: user.full_name
       });
 
-      // Aplicar deducciones al ranking de cada miembro
-      if (totalDeduction > 0 && teamIds.length > 0) {
-        const ptsPerMember = Math.ceil(totalDeduction / teamIds.length);
-        const failedItems = checklist.filter(i => !i.passed)
-          .map(i => `${i.item}${i.notes ? ` (${i.notes})` : ""}`).join("; ");
-
-        for (const cleanerId of teamIds) {
-          const monthlyScore = monthlyScores.find(s => s.cleaner_id === cleanerId);
-          if (monthlyScore) {
-            await base44.entities.ScoreAdjustment.create({
-              monthly_score_id: monthlyScore.id,
-              cleaner_id: cleanerId,
-              month_period: monthPeriod,
-              adjustment_type: "deduction",
-              category: "Mantenimiento de Vehículo",
-              points_impact: -ptsPerMember,
-              notes: `Revisión vehicular ${format(parseISO(selectedDate), "d MMM", { locale: es })}. Fallas: ${failedItems}`,
-              admin_id: user.id,
-              admin_name: user.full_name,
-              date_applied: new Date().toISOString()
-            });
-            const newScore = Math.max(0, monthlyScore.current_score - ptsPerMember);
-            await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
-          }
-        }
-      }
+      // NO aplicar puntajes individuales ahora — se aplican como promedio mensual al cerrar el mes
 
       setShowDialog(false);
       await loadData();
