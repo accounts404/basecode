@@ -432,11 +432,7 @@ export default function PuntuacionLimpiadoresPage() {
         setShowHistoryDialog(true);
     };
 
-    const ranking = getCurrentRanking();
-    const rankingTotalPages = Math.ceil(ranking.length / RANKING_PAGE_SIZE);
-    const paginatedRanking = ranking.slice((rankingPage - 1) * RANKING_PAGE_SIZE, rankingPage * RANKING_PAGE_SIZE);
-    const currentMonthScore = monthlyScores.find(s => s.month_period === selectedMonth);
-    const isMonthClosed = currentMonthScore && currentMonthScore.status === 'closed';
+    const isMonthClosed = false; // El ranking ya no depende de MonthlyCleanerScore
 
     if (loading) {
         return (
