@@ -157,6 +157,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
   const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST.map(i => ({ ...i, passed: true, notes: "", points_if_fail: i.points })));
   const [generalNotes, setGeneralNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null); // registro que se está editando
   // Observation dialog
   const [pendingFailIndex, setPendingFailIndex] = useState(null);
   // Report
