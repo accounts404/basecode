@@ -61,41 +61,44 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       ]);
 
       const ranked = limpiadores.map(cleaner => {
-        // --- Performance (50%) ---
+        // --- Performance (max 50 pts) — 0 si no hay datos ---
         const myPerf = perfReviews.filter(r => r.cleaner_id === cleaner.id);
         const perfScore = myPerf.length > 0
           ? Math.round(myPerf.reduce((s, r) => s + (r.overall_score || 0), 0) / myPerf.length)
-          : 100;
+          : 0;
+        const perfPts = toPts(perfScore, 'performance');
 
-        // --- Puntualidad (10%) ---
+        // --- Puntualidad (max 10 pts) — 0 si no hay datos ---
         const myPunct = punctRecords.filter(r => r.cleaner_id === cleaner.id);
-        const punctImpact = myPunct.reduce((s, r) => s + (r.points_impact || 0), 0);
-        const punctScore = Math.max(0, Math.min(100, 100 + punctImpact));
+        const punctScore = myPunct.length > 0
+          ? Math.max(0, Math.min(100, 100 + myPunct.reduce((s, r) => s + (r.points_impact || 0), 0)))
+          : 0;
+        const punctPts = toPts(punctScore, 'punctuality');
 
-        // --- Vehículos (18%) ---
+        // --- Vehículos (max 18 pts) — 0 si no hay datos ---
         const myVehicle = vehicleRecords.filter(r => (r.team_member_ids || []).includes(cleaner.id));
-        let vehicleScore = 100;
+        let vehicleScore = 0;
         if (myVehicle.length > 0) {
           const avgDeduction = myVehicle.reduce((s, r) => s + (r.total_deduction || 0), 0) / myVehicle.length;
           vehicleScore = Math.max(0, Math.min(100,
             Math.round(((VEHICLE_TOTAL_POSSIBLE - avgDeduction) / VEHICLE_TOTAL_POSSIBLE) * 100)
           ));
         }
+        const vehiclePts = toPts(vehicleScore, 'vehicles');
 
-        // --- Feedback (22%) ---
+        // --- Feedback (max 22 pts) — 0 si no hay datos ---
         const myFeedback = feedbacks.filter(r => (r.affected_cleaner_ids || []).includes(cleaner.id));
-        const feedbackImpact = myFeedback.reduce((s, r) => s + (r.points_impact || 0), 0);
-        const feedbackScore = Math.max(0, Math.min(100, 100 + feedbackImpact));
+        const feedbackScore = myFeedback.length > 0
+          ? Math.max(0, Math.min(100, 100 + myFeedback.reduce((s, r) => s + (r.points_impact || 0), 0)))
+          : 0;
+        const feedbackPts = toPts(feedbackScore, 'feedback');
 
-        const composite = calcComposite({ perfScore, punctScore, vehicleScore, feedbackScore });
+        const totalPts = perfPts + punctPts + vehiclePts + feedbackPts;
 
         return {
           cleaner,
-          perfScore,
-          punctScore,
-          vehicleScore,
-          feedbackScore,
-          composite,
+          perfPts, punctPts, vehiclePts, feedbackPts,
+          totalPts,
           perfCount: myPerf.length,
           punctCount: myPunct.length,
           vehicleCount: myVehicle.length,
