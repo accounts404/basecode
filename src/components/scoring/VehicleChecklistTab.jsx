@@ -229,10 +229,10 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
         date: selectedDate,
         month_period: monthPeriod,
         team_assignment_id: selectedAssignment?.id || null,
-        vehicle_id: selectedAssignment?.vehicle_id || null,
+        vehicle_id: selectedVehicleId || null,
         vehicle_info: vehicle
           ? `${vehicle.make} ${vehicle.model} ${vehicle.license_plate}`
-          : selectedAssignment?.vehicle_info || "Vehículo no especificado",
+          : "Vehículo no especificado",
         team_member_ids: teamIds,
         team_member_names: teamNames,
         checklist_items: checklist,
