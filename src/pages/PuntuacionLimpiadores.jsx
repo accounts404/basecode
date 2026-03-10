@@ -141,45 +141,6 @@ export default function PuntuacionLimpiadoresPage() {
             .map((score, index) => ({ ...score, current_rank: index + 1 }));
     };
 
-    const handleConfigureParticipants = () => {
-        setShowConfigDialog(true);
-    };
-
-    const handleSaveParticipants = async () => {
-        try {
-            const updates = [];
-
-            for (const cleaner of limpiadores) {
-                const isParticipating = participantConfig[cleaner.id] || false;
-                const existingScore = monthlyScores.find(s => s.cleaner_id === cleaner.id);
-
-                if (isParticipating && !existingScore) {
-                    // Crear nueva entrada
-                    updates.push(MonthlyCleanerScore.create({
-                        cleaner_id: cleaner.id,
-                        cleaner_name: cleaner.invoice_name || cleaner.full_name,
-                        month_period: selectedMonth,
-                        initial_score: 100,
-                        current_score: 100,
-                        is_participating: true,
-                        created_by_admin: user.id
-                    }));
-                } else if (existingScore && existingScore.is_participating !== isParticipating) {
-                    // Actualizar participación
-                    updates.push(MonthlyCleanerScore.update(existingScore.id, {
-                        is_participating: isParticipating
-                    }));
-                }
-            }
-
-            await Promise.all(updates);
-            await loadMonthlyScores();
-            setShowConfigDialog(false);
-        } catch (error) {
-            console.error('Error guardando participantes:', error);
-        }
-    };
-
     const handleScoreAdjustment = (cleaner) => {
         setSelectedCleaner(cleaner);
         setAdjustmentData({
