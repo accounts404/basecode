@@ -562,7 +562,8 @@ export default function PuntuacionLimpiadoresPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-3">
-                                {ranking.map((cleaner, index) => {
+                                {paginatedRanking.map((cleaner) => {
+                                    const index = cleaner.current_rank - 1;
                                     const rankIcon = index === 0 ? <Crown className="w-6 h-6 text-yellow-500" /> :
                                                    index === 1 ? <Medal className="w-6 h-6 text-gray-400" /> :
                                                    index === 2 ? <Award className="w-6 h-6 text-amber-600" /> :
@@ -611,6 +612,13 @@ export default function PuntuacionLimpiadoresPage() {
                                         <p className="text-sm">Haz clic en "Participantes" para comenzar</p>
                                     </div>
                                 )}
+                                <SimplePagination
+                                    currentPage={rankingPage}
+                                    totalPages={rankingTotalPages}
+                                    onPageChange={setRankingPage}
+                                    totalItems={ranking.length}
+                                    pageSize={RANKING_PAGE_SIZE}
+                                />
                             </div>
                         </CardContent>
                     </Card>
