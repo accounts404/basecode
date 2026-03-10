@@ -31,6 +31,27 @@ const TOTAL_POSSIBLE = DEFAULT_CHECKLIST.reduce((s, i) => s + i.points, 0);
 // Dialog para observaciones cuando falla un item
 function ObservationDialog({ item, onConfirm, onCancel }) {
   const [notes, setNotes] = useState("");
+  const [photos, setPhotos] = useState([]);
+  const [uploading, setUploading] = useState(false);
+
+  const handlePhotoUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    setUploading(true);
+    try {
+      const uploaded = await Promise.all(
+        files.map(async (file) => {
+          const { file_url } = await base44.integrations.Core.UploadFile({ file });
+          return { url: file_url };
+        })
+      );
+      setPhotos(prev => [...prev, ...uploaded]);
+    } catch (err) {
+      console.error(err);
+    }
+    setUploading(false);
+  };
+
   return (
     <Dialog open onOpenChange={onCancel}>
       <DialogContent className="max-w-md">
@@ -55,12 +76,45 @@ function ObservationDialog({ item, onConfirm, onCancel }) {
               autoFocus
             />
           </div>
+          {/* Fotos opcionales */}
+          <div>
+            <Label className="font-semibold flex items-center gap-1">
+              <Camera className="w-4 h-4" /> Fotos como evidencia <span className="text-slate-400 font-normal text-xs ml-1">(opcional)</span>
+            </Label>
+            <label className="mt-1 flex items-center gap-2 cursor-pointer border border-dashed border-slate-300 rounded-lg p-3 hover:bg-slate-50 transition-colors">
+              <ImageIcon className="w-4 h-4 text-slate-400" />
+              <span className="text-sm text-slate-500">{uploading ? "Subiendo..." : "Adjuntar fotos..."}</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePhotoUpload}
+                disabled={uploading}
+              />
+            </label>
+            {photos.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {photos.map((p, i) => (
+                  <div key={i} className="relative group">
+                    <img src={p.url} alt="" className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                    <button
+                      onClick={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Cancelar (marcar como OK)</Button>
           <Button
-            onClick={() => onConfirm(notes)}
-            disabled={!notes.trim()}
+            onClick={() => onConfirm(notes, photos)}
+            disabled={!notes.trim() || uploading}
             className="bg-red-600 hover:bg-red-700"
           >
             Confirmar Falla
