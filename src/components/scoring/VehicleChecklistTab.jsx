@@ -590,7 +590,16 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
               <div>
                 <h4 className="font-semibold text-slate-700 mb-3">Detalle por fecha ({reportRecords.length} registros)</h4>
                 <div className="space-y-3">
-                  {reportRecords.map(record => <RecordCard key={record.id} record={record} />)}
+                  {reportRecords.slice((reportPage - 1) * PAGE_SIZE, reportPage * PAGE_SIZE).map(record => (
+                    <RecordCard key={record.id} record={record} />
+                  ))}
+                  <SimplePagination
+                    currentPage={reportPage}
+                    totalPages={Math.ceil(reportRecords.length / PAGE_SIZE)}
+                    onPageChange={setReportPage}
+                    totalItems={reportRecords.length}
+                    pageSize={PAGE_SIZE}
+                  />
                 </div>
               </div>
             </>
