@@ -457,7 +457,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
           ) : records.length > 0 ? (
             <div className="space-y-3">
               {records.sort((a, b) => b.date.localeCompare(a.date)).map(record => (
-                <RecordCard key={record.id} record={record} />
+                <RecordCard key={record.id} record={record} onEdit={openDialog} />
               ))}
             </div>
           ) : (
