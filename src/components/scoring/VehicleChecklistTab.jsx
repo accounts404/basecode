@@ -183,14 +183,23 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     setPendingFailIndex(null);
     try {
       const assignments = await base44.entities.DailyTeamAssignment.filter({ date: selectedDate });
-      if (assignments.length > 0) {
-        const a = assignments[0];
-        setSelectedAssignment(a);
-        setSelectedVehicleId(a.vehicle_id || "");
-        setSelectedMemberIds(a.team_member_ids || []);
-      }
-    } catch (e) {}
+      setDailyAssignments(assignments);
+      // No pre-seleccionar nada — el usuario elige el vehículo primero
+    } catch (e) { setDailyAssignments([]); }
     setShowDialog(true);
+  };
+
+  // Cuando el usuario selecciona un vehículo, autocompletar el equipo desde la asignación de ese vehículo
+  const handleVehicleChange = (vehicleId) => {
+    setSelectedVehicleId(vehicleId);
+    const match = dailyAssignments.find(a => a.vehicle_id === vehicleId);
+    if (match) {
+      setSelectedAssignment(match);
+      setSelectedMemberIds(match.team_member_ids || []);
+    } else {
+      setSelectedAssignment(null);
+      setSelectedMemberIds([]);
+    }
   };
 
   // Cuando el usuario desmarca → abrir dialog de observaciones
