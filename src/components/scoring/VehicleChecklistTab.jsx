@@ -154,6 +154,29 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
   const [reportTo, setReportTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const [reportRecords, setReportRecords] = useState([]);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [applyingMonthly, setApplyingMonthly] = useState(false);
+
+  // Calcular promedio mensual por limpiador a partir de las revisiones del mes
+  const cleanerMonthlyAverages = useMemo(() => {
+    const map = {}; // cleanerId -> { totalEarned, count, totalPossible }
+    records.forEach(record => {
+      const earned = (record.checklist_items || []).reduce((s, i) => i.passed ? s + (i.points || i.points_if_fail || 0) : s, 0);
+      const possible = (record.checklist_items || []).reduce((s, i) => s + (i.points || i.points_if_fail || 0), 0);
+      (record.team_member_ids || []).forEach(id => {
+        if (!map[id]) map[id] = { totalEarned: 0, totalPossible: 0, count: 0 };
+        map[id].totalEarned += earned;
+        map[id].totalPossible += possible || TOTAL_POSSIBLE;
+        map[id].count++;
+      });
+    });
+    // Convertir a puntos sobre TOTAL_POSSIBLE promediados
+    return Object.entries(map).map(([cleanerId, data]) => ({
+      cleanerId,
+      avgEarned: Math.round(data.totalEarned / data.count),
+      avgDeduction: Math.round((data.totalPossible / data.count) - (data.totalEarned / data.count)),
+      reviewCount: data.count,
+    }));
+  }, [records]);
 
   useEffect(() => { loadData(); }, [monthPeriod]);
 
