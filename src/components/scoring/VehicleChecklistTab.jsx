@@ -379,6 +379,44 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
             </div>
           </div>
 
+          {/* Resumen promedios por limpiador */}
+          {cleanerMonthlyAverages.length > 0 && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-semibold text-blue-800 flex items-center gap-2">
+                    <Users className="w-4 h-4" /> Promedio del mes por limpiador
+                  </p>
+                  <Button size="sm" onClick={applyMonthlyAverages} disabled={applyingMonthly} className="bg-blue-600 hover:bg-blue-700">
+                    {applyingMonthly ? "Aplicando..." : "Aplicar al Ranking"}
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {cleanerMonthlyAverages.map(({ cleanerId, avgEarned, avgDeduction, reviewCount }) => {
+                    const nombre = limpiadores.find(l => l.id === cleanerId)?.full_name || cleanerId;
+                    return (
+                      <div key={cleanerId} className="flex items-center justify-between bg-white rounded-lg p-2 border border-blue-100">
+                        <div>
+                          <p className="font-medium text-sm text-slate-800">{nombre}</p>
+                          <p className="text-xs text-slate-500">{reviewCount} revisión(es)</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`font-bold text-base ${avgDeduction === 0 ? "text-green-700" : "text-orange-700"}`}>
+                            {avgEarned}/{TOTAL_POSSIBLE} pts
+                          </span>
+                          {avgDeduction > 0 && (
+                            <p className="text-xs text-red-600">-{avgDeduction} pts promedio</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-blue-600 mt-2">* El botón aplica el promedio al ranking global (solo una vez por mes).</p>
+              </CardContent>
+            </Card>
+          )}
+
           {loading ? (
             <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" /></div>
           ) : records.length > 0 ? (
