@@ -371,6 +371,11 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                 />
               </CardContent>
             </Card>
+          ) : (
+            <div className="text-center py-12 text-slate-500">
+              <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p>No hay evaluaciones este mes.</p>
+            </div>
           )}
         </>
       )}
