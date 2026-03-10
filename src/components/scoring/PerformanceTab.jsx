@@ -354,6 +354,29 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           </DialogHeader>
 
           <div className="space-y-5 py-2">
+            {/* Limpiador */}
+            <div>
+              <Label className="font-semibold flex items-center gap-1 mb-1">
+                <User className="w-4 h-4" /> Limpiador
+              </Label>
+              <Select
+                value={selectedCleaner?.id || ""}
+                onValueChange={(id) => {
+                  const c = participatingCleaners.find(l => l.id === id);
+                  setSelectedCleaner(c || null);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar limpiador..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {participatingCleaners.map(l => (
+                    <SelectItem key={l.id} value={l.id}>{l.invoice_name || l.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Fecha y Cliente */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -370,16 +393,43 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                 <Label className="font-semibold flex items-center gap-1 mb-1">
                   <Home className="w-4 h-4" /> Cliente / Casa
                 </Label>
-                <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar cliente..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      value={clientSearch}
+                      onChange={e => {
+                        setClientSearch(e.target.value);
+                        setSelectedClientId("");
+                        setShowClientDropdown(true);
+                      }}
+                      onFocus={() => setShowClientDropdown(true)}
+                      placeholder="Buscar cliente..."
+                      className="pl-9 pr-8"
+                    />
+                    {clientSearch && (
+                      <button
+                        onClick={() => { setClientSearch(""); setSelectedClientId(""); }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {showClientDropdown && filteredClients.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {filteredClients.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => selectClient(c)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
