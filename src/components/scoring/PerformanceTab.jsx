@@ -202,6 +202,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   };
 
   const handleSave = async () => {
+    if (!selectedCleaner) { alert("Por favor selecciona un limpiador."); return; }
     setSaving(true);
     try {
       const client = clients.find(c => c.id === selectedClientId);
