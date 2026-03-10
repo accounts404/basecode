@@ -566,7 +566,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
               </div>
               {selectedMemberIds.length > 0 && (
                 <p className="text-xs text-slate-500 mt-1">
-                  {selectedMemberIds.length} miembro(s) seleccionado(s) — deducciones se dividirán entre ellos
+                  {selectedMemberIds.length} miembro(s) — cada uno recibe el puntaje completo ({TOTAL_POSSIBLE} pts posibles)
                 </p>
               )}
             </div>
