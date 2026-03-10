@@ -34,7 +34,6 @@ export default function PuntuacionLimpiadoresPage() {
     const [monthlyScores, setMonthlyScores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAdjustDialog, setShowAdjustDialog] = useState(false);
-    const [showConfigDialog, setShowConfigDialog] = useState(false);
     const [showBonusDialog, setShowBonusDialog] = useState(false);
     const [showSemestralDialog, setShowSemestralDialog] = useState(false);
     const [selectedCleaner, setSelectedCleaner] = useState(null);
