@@ -612,12 +612,9 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                 </span>
               </div>
               {totalDeduction > 0 && (
-                <p className="text-sm text-red-600 mt-1">
-                  -{totalDeduction} pts perdidos por {checklist.filter(i => !i.passed).length} item(s) no completado(s)
-                  {selectedMemberIds.length > 0 && (
-                    <span> · -{Math.ceil(totalDeduction / selectedMemberIds.length)} pts por miembro</span>
-                  )}
-                </p>
+              <p className="text-sm text-red-600 mt-1">
+                -{totalDeduction} pts perdidos por {checklist.filter(i => !i.passed).length} item(s) no completado(s) · cada miembro recibe {totalEarned}/{totalPossible} pts en esta revisión
+              </p>
               )}
               {totalEarned === totalPossible && (
                 <p className="text-sm text-green-700 mt-1">✅ ¡Todos los items completados!</p>
