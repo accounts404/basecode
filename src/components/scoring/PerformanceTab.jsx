@@ -268,7 +268,12 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           <h3 className="text-lg font-semibold text-slate-800">Evaluaciones de Performance por Casa</h3>
           <p className="text-sm text-slate-500">Evalúa cada área de limpieza sobre 100 puntos por limpiador</p>
         </div>
-        <Badge className="bg-blue-100 text-blue-800">{reviews.length} evaluaciones este mes</Badge>
+        <div className="flex items-center gap-3">
+          <Badge className="bg-blue-100 text-blue-800">{reviews.length} evaluaciones este mes</Badge>
+          <Button onClick={() => openDialog(null)}>
+            <Plus className="w-4 h-4 mr-1" /> Nueva Evaluación
+          </Button>
+        </div>
       </div>
 
       {loading ? (
