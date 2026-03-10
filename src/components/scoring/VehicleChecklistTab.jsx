@@ -303,7 +303,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
         reviewed_by_admin_name: user.full_name
       };
 
-      if (editingRecord) {
+      if (editingRecord && editingRecord.id) {
         await base44.entities.VehicleChecklistRecord.update(editingRecord.id, payload);
       } else {
         await base44.entities.VehicleChecklistRecord.create({
