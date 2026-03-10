@@ -323,10 +323,33 @@ export default function HorarioPage() {
 
             if (myAssignment) {
                 const vehicleInfo = myAssignment.vehicle_info || null;
-                const driverName = myAssignment.driver_name || null;
+
+                // Cargar nombres cortos de los miembros del equipo desde sus perfiles
                 let teamMembersNames = [];
-                if (myAssignment.team_members_names && Array.isArray(myAssignment.team_members_names)) {
-                    teamMembersNames = myAssignment.team_members_names.filter(name => name);
+                if (myAssignment.team_member_ids && Array.isArray(myAssignment.team_member_ids)) {
+                    try {
+                        const memberProfiles = await Promise.all(
+                            myAssignment.team_member_ids.map(id => User.get(id).catch(() => null))
+                        );
+                        teamMembersNames = memberProfiles
+                            .filter(Boolean)
+                            .map(u => u.display_name || u.invoice_name || u.full_name?.split(' ')[0] || u.full_name)
+                            .filter(Boolean);
+                    } catch {
+                        // Fallback a nombres guardados en la asignación
+                        teamMembersNames = (myAssignment.team_members_names || []).filter(Boolean);
+                    }
+                }
+
+                // Nombre corto del conductor principal
+                let driverName = myAssignment.driver_name || null;
+                if (myAssignment.main_driver_id) {
+                    try {
+                        const driverProfile = await User.get(myAssignment.main_driver_id);
+                        if (driverProfile) {
+                            driverName = driverProfile.display_name || driverProfile.invoice_name || driverProfile.full_name?.split(' ')[0] || driverProfile.full_name;
+                        }
+                    } catch { /* usar nombre guardado */ }
                 }
 
                 setAssignedVehicle(vehicleInfo);
