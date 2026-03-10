@@ -566,16 +566,22 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                 <Car className="w-4 h-4" /> Vehículo
               </Label>
               <Select value={selectedVehicleId} onValueChange={handleVehicleChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar vehículo..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicles.map(v => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.make} {v.model} — {v.license_plate}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+               <SelectTrigger>
+                 <SelectValue placeholder="Seleccionar vehículo..." />
+               </SelectTrigger>
+               <SelectContent>
+                 {vehicles.map(v => {
+                   const alreadyReviewed = reviewedVehicleIds.has(v.id);
+                   return (
+                     <SelectItem key={v.id} value={v.id} disabled={alreadyReviewed}>
+                       <span className={alreadyReviewed ? "text-green-700 font-medium" : ""}>
+                         {alreadyReviewed ? "✅ " : ""}{v.make} {v.model} — {v.license_plate}
+                         {alreadyReviewed ? " (ya revisado)" : ""}
+                       </span>
+                     </SelectItem>
+                   );
+                 })}
+               </SelectContent>
               </Select>
             </div>
 
