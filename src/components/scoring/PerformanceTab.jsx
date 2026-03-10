@@ -349,7 +349,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardList className="w-5 h-5" />
-              Evaluación de Performance — {selectedCleaner?.invoice_name || selectedCleaner?.full_name}
+              Nueva Evaluación de Performance
             </DialogTitle>
           </DialogHeader>
 
