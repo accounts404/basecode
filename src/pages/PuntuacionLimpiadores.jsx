@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, TrendingUp, Users, Calendar, Plus, Medal, Crown, Gift, Star, CheckCircle, Eye, ClipboardList, Clock, Car, MessageSquare } from "lucide-react";
+import { Trophy, TrendingUp, Users, Calendar, Plus, Medal, Crown, Award, Gift, Star, CheckCircle, Eye, ClipboardList, Clock, Car, MessageSquare } from "lucide-react";
 import RankingTab from "../components/scoring/RankingTab";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
