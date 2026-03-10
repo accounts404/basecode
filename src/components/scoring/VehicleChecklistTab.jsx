@@ -14,15 +14,17 @@ import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 
 const DEFAULT_CHECKLIST = [
-  { item: "Interior limpio y ordenado", points_if_fail: 3 },
-  { item: "Sin basura ni residuos de limpieza", points_if_fail: 2 },
-  { item: "Equipos y materiales ordenados en el maletero", points_if_fail: 2 },
-  { item: "Combustible en nivel aceptable (>25%)", points_if_fail: 3 },
-  { item: "Sin daños nuevos (golpes, rayones)", points_if_fail: 5 },
-  { item: "Parabrisas y espejos limpios", points_if_fail: 1 },
-  { item: "Documentos del vehículo en la guantera", points_if_fail: 1 },
-  { item: "Kit de emergencia/seguridad presente", points_if_fail: 2 },
+  { item: "Both caddies clean", points: 1 },
+  { item: "Vacuum empty", points: 1 },
+  { item: "Dyson brush cleaned", points: 1 },
+  { item: "Rubbish or food residue removed", points: 2 },
+  { item: "Report of any missing equipment", points: 3 },
+  { item: "Report any damaged equipment", points: 3 },
+  { item: "Personal belongings left behind", points: 1 },
+  { item: "Reporting if the car had any small accident", points: 5 },
+  { item: "Reporting any mechanical anomaly on the car", points: 1 },
 ];
+const TOTAL_POSSIBLE = DEFAULT_CHECKLIST.reduce((s, i) => s + i.points, 0);
 
 // Dialog para observaciones cuando falla un item
 function ObservationDialog({ item, onConfirm, onCancel }) {
