@@ -479,28 +479,19 @@ export default function PuntuacionLimpiadoresPage() {
             </Card>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Card>
                     <CardContent className="p-4 text-center">
                         <Users className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-blue-900">{ranking.length}</p>
-                        <p className="text-sm text-blue-600">Participantes</p>
+                        <p className="text-2xl font-bold text-blue-900">{limpiadores.length}</p>
+                        <p className="text-sm text-blue-600">Limpiadores Activos</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardContent className="p-4 text-center">
-                        <Crown className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-yellow-900">{ranking[0]?.current_score || 0}</p>
-                        <p className="text-sm text-yellow-600">Puntuación Líder</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="p-4 text-center">
-                        <TrendingUp className="w-8 h-8 text-green-600 mx-auto mb-2" />
-                        <p className="text-2xl font-bold text-green-900">
-                            {Math.round(ranking.reduce((sum, r) => sum + r.current_score, 0) / ranking.length) || 0}
-                        </p>
-                        <p className="text-sm text-green-600">Promedio</p>
+                        <Trophy className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+                        <p className="text-lg font-bold text-yellow-900">50/10/18/22</p>
+                        <p className="text-sm text-yellow-600">Pesos del Ranking</p>
                     </CardContent>
                 </Card>
                 <Card>
