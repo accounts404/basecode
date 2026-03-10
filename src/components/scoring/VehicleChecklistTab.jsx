@@ -751,6 +751,15 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                       {!item.passed && item.notes && (
                         <p className="text-xs text-red-600 italic mt-1">💬 {item.notes}</p>
                       )}
+                      {!item.passed && item.photos?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.photos.map((p, i) => (
+                            <a key={i} href={p.url} target="_blank" rel="noopener noreferrer">
+                              <img src={p.url} alt="" className="w-10 h-10 object-cover rounded border border-red-200 hover:opacity-80 transition-opacity" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2 shrink-0">
