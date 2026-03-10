@@ -331,18 +331,6 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" /></div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {participatingCleaners.map(cleaner => (
-              <CleanerCard key={cleaner.id} cleaner={cleaner} reviews={reviews} onNew={openDialog} />
-            ))}
-            {participatingCleaners.length === 0 && (
-              <div className="col-span-3 text-center py-12 text-slate-500">
-                <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                <p>No hay limpiadores participando este mes.</p>
-              </div>
-            )}
-          </div>
-
           {reviews.length > 0 && (
             <Card className="border-0 shadow-md">
               <CardHeader>
