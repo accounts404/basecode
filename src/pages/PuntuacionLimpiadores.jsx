@@ -416,10 +416,6 @@ export default function PuntuacionLimpiadoresPage() {
                                     className="w-40"
                                 />
                             </div>
-                            <Button onClick={handleConfigureParticipants} className="bg-yellow-600 hover:bg-yellow-700">
-                                <Users className="w-4 h-4 mr-2" />
-                                Participantes
-                            </Button>
                             <Button onClick={handleSemestralBonus} variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-50">
                                 <Star className="w-4 h-4 mr-2" />
                                 Bono Semestral
