@@ -158,14 +158,15 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {paged.map(({ cleaner, rank, composite, perfScore, punctScore, vehicleScore, feedbackScore }) => {
+          {paged.map(({ cleaner, rank, totalPts, perfPts, punctPts, vehiclePts, feedbackPts }) => {
             const rankIcon = rank === 1 ? <Crown className="w-6 h-6 text-yellow-500" /> :
                              rank === 2 ? <Medal className="w-6 h-6 text-gray-400" /> :
                              rank === 3 ? <Award className="w-6 h-6 text-amber-600" /> :
                              <div className="w-6 h-6 flex items-center justify-center bg-slate-200 rounded-full text-sm font-bold text-slate-600">{rank}</div>;
 
             const monthlyScore = monthlyScores?.find(s => s.cleaner_id === cleaner.id);
-            const scoreColor = composite >= 90 ? "text-green-700" : composite >= 75 ? "text-blue-700" : composite >= 60 ? "text-yellow-700" : "text-red-700";
+            const scoreColor = totalPts >= 80 ? "text-green-700" : totalPts >= 55 ? "text-blue-700" : totalPts >= 35 ? "text-yellow-700" : "text-red-700";
+            const pct = totalPts; // ya es sobre 100
 
             return (
               <div key={cleaner.id} className={`p-4 rounded-lg border ${
@@ -179,17 +180,24 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate">{cleaner.invoice_name || cleaner.full_name}</p>
                       <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <AreaScore icon={ClipboardList} score={perfScore}    colorClass="text-blue-500"   label="Performance" />
-                        <AreaScore icon={Clock}         score={punctScore}   colorClass="text-green-500"  label="Puntualidad" />
-                        <AreaScore icon={Car}           score={vehicleScore} colorClass="text-orange-500" label="Vehículos" />
-                        <AreaScore icon={MessageSquare} score={feedbackScore} colorClass="text-purple-500" label="Feedback" />
+                        <AreaScore icon={ClipboardList} pts={perfPts}     max={MAX_PTS.performance} colorClass="text-blue-500"   label="Performance" />
+                        <AreaScore icon={Clock}         pts={punctPts}    max={MAX_PTS.punctuality} colorClass="text-green-500"  label="Puntualidad" />
+                        <AreaScore icon={Car}           pts={vehiclePts}  max={MAX_PTS.vehicles}    colorClass="text-orange-500" label="Vehículos" />
+                        <AreaScore icon={MessageSquare} pts={feedbackPts} max={MAX_PTS.feedback}    colorClass="text-purple-500" label="Feedback" />
+                      </div>
+                      {/* barra de progreso total */}
+                      <div className="mt-2 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${totalPts >= 80 ? 'bg-green-500' : totalPts >= 55 ? 'bg-blue-500' : totalPts >= 35 ? 'bg-yellow-500' : 'bg-red-400'}`}
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">
                     <div className="text-right">
-                      <p className={`text-2xl font-bold ${scoreColor}`}>{composite}</p>
-                      <p className="text-xs text-slate-400">/ 100</p>
+                      <p className={`text-2xl font-bold ${scoreColor}`}>{totalPts}</p>
+                      <p className="text-xs text-slate-400">/ 100 pts</p>
                     </div>
                     {monthlyScore && onViewHistory && (
                       <Button variant="outline" size="sm" onClick={() => onViewHistory(monthlyScore)}>
