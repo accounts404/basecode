@@ -540,89 +540,12 @@ export default function PuntuacionLimpiadoresPage() {
 
                 {/* TAB 1: RANKING */}
                 <TabsContent value="ranking" className="mt-4">
-                    <Card>
-                        <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <CardTitle className="flex items-center gap-2">
-                                    <Medal className="w-5 h-5" />
-                                    Ranking Actual
-                                    {isMonthClosed && (
-                                        <Badge className="bg-green-100 text-green-800 ml-2">
-                                            <CheckCircle className="w-3 h-3 mr-1" />
-                                            Mes Cerrado
-                                        </Badge>
-                                    )}
-                                </CardTitle>
-                                {!isMonthClosed && ranking.length > 0 && (
-                                    <Button onClick={handleFinishMonth} className="bg-green-600 hover:bg-green-700">
-                                        <Gift className="w-4 h-4 mr-2" />
-                                        Finalizar Mes
-                                    </Button>
-                                )}
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
-                                {paginatedRanking.map((cleaner) => {
-                                    const index = cleaner.current_rank - 1;
-                                    const rankIcon = index === 0 ? <Crown className="w-6 h-6 text-yellow-500" /> :
-                                                   index === 1 ? <Medal className="w-6 h-6 text-gray-400" /> :
-                                                   index === 2 ? <Award className="w-6 h-6 text-amber-600" /> :
-                                                   <div className="w-6 h-6 flex items-center justify-center bg-slate-200 rounded-full text-sm font-bold">{index + 1}</div>;
-                                    return (
-                                        <div key={cleaner.id} className={`flex items-center justify-between p-4 rounded-lg border ${
-                                            index === 0 ? 'bg-yellow-50 border-yellow-200' :
-                                            index === 1 ? 'bg-gray-50 border-gray-200' :
-                                            index === 2 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'
-                                        }`}>
-                                            <div className="flex items-center gap-4">
-                                                {rankIcon}
-                                                <div>
-                                                    <p className="font-semibold">{cleaner.cleaner_name}</p>
-                                                    <p className="text-sm text-slate-600">Puesto #{index + 1}</p>
-                                                    {cleaner.monthly_bonus_amount && (
-                                                        <Badge className="bg-green-100 text-green-800 text-xs mt-1">
-                                                            Bono: ${cleaner.monthly_bonus_amount} AUD
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <div className="text-right">
-                                                    <p className="text-2xl font-bold">{cleaner.current_score}</p>
-                                                    <p className="text-sm text-slate-600">puntos</p>
-                                                </div>
-                                                {!isMonthClosed && (
-                                                    <div className="flex gap-2">
-                                                        <Button variant="outline" size="sm" onClick={() => handleViewHistory(cleaner)}>
-                                                            <Eye className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button variant="outline" size="sm" onClick={() => handleScoreAdjustment(cleaner)}>
-                                                            <Plus className="w-4 h-4 mr-1" /> Ajustar
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                                {ranking.length === 0 && (
-                                    <div className="text-center py-8 text-slate-500">
-                                        <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                        <p>No hay participantes configurados para este mes</p>
-                                        <p className="text-sm">Haz clic en "Participantes" para comenzar</p>
-                                    </div>
-                                )}
-                                <SimplePagination
-                                    currentPage={rankingPage}
-                                    totalPages={rankingTotalPages}
-                                    onPageChange={setRankingPage}
-                                    totalItems={ranking.length}
-                                    pageSize={RANKING_PAGE_SIZE}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <RankingTab
+                        monthPeriod={selectedMonth}
+                        limpiadores={limpiadores}
+                        monthlyScores={monthlyScores}
+                        onViewHistory={handleViewHistory}
+                    />
                 </TabsContent>
 
                 {/* TAB 2: PERFORMANCE */}
