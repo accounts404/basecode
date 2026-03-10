@@ -468,8 +468,8 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2 shrink-0">
-                    <Badge className={item.passed ? "bg-slate-100 text-slate-500" : "bg-red-100 text-red-800"}>
-                      {item.passed ? `${item.points_if_fail} pts` : `-${item.points_if_fail} pts`}
+                    <Badge className={item.passed ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                      {item.passed ? `+${item.points || item.points_if_fail} pts` : `-${item.points || item.points_if_fail} pts`}
                     </Badge>
                   </div>
                 </div>
