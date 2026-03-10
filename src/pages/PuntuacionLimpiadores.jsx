@@ -60,7 +60,6 @@ export default function PuntuacionLimpiadoresPage() {
     const [showHistoryDialog, setShowHistoryDialog] = useState(false);
     const [cleanerForHistory, setCleanerForHistory] = useState(null);
     const [rankingPage, setRankingPage] = useState(1);
-    const RANKING_PAGE_SIZE = 10;
 
     // Cargar cliente RedOak para bonificaciones
     useEffect(() => {
