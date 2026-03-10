@@ -164,13 +164,25 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setLoading(false);
   };
 
-  const openDialog = (cleaner) => {
+  const openDialog = (cleaner = null) => {
     setSelectedCleaner(cleaner);
     setReviewDate(format(new Date(), "yyyy-MM-dd"));
     setSelectedClientId("");
+    setClientSearch("");
+    setShowClientDropdown(false);
     setAreaScores(INITIAL_AREA_SCORES());
     setGeneralNotes("");
     setShowDialog(true);
+  };
+
+  const filteredClients = clientSearch.length > 0
+    ? clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).slice(0, 8)
+    : [];
+
+  const selectClient = (client) => {
+    setSelectedClientId(client.id);
+    setClientSearch(client.name);
+    setShowClientDropdown(false);
   };
 
   const totalScore = areaScores.reduce((s, a) => s + a.score, 0);
