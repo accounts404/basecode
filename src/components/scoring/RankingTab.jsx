@@ -106,7 +106,7 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
         };
       });
 
-      ranked.sort((a, b) => b.composite - a.composite);
+      ranked.sort((a, b) => b.totalPts - a.totalPts);
       const withRanks = ranked.map((r, i) => ({ ...r, rank: i + 1 }));
       setRankings(withRanks);
       if (onRankingComputed) onRankingComputed(withRanks);
