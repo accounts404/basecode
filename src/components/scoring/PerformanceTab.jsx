@@ -122,8 +122,8 @@ function CleanerCard({ cleaner, reviews, onNew }) {
           </>
         )}
 
-        <Button size="sm" className="w-full" onClick={() => onNew(cleaner)}>
-          <Plus className="w-4 h-4 mr-1" /> Nueva Evaluación
+        <Button size="sm" variant="outline" className="w-full" onClick={() => onNew(cleaner)}>
+          <Plus className="w-4 h-4 mr-1" /> Evaluar
         </Button>
       </CardContent>
     </Card>
