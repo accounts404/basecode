@@ -141,6 +141,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   const [selectedCleaner, setSelectedCleaner] = useState(null);
   const [reviewDate, setReviewDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedClientId, setSelectedClientId] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [areaScores, setAreaScores] = useState(INITIAL_AREA_SCORES());
   const [generalNotes, setGeneralNotes] = useState("");
   const [saving, setSaving] = useState(false);
