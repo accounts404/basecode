@@ -254,6 +254,13 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
       const vehicle = selectedVehicleId ? vehicles.find(v => v.id === selectedVehicleId) : null;
       const teamIds = selectedMemberIds;
       const teamNames = teamIds.map(id => {
+        // Usar el nombre del assignment (mismo que en Horario) si está disponible
+        if (selectedAssignment) {
+          const idx = (selectedAssignment.team_member_ids || []).indexOf(id);
+          if (idx !== -1 && selectedAssignment.team_members_names?.[idx]) {
+            return selectedAssignment.team_members_names[idx];
+          }
+        }
         const l = limpiadores.find(l => l.id === id);
         return l ? l.full_name : id;
       });
