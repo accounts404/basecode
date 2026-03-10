@@ -186,6 +186,15 @@ function RecordCard({ record, onEdit }) {
                 {item.notes && (
                   <p className="text-xs text-slate-600 mt-1 italic">💬 {item.notes}</p>
                 )}
+                {item.photos?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {item.photos.map((p, i) => (
+                      <a key={i} href={p.url} target="_blank" rel="noopener noreferrer">
+                        <img src={p.url} alt="" className="w-12 h-12 object-cover rounded border border-red-200 hover:opacity-80 transition-opacity" />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
