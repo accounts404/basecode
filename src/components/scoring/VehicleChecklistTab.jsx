@@ -71,7 +71,7 @@ function ObservationDialog({ item, onConfirm, onCancel }) {
 }
 
 // Vista de un registro en el reporte
-function RecordCard({ record }) {
+function RecordCard({ record, onEdit }) {
   const failedItems = record.checklist_items?.filter(i => !i.passed) || [];
   const [expanded, setExpanded] = useState(false);
 
@@ -96,14 +96,24 @@ function RecordCard({ record }) {
             ) : (
               <Badge className="bg-red-100 text-red-800">-{record.total_deduction} pts</Badge>
             )}
-            {failedItems.length > 0 && (
-              <button
-                onClick={() => setExpanded(!expanded)}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                {expanded ? "Ocultar" : `Ver ${failedItems.length} falla(s)`}
-              </button>
-            )}
+            <div className="flex gap-2 items-center">
+              {failedItems.length > 0 && (
+                <button
+                  onClick={() => setExpanded(!expanded)}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  {expanded ? "Ocultar" : `Ver ${failedItems.length} falla(s)`}
+                </button>
+              )}
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(record)}
+                  className="text-xs text-orange-600 hover:underline font-medium"
+                >
+                  ✏️ Modificar
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
