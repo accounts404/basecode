@@ -43,7 +43,6 @@ export default function PuntuacionLimpiadoresPage() {
         points: '',
         notes: ''
     });
-    const [participantConfig, setParticipantConfig] = useState({});
     const [bonusData, setBonusData] = useState({
         amount: '',
         description: ''
