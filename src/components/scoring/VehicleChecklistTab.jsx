@@ -40,7 +40,7 @@ function ObservationDialog({ item, onConfirm, onCancel }) {
         <div className="space-y-3 py-2">
           <div className="bg-red-50 border border-red-200 rounded-lg p-3">
             <p className="font-semibold text-red-800">{item.item}</p>
-            <p className="text-sm text-red-600 mt-1">Penalización: -{item.points_if_fail} puntos</p>
+            <p className="text-sm text-red-600 mt-1">Puntos que se pierden: -{item.points || item.points_if_fail}</p>
           </div>
           <div>
             <Label className="font-semibold">Observaciones <span className="text-red-500">*</span></Label>
