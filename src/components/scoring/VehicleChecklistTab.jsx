@@ -177,10 +177,17 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     setChecklist(DEFAULT_CHECKLIST.map(i => ({ ...i, passed: true, notes: "", points_if_fail: i.points })));
     setGeneralNotes("");
     setSelectedAssignment(null);
+    setSelectedVehicleId("");
+    setSelectedMemberIds([]);
     setPendingFailIndex(null);
     try {
       const assignments = await base44.entities.DailyTeamAssignment.filter({ date: selectedDate });
-      if (assignments.length > 0) setSelectedAssignment(assignments[0]);
+      if (assignments.length > 0) {
+        const a = assignments[0];
+        setSelectedAssignment(a);
+        setSelectedVehicleId(a.vehicle_id || "");
+        setSelectedMemberIds(a.team_member_ids || []);
+      }
     } catch (e) {}
     setShowDialog(true);
   };
