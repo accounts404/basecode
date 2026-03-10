@@ -286,10 +286,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
         return l ? l.full_name : id;
       });
 
-      await base44.entities.VehicleChecklistRecord.create({
-        date: selectedDate,
-        month_period: monthPeriod,
-        team_assignment_id: selectedAssignment?.id || null,
+      const payload = {
         vehicle_id: selectedVehicleId || null,
         vehicle_info: vehicle
           ? `${vehicle.make} ${vehicle.model} ${vehicle.license_plate}`
@@ -302,11 +299,21 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
         general_notes: generalNotes,
         reviewed_by_admin: user.id,
         reviewed_by_admin_name: user.full_name
-      });
+      };
 
-      // NO aplicar puntajes individuales ahora — se aplican como promedio mensual al cerrar el mes
+      if (editingRecord) {
+        await base44.entities.VehicleChecklistRecord.update(editingRecord.id, payload);
+      } else {
+        await base44.entities.VehicleChecklistRecord.create({
+          ...payload,
+          date: selectedDate,
+          month_period: monthPeriod,
+          team_assignment_id: selectedAssignment?.id || null,
+        });
+      }
 
       setShowDialog(false);
+      setEditingRecord(null);
       await loadData();
       if (onScoreApplied) onScoreApplied();
     } catch (e) {
