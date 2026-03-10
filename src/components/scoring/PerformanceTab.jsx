@@ -363,7 +363,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
               <Select
                 value={selectedCleaner?.id || ""}
                 onValueChange={(id) => {
-                  const c = participatingCleaners.find(l => l.id === id);
+                  const c = limpiadores.find(l => l.id === id);
                   setSelectedCleaner(c || null);
                 }}
               >
@@ -371,7 +371,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                   <SelectValue placeholder="Seleccionar limpiador..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {participatingCleaners.map(l => (
+                  {limpiadores.map(l => (
                     <SelectItem key={l.id} value={l.id}>{l.invoice_name || l.full_name}</SelectItem>
                   ))}
                 </SelectContent>
