@@ -493,6 +493,38 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                   <Label className="text-xs">Hasta</Label>
                   <Input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)} className="w-40" />
                 </div>
+                <div>
+                  <Label className="text-xs">Vehículo</Label>
+                  <Select value={reportVehicleId} onValueChange={setReportVehicleId}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Todos los vehículos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los vehículos</SelectItem>
+                      {vehicles.map(v => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.make} {v.model} — {v.license_plate}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Limpiador</Label>
+                  <Select value={reportCleanerId} onValueChange={setReportCleanerId}>
+                    <SelectTrigger className="w-44">
+                      <SelectValue placeholder="Todos los limpiadores" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los limpiadores</SelectItem>
+                      {limpiadores.map(l => (
+                        <SelectItem key={l.id} value={l.id}>
+                          {l.display_name || l.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button onClick={loadReport} disabled={loadingReport} className="self-end">
                   {loadingReport ? "Cargando..." : "Generar Reporte"}
                 </Button>
