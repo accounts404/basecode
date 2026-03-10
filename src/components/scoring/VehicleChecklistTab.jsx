@@ -476,24 +476,26 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
               ))}
             </div>
 
-            {/* Resumen deducciones */}
-            {totalDeduction > 0 ? (
-              <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-red-800">Total deducción</span>
-                  <span className="text-2xl font-bold text-red-700">-{totalDeduction} pts</span>
-                </div>
-                {selectedAssignment?.team_member_ids?.length > 0 && (
-                  <p className="text-sm text-red-600 mt-1">
-                    -{Math.ceil(totalDeduction / selectedAssignment.team_member_ids.length)} pts por cada miembro del equipo
-                  </p>
-                )}
+            {/* Resumen de puntaje */}
+            <div className={`p-4 rounded-lg border ${totalEarned === totalPossible ? "bg-green-50 border-green-200" : totalDeduction > 0 ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"}`}>
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-slate-800">Puntaje obtenido</span>
+                <span className={`text-2xl font-bold ${totalEarned === totalPossible ? "text-green-700" : "text-red-700"}`}>
+                  {totalEarned} / {totalPossible} pts
+                </span>
               </div>
-            ) : (
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200 text-center">
-                <p className="font-semibold text-green-800">✅ ¡Vehículo en perfectas condiciones! Sin deducciones.</p>
-              </div>
-            )}
+              {totalDeduction > 0 && (
+                <p className="text-sm text-red-600 mt-1">
+                  -{totalDeduction} pts perdidos por {checklist.filter(i => !i.passed).length} item(s) no completado(s)
+                  {selectedAssignment?.team_member_ids?.length > 0 && (
+                    <span> · -{Math.ceil(totalDeduction / selectedAssignment.team_member_ids.length)} pts por miembro</span>
+                  )}
+                </p>
+              )}
+              {totalEarned === totalPossible && (
+                <p className="text-sm text-green-700 mt-1">✅ ¡Todos los items completados!</p>
+              )}
+            </div>
 
             <div>
               <Label>Notas generales</Label>
