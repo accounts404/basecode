@@ -56,8 +56,10 @@ export default function PuntuacionLimpiadoresPage() {
     });
     const [semestralRanking, setSemestralRanking] = useState([]);
     const [redOakClientId, setRedOakClientId] = useState(null);
-    const [showHistoryDialog, setShowHistoryDialog] = useState(false); // NEW: State for history dialog
-    const [cleanerForHistory, setCleanerForHistory] = useState(null); // NEW: State for cleaner whose history is being viewed
+    const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+    const [cleanerForHistory, setCleanerForHistory] = useState(null);
+    const [rankingPage, setRankingPage] = useState(1);
+    const RANKING_PAGE_SIZE = 10;
 
     // Cargar cliente RedOak para bonificaciones
     useEffect(() => {
