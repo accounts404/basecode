@@ -465,13 +465,25 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
 
           {loading ? (
             <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" /></div>
-          ) : records.length > 0 ? (
-            <div className="space-y-3">
-              {records.sort((a, b) => b.date.localeCompare(a.date)).map(record => (
-                <RecordCard key={record.id} record={record} onEdit={openDialog} />
-              ))}
-            </div>
-          ) : (
+          ) : records.length > 0 ? (() => {
+            const sorted = [...records].sort((a, b) => b.date.localeCompare(a.date));
+            const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+            const paginated = sorted.slice((revisionsPage - 1) * PAGE_SIZE, revisionsPage * PAGE_SIZE);
+            return (
+              <div className="space-y-3">
+                {paginated.map(record => (
+                  <RecordCard key={record.id} record={record} onEdit={openDialog} />
+                ))}
+                <SimplePagination
+                  currentPage={revisionsPage}
+                  totalPages={totalPages}
+                  onPageChange={setRevisionsPage}
+                  totalItems={sorted.length}
+                  pageSize={PAGE_SIZE}
+                />
+              </div>
+            );
+          })() : (
             <div className="text-center py-12 text-slate-500">
               <Car className="w-12 h-12 mx-auto mb-3 opacity-40" />
               <p>No hay revisiones registradas este mes.</p>
