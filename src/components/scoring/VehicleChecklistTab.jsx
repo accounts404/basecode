@@ -166,7 +166,9 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     setLoading(false);
   };
 
-  const totalDeduction = checklist.reduce((sum, item) => !item.passed ? sum + item.points_if_fail : sum, 0);
+  const totalEarned = checklist.reduce((sum, item) => item.passed ? sum + (item.points || item.points_if_fail) : sum, 0);
+  const totalPossible = checklist.reduce((sum, item) => sum + (item.points || item.points_if_fail), 0);
+  const totalDeduction = totalPossible - totalEarned; // puntos perdidos por items no completados
 
   const openDialog = async () => {
     setChecklist(DEFAULT_CHECKLIST.map(i => ({ ...i, passed: true, notes: "" })));
