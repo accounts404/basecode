@@ -140,7 +140,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
   const [showDialog, setShowDialog] = useState(false);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedAssignment, setSelectedAssignment] = useState(null);
-  const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST.map(i => ({ ...i, passed: true, notes: "" })));
+  const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST.map(i => ({ ...i, passed: true, notes: "", points_if_fail: i.points })));
   const [generalNotes, setGeneralNotes] = useState("");
   const [saving, setSaving] = useState(false);
   // Observation dialog
