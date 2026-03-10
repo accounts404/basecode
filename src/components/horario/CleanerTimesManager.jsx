@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -58,8 +57,8 @@ export default function CleanerTimesManager({
 
             return {
                 cleaner_id: cleanerIdStr,
-                start_time: startDateTime.toISOString(),
-                end_time: endDateTime.toISOString()
+                start_time: `${baseDate}T${startTimeStr}:00.000`,
+                end_time: `${baseDate}T${endTimeStr}:00.000`
             };
         }).filter(Boolean);
 
