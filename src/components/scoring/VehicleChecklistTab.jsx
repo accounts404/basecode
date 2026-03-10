@@ -369,7 +369,12 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     setLoadingReport(true);
     try {
       const all = await base44.entities.VehicleChecklistRecord.list("-date", 500);
-      const filtered = all.filter(r => r.date >= reportFrom && r.date <= reportTo);
+      const filtered = all.filter(r => {
+        if (r.date < reportFrom || r.date > reportTo) return false;
+        if (reportVehicleId !== "all" && r.vehicle_id !== reportVehicleId) return false;
+        if (reportCleanerId !== "all" && !(r.team_member_ids || []).includes(reportCleanerId)) return false;
+        return true;
+      });
       setReportRecords(filtered.sort((a, b) => b.date.localeCompare(a.date)));
     } catch (e) { console.error(e); }
     setLoadingReport(false);
