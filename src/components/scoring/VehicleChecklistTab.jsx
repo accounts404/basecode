@@ -555,7 +555,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Car className="w-5 h-5" /> Revisión — {format(parseISO(selectedDate), "d 'de' MMMM yyyy", { locale: es })}
+            <Car className="w-5 h-5" /> {editingRecord ? "Modificar Revisión" : "Nueva Revisión"} — {format(parseISO(editingRecord ? editingRecord.date : selectedDate), "d 'de' MMMM yyyy", { locale: es })}
             </DialogTitle>
           </DialogHeader>
 
