@@ -415,7 +415,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
             </div>
             <div className="flex items-center gap-3">
               <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-44" />
-              <Button onClick={openDialog}>
+              <Button onClick={() => openDialog(null)}>
                 <Plus className="w-4 h-4 mr-1" /> Nueva Revisión
               </Button>
             </div>
