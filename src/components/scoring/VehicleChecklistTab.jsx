@@ -218,9 +218,12 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
   const handleSave = async () => {
     setSaving(true);
     try {
-      const vehicle = selectedAssignment?.vehicle_id ? vehicles.find(v => v.id === selectedAssignment.vehicle_id) : null;
-      const teamIds = selectedAssignment?.team_member_ids || [];
-      const teamNames = selectedAssignment?.team_members_names || [];
+      const vehicle = selectedVehicleId ? vehicles.find(v => v.id === selectedVehicleId) : null;
+      const teamIds = selectedMemberIds;
+      const teamNames = teamIds.map(id => {
+        const l = limpiadores.find(l => l.id === id);
+        return l ? l.full_name : id;
+      });
 
       await base44.entities.VehicleChecklistRecord.create({
         date: selectedDate,
