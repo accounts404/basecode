@@ -331,7 +331,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" /></div>
       ) : (
         <>
-          {reviews.length > 0 && (
+          {reviews.length > 0 ? (
             <Card className="border-0 shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
