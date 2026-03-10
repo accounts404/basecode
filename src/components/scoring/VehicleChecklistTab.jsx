@@ -208,17 +208,34 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
   const totalPossible = checklist.reduce((sum, item) => sum + (item.points || item.points_if_fail), 0);
   const totalDeduction = totalPossible - totalEarned; // puntos perdidos por items no completados
 
-  const openDialog = async () => {
-    setChecklist(DEFAULT_CHECKLIST.map(i => ({ ...i, passed: true, notes: "", points_if_fail: i.points })));
-    setGeneralNotes("");
-    setSelectedAssignment(null);
-    setSelectedVehicleId("");
-    setSelectedMemberIds([]);
+  // Vehículos ya revisados en la fecha seleccionada
+  const reviewedVehicleIds = useMemo(() => {
+    return new Set(
+      records
+        .filter(r => r.date === selectedDate && (!editingRecord || r.id !== editingRecord.id))
+        .map(r => r.vehicle_id)
+        .filter(Boolean)
+    );
+  }, [records, selectedDate, editingRecord]);
+
+  const openDialog = async (recordToEdit = null) => {
+    setEditingRecord(recordToEdit);
+    if (recordToEdit) {
+      setChecklist(recordToEdit.checklist_items || DEFAULT_CHECKLIST.map(i => ({ ...i, passed: true, notes: "", points_if_fail: i.points })));
+      setGeneralNotes(recordToEdit.general_notes || "");
+      setSelectedVehicleId(recordToEdit.vehicle_id || "");
+      setSelectedMemberIds(recordToEdit.team_member_ids || []);
+    } else {
+      setChecklist(DEFAULT_CHECKLIST.map(i => ({ ...i, passed: true, notes: "", points_if_fail: i.points })));
+      setGeneralNotes("");
+      setSelectedAssignment(null);
+      setSelectedVehicleId("");
+      setSelectedMemberIds([]);
+    }
     setPendingFailIndex(null);
     try {
       const assignments = await base44.entities.DailyTeamAssignment.filter({ date: selectedDate });
       setDailyAssignments(assignments);
-      // No pre-seleccionar nada — el usuario elige el vehículo primero
     } catch (e) { setDailyAssignments([]); }
     setShowDialog(true);
   };
