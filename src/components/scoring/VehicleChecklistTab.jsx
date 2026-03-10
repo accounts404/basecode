@@ -288,6 +288,46 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     setSaving(false);
   };
 
+  const applyMonthlyAverages = async () => {
+    setApplyingMonthly(true);
+    try {
+      for (const { cleanerId, avgEarned, avgDeduction, reviewCount } of cleanerMonthlyAverages) {
+        const monthlyScore = monthlyScores.find(s => s.cleaner_id === cleanerId);
+        if (!monthlyScore) continue;
+
+        // Verificar si ya se aplicó este mes (evitar duplicados)
+        const existing = await base44.entities.ScoreAdjustment.filter({
+          cleaner_id: cleanerId,
+          month_period: monthPeriod,
+          category: "Revisión Vehicular (Promedio Mensual)"
+        });
+        if (existing.length > 0) continue; // ya aplicado
+
+        const impact = avgDeduction > 0 ? -avgDeduction : 0;
+        await base44.entities.ScoreAdjustment.create({
+          monthly_score_id: monthlyScore.id,
+          cleaner_id: cleanerId,
+          month_period: monthPeriod,
+          adjustment_type: impact < 0 ? "deduction" : "bonus",
+          category: "Revisión Vehicular (Promedio Mensual)",
+          points_impact: impact !== 0 ? impact : avgEarned,
+          notes: `Promedio de ${reviewCount} revisión(es) en el mes. Puntaje promedio: ${avgEarned}/${TOTAL_POSSIBLE} pts`,
+          admin_id: user.id,
+          admin_name: user.full_name,
+          date_applied: new Date().toISOString()
+        });
+        const newScore = Math.max(0, monthlyScore.current_score + (impact !== 0 ? impact : 0));
+        await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
+      }
+      alert("✅ Promedios mensuales aplicados al ranking.");
+      if (onScoreApplied) onScoreApplied();
+    } catch (e) {
+      console.error(e);
+      alert("Error aplicando promedios");
+    }
+    setApplyingMonthly(false);
+  };
+
   const loadReport = async () => {
     setLoadingReport(true);
     try {
