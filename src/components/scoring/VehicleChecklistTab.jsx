@@ -439,23 +439,51 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {/* Info del equipo/vehículo */}
-            {selectedAssignment ? (
-              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 text-sm">
-                <div className="flex items-center gap-2 mb-1">
-                  <Car className="w-4 h-4 text-blue-700" />
-                  <p className="font-semibold text-blue-800">{selectedAssignment.vehicle_info || "Vehículo no asignado"}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-600" />
-                  <p className="text-blue-700">{selectedAssignment.team_members_names?.join(", ") || "Sin miembros"}</p>
-                </div>
+            {/* Selección de Vehículo */}
+            <div>
+              <Label className="font-semibold flex items-center gap-1 mb-1">
+                <Car className="w-4 h-4" /> Vehículo
+              </Label>
+              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar vehículo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicles.map(v => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.make} {v.model} — {v.license_plate}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Selección de Equipo */}
+            <div>
+              <Label className="font-semibold flex items-center gap-1 mb-1">
+                <Users className="w-4 h-4" /> Miembros del Equipo
+              </Label>
+              <div className="border rounded-lg p-3 bg-slate-50 space-y-2 max-h-40 overflow-y-auto">
+                {limpiadores.map(l => (
+                  <label key={l.id} className="flex items-center gap-2 cursor-pointer hover:bg-white rounded p-1 transition-colors">
+                    <Checkbox
+                      checked={selectedMemberIds.includes(l.id)}
+                      onCheckedChange={(checked) => {
+                        setSelectedMemberIds(prev =>
+                          checked ? [...prev, l.id] : prev.filter(id => id !== l.id)
+                        );
+                      }}
+                    />
+                    <span className="text-sm">{l.full_name}</span>
+                  </label>
+                ))}
               </div>
-            ) : (
-              <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-sm text-amber-800">
-                ⚠️ No hay asignación de equipo para esta fecha. Las deducciones no se aplicarán automáticamente al ranking.
-              </div>
-            )}
+              {selectedMemberIds.length > 0 && (
+                <p className="text-xs text-slate-500 mt-1">
+                  {selectedMemberIds.length} miembro(s) seleccionado(s) — deducciones se dividirán entre ellos
+                </p>
+              )}
+            </div>
 
             {/* Checklist */}
             <div className="space-y-2">
