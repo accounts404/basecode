@@ -104,13 +104,6 @@ export default function PuntuacionLimpiadoresPage() {
         try {
             const scores = await MonthlyCleanerScore.filter({ month_period: selectedMonth });
             setMonthlyScores(scores);
-
-            // Configurar participantes actuales
-            const config = {};
-            scores.forEach(score => {
-                config[score.cleaner_id] = score.is_participating;
-            });
-            setParticipantConfig(config);
         } catch (error) {
             console.error('Error cargando puntuaciones:', error);
             setMonthlyScores([]);
