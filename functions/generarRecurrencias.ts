@@ -25,7 +25,7 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
 
     // Prevención de duplicados: Obtener servicios existentes de la serie
     const existingSchedules = await base44.asServiceRole.entities.Schedule.filter({ recurrence_id: recurrenceId });
-    const existingStartDays = new Set(existingSchedules.map(s => startOfDay(new Date(s.start_time)).toISOString()));
+    const existingStartDays = new Set(existingSchedules.map(s => (s.start_time || '').slice(0, 10)));
 
     const citasCreadas = [];
     const citasFallidas = [];
@@ -66,8 +66,8 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
                 return { created: citasCreadas, failed: citasFallidas };
         }
 
-        // Verificación de duplicados
-        const nextDayStartISO = startOfDay(siguienteInicio).toISOString();
+        // Verificación de duplicados (comparar solo la fecha YYYY-MM-DD)
+        const nextDayStartISO = formatLocalISO(siguienteInicio).slice(0, 10);
         if (existingStartDays.has(nextDayStartISO)) {
             fechaInicioActual = siguienteInicio;
             fechaFinActual = siguienteFin;
@@ -77,8 +77,8 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
         // Crear nueva cita limpia
         const nuevaCita = {
             ...citaOriginal,
-            start_time: siguienteInicio.toISOString(),
-            end_time: siguienteFin.toISOString(),
+            start_time: formatLocalISO(siguienteInicio),
+            end_time: formatLocalISO(siguienteFin),
             status: 'scheduled',
             recurrence_id: recurrenceId,
             clock_in_data: [],
@@ -97,7 +97,7 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
         } catch (e) {
             console.error(`[generarSiguientesCitas] Error creando cita recurrente: ${e.message}`);
             citasFallidas.push({
-                fecha: siguienteInicio.toISOString(),
+                fecha: formatLocalISO(siguienteInicio),
                 error: e.message
             });
         }
