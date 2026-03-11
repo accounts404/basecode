@@ -65,7 +65,6 @@ import { Task } from "@/entities/Task";
 import HorarioCalendario from "../components/horario/HorarioCalendario";
 // Lazy load de componentes pesados
 const HorarioEquiposView = lazy(() => import("../components/horario/HorarioEquiposView"));
-const HorarioColorView = lazy(() => import("../components/horario/HorarioColorView"));
 const CrearServicioForm = lazy(() => import("../components/horario/CrearServicioForm"));
 const CreateTaskForm = lazy(() => import("../components/tasks/CreateTaskForm"));
 const TaskList = lazy(() => import("../components/tasks/TaskList"));
@@ -1498,7 +1497,6 @@ export default function HorarioPage() {
                             <Button variant={view === 'week' ? 'default' : 'outline'} size="sm" onClick={() => setView('week')}>Semana</Button>
                             <Button variant={view === 'month' ? 'default' : 'outline'} size="sm" onClick={() => setView('month')}>Mes</Button>
                             <Button variant={view === 'teams' ? 'default' : 'outline'} size="sm" onClick={() => setView('teams')}>Equipos</Button>
-                            <Button variant={view === 'color' ? 'default' : 'outline'} size="sm" onClick={() => setView('color')}>Por Color</Button>
                         </div>
 
                         <Button
@@ -1647,13 +1645,6 @@ export default function HorarioPage() {
                                     date={date}
                                     users={users}
                                     dailyTeamAssignments={dailyTeamAssignments}
-                                    onSelectEvent={handleSelectEvent}
-                                />
-                            ) : view === 'color' ? (
-                                <HorarioColorView
-                                    events={filteredSchedules}
-                                    date={date}
-                                    users={users}
                                     onSelectEvent={handleSelectEvent}
                                 />
                             ) : (
