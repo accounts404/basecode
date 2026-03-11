@@ -951,7 +951,7 @@ export default function HorarioCalendario({
                         </div>
                         
                         <div className="text-xs opacity-90 font-medium">
-                            {formatTimeUTC(parseISOAsUTC(event.start_time))} - {formatTimeUTC(parseISOAsUTC(event.end_time))}
+                            {getHHmm(event.start_time)} - {getHHmm(event.end_time)}
                         </div>
                         
                         {/* NUEVO: Mostrar estado del limpiador en vista de limpiador */}
