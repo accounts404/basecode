@@ -22,13 +22,12 @@ async function generarNuevasRecurrencias(base44, citaBase) {
 
     const citasCreadas = [];
     const citasFallidas = [];
+    // Parsear fecha y hora directamente del string ISO (sin new Date para evitar timezone)
     const fechaBase = new Date(citaBase.start_time);
-    
-    // Mantener hora, minuto y segundo originales
     const horaOriginal = {
-        hours: fechaBase.getUTCHours(),
-        minutes: fechaBase.getUTCMinutes(),
-        seconds: fechaBase.getUTCSeconds()
+        hours: parseInt(citaBase.start_time.slice(11, 13)),
+        minutes: parseInt(citaBase.start_time.slice(14, 16)),
+        seconds: 0
     };
 
     let fechaDeCalculo = fechaBase;
@@ -76,17 +75,25 @@ async function generarNuevasRecurrencias(base44, citaBase) {
                 return { created: citasCreadas, failed: citasFallidas };
         }
 
-        // Forzar hora original
-        const siguienteInicio = set(siguienteFechaBase, horaOriginal);
+        // Calcular duración del servicio original en minutos (sin timezone)
+        const startMinutes = parseInt(citaBase.start_time.slice(11,13))*60 + parseInt(citaBase.start_time.slice(14,16));
+        const endMinutes = parseInt(citaBase.end_time.slice(11,13))*60 + parseInt(citaBase.end_time.slice(14,16));
+        const duracionMin = endMinutes - startMinutes;
 
-        // Calcular duración del servicio original
-        const duracionMs = new Date(citaBase.end_time).getTime() - new Date(citaBase.start_time).getTime();
-        const siguienteFin = new Date(siguienteInicio.getTime() + duracionMs);
+        // Construir fecha siguiente usando la fecha base y la hora original
+        const siguienteFechaStr = `${siguienteFechaBase.getUTCFullYear()}-${String(siguienteFechaBase.getUTCMonth()+1).padStart(2,'0')}-${String(siguienteFechaBase.getUTCDate()).padStart(2,'0')}`;
+        const startHH = String(horaOriginal.hours).padStart(2,'0');
+        const startMM = String(horaOriginal.minutes).padStart(2,'0');
+        const siguienteInicio = `${siguienteFechaStr}T${startHH}:${startMM}:00.000`;
+
+        const endH = String(Math.floor((horaOriginal.hours*60 + horaOriginal.minutes + duracionMin)/60) % 24).padStart(2,'0');
+        const endM = String((horaOriginal.minutes + duracionMin) % 60).padStart(2,'0');
+        const siguienteFin = `${siguienteFechaStr}T${endH}:${endM}:00.000`;
 
         const nuevaCita = {
             ...citaBase,
-            start_time: siguienteInicio.toISOString(),
-            end_time: siguienteFin.toISOString(),
+            start_time: siguienteInicio,
+            end_time: siguienteFin,
             status: 'scheduled',
             recurrence_id: recurrenceId,
             clock_in_data: [],
@@ -103,12 +110,12 @@ async function generarNuevasRecurrencias(base44, citaBase) {
         } catch (e) {
             console.error(`[generarNuevasRecurrencias] Error creando cita: ${e.message}`);
             citasFallidas.push({
-                fecha: siguienteInicio.toISOString(),
+                fecha: siguienteInicio,
                 error: e.message
             });
         }
         
-        fechaDeCalculo = siguienteInicio;
+        fechaDeCalculo = siguienteFechaBase;
     }
     
     return { created: citasCreadas, failed: citasFallidas };
@@ -181,10 +188,10 @@ Deno.serve(async (req) => {
             const allSchedules = await base44.asServiceRole.entities.Schedule.list();
             const oldSeriesSchedules = allSchedules.filter(s => s.recurrence_id === oldRecurrenceId);
             
-            const fechaDeCorte = startOfDay(new Date(servicioBaseActualizado.start_time));
+            const fechaDeCorte = (servicioBaseActualizado.start_time || '').slice(0, 10);
 
             const schedulesToDelete = oldSeriesSchedules.filter(s => {
-                const scheduleDate = startOfDay(new Date(s.start_time));
+                const scheduleDate = (s.start_time || '').slice(0, 10);
                 return scheduleDate > fechaDeCorte && 
                        s.id !== scheduleId && 
                        s.status !== 'completed';
