@@ -22,14 +22,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { processScheduleForWorkEntries } from '@/functions/processScheduleForWorkEntries';
 import { isDateInRange } from '@/components/utils/priceCalculations';
 
-// Función para extraer hora UTC
+// Leer hora directamente del string ISO (sin conversión de timezone)
 const formatTimeUTC = (isoString) => {
     if (!isoString) return '';
-    const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
-    const date = new Date(correctedIsoString);
-    const hours = date.getUTCHours().toString().padStart(2, '0');
-    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+    return isoString.slice(11, 16);
 };
 
 const statusConfig = {
@@ -200,16 +196,18 @@ export default function ConciliacionFacturasPage() {
             const month = date.getMonth();
             const day = date.getDate();
 
-            const startUTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
-            const endUTC = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
-
-            const dateStr = format(startUTC, 'yyyy-MM-dd');
+            // Usar formato local sin timezone (YYYY-MM-DDTHH:mm:00.000)
+            const mm = String(month + 1).padStart(2, '0');
+            const dd = String(day).padStart(2, '0');
+            const dateStr = `${year}-${mm}-${dd}`;
+            const startLocal = `${dateStr}T00:00:00.000`;
+            const endLocal = `${dateStr}T23:59:59.999`;
 
             const [schedulesData, reconciliationData] = await Promise.all([
                 Schedule.filter({
                     start_time: {
-                        $gte: startUTC.toISOString(),
-                        $lte: endUTC.toISOString()
+                        $gte: startLocal,
+                        $lte: endLocal
                     }
                 }, '-start_time'),
                 DailyReconciliation.filter({ date: dateStr })
@@ -268,9 +266,8 @@ export default function ConciliacionFacturasPage() {
         try {
             console.log('[ConciliacionFacturas] 🔍 Cargando TODOS los servicios desde abril 2025...');
             
-            // Cargar todos los servicios desde abril 2025 hasta hoy
-            const startOfRange = new Date(Date.UTC(2025, 3, 1, 0, 0, 0, 0)); // Abril 2025
-            const endOfRange = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate(), 23, 59, 59, 999));
+            // Usar comparación directa de strings para evitar problemas de timezone
+            const todayStr = new Date().toISOString().slice(0, 10);
 
             const BATCH_SIZE = 5000;
             let allSchedules = [];
@@ -291,13 +288,12 @@ export default function ConciliacionFacturasPage() {
                 }
             }
 
-            // Filtrar servicios activos en el rango de fechas
+            // Filtrar servicios activos en el rango de fechas (comparación de strings, sin timezone)
             const activeSchedules = allSchedules.filter(schedule => {
                 if (schedule.status === 'cancelled') return false;
-                
-                const serviceDate = new Date(schedule.start_time);
-                return serviceDate >= startOfRange && serviceDate <= endOfRange;
-            }).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+                const serviceDateStr = (schedule.start_time || '').slice(0, 10);
+                return serviceDateStr >= '2025-04-01' && serviceDateStr <= todayStr;
+            }).sort((a, b) => (b.start_time || '').localeCompare(a.start_time || ''));
 
             console.log(`[ConciliacionFacturas] ✅ Total de servicios cargados: ${activeSchedules.length}`);
             setMonthlySchedules(activeSchedules);
@@ -742,24 +738,23 @@ export default function ConciliacionFacturasPage() {
         }
 
         // Si tiene cleaner_schedules, usarlos para mostrar horarios individuales
+        // Calcular minutos desde string ISO (sin new Date, sin timezone)
+        const isoToMinutes = (isoStr) => {
+            if (!isoStr) return 0;
+            return parseInt(isoStr.slice(11, 13)) * 60 + parseInt(isoStr.slice(14, 16));
+        };
+
         if (service.cleaner_schedules && Array.isArray(service.cleaner_schedules) && service.cleaner_schedules.length > 0) {
             return service.cleaner_schedules.map(cs => {
                 const user = usersMap.get(cs.cleaner_id);
                 const name = user?.display_name || user?.full_name || 'Desconocido';
-                
-                // Calcular horas trabajadas (sin aproximar)
-                const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
-                const end = new Date(cs.end_time.endsWith('Z') ? cs.end_time : `${cs.end_time}Z`);
-                const hours = (end - start) / (1000 * 60 * 60);
-                
+                const hours = (isoToMinutes(cs.end_time) - isoToMinutes(cs.start_time)) / 60;
                 return { name, hours };
             }).filter(Boolean);
         }
 
         // Si no tiene cleaner_schedules, calcular horas del servicio general
-        const start = new Date(service.start_time.endsWith('Z') ? service.start_time : `${service.start_time}Z`);
-        const end = new Date(service.end_time.endsWith('Z') ? service.end_time : `${service.end_time}Z`);
-        const totalHours = (end - start) / (1000 * 60 * 60);
+        const totalHours = (isoToMinutes(service.end_time) - isoToMinutes(service.start_time)) / 60;
         
         return service.cleaner_ids.map(id => {
             const user = usersMap.get(id);
@@ -1603,8 +1598,8 @@ export default function ConciliacionFacturasPage() {
                                 <h4 className="font-semibold text-slate-900">Detalles del servicio a eliminar:</h4>
                                 <div className="text-sm text-slate-700 space-y-1">
                                     <p><strong>Cliente:</strong> {clients.get(serviceToDelete.client_id)?.name || 'Desconocido'}</p>
-                                    <p><strong>Fecha:</strong> {format(parseISO(serviceToDelete.start_time), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}</p>
-                                    <p><strong>Horario:</strong> {format(parseISO(serviceToDelete.start_time), 'HH:mm')} - {format(parseISO(serviceToDelete.end_time), 'HH:mm')}</p>
+                                    <p><strong>Fecha:</strong> {format(new Date(serviceToDelete.start_time.slice(0,10) + 'T12:00:00'), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}</p>
+                                        <p><strong>Horario:</strong> {serviceToDelete.start_time.slice(11,16)} - {serviceToDelete.end_time.slice(11,16)}</p>
                                     {serviceToDelete.cleaner_ids && serviceToDelete.cleaner_ids.length > 0 && (
                                         <p><strong>Limpiadores asignados:</strong> {serviceToDelete.cleaner_ids.length}</p>
                                     )}
