@@ -139,16 +139,18 @@ export default function AuditoriaWorkEntriesPage() {
   const auditResults = useMemo(() => {
     if (selectedMonthRanges.length === 0) return [];
 
-    // Filter completed schedules within selected month ranges
+    // Filter completed schedules within selected month ranges (comparación de strings, sin timezone)
     const completedSchedules = schedules.filter(schedule => {
       if (schedule.status !== 'completed') return false;
       if (!schedule.start_time) return false;
       
-      const scheduleDate = new Date(schedule.start_time);
+      const scheduleDateStr = schedule.start_time.slice(0, 10); // YYYY-MM-DD
       
-      return selectedMonthRanges.some(range => 
-        scheduleDate >= range.start && scheduleDate <= range.end
-      );
+      return selectedMonthRanges.some(range => {
+        const rangeStart = range.start.toISOString().slice(0, 10);
+        const rangeEnd = range.end.toISOString().slice(0, 10);
+        return scheduleDateStr >= rangeStart && scheduleDateStr <= rangeEnd;
+      });
     });
 
     console.log(`[AuditoriaWorkEntries] 🔍 Servicios completados en rango: ${completedSchedules.length}`);
@@ -187,19 +189,21 @@ export default function AuditoriaWorkEntriesPage() {
         let expectedHours = 0;
         let startTime, endTime;
 
+        // Calcular horas directamente desde los strings ISO (sin conversión de timezone)
+        const isoToMinutes = (isoStr) => {
+          if (!isoStr) return 0;
+          return parseInt(isoStr.slice(11, 13)) * 60 + parseInt(isoStr.slice(14, 16));
+        };
+
         if (schedule.cleaner_schedules && schedule.cleaner_schedules.length > 0) {
           const cleanerSchedule = schedule.cleaner_schedules.find(cs => cs.cleaner_id === cleanerId);
           if (cleanerSchedule && cleanerSchedule.start_time && cleanerSchedule.end_time) {
-            startTime = new Date(cleanerSchedule.start_time);
-            endTime = new Date(cleanerSchedule.end_time);
-            expectedHours = differenceInMinutes(endTime, startTime) / 60;
+            expectedHours = (isoToMinutes(cleanerSchedule.end_time) - isoToMinutes(cleanerSchedule.start_time)) / 60;
           }
         }
         
         if (expectedHours === 0 && schedule.start_time && schedule.end_time) {
-          startTime = new Date(schedule.start_time);
-          endTime = new Date(schedule.end_time);
-          expectedHours = differenceInMinutes(endTime, startTime) / 60;
+          expectedHours = (isoToMinutes(schedule.end_time) - isoToMinutes(schedule.start_time)) / 60;
         }
 
         // Round to nearest 0.25
@@ -602,7 +606,7 @@ export default function AuditoriaWorkEntriesPage() {
                           )}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {format(new Date(result.schedule.start_time), "d MMM yyyy", { locale: es })}
+                          {format(new Date(result.schedule.start_time.slice(0, 10) + 'T12:00:00'), "d MMM yyyy", { locale: es })}
                         </TableCell>
                         <TableCell>
                           <div>
@@ -714,10 +718,10 @@ export default function AuditoriaWorkEntriesPage() {
                   <div className="p-4 bg-slate-50 rounded-lg">
                     <p className="text-sm text-slate-600 mb-1">Fecha del Servicio</p>
                     <p className="font-semibold text-lg">
-                      {format(new Date(selectedItem.schedule.start_time), "d MMMM yyyy", { locale: es })}
+                      {format(new Date(selectedItem.schedule.start_time.slice(0, 10) + 'T12:00:00'), "d MMMM yyyy", { locale: es })}
                     </p>
                     <p className="text-sm text-slate-500 mt-1">
-                      {format(new Date(selectedItem.schedule.start_time), "HH:mm", { locale: es })} - {format(new Date(selectedItem.schedule.end_time), "HH:mm", { locale: es })}
+                      {selectedItem.schedule.start_time.slice(11, 16)} - {selectedItem.schedule.end_time.slice(11, 16)}
                     </p>
                   </div>
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
