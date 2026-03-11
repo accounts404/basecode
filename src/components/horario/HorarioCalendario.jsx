@@ -31,6 +31,13 @@ const formatTimeUTC = (date) => {
     return `${hours}:${minutes}`;
 };
 
+// Extraer HH:mm directamente del ISO string sin conversión de zona horaria
+// Funciona para formato YYYY-MM-DDTHH:mm:00.000 (sin Z, tiempo local guardado)
+const getHHmm = (isoStr) => {
+    if (!isoStr) return '';
+    return isoStr.slice(11, 16);
+};
+
 // Constantes para el diseño y el rango de horas
 const HOUR_HEIGHT = 64; // Altura en píxeles para un bloque de hora
 const SLOT_HEIGHT = HOUR_HEIGHT / 4; // Altura en píxeles para un slot de 15 minutos
