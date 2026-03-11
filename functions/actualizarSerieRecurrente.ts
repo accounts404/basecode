@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { addWeeks, addMonths, startOfDay } from 'npm:date-fns@2.30.0';
+import { addWeeks, addMonths } from 'npm:date-fns@2.30.0';
+
+// Formato sin timezone: YYYY-MM-DDTHH:mm:00.000
+const formatLocalISO = (d) => {
+    const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
+    const h = String(d.getUTCHours()).padStart(2,'0'), mi = String(d.getUTCMinutes()).padStart(2,'0');
+    return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
+};
 
 // Función que genera las citas futuras a partir de una cita base
 async function generarSiguientesCitas(base44, citaOriginal, excludeId = null) {
