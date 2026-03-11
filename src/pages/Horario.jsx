@@ -722,7 +722,9 @@ export default function HorarioPage() {
 
             let updatedClockData = [...(schedule.clock_in_data || [])];
             const existingIndex = updatedClockData.findIndex(c => c.cleaner_id === user.id);
-            const currentTime = new Date().toISOString();
+            // Formato local sin timezone
+            const _clockNow = new Date();
+            const currentTime = `${_clockNow.getFullYear()}-${String(_clockNow.getMonth()+1).padStart(2,'0')}-${String(_clockNow.getDate()).padStart(2,'0')}T${String(_clockNow.getHours()).padStart(2,'0')}:${String(_clockNow.getMinutes()).padStart(2,'0')}:00.000`;
 
             if (action === 'clock_in') {
                 const clockData = {
