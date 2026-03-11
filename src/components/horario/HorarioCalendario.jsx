@@ -801,16 +801,18 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
         
         event.clock_in_data.forEach(clockData => {
             if (clockData.clock_in_time) {
-                const clockInTime = parseISOAsUTC(clockData.clock_in_time);
+                // clock_in/out times are stored as local time strings WITHOUT timezone (no Z)
+                // Use new Date() directly so the browser parses them as local time
+                const clockInTime = new Date(clockData.clock_in_time);
                 
                 if (clockData.clock_out_time) {
                     // Cleaner has completed their work
-                    const clockOutTime = parseISOAsUTC(clockData.clock_out_time);
+                    const clockOutTime = new Date(clockData.clock_out_time);
                     const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
                     personHoursCompleted += hoursWorked;
                 } else {
                     // Cleaner is currently active
-                    const hoursWorked = (currentTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60); // currentTime is local, but comparison is only for duration
+                    const hoursWorked = (currentTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
                     personHoursCompleted += hoursWorked;
                     activeCleaners += 1;
                 }
