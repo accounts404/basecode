@@ -65,6 +65,7 @@ import { Task } from "@/entities/Task";
 import HorarioCalendario from "../components/horario/HorarioCalendario";
 // Lazy load de componentes pesados
 const HorarioEquiposView = lazy(() => import("../components/horario/HorarioEquiposView"));
+const HorarioColorView = lazy(() => import("../components/horario/HorarioColorView"));
 const CrearServicioForm = lazy(() => import("../components/horario/CrearServicioForm"));
 const CreateTaskForm = lazy(() => import("../components/tasks/CreateTaskForm"));
 const TaskList = lazy(() => import("../components/tasks/TaskList"));
