@@ -132,18 +132,23 @@ export default function HorarioColorView({ events = [], date, users = [], onSele
                 </div>
                 {colorList.map(color => {
                     const colEvts = colorGroups.get(color);
+                    const members = getTeamMembers(color);
                     return (
-                        <div key={color} className="flex-1 p-3 text-center border-r border-gray-200 min-w-[160px]">
-                            <div className="flex items-center justify-center gap-2 mb-1">
+                        <div key={color} className="flex-1 p-3 text-center border-r border-gray-200 min-w-[200px]">
+                            <div className="flex items-center justify-center gap-2 mb-2">
                                 <div
                                     className="w-4 h-4 rounded-full border-2 border-white shadow flex-shrink-0"
                                     style={{ backgroundColor: color }}
                                 />
-                                <span className="text-sm font-semibold text-slate-800 truncate">
-                                    {getTeamLabel(color)}
-                                </span>
                             </div>
-                            <span className="text-xs text-slate-500">
+                            <div className="text-sm font-semibold text-slate-800">
+                                {members.map((member, i) => (
+                                    <div key={i} className="leading-tight">
+                                        {member}
+                                    </div>
+                                ))}
+                            </div>
+                            <span className="text-xs text-slate-500 mt-1">
                                 {colEvts.length} servicio{colEvts.length !== 1 ? 's' : ''}
                             </span>
                         </div>
