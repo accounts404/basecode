@@ -31,10 +31,12 @@ import { format, differenceInSeconds } from "date-fns";
 import { es } from "date-fns/locale";
 import ServiceReportForm from "../components/reports/ServiceReportForm";
 
+// Parsear ISO string como local (sin conversión de timezone)
 const parseISOAsUTC = (isoString) => {
     if (!isoString) return null;
-    const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
-    return new Date(correctedIsoString);
+    // Tratar el string directamente como local (YYYY-MM-DDTHH:mm:00.000 sin Z)
+    const clean = isoString.endsWith('Z') ? isoString.slice(0, -1) : isoString;
+    return new Date(clean);
 };
 
 const formatElapsedTime = (seconds) => {
@@ -336,7 +338,9 @@ export default function ServicioActivoPage() {
             console.log('[ServicioActivo] 💾 Actualizando clock_in_data en BD...');
             const updatedClockInData = [...(activeService.clock_in_data || [])];
             const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
-            const currentTime = new Date().toISOString();
+            // Clock out time en formato local sin timezone
+        const _now = new Date();
+        const currentTime = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}T${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:00.000`;
 
             if (existingIndex >= 0) {
                 updatedClockInData[existingIndex] = {
@@ -1122,7 +1126,7 @@ export default function ServicioActivoPage() {
                     <ServiceReportForm
                         scheduleId={activeService.id}
                         clientName={activeService.client_name}
-                        serviceDate={format(parseISOAsUTC(activeService.start_time), 'yyyy-MM-dd')}
+                        serviceDate={(activeService.start_time || '').slice(0, 10)}
                         cleanerId={user?.id}
                         cleanerName={user?.full_name}
                         onSuccess={handleReportSuccess}
