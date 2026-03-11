@@ -1175,9 +1175,15 @@ export default function HorarioPage() {
                 return;
             }
 
+            // Formato sin timezone: YYYY-MM-DDTHH:mm:00.000
+            const toLocalISO = (d) => {
+                const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), dy = String(d.getDate()).padStart(2,'0');
+                const h = String(d.getHours()).padStart(2,'0'), mi = String(d.getMinutes()).padStart(2,'0');
+                return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
+            };
             const updatePayload = {
-                start_time: newStartTime.toISOString(),
-                end_time: newEndTime.toISOString(),
+                start_time: toLocalISO(newStartTime),
+                end_time: toLocalISO(newEndTime),
             };
 
             await Schedule.update(eventId, updatePayload);
@@ -1202,9 +1208,15 @@ export default function HorarioPage() {
                 return;
             }
 
+            // Formato sin timezone: YYYY-MM-DDTHH:mm:00.000
+            const toLocalISO = (d) => {
+                const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), dy = String(d.getDate()).padStart(2,'0');
+                const h = String(d.getHours()).padStart(2,'0'), mi = String(d.getMinutes()).padStart(2,'0');
+                return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
+            };
             const updatePayload = {
-                start_time: newStartTime.toISOString(),
-                end_time: newEndTime.toISOString(),
+                start_time: toLocalISO(newStartTime),
+                end_time: toLocalISO(newEndTime),
             };
 
             if (scheduleToUpdate.cleaner_schedules && Array.isArray(scheduleToUpdate.cleaner_schedules) && scheduleToUpdate.cleaner_schedules.length > 0) {
@@ -1213,8 +1225,8 @@ export default function HorarioPage() {
 
                 updatePayload.cleaner_schedules = scheduleToUpdate.cleaner_schedules.map(cs => ({
                     ...cs,
-                    start_time: new Date(new Date(cs.start_time).getTime() + timeDiff).toISOString(),
-                    end_time: new Date(new Date(cs.end_time).getTime() + timeDiff).toISOString(),
+                    start_time: toLocalISO(new Date(new Date(cs.start_time).getTime() + timeDiff)),
+                    end_time: toLocalISO(new Date(new Date(cs.end_time).getTime() + timeDiff)),
                 }));
             }
 
