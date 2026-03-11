@@ -1212,10 +1212,10 @@ export default function HorarioPage() {
                 return;
             }
 
-            // Formato sin timezone: YYYY-MM-DDTHH:mm:00.000
+            // El calendario construye fechas con Date.UTC, usar getters UTC para evitar desfase de timezone
             const toLocalISO = (d) => {
-                const y = d.getFullYear(), mo = String(d.getMonth()+1).padStart(2,'0'), dy = String(d.getDate()).padStart(2,'0');
-                const h = String(d.getHours()).padStart(2,'0'), mi = String(d.getMinutes()).padStart(2,'0');
+                const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
+                const h = String(d.getUTCHours()).padStart(2,'0'), mi = String(d.getUTCMinutes()).padStart(2,'0');
                 return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
             };
             const updatePayload = {
