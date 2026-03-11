@@ -1387,4 +1387,6 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
             )}
         </Card>
     );
-}
+});
+
+export default HorarioCalendario;
