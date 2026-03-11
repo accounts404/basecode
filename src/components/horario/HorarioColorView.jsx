@@ -58,15 +58,10 @@ export default function HorarioColorView({ events = [], date, users = [], onSele
         return `${y}-${m}-${d}`;
     }, [date]);
 
-    // Map color -> users (non-admin)
-    const colorUserMap = useMemo(() => {
+    // Map userId -> user for quick lookup
+    const userMap = useMemo(() => {
         const map = new Map();
-        users.forEach(u => {
-            if (u.color && u.role !== 'admin') {
-                if (!map.has(u.color)) map.set(u.color, []);
-                map.get(u.color).push(u);
-            }
-        });
+        users.forEach(u => map.set(u.id, u));
         return map;
     }, [users]);
 
@@ -87,11 +82,24 @@ export default function HorarioColorView({ events = [], date, users = [], onSele
 
     const colorList = [...colorGroups.keys()];
 
+    // Build map: color -> Set of unique cleaner names, derived from event cleaner_ids
+    const colorMembersMap = useMemo(() => {
+        const map = new Map();
+        events.forEach(e => {
+            if (!e.start_time || e.status === 'cancelled' || e.start_time.slice(0, 10) !== selectedDateStr) return;
+            const c = e.color || '#64748b';
+            if (!map.has(c)) map.set(c, new Set());
+            (e.cleaner_ids || []).forEach(id => map.get(c).add(id));
+        });
+        return map;
+    }, [events, selectedDateStr]);
+
     const getTeamMembers = (color) => {
-        const us = colorUserMap.get(color) || [];
-        return us.map(u => {
+        const ids = [...(colorMembersMap.get(color) || new Set())];
+        return ids.map(id => {
+            const u = userMap.get(id);
+            if (!u) return null;
             const full = (u.display_name || u.invoice_name || u.full_name || '').trim();
-            // First name + first letter of last name if available
             const parts = full.split(' ').filter(Boolean);
             if (parts.length >= 2) return `${parts[0]} ${parts[1][0]}.`;
             return parts[0] || 'Limpiador';
