@@ -47,7 +47,7 @@ const VISIBLE_END_HOUR = 22;   // 10 PM (interpretado como UTC)
 const TOTAL_VISIBLE_HOURS = VISIBLE_END_HOUR - VISIBLE_START_HOUR; // Total de horas a mostrar (16 horas)
 const TOTAL_DISPLAY_HEIGHT_PX = TOTAL_VISIBLE_HOURS * HOUR_HEIGHT; // Altura total de la sección de tiempo
 
-export default function HorarioCalendario({ 
+const HorarioCalendario = React.forwardRef(function HorarioCalendario({ 
     events, 
     date, 
     view, 
@@ -63,11 +63,11 @@ export default function HorarioCalendario({
     isReadOnly = false, 
     assignedVehicle = null, 
     requiredKeys = [],
-    currentUser, // New prop for handleClockOut
-    base44,      // New prop for handleClockOut (assuming it's passed down)
-    setNotification, // New prop for handleClockOut
-    loadEvents   // New prop for handleClockOut
-}) {
+    currentUser,
+    base44,
+    setNotification,
+    loadEvents   
+}, ref) {
     const [selectedDate, setSelectedDate] = useState(date);
     const [draggedEvent, setDraggedEvent] = useState(null);
     const [draggedEventOffsetY, setDraggedEventOffsetY] = useState(0);
