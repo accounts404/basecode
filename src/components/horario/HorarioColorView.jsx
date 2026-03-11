@@ -87,15 +87,15 @@ export default function HorarioColorView({ events = [], date, users = [], onSele
 
     const colorList = [...colorGroups.keys()];
 
-    const getTeamLabel = (color) => {
+    const getTeamMembers = (color) => {
         const us = colorUserMap.get(color) || [];
-        if (us.length > 0) {
-            return us
-                .map(u => (u.display_name || u.invoice_name || u.full_name || '').split(' ')[0])
-                .filter(Boolean)
-                .join(' / ');
-        }
-        return 'Equipo';
+        return us.map(u => {
+            const full = (u.display_name || u.invoice_name || u.full_name || '').trim();
+            // First name + first letter of last name if available
+            const parts = full.split(' ').filter(Boolean);
+            if (parts.length >= 2) return `${parts[0]} ${parts[1][0]}.`;
+            return parts[0] || 'Limpiador';
+        }).filter(Boolean);
     };
 
     const calculatePos = (event) => {
