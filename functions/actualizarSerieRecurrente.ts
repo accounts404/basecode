@@ -64,8 +64,8 @@ async function generarSiguientesCitas(base44, citaOriginal, excludeId = null) {
 
         const nuevaCita = {
             ...citaOriginal,
-            start_time: siguienteInicio.toISOString(),
-            end_time: siguienteFin.toISOString(),
+            start_time: formatLocalISO(siguienteInicio),
+            end_time: formatLocalISO(siguienteFin),
             status: 'scheduled',
             clock_in_data: [],
             reconciliation_items: [],
@@ -83,7 +83,7 @@ async function generarSiguientesCitas(base44, citaOriginal, excludeId = null) {
         } catch (e) {
             console.error(`[generarSiguientesCitas] Error creando cita: ${e.message}`);
             citasFallidas.push({
-                fecha: siguienteInicio.toISOString(),
+                fecha: formatLocalISO(siguienteInicio),
                 error: e.message
             });
         }
@@ -147,8 +147,8 @@ Deno.serve(async (req) => {
             });
         }
 
-        const fechaDeCorte = new Date(servicioOriginal.start_time);
-        console.log(`[actualizarSerieRecurrente] 🕰️ Fecha de corte: ${fechaDeCorte.toISOString()}`);
+        const fechaDeCorte = servicioOriginal.start_time.slice(0, 10); // YYYY-MM-DD
+        console.log(`[actualizarSerieRecurrente] 🕰️ Fecha de corte: ${fechaDeCorte}`);
 
         // 2. Caso especial: conversión a recurrente
         if (!servicioOriginal.recurrence_id) {
@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
 
         const serviciosAEliminar = todosLosServicios.filter(s =>
             s.id !== scheduleId && 
-            new Date(s.start_time) >= fechaDeCorte &&
+            (s.start_time || '').slice(0, 10) >= fechaDeCorte &&
             s.status !== 'completed' // No eliminar servicios ya completados
         );
         
