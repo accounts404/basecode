@@ -384,6 +384,8 @@ export default function ConciliacionFacturasPage() {
 
     const handleMarkAsInvoiced = async (serviceId) => {
         setLoading(true);
+        const _bn = new Date();
+        const _ts = `${_bn.getFullYear()}-${String(_bn.getMonth()+1).padStart(2,'0')}-${String(_bn.getDate()).padStart(2,'0')}T${String(_bn.getHours()).padStart(2,'0')}:${String(_bn.getMinutes()).padStart(2,'0')}:00.000`;
         try {
             const service = schedules.find(s => s.id === serviceId);
             const client = clients.get(service.client_id);
