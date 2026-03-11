@@ -74,7 +74,9 @@ Deno.serve(async (req) => {
         console.log('Schedule end_time:', schedule.end_time);
         console.log('Schedule cleaner_schedules:', schedule.cleaner_schedules);
 
-        const workDate = new Date(schedule.start_time);
+        // Extraer fecha directamente del string ISO sin conversión de timezone
+        const workDateStr = schedule.start_time.slice(0, 10); // YYYY-MM-DD
+        const workDate = new Date(workDateStr + 'T12:00:00'); // mediodía local para evitar desfases
 
         const calculateWorkEntries = async () => {
             const calculatedEntries = [];
@@ -90,22 +92,25 @@ Deno.serve(async (req) => {
                 const individualSchedule = schedule.cleaner_schedules?.find(cs => cs.cleaner_id === cleanerId);
                 
                 let startTime, endTime;
+                // Calcular minutos directamente desde los strings ISO (sin new Date, sin timezone)
+                const isoToMinutes = (iso) => {
+                    if (!iso) return 0;
+                    return parseInt(iso.slice(11, 13)) * 60 + parseInt(iso.slice(14, 16));
+                };
+
                 if (individualSchedule) {
                     console.log('- Usando horario individual para', cleanerId);
-                    startTime = new Date(individualSchedule.start_time);
-                    endTime = new Date(individualSchedule.end_time);
                     console.log('- Start time individual:', individualSchedule.start_time);
                     console.log('- End time individual:', individualSchedule.end_time);
+                    const totalMinutes = isoToMinutes(individualSchedule.end_time) - isoToMinutes(individualSchedule.start_time);
+                    cleanerHours = parseFloat((totalMinutes / 60).toFixed(4));
                 } else {
                     console.log('- Usando horario general para', cleanerId);
-                    startTime = new Date(schedule.start_time);
-                    endTime = new Date(schedule.end_time);
                     console.log('- Start time general:', schedule.start_time);
                     console.log('- End time general:', schedule.end_time);
+                    const totalMinutes = isoToMinutes(schedule.end_time) - isoToMinutes(schedule.start_time);
+                    cleanerHours = parseFloat((totalMinutes / 60).toFixed(4));
                 }
-
-                const totalMinutes = differenceInMinutes(endTime, startTime);
-                cleanerHours = parseFloat((totalMinutes / 60).toFixed(4));
                 console.log('- Minutos totales:', totalMinutes);
                 console.log('- Horas calculadas (4 decimales):', cleanerHours);
                 
@@ -137,17 +142,18 @@ Deno.serve(async (req) => {
                     continue;
                 }
 
+                const [wyear, wmonth, wday] = workDateStr.split('-').map(Number);
                 const entryData = {
                     cleaner_id: cleanerId,
                     cleaner_name: cleanerUser.invoice_name || cleanerUser.full_name,
                     client_id: schedule.client_id,
                     client_name: schedule.client_name,
-                    work_date: format(workDate, 'yyyy-MM-dd'),
+                    work_date: workDateStr,
                     hours: parseFloat(cleanerHours.toFixed(4)),
                     activity: clientActivity,
                     hourly_rate: cleanerRate,
                     total_amount: parseFloat((cleanerHours * cleanerRate).toFixed(2)),
-                    period: `${format(workDate, 'yyyy-MM')}-${workDate.getDate() <= 15 ? '1st' : '2nd'}`,
+                    period: `${workDateStr.slice(0, 7)}-${wday <= 15 ? '1st' : '2nd'}`,
                     invoiced: false,
                     schedule_id: scheduleId,
                 };
@@ -175,9 +181,9 @@ Deno.serve(async (req) => {
                 preview_entries: previewEntries,
                 schedule: {
                     client_name: schedule.client_name,
-                    service_date: format(workDate, 'dd/MM/yyyy'),
-                    start_time: format(new Date(schedule.start_time), 'HH:mm'),
-                    end_time: format(new Date(schedule.end_time), 'HH:mm'),
+                    service_date: workDateStr,
+                    start_time: schedule.start_time.slice(11, 16),
+                    end_time: schedule.end_time.slice(11, 16),
                     client_activity_type: clientActivity
                 }
             }), { headers: { 'Content-Type': 'application/json' } });
