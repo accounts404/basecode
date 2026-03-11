@@ -267,7 +267,8 @@ export default function ConciliacionFacturasPage() {
             console.log('[ConciliacionFacturas] 🔍 Cargando TODOS los servicios desde abril 2025...');
             
             // Usar comparación directa de strings para evitar problemas de timezone
-            const todayStr = new Date().toISOString().slice(0, 10);
+            const _td = new Date();
+            const todayStr = `${_td.getFullYear()}-${String(_td.getMonth()+1).padStart(2,'0')}-${String(_td.getDate()).padStart(2,'0')}`;
 
             const BATCH_SIZE = 5000;
             let allSchedules = [];
@@ -339,10 +340,12 @@ export default function ConciliacionFacturasPage() {
                 }
             }
 
+            const _rn = new Date();
+            const _ts = `${_rn.getFullYear()}-${String(_rn.getMonth()+1).padStart(2,'0')}-${String(_rn.getDate()).padStart(2,'0')}T${String(_rn.getHours()).padStart(2,'0')}:${String(_rn.getMinutes()).padStart(2,'0')}:00.000`;
             const updateData = {
                 status: 'horario_reviewed',
                 reviewed_by_user_id: currentUser.id,
-                reviewed_at: new Date().toISOString()
+                reviewed_at: _ts
             };
             if (dailyReconciliation.id) {
                 await DailyReconciliation.update(dailyReconciliation.id, updateData);
@@ -398,7 +401,7 @@ export default function ConciliacionFacturasPage() {
                 billed_price_snapshot: priceSnapshot.price,
                 billed_gst_type_snapshot: finalGstType,
                 billed_payment_method_snapshot: finalPaymentMethod,
-                billed_at: new Date().toISOString()
+                billed_at: _ts
             });
 
             const updatedSchedules = schedules.map(s =>
@@ -408,7 +411,7 @@ export default function ConciliacionFacturasPage() {
                     billed_price_snapshot: priceSnapshot.price,
                     billed_gst_type_snapshot: finalGstType,
                     billed_payment_method_snapshot: finalPaymentMethod,
-                    billed_at: new Date().toISOString()
+                    billed_at: _ts
                 } : s
             ).sort((a, b) => {
                 if (a.xero_invoiced !== b.xero_invoiced) {
@@ -421,7 +424,9 @@ export default function ConciliacionFacturasPage() {
 
             const allInvoiced = updatedSchedules.every(s => s.xero_invoiced);
             if (allInvoiced && dailyReconciliation?.status !== 'completed') {
-                const updateData = { status: 'completed', completed_at: new Date().toISOString() };
+                const _cn = new Date();
+                const _cts = `${_cn.getFullYear()}-${String(_cn.getMonth()+1).padStart(2,'0')}-${String(_cn.getDate()).padStart(2,'0')}T${String(_cn.getHours()).padStart(2,'0')}:${String(_cn.getMinutes()).padStart(2,'0')}:00.000`;
+                const updateData = { status: 'completed', completed_at: _cts };
                 if (dailyReconciliation.id) {
                     await DailyReconciliation.update(dailyReconciliation.id, updateData);
                 } else {
