@@ -78,10 +78,11 @@ import { isEqual } from 'lodash';
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 
+// Parsear ISO local (sin conversión de timezone)
 const parseISOAsUTC = (isoString) => {
     if (!isoString) return null;
-    const correctedIsoString = isoString.endsWith('Z') ? isoString : `${isoString}Z`;
-    return new Date(correctedIsoString);
+    const clean = isoString.endsWith('Z') ? isoString.slice(0, -1) : isoString;
+    return new Date(clean);
 };
 
 // Claves de caché legacy para compatibilidad con datos existentes
