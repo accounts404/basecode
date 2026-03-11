@@ -147,8 +147,9 @@ export default function AuditoriaWorkEntriesPage() {
       const scheduleDateStr = schedule.start_time.slice(0, 10); // YYYY-MM-DD
       
       return selectedMonthRanges.some(range => {
-        const rangeStart = range.start.toISOString().slice(0, 10);
-        const rangeEnd = range.end.toISOString().slice(0, 10);
+        const toLocalDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const rangeStart = toLocalDateStr(range.start);
+        const rangeEnd = toLocalDateStr(range.end);
         return scheduleDateStr >= rangeStart && scheduleDateStr <= rangeEnd;
       });
     });

@@ -257,8 +257,10 @@ Deno.serve(async (req) => {
             }
 
             if (sentToAtLeastOne) {
+                const _rn = new Date();
+                const _reminderTs = `${_rn.getFullYear()}-${String(_rn.getMonth()+1).padStart(2,'0')}-${String(_rn.getDate()).padStart(2,'0')}T${String(_rn.getHours()).padStart(2,'0')}:${String(_rn.getMinutes()).padStart(2,'0')}:00.000`;
                 await base44.asServiceRole.entities.Schedule.update(schedule.id, {
-                    reminder_sent_at: new Date().toISOString()
+                    reminder_sent_at: _reminderTs
                 });
                 sentCount++;
             }

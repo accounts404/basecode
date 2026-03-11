@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -524,7 +523,8 @@ export default function HorarioCalendario({
         try {
           setProcessingSchedules(prev => new Set([...prev, event.id]));
     
-          const now = new Date().toISOString();
+          const _n = new Date();
+          const now = `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}T${String(_n.getHours()).padStart(2,'0')}:${String(_n.getMinutes()).padStart(2,'0')}:00.000`;
           const updatedClockInData = event.clock_in_data ? [...event.clock_in_data] : [];
           const existingClockIn = updatedClockInData.find(c => c.cleaner_id === currentUser.id);
     
