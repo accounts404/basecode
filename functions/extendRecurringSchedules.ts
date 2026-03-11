@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
-import { addWeeks, addMonths, startOfDay, differenceInDays } from 'npm:date-fns@2.30.0';
+import { addWeeks, addMonths, differenceInDays } from 'npm:date-fns@2.30.0';
+
+// Formato sin timezone: YYYY-MM-DDTHH:mm:00.000
+const formatLocalISO = (d) => {
+    const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
+    const h = String(d.getUTCHours()).padStart(2,'0'), mi = String(d.getUTCMinutes()).padStart(2,'0');
+    return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
+};
 
 // CONFIGURACIÓN
 const HORIZON_DAYS = 90; // Generar nuevos servicios si la última cita está a menos de 90 días
@@ -58,8 +65,8 @@ async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
                 return { created: createdServices, failed: failedServices };
         }
 
-        // Verificación de duplicados
-        const nextDayStartISO = startOfDay(nextStartDate).toISOString();
+        // Verificación de duplicados (solo fecha YYYY-MM-DD)
+        const nextDayStartISO = formatLocalISO(nextStartDate).slice(0, 10);
         if (existingStartDays.has(nextDayStartISO)) {
             currentStartDate = nextStartDate;
             currentEndDate = nextEndDate;
@@ -69,8 +76,8 @@ async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
         // Crear nueva cita limpia
         const newService = {
             ...lastServiceInSeries,
-            start_time: nextStartDate.toISOString(),
-            end_time: nextEndDate.toISOString(),
+            start_time: formatLocalISO(nextStartDate),
+            end_time: formatLocalISO(nextEndDate),
             status: 'scheduled',
             clock_in_data: [],
             reconciliation_items: [],
@@ -85,13 +92,13 @@ async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
             if (created) {
                 createdServices.push(created);
                 // Añadir a existingStartDays para prevenir duplicados en esta misma ejecución
-                existingStartDays.add(nextDayStartISO);
+                existingStartDays.add(formatLocalISO(nextStartDate).slice(0, 10));
             }
         } catch (e) {
             console.error(`[extendSeries] ❌ Error creando servicio para serie ${recurrence_id}:`, e.message);
             failedServices.push({
                 recurrence_id: recurrence_id,
-                fecha: nextStartDate.toISOString(),
+                fecha: formatLocalISO(nextStartDate),
                 error: e.message
             });
         }
@@ -196,7 +203,7 @@ Deno.serve(async (req) => {
                 try {
                     // Set de fechas existentes para evitar duplicados
                     const existingStartDays = new Set(
-                        schedulesInSeries.map(s => startOfDay(new Date(s.start_time)).toISOString())
+                        schedulesInSeries.map(s => (s.start_time || '').slice(0, 10))
                     );
                     
                     const resultado = await extendSeries(base44, lastService, existingStartDays);
