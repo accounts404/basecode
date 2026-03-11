@@ -1649,6 +1649,13 @@ export default function HorarioPage() {
                                     dailyTeamAssignments={dailyTeamAssignments}
                                     onSelectEvent={handleSelectEvent}
                                 />
+                            ) : view === 'color' ? (
+                                <HorarioColorView
+                                    events={filteredSchedules}
+                                    date={date}
+                                    users={users}
+                                    onSelectEvent={handleSelectEvent}
+                                />
                             ) : (
                                 <HorarioCalendario
                                     ref={calendarRef}
