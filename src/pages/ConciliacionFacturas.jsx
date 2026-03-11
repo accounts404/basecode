@@ -745,23 +745,23 @@ export default function ConciliacionFacturasPage() {
         }
 
         // Si tiene cleaner_schedules, usarlos para mostrar horarios individuales
-        // Calcular minutos desde string ISO (sin new Date, sin timezone)
-        const isoToMinutes = (isoStr) => {
-            if (!isoStr) return 0;
-            return parseInt(isoStr.slice(11, 13)) * 60 + parseInt(isoStr.slice(14, 16));
+        // Calcular duración en horas usando diferencia de milisegundos (compatible con cualquier formato ISO)
+        const calcHours = (startIso, endIso) => {
+            if (!startIso || !endIso) return 0;
+            return (new Date(endIso) - new Date(startIso)) / 3600000;
         };
 
         if (service.cleaner_schedules && Array.isArray(service.cleaner_schedules) && service.cleaner_schedules.length > 0) {
             return service.cleaner_schedules.map(cs => {
                 const user = usersMap.get(cs.cleaner_id);
                 const name = user?.display_name || user?.full_name || 'Desconocido';
-                const hours = (isoToMinutes(cs.end_time) - isoToMinutes(cs.start_time)) / 60;
+                const hours = calcHours(cs.start_time, cs.end_time);
                 return { name, hours };
             }).filter(Boolean);
         }
 
         // Si no tiene cleaner_schedules, calcular horas del servicio general
-        const totalHours = (isoToMinutes(service.end_time) - isoToMinutes(service.start_time)) / 60;
+        const totalHours = calcHours(service.start_time, service.end_time);
         
         return service.cleaner_ids.map(id => {
             const user = usersMap.get(id);
