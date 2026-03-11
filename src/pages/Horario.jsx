@@ -1498,6 +1498,7 @@ export default function HorarioPage() {
                             <Button variant={view === 'week' ? 'default' : 'outline'} size="sm" onClick={() => setView('week')}>Semana</Button>
                             <Button variant={view === 'month' ? 'default' : 'outline'} size="sm" onClick={() => setView('month')}>Mes</Button>
                             <Button variant={view === 'teams' ? 'default' : 'outline'} size="sm" onClick={() => setView('teams')}>Equipos</Button>
+                            <Button variant={view === 'color' ? 'default' : 'outline'} size="sm" onClick={() => setView('color')}>Por Color</Button>
                         </div>
 
                         <Button
