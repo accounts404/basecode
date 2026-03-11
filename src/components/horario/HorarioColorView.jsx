@@ -106,6 +106,19 @@ export default function HorarioColorView({ events = [], date, users = [], onSele
         }).filter(Boolean);
     };
 
+    const getCleanersDisplay = (cleanerIds) => {
+        if (!cleanerIds || cleanerIds.length === 0) return 'Sin asignar';
+        return cleanerIds
+            .map(id => {
+                const u = userMap.get(id);
+                if (!u) return null;
+                const name = (u.display_name || u.invoice_name || u.full_name || '');
+                return name.split(' ')[0];
+            })
+            .filter(Boolean)
+            .join(', ');
+    };
+
     const calculatePos = (event) => {
         const s = parseISOAsUTC(event.start_time);
         const e = parseISOAsUTC(event.end_time);
