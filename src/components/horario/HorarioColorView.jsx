@@ -247,7 +247,11 @@ export default function HorarioColorView({ events = [], date, users = [], onSele
                                                     <div className="text-xs opacity-90 font-medium">
                                                         {formatTimeUTC(startDt)} - {formatTimeUTC(endDt)}
                                                     </div>
-                                                    {heightPx > 60 && event.client_address && (
+                                                    <div className="text-xs opacity-90 mt-0.5 flex items-center gap-1 truncate">
+                                                        <Users className="w-3 h-3 flex-shrink-0" />
+                                                        <span className="truncate">{getCleanersDisplay(event.cleaner_ids)}</span>
+                                                    </div>
+                                                    {heightPx > 72 && event.client_address && (
                                                         <div className="text-xs opacity-80 mt-1 truncate flex items-center gap-1">
                                                             <Navigation className="w-3 h-3 flex-shrink-0" />
                                                             <span className="truncate">{event.client_address}</span>
