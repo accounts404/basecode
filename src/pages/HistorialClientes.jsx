@@ -49,6 +49,7 @@ export default function HistorialClientes() {
     const [loading, setLoading] = useState(true);
     const [expandedServices, setExpandedServices] = useState(new Set());
     const [searchTerm, setSearchTerm] = useState('');
+    const [showPrices, setShowPrices] = useState(false);
 
     useEffect(() => {
         loadData();

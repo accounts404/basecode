@@ -27,6 +27,7 @@ export default function ClientesPage() {
     const [deletingClient, setDeletingClient] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [showInactive, setShowInactive] = useState(false);
+    const [showPrices, setShowPrices] = useState(false);
     // Removed: viewingHistoryClientId state as history will be on a separate page
 
     // Define a default formData structure for easy reset
