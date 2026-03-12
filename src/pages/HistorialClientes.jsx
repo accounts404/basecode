@@ -643,9 +643,20 @@ export default function HistorialClientes() {
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow>
-                                                        <TableHead>Fecha y Hora</TableHead>
-                                                        <TableHead>Limpiadores</TableHead>
-                                                        <TableHead>Monto Facturado</TableHead>
+                                                       <TableHead>Fecha y Hora</TableHead>
+                                                       <TableHead>Limpiadores</TableHead>
+                                                       <TableHead>
+                                                           <div className="flex items-center gap-2">
+                                                               Monto Facturado
+                                                               <button
+                                                                   onClick={() => setShowPrices(!showPrices)}
+                                                                   className="text-slate-400 hover:text-slate-700 transition-colors"
+                                                                   title={showPrices ? 'Ocultar montos' : 'Mostrar montos'}
+                                                               >
+                                                                   {showPrices ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                               </button>
+                                                           </div>
+                                                       </TableHead>
                                                         <TableHead>Estado</TableHead>
                                                         <TableHead>Reportes</TableHead>
                                                         <TableHead>Acciones</TableHead>
