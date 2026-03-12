@@ -208,7 +208,7 @@ export default function HistorialClientes() {
         return <Badge className={config.className}>{config.label}</Badge>;
     };
 
-    const ServiceRow = ({ service, client }) => {
+    const ServiceRow = ({ service, client, showPrices }) => {
         const isExpanded = expandedServices.has(service.id);
         const reports = getServiceReports(service.id);
         const amount = calculateServiceAmount(service, client);
