@@ -653,7 +653,7 @@ export default function HistorialClientes() {
                                                 </TableHeader>
                                                 <TableBody>
                                                     {pastServices.map((service) => (
-                                                        <ServiceRow key={service.id} service={service} client={selectedClient} />
+                                                       <ServiceRow key={service.id} service={service} client={selectedClient} showPrices={showPrices} />
                                                     ))}
                                                 </TableBody>
                                             </Table>
