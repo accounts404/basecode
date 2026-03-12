@@ -282,7 +282,18 @@ export default function ClientesPage() {
                                 <TableHead className="min-w-[150px]">Nombre</TableHead>
                                 <TableHead className="min-w-[200px]">Dirección</TableHead>
                                 <TableHead>Frecuencia</TableHead>
-                                <TableHead>Precio</TableHead>
+                                <TableHead>
+                                    <div className="flex items-center gap-2">
+                                        Precio
+                                        <button
+                                            onClick={() => setShowPrices(!showPrices)}
+                                            className="text-slate-400 hover:text-slate-700 transition-colors"
+                                            title={showPrices ? 'Ocultar precios' : 'Mostrar precios'}
+                                        >
+                                            {showPrices ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
+                                    </div>
+                                </TableHead>
                                 <TableHead>Estado</TableHead>
                                 <TableHead>Acceso</TableHead>
                                 <TableHead className="text-right">Acciones</TableHead>
