@@ -596,7 +596,16 @@ export default function HistorialClientes() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <DollarSign className="w-4 h-4 text-slate-500" />
-                                        <span className="text-sm">Precio: ${selectedClient.current_service_price?.toFixed(2) || '0.00'}</span>
+                                        <span className="text-sm">
+                                            Precio: {showPrices ? `$${selectedClient.current_service_price?.toFixed(2) || '0.00'}` : '••••••'}
+                                        </span>
+                                        <button
+                                            onClick={() => setShowPrices(!showPrices)}
+                                            className="text-slate-400 hover:text-slate-700 transition-colors"
+                                            title={showPrices ? 'Ocultar precios' : 'Mostrar precios'}
+                                        >
+                                            {showPrices ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
                                     </div>
                                 </div>
                             </CardContent>
