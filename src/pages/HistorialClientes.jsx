@@ -238,7 +238,9 @@ export default function HistorialClientes() {
                     <TableCell>
                         <div className="flex items-center gap-2">
                             <DollarSign className="w-4 h-4 text-green-600" />
-                            <span className="font-semibold">${amount.toFixed(2)}</span>
+                            <span className="font-semibold">
+                                {showPrices ? `$${amount.toFixed(2)}` : '••••••'}
+                            </span>
                         </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(service.status)}</TableCell>
