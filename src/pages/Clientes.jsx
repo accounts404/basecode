@@ -315,7 +315,9 @@ export default function ClientesPage() {
                                         </TableCell>
                                         <TableCell>{client.address}</TableCell>
                                         <TableCell>{client.service_frequency}</TableCell>
-                                        <TableCell>${client.current_service_price?.toFixed(2) || '0.00'}</TableCell>
+                                        <TableCell>
+                                            {showPrices ? `$${client.current_service_price?.toFixed(2) || '0.00'}` : '••••••'}
+                                        </TableCell>
                                         <TableCell>
                                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${client.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                 {client.active ? 'Activo' : 'Inactivo'}
