@@ -25,7 +25,9 @@ import {
     ChevronUp,
     Camera,
     Search,
-    X
+    X,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 import { format, parseISO, isFuture, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
