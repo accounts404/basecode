@@ -63,6 +63,7 @@ export default function TrabajoEntradasPage() {
   const [workEntries, setWorkEntries] = useState([]);
   const [cleaners, setCleaners] = useState([]);
   const [allClients, setAllClients] = useState([]);
+  const [paidEntryIds, setPaidEntryIds] = useState(new Set()); // IDs de WorkEntries en facturas PAGADAS
   const [loading, setLoading] = useState(true);
   const [selectedCleaner, setSelectedCleaner] = useState("all");
   const [groupByCleaner, setGroupByCleaner] = useState(true);
