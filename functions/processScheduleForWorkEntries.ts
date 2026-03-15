@@ -103,16 +103,14 @@ Deno.serve(async (req) => {
                     console.log('- Start time individual:', individualSchedule.start_time);
                     console.log('- End time individual:', individualSchedule.end_time);
                     const totalMinutes = isoToMinutes(individualSchedule.end_time) - isoToMinutes(individualSchedule.start_time);
-                    cleanerHours = parseFloat((totalMinutes / 60).toFixed(4));
+                    cleanerHours = totalMinutes / 60; // SIN redondeo — horas exactas
+                    console.log('- Minutos totales:', totalMinutes);
+                    console.log('- Horas calculadas (exactas):', cleanerHours);
                 } else {
-                    console.log('- Usando horario general para', cleanerId);
-                    console.log('- Start time general:', schedule.start_time);
-                    console.log('- End time general:', schedule.end_time);
-                    const totalMinutes = isoToMinutes(schedule.end_time) - isoToMinutes(schedule.start_time);
-                    cleanerHours = parseFloat((totalMinutes / 60).toFixed(4));
+                    // Sin horario individual: NO crear entrada — dejar para auditoría
+                    console.log('- ⚠️ SALTANDO limpiador', cleanerId, '- No tiene horario individual (cleaner_schedules). Debe revisarse en Auditoría.');
+                    continue;
                 }
-                console.log('- Minutos totales:', totalMinutes);
-                console.log('- Horas calculadas (4 decimales):', cleanerHours);
                 
                 if (cleanerHours <= 0) {
                     console.log('- ⚠️ SALTANDO limpiador', cleanerId, '- Horas <= 0');
