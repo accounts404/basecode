@@ -653,10 +653,15 @@ export default function AuditoriaWorkEntriesPage() {
                                 <AlertCircle className="w-3 h-3 mr-1" />
                                 Lista para Crear
                               </Badge>
+                            ) : !result.hasIndividualSchedule ? (
+                              <Badge className="bg-orange-100 text-orange-800">
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Sin Horario Individual
+                              </Badge>
                             ) : (
                               <Badge variant="destructive">
                                 <XCircle className="w-3 h-3 mr-1" />
-                                Falta Datos
+                                Falta Tarifa
                               </Badge>
                             )
                           ) : (
