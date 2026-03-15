@@ -1436,11 +1436,18 @@ export default function TrabajoEntradasPage() {
                 />
               </div>
 
-              {editEntry?.invoiced && (
+              {editEntry && paidEntryIds.has(editEntry.id) ? (
+                <Alert variant="destructive">
+                  <Lock className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>Protegida:</strong> Esta entrada pertenece a una factura PAGADA y no puede ser modificada.
+                  </AlertDescription>
+                </Alert>
+              ) : editEntry?.invoiced && (
                 <Alert className="bg-amber-50 border-amber-200">
                   <AlertCircle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800">
-                    <strong>Atención:</strong> Esta entrada está facturada. Al guardarla, la factura correspondiente se actualizará automáticamente. La regeneración del PDF se debe realizar manualmente para evitar timeouts.
+                    <strong>Atención:</strong> Esta entrada está facturada. Al guardarla, la factura correspondiente se actualizará automáticamente.
                   </AlertDescription>
                 </Alert>
               )}
