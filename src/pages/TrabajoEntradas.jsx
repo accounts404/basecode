@@ -124,11 +124,12 @@ export default function TrabajoEntradasPage() {
     try {
       console.log('[TrabajoEntradas] 📊 Iniciando carga paginada de TODAS las entradas...');
       
-      const [currentUser, entriesResult, cleanersResult, clientsResult] = await Promise.all([
+      const [currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult] = await Promise.all([
         base44.auth.me(),
         loadAllRecords('WorkEntry', '-work_date'),
         loadAllRecords('User', '-created_date'),
-        loadAllRecords('Client', '-created_date')
+        loadAllRecords('Client', '-created_date'),
+        loadAllRecords('Invoice', '-created_date')
       ]);
       
       console.log('[TrabajoEntradas] ✅ Entradas cargadas:', entriesResult?.length || 0);
