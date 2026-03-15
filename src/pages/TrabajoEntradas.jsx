@@ -1226,24 +1226,31 @@ export default function TrabajoEntradasPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => setEditEntry(entry)}
-                              title="Editar entrada"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => setDeleteEntry(entry)}
-                              title="Eliminar entrada"
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
+                          {paidEntryIds.has(entry.id) ? (
+                            <div className="flex items-center gap-1 text-slate-400" title="Entrada en factura pagada — protegida">
+                              <Lock className="h-4 w-4" />
+                              <span className="text-xs">Pagada</span>
+                            </div>
+                          ) : (
+                            <div className="flex gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => setEditEntry(entry)}
+                                title="Editar entrada"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => setDeleteEntry(entry)}
+                                title="Eliminar entrada"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
