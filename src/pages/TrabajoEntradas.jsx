@@ -411,6 +411,13 @@ export default function TrabajoEntradasPage() {
   const handleDeleteEntry = async () => {
     if (!deleteEntry) return;
     
+    // BLOQUEO: No permitir eliminar entradas en facturas PAGADAS
+    if (paidEntryIds.has(deleteEntry.id)) {
+      setNotification({ type: "error", message: "❌ Esta entrada pertenece a una factura PAGADA y no puede ser eliminada." });
+      setDeleteEntry(null);
+      return;
+    }
+    
     setDeleting(true);
     try {
       // Update related invoice first (simplified version)
