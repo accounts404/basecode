@@ -143,7 +143,17 @@ export default function TrabajoEntradasPage() {
       
       const cleanerUsers = allUsers.filter(user => user.role !== 'admin');
       setCleaners(cleanerUsers);
-      setAllClients(clientsData.filter(c => c.active !== false)); // Retain active client filter
+      setAllClients(clientsData.filter(c => c.active !== false));
+
+      // Calcular IDs de WorkEntries en facturas PAGADAS — estas no se pueden tocar
+      const paidInvoices = (Array.isArray(invoicesResult) ? invoicesResult : []).filter(inv => inv.status === 'paid');
+      const paidIds = new Set();
+      paidInvoices.forEach(inv => {
+        (inv.work_entries || []).forEach(id => paidIds.add(id));
+      });
+      setPaidEntryIds(paidIds);
+      console.log(`[TrabajoEntradas] 🔒 ${paidIds.size} WorkEntries protegidas (en facturas pagadas)`);
+
       
       const entriesWithCleanerInfo = entries.map(entry => {
         const cleaner = cleanerUsers.find(c => c.id === entry.cleaner_id);
