@@ -1294,27 +1294,27 @@ export default function TrabajoEntradasPage() {
                     </div>
                     <div className="flex justify-between items-center">
                       <div>
-                        {entry.invoiced ? (
+                        {paidEntryIds.has(entry.id) ? (
+                          <Badge className="bg-slate-100 text-slate-600 flex items-center gap-1"><Lock className="w-3 h-3" />Pagada</Badge>
+                        ) : entry.invoiced ? (
                           <Badge className="bg-green-100 text-green-800">Facturado</Badge>
                         ) : (
                           <Badge variant="outline">Pendiente</Badge>
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setEditEntry(entry)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => setDeleteEntry(entry)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        {paidEntryIds.has(entry.id) ? (
+                          <Lock className="h-4 w-4 text-slate-300 mt-1" />
+                        ) : (
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => setEditEntry(entry)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDeleteEntry(entry)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                     {/* Información adicional de modificación en móvil */}
