@@ -747,17 +747,19 @@ export default function AuditoriaWorkEntriesPage() {
                 </div>
 
                 {selectedItem.isMissing ? (
-                  <Alert className="bg-amber-50 border-amber-300">
-                    <AlertTriangle className="h-5 w-5 text-amber-600" />
-                    <AlertDescription className="text-amber-800">
-                      <p className="font-semibold mb-1">Este servicio NO tiene WorkEntry registrada</p>
-                      {selectedItem.canCreate ? (
-                        <p className="text-sm">Todos los datos necesarios están disponibles. Puedes crear la WorkEntry ahora.</p>
-                      ) : (
-                        <p className="text-sm">Faltan datos necesarios (tarifa del limpiador o horas del servicio).</p>
-                      )}
-                    </AlertDescription>
-                  </Alert>
+                <Alert className="bg-amber-50 border-amber-300">
+                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  <AlertDescription className="text-amber-800">
+                    <p className="font-semibold mb-1">Este servicio NO tiene WorkEntry registrada</p>
+                    {selectedItem.canCreate ? (
+                      <p className="text-sm">Todos los datos necesarios están disponibles. Puedes crear la WorkEntry ahora.</p>
+                    ) : !selectedItem.hasIndividualSchedule ? (
+                      <p className="text-sm">⚠️ Este limpiador no tiene horario individual registrado en el servicio. El horario individual es obligatorio para crear la WorkEntry. Edita el servicio y agrega el horario individual.</p>
+                    ) : (
+                      <p className="text-sm">Falta la tarifa del limpiador para poder crear la WorkEntry.</p>
+                    )}
+                  </AlertDescription>
+                </Alert>
                 ) : (
                   <div>
                     <p className="font-semibold mb-2 flex items-center gap-2">
