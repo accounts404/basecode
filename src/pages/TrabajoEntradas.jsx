@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea"; // Unused but keeping for now if not explicitly removed
-import { Clock, User as UserIcon, Calendar, DollarSign, Edit, Trash2, AlertCircle, CheckCircle, Save, TrendingUp, Briefcase, ClipboardCheck, ChevronDown, ChevronUp, Search, X, AlertTriangle, Loader2 } from "lucide-react";
+import { Clock, User as UserIcon, Calendar, DollarSign, Edit, Trash2, AlertCircle, CheckCircle, Save, TrendingUp, Briefcase, ClipboardCheck, ChevronDown, ChevronUp, Search, X, AlertTriangle, Loader2, Lock } from "lucide-react";
 import { format } from "date-fns"; // Removed startOfMonth, endOfMonth, startOfDay, endOfDay as they are unused
 import { es } from "date-fns/locale";
 import PeriodSelector from "../components/reports/PeriodSelector";
