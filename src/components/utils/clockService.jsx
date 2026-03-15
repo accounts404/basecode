@@ -210,113 +210,40 @@ export const performClockOut = async (scheduleId, userId, onProgress) => {
     console.log('[ClockService] Idempotency Key:', idempotencyKey);
     
     try {
-        // PASO 1: Verificar que hay un clock-in activo
-        onProgress?.({ stage: 'validating', message: 'Validando...' });
-        
-        const localActive = getLocalActiveService();
-        if (!localActive || localActive.scheduleId !== scheduleId) {
-            console.warn('[ClockService] ⚠️ No hay Clock In activo en caché local para este servicio');
-        }
-
-        // PASO 2: Obtener el schedule actual desde el backend (fuente de verdad)
-        onProgress?.({ stage: 'loading', message: 'Cargando servicio...' });
-        
-        const schedule = await Schedule.get(scheduleId);
-        if (!schedule) {
-            throw new Error('Servicio no encontrado');
-        }
-
-        // Guardar el estado original para determinar si invocar WorkEntries
-        const originalStatus = schedule.status;
-
-        // PASO 3: Validar que el usuario tiene clock-in en este servicio
-        const existingClockIn = schedule.clock_in_data?.find(c => c.cleaner_id === userId);
-        
-        if (!existingClockIn || !existingClockIn.clock_in_time) {
-            throw new Error('No tienes un Clock In registrado para este servicio');
-        }
-
-        if (existingClockIn.clock_out_time) {
-            throw new Error('Ya has hecho Clock Out en este servicio');
-        }
-
-        // PASO 4: Capturar ubicación GPS (no bloqueante)
+        // PASO 1: Capturar ubicación GPS (no bloqueante)
         onProgress?.({ stage: 'location', message: 'Obteniendo ubicación...' });
         
         const userLocation = await getUserLocation();
-        if (!userLocation) {
-            console.warn('[ClockService] ⚠️ Clock Out sin ubicación GPS');
-        }
 
-        // PASO 5: Preparar datos para actualización
-        const updatedClockData = [...schedule.clock_in_data];
-        const cleanerIndex = updatedClockData.findIndex(c => c.cleaner_id === userId);
-        
-        updatedClockData[cleanerIndex] = {
-            ...updatedClockData[cleanerIndex],
-            clock_out_time: new Date().toISOString(), // Timestamp temporal, el backend lo reemplazará
-            clock_out_location: userLocation
-        };
-
-        // PASO 6: Determinar si todos los limpiadores hicieron clock-out
-        const allCleanersClockedOut = schedule.cleaner_ids?.every(cleanerId => {
-            const clockData = updatedClockData.find(c => c.cleaner_id === cleanerId);
-            return clockData && clockData.clock_out_time;
-        }) || false;
-
-        const newStatus = allCleanersClockedOut ? 'completed' : schedule.status;
-
-        // PASO 7: Actualizar en el backend (BACKEND-FIRST)
+        // PASO 2: Llamar a la backend function (timestamp lo genera el servidor en hora Melbourne)
+        // La función backend valida clock-in previo, procesa WorkEntries si es el último, etc.
         onProgress?.({ stage: 'saving', message: 'Registrando Clock Out...' });
-        
-        const updatePayload = {
-            clock_in_data: updatedClockData,
-            status: newStatus
-        };
 
-        const updatedSchedule = await Schedule.update(scheduleId, updatePayload);
-        
-        console.log('[ClockService] ✅ Clock Out registrado en backend');
+        const { data: clockOutResult } = await base44.functions.invoke('clockOut', {
+            scheduleId,
+            location: userLocation
+        });
 
-        // PASO 8: Procesar WorkEntries SOLO si el servicio cambió a 'completed' por primera vez
-        if (newStatus === 'completed' && originalStatus !== 'completed') {
-            console.log('[ClockService] 📊 Servicio completado por primera vez, procesando WorkEntries...');
-            
-            onProgress?.({ stage: 'processing', message: 'Procesando horas trabajadas...' });
-            
-            try {
-                const { data } = await base44.functions.invoke('processScheduleForWorkEntries', {
-                    scheduleId: scheduleId,
-                    mode: 'create'
-                });
-
-                if (data?.success) {
-                    console.log('[ClockService] ✅ WorkEntries procesadas:', data.created_entries || 0, 'entradas');
-                } else {
-                    console.warn('[ClockService] ⚠️ Respuesta inesperada al procesar WorkEntries:', data);
-                }
-            } catch (workEntryError) {
-                // NO bloqueamos el Clock Out si falla el procesamiento de WorkEntries
-                console.error('[ClockService] ❌ Error procesando WorkEntries:', workEntryError);
-                console.warn('[ClockService] ⚠️ El Clock Out se completó pero las WorkEntries deben revisarse manualmente');
-            }
-        } else if (newStatus === 'completed') {
-            console.log('[ClockService] ℹ️ Servicio ya estaba completado, no se procesan WorkEntries de nuevo');
+        if (!clockOutResult?.success) {
+            throw new Error(clockOutResult?.error || 'Error al registrar Clock Out');
         }
 
-        // PASO 9: Limpiar caché local
+        console.log('[ClockService] ✅ Clock Out registrado (hora Melbourne)');
+
+        if (clockOutResult.serviceCompleted) {
+            onProgress?.({ stage: 'processing', message: 'Procesando horas trabajadas...' });
+        }
+
+        // PASO 3: Limpiar caché local
         clearLocalActiveService();
         console.log('[ClockService] ✅ Caché local limpiado');
 
-        // PASO 10: Retornar resultado exitoso
         return {
             success: true,
-            schedule: updatedSchedule,
-            message: allCleanersClockedOut 
-                ? 'Clock Out registrado. ¡Servicio completado!' 
-                : 'Clock Out registrado exitosamente',
+            schedule: clockOutResult.schedule,
+            message: clockOutResult.message,
             locationCaptured: !!userLocation,
-            serviceCompleted: allCleanersClockedOut
+            serviceCompleted: clockOutResult.serviceCompleted
         };
 
     } catch (error) {
