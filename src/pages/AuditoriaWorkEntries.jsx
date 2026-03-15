@@ -210,15 +210,18 @@ export default function AuditoriaWorkEntriesPage() {
         // Determine if WorkEntry is missing
         const isMissing = relatedWorkEntries.length === 0;
 
-        // Get cleaner's rate for the service date
+        // Get cleaner's rate for the service date (usando comparación de string para evitar timezone)
         let cleanerRate = 0;
+        const workDateStr = schedule.start_time.slice(0, 10);
         if (cleaner?.rate_history && cleaner.rate_history.length > 0) {
-          const workDate = new Date(schedule.start_time);
           const effectiveRate = cleaner.rate_history
-            .filter(rh => new Date(rh.effective_date) <= workDate)
-            .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))[0];
+            .filter(rh => rh.effective_date <= workDateStr)
+            .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
           if (effectiveRate) cleanerRate = effectiveRate.rate;
         }
+
+        // Get client activity type
+        const clientActivityType = client?.client_type || 'domestic';
 
         results.push({
           schedule,
@@ -230,7 +233,10 @@ export default function AuditoriaWorkEntriesPage() {
           actualHours,
           workEntries: relatedWorkEntries,
           isMissing,
-          canCreate: isMissing && expectedHours > 0 && cleanerRate > 0,
+          hasIndividualSchedule,
+          clientActivityType,
+          // canCreate solo si hay horario individual, horas > 0 y tarifa > 0
+          canCreate: isMissing && hasIndividualSchedule && expectedHours > 0 && cleanerRate > 0,
           key: `${schedule.id}_${cleanerId}`
         });
       });
