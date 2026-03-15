@@ -186,29 +186,23 @@ export default function AuditoriaWorkEntriesPage() {
         const key = `${schedule.id}_${cleanerId}`;
         const relatedWorkEntries = workEntryMap.get(key) || [];
 
-        // Calculate expected hours from cleaner_schedules or general schedule
-        let expectedHours = 0;
-        let startTime, endTime;
-
-        // Calcular horas directamente desde los strings ISO (sin conversión de timezone)
+        // Calcular horas SOLO desde cleaner_schedules individual — sin redondeo
         const isoToMinutes = (isoStr) => {
           if (!isoStr) return 0;
           return parseInt(isoStr.slice(11, 13)) * 60 + parseInt(isoStr.slice(14, 16));
         };
 
+        let expectedHours = 0;
+        let hasIndividualSchedule = false;
+
         if (schedule.cleaner_schedules && schedule.cleaner_schedules.length > 0) {
           const cleanerSchedule = schedule.cleaner_schedules.find(cs => cs.cleaner_id === cleanerId);
           if (cleanerSchedule && cleanerSchedule.start_time && cleanerSchedule.end_time) {
             expectedHours = (isoToMinutes(cleanerSchedule.end_time) - isoToMinutes(cleanerSchedule.start_time)) / 60;
+            hasIndividualSchedule = true;
           }
         }
-        
-        if (expectedHours === 0 && schedule.start_time && schedule.end_time) {
-          expectedHours = (isoToMinutes(schedule.end_time) - isoToMinutes(schedule.start_time)) / 60;
-        }
-
-        // Round to nearest 0.25
-        expectedHours = Math.round(expectedHours * 4) / 4;
+        // NO usar horario general como fallback — sin horario individual no se puede crear
 
         // Calculate actual hours from work entries
         const actualHours = relatedWorkEntries.reduce((sum, we) => sum + (we.hours || 0), 0);
