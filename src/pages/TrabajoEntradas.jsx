@@ -356,6 +356,13 @@ export default function TrabajoEntradasPage() {
   const handleEditEntry = async () => {
     if (!editEntry) return;
     
+    // BLOQUEO: No permitir editar entradas en facturas PAGADAS
+    if (paidEntryIds.has(editEntry.id)) {
+      setNotification({ type: "error", message: "❌ Esta entrada pertenece a una factura PAGADA y no puede ser modificada." });
+      setEditEntry(null);
+      return;
+    }
+    
     setUpdating(true);
     try {
       // Get cleaner information
