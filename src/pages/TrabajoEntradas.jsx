@@ -1037,24 +1037,31 @@ export default function TrabajoEntradasPage() {
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  <div className="flex gap-1">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      onClick={() => setEditEntry(entry)}
-                                      title="Editar entrada"
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      onClick={() => setDeleteEntry(entry)}
-                                      title="Eliminar entrada"
-                                    >
-                                      <Trash2 className="h-4 w-4 text-red-500" />
-                                    </Button>
-                                  </div>
+                                  {paidEntryIds.has(entry.id) ? (
+                                    <div className="flex items-center gap-1 text-slate-400" title="Entrada en factura pagada — protegida">
+                                      <Lock className="h-4 w-4" />
+                                      <span className="text-xs">Pagada</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-1">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        onClick={() => setEditEntry(entry)}
+                                        title="Editar entrada"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon"
+                                        onClick={() => setDeleteEntry(entry)}
+                                        title="Eliminar entrada"
+                                      >
+                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                      </Button>
+                                    </div>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -1077,7 +1084,6 @@ export default function TrabajoEntradasPage() {
                                     {activityLabels[entry.activity] || entry.activity}
                                     {entry.activity === 'otros' && entry.other_activity && `: ${entry.other_activity}`}
                                   </Badge>
-                                  {/* Indicador de modificación en móvil */}
                                   {entry.modified_by_cleaner && (
                                     <div className="flex items-center gap-1">
                                       <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -1097,28 +1103,28 @@ export default function TrabajoEntradasPage() {
                             </div>
                             <div className="flex justify-between items-center">
                               <div>
-                                {entry.invoiced ? (
+                                {paidEntryIds.has(entry.id) ? (
+                                  <Badge className="bg-slate-100 text-slate-600 flex items-center gap-1"><Lock className="w-3 h-3" />Pagada</Badge>
+                                ) : entry.invoiced ? (
                                   <Badge className="bg-green-100 text-green-800">Facturado</Badge>
                                 ) : (
                                   <Badge variant="outline">Pendiente</Badge>
                                 )}
                               </div>
                               <div className="flex gap-2">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    onClick={() => setEditEntry(entry)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => setDeleteEntry(entry)}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                  </Button>
-                                </div>
+                                {paidEntryIds.has(entry.id) ? (
+                                  <Lock className="h-4 w-4 text-slate-300 mt-1" />
+                                ) : (
+                                  <>
+                                    <Button variant="ghost" size="sm" onClick={() => setEditEntry(entry)}>
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => setDeleteEntry(entry)}>
+                                      <Trash2 className="h-4 w-4 text-red-500" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                               </div>
                               {/* Información adicional de modificación en móvil */}
                               {entry.modified_by_cleaner && entry.last_modified_at && (
