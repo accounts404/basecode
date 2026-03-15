@@ -148,61 +148,35 @@ export const performClockIn = async (scheduleId, userId, onProgress) => {
         onProgress?.({ stage: 'location', message: 'Obteniendo ubicación...' });
         
         const userLocation = await getUserLocation();
-        if (!userLocation) {
-            console.warn('[ClockService] ⚠️ Clock In sin ubicación GPS');
-        }
 
-        // PASO 4: Preparar datos para actualización
-        // IMPORTANTE: El backend estampará el tiempo (server-side timestamp)
-        const updatedClockData = [...(schedule.clock_in_data || [])];
-        const existingIndex = updatedClockData.findIndex(c => c.cleaner_id === userId);
-        
-        const clockInData = {
-            cleaner_id: userId,
-            clock_in_time: new Date().toISOString(), // Timestamp temporal, el backend lo reemplazará
-            clock_in_location: userLocation,
-            clock_out_time: null,
-            clock_out_location: null
-        };
-
-        if (existingIndex >= 0) {
-            updatedClockData[existingIndex] = { ...updatedClockData[existingIndex], ...clockInData };
-        } else {
-            updatedClockData.push(clockInData);
-        }
-
-        // PASO 5: Actualizar en el backend (BACKEND-FIRST)
+        // PASO 4: Llamar a la backend function (timestamp lo genera el servidor en hora Melbourne)
         onProgress?.({ stage: 'saving', message: 'Registrando Clock In...' });
-        
-        const updatePayload = {
-            clock_in_data: updatedClockData
-        };
-        
-        // Cambiar estado solo si estaba scheduled
-        if (schedule.status === 'scheduled') {
-            updatePayload.status = 'in_progress';
+
+        const { data: clockInResult } = await base44.functions.invoke('clockIn', {
+            scheduleId,
+            location: userLocation
+        });
+
+        if (!clockInResult?.success) {
+            throw new Error(clockInResult?.error || 'Error al registrar Clock In');
         }
 
-        // Enviar actualización al backend con idempotency key
-        // NOTA: El header de idempotencia debería manejarse en el SDK o función backend
-        const updatedSchedule = await Schedule.update(scheduleId, updatePayload);
-        
-        console.log('[ClockService] ✅ Clock In registrado en backend');
+        const updatedSchedule = clockInResult.schedule;
+        console.log('[ClockService] ✅ Clock In registrado (hora Melbourne)');
 
-        // PASO 6: Actualizar caché local con datos del backend (no con request)
+        // PASO 5: Actualizar caché local con datos del servidor
         const serverClockInData = updatedSchedule.clock_in_data?.find(c => c.cleaner_id === userId);
         
         setLocalActiveService({
             scheduleId: updatedSchedule.id,
             userId: userId,
-            clockInTime: serverClockInData?.clock_in_time || new Date().toISOString(),
+            clockInTime: serverClockInData?.clock_in_time,
             clientName: updatedSchedule.client_name,
             clientAddress: updatedSchedule.client_address
         });
 
         console.log('[ClockService] ✅ Caché local actualizado');
 
-        // PASO 7: Retornar resultado exitoso
         return {
             success: true,
             schedule: updatedSchedule,
