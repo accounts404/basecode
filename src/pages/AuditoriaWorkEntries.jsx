@@ -339,10 +339,10 @@ export default function AuditoriaWorkEntriesPage() {
           client_id: result.schedule.client_id,
           client_name: result.schedule.client_name,
           work_date: workDateStr,
-          hours: result.expectedHours,
-          activity: 'domestic',
+          hours: result.expectedHours, // Exacto, sin redondeo
+          activity: result.clientActivityType || 'domestic',
           hourly_rate: result.cleanerRate,
-          total_amount: result.expectedHours * result.cleanerRate,
+          total_amount: parseFloat((result.expectedHours * result.cleanerRate).toFixed(2)),
           period: `${format(workDate, 'yyyy-MM')}-${workDate.getDate() <= 15 ? '1st' : '2nd'}`,
           invoiced: false,
           schedule_id: result.schedule.id
