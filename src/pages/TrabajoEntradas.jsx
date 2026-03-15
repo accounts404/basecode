@@ -1458,7 +1458,7 @@ export default function TrabajoEntradasPage() {
               </Button>
               <Button 
                 onClick={handleEditEntry}
-                disabled={updating}
+                disabled={updating || (editEntry && paidEntryIds.has(editEntry.id))}
               >
                 {updating ? (
                   <>
