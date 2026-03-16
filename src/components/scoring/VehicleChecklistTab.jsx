@@ -475,14 +475,14 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
 
         {/* ===== TAB: REVISIONES DEL MES ===== */}
         <TabsContent value="revisiones" className="mt-4 space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <div>
               <h3 className="text-lg font-semibold text-slate-800">Revisiones de Vehículos</h3>
               <p className="text-sm text-slate-500">Checklist de revisión diaria</p>
             </div>
-            <div className="flex items-center gap-3">
-              <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-44" />
-              <Button onClick={() => openDialog(null)}>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="flex-1 sm:w-44" />
+              <Button onClick={() => openDialog(null)} className="shrink-0">
                 <Plus className="w-4 h-4 mr-1" /> Nueva Revisión
               </Button>
             </div>
