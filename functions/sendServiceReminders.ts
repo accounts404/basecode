@@ -169,18 +169,20 @@ Deno.serve(async (req) => {
             return Response.json({ message: 'No services to remind today.', target_date: targetDateString, total_for_date: allForDate.length });
         }
 
-        // 7. Obtener solo los clientes necesarios (no todos)
+        // 7. Obtener solo los clientes necesarios (EN PARALELO)
         const neededClientIds = [...new Set(scheduledForTargetDate.map(s => s.client_id).filter(Boolean))];
-        log(`Loading ${neededClientIds.length} clients needed for reminders`);
+        log(`Loading ${neededClientIds.length} clients needed for reminders (parallel)`);
         const clientMap = new Map();
-        for (const clientId of neededClientIds) {
-            try {
-                const client = await base44.asServiceRole.entities.Client.get(clientId);
-                if (client) clientMap.set(clientId, client);
-            } catch (e) {
-                log(`Could not load client ${clientId}: ${e.message}`);
+        const clientResults = await Promise.allSettled(
+            neededClientIds.map(clientId => base44.asServiceRole.entities.Client.get(clientId))
+        );
+        clientResults.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value) {
+                clientMap.set(neededClientIds[index], result.value);
+            } else {
+                log(`Could not load client ${neededClientIds[index]}`);
             }
-        }
+        });
         log(`Clients loaded: ${clientMap.size}`);
 
         // 8. Credenciales Twilio
