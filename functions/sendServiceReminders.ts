@@ -199,12 +199,16 @@ Deno.serve(async (req) => {
         const defaultTemplate = `Hi {client_name}, your cleaning service is scheduled for {service_date} at {service_time}. Call 0491829501 for any changes. Redoak Cleaning.`;
         const messageTemplate = adminUser.sms_templates?.service_reminder || defaultTemplate;
 
-        // 9. Enviar SMS EN PARALELO
+        // 9. Enviar SMS EN LOTES DE 10 (evita rate limits de Twilio)
         const _rn = new Date();
         const reminderTs = `${_rn.getFullYear()}-${String(_rn.getMonth()+1).padStart(2,'0')}-${String(_rn.getDate()).padStart(2,'0')}T${String(_rn.getHours()).padStart(2,'0')}:${String(_rn.getMinutes()).padStart(2,'0')}:00.000`;
 
-        const sendResults = await Promise.allSettled(
-            scheduledForTargetDate.map(async (schedule) => {
+        const BATCH_SIZE = 10;
+        const allSendResults = [];
+        for (let i = 0; i < scheduledForTargetDate.length; i += BATCH_SIZE) {
+            const batch = scheduledForTargetDate.slice(i, i + BATCH_SIZE);
+            log(`Processing batch ${Math.floor(i/BATCH_SIZE)+1}: schedules ${i+1}-${Math.min(i+BATCH_SIZE, scheduledForTargetDate.length)}`);
+            const batchResults = await Promise.allSettled(batch.map(async (schedule) => {
                 const client = clientMap.get(schedule.client_id);
                 if (!client || !client.mobile_number) {
                     return { schedule_id: schedule.id, status: 'skipped', reason: 'no client or phone' };
