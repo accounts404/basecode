@@ -679,7 +679,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
 
       {/* ===== DIALOG: Nueva Revisión ===== */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
             <Car className="w-5 h-5" /> {editingRecord ? "Modificar Revisión" : "Nueva Revisión"} — {format(parseISO(editingRecord?.date || selectedDate), "d 'de' MMMM yyyy", { locale: es })}
