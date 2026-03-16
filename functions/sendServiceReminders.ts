@@ -205,67 +205,68 @@ Deno.serve(async (req) => {
 
         const BATCH_SIZE = 10;
         const allSendResults = [];
+
+        const processSingleSchedule = async (schedule) => {
+            const client = clientMap.get(schedule.client_id);
+            if (!client || !client.mobile_number) {
+                return { schedule_id: schedule.id, status: 'skipped', reason: 'no client or phone' };
+            }
+
+            const phoneNumber = formatAustralianPhoneNumber(client.mobile_number);
+            const secondaryPhoneNumber = client.secondary_mobile_number
+                ? formatAustralianPhoneNumber(client.secondary_mobile_number)
+                : null;
+
+            if (!phoneNumber) {
+                return { schedule_id: schedule.id, status: 'skipped', reason: 'invalid phone format' };
+            }
+
+            const clientNameForSMS = client.sms_name || client.name;
+            let serviceMelbourneTime;
+            if (schedule.start_time.endsWith('Z') || schedule.start_time.includes('+') || schedule.start_time.includes('-', 10)) {
+                serviceMelbourneTime = DateTime.fromISO(schedule.start_time).setZone('Australia/Melbourne');
+            } else {
+                serviceMelbourneTime = DateTime.fromISO(schedule.start_time, { zone: 'Australia/Melbourne' });
+            }
+            const messageBody = messageTemplate
+                .replace(/\{client_name\}/g, clientNameForSMS)
+                .replace(/\{service_date\}/g, serviceMelbourneTime.toFormat('dd/MM/yy'))
+                .replace(/\{service_time\}/g, serviceMelbourneTime.toFormat('h:mm a'));
+
+            const smsTasks = [twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: phoneNumber })];
+            if (secondaryPhoneNumber) {
+                smsTasks.push(twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: secondaryPhoneNumber }));
+            }
+
+            const smsResults = await Promise.allSettled(smsTasks);
+            const sentToAtLeastOne = smsResults.some(r => r.status === 'fulfilled');
+
+            if (smsResults[0].status === 'fulfilled') {
+                log(`✅ SMS sent to ${phoneNumber} for ${client.name} (schedule ${schedule.id})`);
+            } else {
+                log(`❌ ERROR sending to ${phoneNumber}: ${smsResults[0].reason?.message}`);
+            }
+
+            if (sentToAtLeastOne) {
+                await base44.asServiceRole.entities.Schedule.update(schedule.id, { reminder_sent_at: reminderTs });
+            }
+
+            return {
+                schedule_id: schedule.id,
+                client: client.name,
+                phone: phoneNumber,
+                status: sentToAtLeastOne ? 'sent' : 'error'
+            };
+        };
+
         for (let i = 0; i < scheduledForTargetDate.length; i += BATCH_SIZE) {
             const batch = scheduledForTargetDate.slice(i, i + BATCH_SIZE);
             log(`Processing batch ${Math.floor(i/BATCH_SIZE)+1}: schedules ${i+1}-${Math.min(i+BATCH_SIZE, scheduledForTargetDate.length)}`);
-            const batchResults = await Promise.allSettled(batch.map(async (schedule) => {
-                const client = clientMap.get(schedule.client_id);
-                if (!client || !client.mobile_number) {
-                    return { schedule_id: schedule.id, status: 'skipped', reason: 'no client or phone' };
-                }
+            const batchResults = await Promise.allSettled(batch.map(processSingleSchedule));
+            allSendResults.push(...batchResults);
+        }
 
-                const phoneNumber = formatAustralianPhoneNumber(client.mobile_number);
-                const secondaryPhoneNumber = client.secondary_mobile_number
-                    ? formatAustralianPhoneNumber(client.secondary_mobile_number)
-                    : null;
-
-                if (!phoneNumber) {
-                    return { schedule_id: schedule.id, status: 'skipped', reason: 'invalid phone format' };
-                }
-
-                const clientNameForSMS = client.sms_name || client.name;
-                let serviceMelbourneTime;
-                if (schedule.start_time.endsWith('Z') || schedule.start_time.includes('+') || schedule.start_time.includes('-', 10)) {
-                    serviceMelbourneTime = DateTime.fromISO(schedule.start_time).setZone('Australia/Melbourne');
-                } else {
-                    serviceMelbourneTime = DateTime.fromISO(schedule.start_time, { zone: 'Australia/Melbourne' });
-                }
-                const messageBody = messageTemplate
-                    .replace(/\{client_name\}/g, clientNameForSMS)
-                    .replace(/\{service_date\}/g, serviceMelbourneTime.toFormat('dd/MM/yy'))
-                    .replace(/\{service_time\}/g, serviceMelbourneTime.toFormat('h:mm a'));
-
-                // Enviar al número principal y secundario en paralelo
-                const smsTasks = [twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: phoneNumber })];
-                if (secondaryPhoneNumber) {
-                    smsTasks.push(twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: secondaryPhoneNumber }));
-                }
-
-                const smsResults = await Promise.allSettled(smsTasks);
-                const primaryOk = smsResults[0].status === 'fulfilled';
-
-                if (primaryOk) {
-                    log(`✅ SMS sent to ${phoneNumber} for ${client.name} (schedule ${schedule.id})`);
-                } else {
-                    log(`❌ ERROR sending to ${phoneNumber}: ${smsResults[0].reason?.message}`);
-                }
-
-                const sentToAtLeastOne = smsResults.some(r => r.status === 'fulfilled');
-
-                if (sentToAtLeastOne) {
-                    await base44.asServiceRole.entities.Schedule.update(schedule.id, { reminder_sent_at: reminderTs });
-                }
-
-                return {
-                    schedule_id: schedule.id,
-                    client: client.name,
-                    phone: phoneNumber,
-                    status: sentToAtLeastOne ? 'sent' : 'error'
-                };
-            })
-        );
-
-        const results = sendResults.map(r => r.status === 'fulfilled' ? r.value : { status: 'error', error: r.reason?.message });
+        const results = allSendResults.map(r => r.status === 'fulfilled' ? r.value : { status: 'error', error: r.reason?.message });
         const sentCount = results.filter(r => r.status === 'sent').length;
 
         log(`Process finished. Sent ${sentCount} reminders.`);
