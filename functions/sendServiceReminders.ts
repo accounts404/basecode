@@ -199,74 +199,70 @@ Deno.serve(async (req) => {
         const defaultTemplate = `Hi {client_name}, your cleaning service is scheduled for {service_date} at {service_time}. Call 0491829501 for any changes. Redoak Cleaning.`;
         const messageTemplate = adminUser.sms_templates?.service_reminder || defaultTemplate;
 
-        // 9. Enviar SMS
-        let sentCount = 0;
-        const results = [];
+        // 9. Enviar SMS EN PARALELO
+        const _rn = new Date();
+        const reminderTs = `${_rn.getFullYear()}-${String(_rn.getMonth()+1).padStart(2,'0')}-${String(_rn.getDate()).padStart(2,'0')}T${String(_rn.getHours()).padStart(2,'0')}:${String(_rn.getMinutes()).padStart(2,'0')}:00.000`;
 
-        for (const schedule of scheduledForTargetDate) {
-            const client = clientMap.get(schedule.client_id);
-            if (!client || !client.mobile_number) {
-                log(`Skipping schedule ${schedule.id}: client not found or no phone number.`);
-                results.push({ schedule_id: schedule.id, status: 'skipped', reason: 'no client or phone' });
-                continue;
-            }
-
-            const phoneNumber = formatAustralianPhoneNumber(client.mobile_number);
-            const secondaryPhoneNumber = client.secondary_mobile_number
-                ? formatAustralianPhoneNumber(client.secondary_mobile_number)
-                : null;
-
-            if (!phoneNumber) {
-                log(`Skipping schedule ${schedule.id}: invalid phone format: ${client.mobile_number}`);
-                results.push({ schedule_id: schedule.id, status: 'skipped', reason: 'invalid phone format' });
-                continue;
-            }
-
-            const clientNameForSMS = client.sms_name || client.name;
-            let serviceMelbourneTime;
-            if (schedule.start_time.endsWith('Z') || schedule.start_time.includes('+') || schedule.start_time.includes('-', 10)) {
-                serviceMelbourneTime = DateTime.fromISO(schedule.start_time).setZone('Australia/Melbourne');
-            } else {
-                serviceMelbourneTime = DateTime.fromISO(schedule.start_time, { zone: 'Australia/Melbourne' });
-            }
-            const messageBody = messageTemplate
-                .replace(/\{client_name\}/g, clientNameForSMS)
-                .replace(/\{service_date\}/g, serviceMelbourneTime.toFormat('dd/MM/yy'))
-                .replace(/\{service_time\}/g, serviceMelbourneTime.toFormat('h:mm a'));
-
-            let sentToAtLeastOne = false;
-
-            // Enviar al número principal
-            try {
-                await twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: phoneNumber });
-                log(`✅ SMS sent to PRIMARY ${phoneNumber} for ${client.name} (schedule ${schedule.id})`);
-                sentToAtLeastOne = true;
-                results.push({ schedule_id: schedule.id, client: client.name, phone: phoneNumber, status: 'sent' });
-            } catch (error) {
-                log(`❌ ERROR sending to primary ${phoneNumber}: ${error.message}`);
-                results.push({ schedule_id: schedule.id, client: client.name, phone: phoneNumber, status: 'error', error: error.message });
-            }
-
-            // Enviar al número secundario
-            if (secondaryPhoneNumber) {
-                try {
-                    await twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: secondaryPhoneNumber });
-                    log(`✅ SMS sent to SECONDARY ${secondaryPhoneNumber} for ${client.name}`);
-                    sentToAtLeastOne = true;
-                } catch (error) {
-                    log(`❌ ERROR sending to secondary ${secondaryPhoneNumber}: ${error.message}`);
+        const sendResults = await Promise.allSettled(
+            scheduledForTargetDate.map(async (schedule) => {
+                const client = clientMap.get(schedule.client_id);
+                if (!client || !client.mobile_number) {
+                    return { schedule_id: schedule.id, status: 'skipped', reason: 'no client or phone' };
                 }
-            }
 
-            if (sentToAtLeastOne) {
-                const _rn = new Date();
-                const _reminderTs = `${_rn.getFullYear()}-${String(_rn.getMonth()+1).padStart(2,'0')}-${String(_rn.getDate()).padStart(2,'0')}T${String(_rn.getHours()).padStart(2,'0')}:${String(_rn.getMinutes()).padStart(2,'0')}:00.000`;
-                await base44.asServiceRole.entities.Schedule.update(schedule.id, {
-                    reminder_sent_at: _reminderTs
-                });
-                sentCount++;
-            }
-        }
+                const phoneNumber = formatAustralianPhoneNumber(client.mobile_number);
+                const secondaryPhoneNumber = client.secondary_mobile_number
+                    ? formatAustralianPhoneNumber(client.secondary_mobile_number)
+                    : null;
+
+                if (!phoneNumber) {
+                    return { schedule_id: schedule.id, status: 'skipped', reason: 'invalid phone format' };
+                }
+
+                const clientNameForSMS = client.sms_name || client.name;
+                let serviceMelbourneTime;
+                if (schedule.start_time.endsWith('Z') || schedule.start_time.includes('+') || schedule.start_time.includes('-', 10)) {
+                    serviceMelbourneTime = DateTime.fromISO(schedule.start_time).setZone('Australia/Melbourne');
+                } else {
+                    serviceMelbourneTime = DateTime.fromISO(schedule.start_time, { zone: 'Australia/Melbourne' });
+                }
+                const messageBody = messageTemplate
+                    .replace(/\{client_name\}/g, clientNameForSMS)
+                    .replace(/\{service_date\}/g, serviceMelbourneTime.toFormat('dd/MM/yy'))
+                    .replace(/\{service_time\}/g, serviceMelbourneTime.toFormat('h:mm a'));
+
+                // Enviar al número principal y secundario en paralelo
+                const smsTasks = [twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: phoneNumber })];
+                if (secondaryPhoneNumber) {
+                    smsTasks.push(twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: secondaryPhoneNumber }));
+                }
+
+                const smsResults = await Promise.allSettled(smsTasks);
+                const primaryOk = smsResults[0].status === 'fulfilled';
+
+                if (primaryOk) {
+                    log(`✅ SMS sent to ${phoneNumber} for ${client.name} (schedule ${schedule.id})`);
+                } else {
+                    log(`❌ ERROR sending to ${phoneNumber}: ${smsResults[0].reason?.message}`);
+                }
+
+                const sentToAtLeastOne = smsResults.some(r => r.status === 'fulfilled');
+
+                if (sentToAtLeastOne) {
+                    await base44.asServiceRole.entities.Schedule.update(schedule.id, { reminder_sent_at: reminderTs });
+                }
+
+                return {
+                    schedule_id: schedule.id,
+                    client: client.name,
+                    phone: phoneNumber,
+                    status: sentToAtLeastOne ? 'sent' : 'error'
+                };
+            })
+        );
+
+        const results = sendResults.map(r => r.status === 'fulfilled' ? r.value : { status: 'error', error: r.reason?.message });
+        const sentCount = results.filter(r => r.status === 'sent').length;
 
         log(`Process finished. Sent ${sentCount} reminders.`);
         return Response.json({ success: true, reminders_sent: sentCount, target_date: targetDateString, results });
