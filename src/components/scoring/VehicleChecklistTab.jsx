@@ -563,19 +563,19 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Desde</Label>
-                  <Input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)} className="w-40" />
+                  <Input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)} className="w-full" />
                 </div>
                 <div>
                   <Label className="text-xs">Hasta</Label>
-                  <Input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)} className="w-40" />
+                  <Input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)} className="w-full" />
                 </div>
                 <div>
                   <Label className="text-xs">Vehículo</Label>
                   <Select value={reportVehicleId} onValueChange={setReportVehicleId}>
-                    <SelectTrigger className="w-48">
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Todos los vehículos" />
                     </SelectTrigger>
                     <SelectContent>
@@ -591,7 +591,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                 <div>
                   <Label className="text-xs">Limpiador</Label>
                   <Select value={reportCleanerId} onValueChange={setReportCleanerId}>
-                    <SelectTrigger className="w-44">
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Todos los limpiadores" />
                     </SelectTrigger>
                     <SelectContent>
@@ -604,9 +604,11 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={loadReport} disabled={loadingReport} className="self-end">
-                  {loadingReport ? "Cargando..." : "Generar Reporte"}
-                </Button>
+                <div className="sm:col-span-2">
+                  <Button onClick={loadReport} disabled={loadingReport} className="w-full sm:w-auto">
+                    {loadingReport ? "Cargando..." : "Generar Reporte"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
