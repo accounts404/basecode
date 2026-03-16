@@ -813,9 +813,9 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowDialog(false); setEditingRecord(null); }}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setShowDialog(false); setEditingRecord(null); }}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
               {saving ? "Guardando..." : editingRecord ? "Guardar Cambios" : "Guardar Revisión"}
             </Button>
           </DialogFooter>
