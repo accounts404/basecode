@@ -755,10 +755,10 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                     <Checkbox
                       checked={item.passed}
                       onCheckedChange={(v) => handleCheckChange(index, v)}
-                      className="mt-0.5"
+                      className="mt-0.5 w-6 h-6 shrink-0"
                     />
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{item.item}</p>
+                      <p className="text-sm font-medium leading-snug">{item.item}</p>
                       {!item.passed && item.notes && (
                         <p className="text-xs text-red-600 italic mt-1">💬 {item.notes}</p>
                       )}
