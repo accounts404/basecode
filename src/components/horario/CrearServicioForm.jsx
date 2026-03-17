@@ -2481,7 +2481,7 @@ export default function CrearServicioForm({
                                             <div className="mt-2 flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 p-2 rounded-md">
                                                 <CheckCircle className="h-4 w-4" />
                                                 <span>
-                                                    Recordatorio enviado el: {formatUTCDate(schedule.reminder_sent_at)} a las {formatUTCTime(schedule.reminder_sent_at)}
+                                                    Recordatorio enviado el: {format(new Date(schedule.reminder_sent_at), "d 'de' MMM 'de' yyyy 'a las' HH:mm", { locale: es })}
                                                 </span>
                                             </div>
                                         )}
