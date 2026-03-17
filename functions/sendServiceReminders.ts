@@ -169,20 +169,21 @@ Deno.serve(async (req) => {
             return Response.json({ message: 'No services to remind today.', target_date: targetDateString, total_for_date: allForDate.length });
         }
 
-        // 7. Obtener solo los clientes necesarios (EN PARALELO)
+        // 7. Obtener todos los clientes necesarios en UNA SOLA consulta
         const neededClientIds = [...new Set(scheduledForTargetDate.map(s => s.client_id).filter(Boolean))];
-        log(`Loading ${neededClientIds.length} clients needed for reminders (parallel)`);
+        log(`Loading ${neededClientIds.length} clients needed for reminders (single query)`);
         const clientMap = new Map();
-        const clientResults = await Promise.allSettled(
-            neededClientIds.map(clientId => base44.asServiceRole.entities.Client.get(clientId))
-        );
-        clientResults.forEach((result, index) => {
-            if (result.status === 'fulfilled' && result.value) {
-                clientMap.set(neededClientIds[index], result.value);
-            } else {
-                log(`Could not load client ${neededClientIds[index]}`);
-            }
-        });
+
+        // Cargar en lotes de 50 con $in para minimizar round-trips
+        const CLIENT_BATCH = 50;
+        for (let i = 0; i < neededClientIds.length; i += CLIENT_BATCH) {
+            const batchIds = neededClientIds.slice(i, i + CLIENT_BATCH);
+            const clientsRaw = await base44.asServiceRole.entities.Client.filter(
+                { id: { $in: batchIds } }, 'name', CLIENT_BATCH
+            );
+            const clients = Array.isArray(clientsRaw) ? clientsRaw : (clientsRaw?.items || clientsRaw?.data || []);
+            clients.forEach(c => clientMap.set(c.id, c));
+        }
         log(`Clients loaded: ${clientMap.size}`);
 
         // 8. Credenciales Twilio
