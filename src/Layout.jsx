@@ -297,6 +297,9 @@ function LayoutContent({ children, currentPageName }) {
     setUser(null);
   };
 
+  // MAINTENANCE MODE
+  return <MaintenanceScreen />;
+
   if (currentPageName === 'TVDashboard') {
     return <div className="min-h-screen w-full">{children}</div>;
   }
