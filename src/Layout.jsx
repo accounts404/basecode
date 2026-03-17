@@ -6,7 +6,6 @@ import { syncActiveService, shouldSkipActiveCheck, hasRecentClockOut } from '@/c
 import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeProvider, { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
 import ChristmasDecoration from '@/components/theme/ChristmasDecoration';
-import MaintenanceScreen from '@/components/MaintenanceScreen';
 import {
   LayoutDashboard,
   Clock,
@@ -296,9 +295,6 @@ function LayoutContent({ children, currentPageName }) {
     await base44.auth.logout();
     setUser(null);
   };
-
-  // MAINTENANCE MODE
-  return <MaintenanceScreen />;
 
   if (currentPageName === 'TVDashboard') {
     return <div className="min-h-screen w-full">{children}</div>;
