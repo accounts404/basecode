@@ -6,6 +6,7 @@ import { syncActiveService, shouldSkipActiveCheck, hasRecentClockOut } from '@/c
 import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeProvider, { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
 import ChristmasDecoration from '@/components/theme/ChristmasDecoration';
+import MaintenanceScreen from '@/components/MaintenanceScreen';
 import {
   LayoutDashboard,
   Clock,
