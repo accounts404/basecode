@@ -261,7 +261,7 @@ export default function FacturasPage() {
             cleaner_name: cleaner.full_name || invoice.cleaner_name,
             total_amount: invoice.total_amount,
             period_label: invoice.period_start && invoice.period_end ? 
-              `${format(new Date(invoice.period_start), "d MMM", { locale: es })} - ${format(new Date(invoice.period_end), "d MMM yyyy", { locale: es })}` :
+              `${formatLocalDate(invoice.period_start, "d MMM")} - ${formatLocalDate(invoice.period_end, "d MMM yyyy")}` :
               invoice.period // Fallback to period string if dates not available
           });
         }
