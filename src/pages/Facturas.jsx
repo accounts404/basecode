@@ -949,9 +949,9 @@ RedOak Cleaning Solutions`;
                                   </div>
                                   <p className="text-slate-900 font-semibold">
                                     {invoice.period_start && invoice.period_end ? 
-                                      `${format(new Date(invoice.period_start), "d MMM", { locale: es })} - ${format(new Date(invoice.period_end), "d MMM yyyy", { locale: es })}` : 
-                                      invoice.period || 'No especificado'
-                                    }
+                                       `${formatLocalDate(invoice.period_start, "d MMM")} - ${formatLocalDate(invoice.period_end, "d MMM yyyy")}` : 
+                                       invoice.period || 'No especificado'
+                                     }
                                   </p>
                                 </div>
 
