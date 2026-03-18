@@ -480,6 +480,11 @@ RedOak Cleaning Solutions`;
   // Leer fecha YYYY-MM-DD como local (sin timezone) para evitar el desfase UTC
   const formatLocalDate = (dateStr, formatStr = "d MMM yyyy") => {
     if (!dateStr) return '';
+    // Si es solo fecha (YYYY-MM-DD), parsear como local para evitar desfase UTC
+    // Si es timestamp completo (ISO con T), usar new Date() directamente (ya viene en timezone del sistema)
+    if (dateStr.includes('T') || dateStr.includes('Z') || dateStr.includes('+')) {
+      return format(new Date(dateStr), formatStr, { locale: es });
+    }
     const [year, month, day] = dateStr.slice(0, 10).split('-').map(Number);
     return format(new Date(year, month - 1, day), formatStr, { locale: es });
   };
