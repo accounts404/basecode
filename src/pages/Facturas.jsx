@@ -477,6 +477,13 @@ RedOak Cleaning Solutions`;
     }
   };
 
+  // Leer fecha YYYY-MM-DD como local (sin timezone) para evitar el desfase UTC
+  const formatLocalDate = (dateStr, formatStr = "d MMM yyyy") => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.slice(0, 10).split('-').map(Number);
+    return format(new Date(year, month - 1, day), formatStr, { locale: es });
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'draft':
