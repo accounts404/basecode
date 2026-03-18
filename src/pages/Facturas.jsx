@@ -986,7 +986,7 @@ RedOak Cleaning Solutions`;
                                   </p>
                                   {invoice.payment_date && (
                                     <p className="text-xs text-green-600 mt-1">
-                                      <span className="font-medium">Pagado:</span> {format(new Date(invoice.payment_date), "d MMM yyyy", { locale: es })}
+                                      <span className="font-medium">Pagado:</span> {formatLocalDate(invoice.payment_date, "d MMM yyyy")}
                                     </p>
                                   )}
                                 </div>
