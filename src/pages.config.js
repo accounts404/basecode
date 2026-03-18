@@ -63,6 +63,7 @@ import GestionServiciosAdmin from './pages/GestionServiciosAdmin';
 import HistorialClientes from './pages/HistorialClientes';
 import Home from './pages/Home';
 import Horario from './pages/Horario';
+import Inducciones from './pages/Inducciones';
 import Limpiadores from './pages/Limpiadores';
 import MiPerfil from './pages/MiPerfil';
 import MiPuntuacion from './pages/MiPuntuacion';
