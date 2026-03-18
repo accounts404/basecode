@@ -34,6 +34,7 @@ import {
   Shirt,
   History,
   ListChecks,
+  BookOpen,
 } from "lucide-react";
 import {
   Sidebar,

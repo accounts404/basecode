@@ -103,6 +103,7 @@ export const PAGES = {
     "HistorialClientes": HistorialClientes,
     "Home": Home,
     "Horario": Horario,
+    "Inducciones": Inducciones,
     "Limpiadores": Limpiadores,
     "MiPerfil": MiPerfil,
     "MiPuntuacion": MiPuntuacion,
