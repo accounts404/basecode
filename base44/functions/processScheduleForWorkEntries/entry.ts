@@ -22,33 +22,8 @@ Deno.serve(async (req) => {
             return new Response(JSON.stringify({ error: 'Schedule not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
         }
 
-        // VERIFICACIÓN GLOBAL: Si el modo es 'create', verificar que no existan ya WorkEntries para este schedule
-        if (mode === 'create') {
-            console.log('=== VERIFICACIÓN DE DUPLICADOS GLOBAL ===');
-            const existingEntriesForSchedule = await base44.entities.WorkEntry.filter({
-                schedule_id: scheduleId
-            });
-            
-            console.log('WorkEntries existentes para schedule_id', scheduleId, ':', existingEntriesForSchedule.length);
-            
-            if (existingEntriesForSchedule.length > 0) {
-                console.log('⚠️ PREVENCIÓN DE DUPLICADO GLOBAL: Ya existen WorkEntries para este servicio, abortando creación');
-                console.log('WorkEntries existentes:', existingEntriesForSchedule.map(e => ({
-                    id: e.id,
-                    cleaner_id: e.cleaner_id,
-                    cleaner_name: e.cleaner_name,
-                    created_date: e.created_date
-                })));
-                
-                return new Response(JSON.stringify({ 
-                    success: true,
-                    message: 'Las WorkEntries ya fueron creadas previamente para este servicio.',
-                    existing_entries: existingEntriesForSchedule.length,
-                    note: 'No se crearon duplicados.'
-                }), { headers: { 'Content-Type': 'application/json' } });
-            }
-            console.log('✓ Verificación global pasada: No hay WorkEntries existentes');
-        }
+        // NOTA: La verificación de duplicados se hace individualmente por limpiador más abajo (verificación individual final)
+        // Esto permite que si un servicio tiene 2 limpiadores y solo se creó la entry de uno, el otro se pueda crear igual.
 
         // Obtener información del cliente para determinar el tipo de actividad
         let clientActivity = 'domestic';
