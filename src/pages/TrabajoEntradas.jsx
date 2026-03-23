@@ -267,7 +267,7 @@ export default function TrabajoEntradasPage() {
     const sortedDates = Object.keys(dailyTotals).sort((a, b) => new Date(a) - new Date(b));
 
     const servicesHTML = sortedDates.map(date => {
-        const formattedDate = format(new Date(date), "d 'de' MMMM 'de' yyyy", { locale: es });
+        const formattedDate = format(new Date(date + 'T12:00:00'), "d 'de' MMMM 'de' yyyy", { locale: es });
         const amount = dailyTotals[date].toFixed(0);
         return `<div class="service-item">${formattedDate}: $${amount}</div>`;
     }).join('');
@@ -989,8 +989,8 @@ export default function TrabajoEntradasPage() {
                               <TableRow key={entry.id}>
                                 <TableCell>
                                   <div className="flex items-center gap-2">
-                                    <Calendar className="w-4 h-4 text-slate-400" />
-                                    {format(new Date(entry.work_date), "d MMM yyyy", { locale: es })}
+                                      <Calendar className="w-4 h-4 text-slate-400" />
+                                      {format(new Date(entry.work_date + 'T12:00:00'), "d MMM yyyy", { locale: es })}
                                   </div>
                                 </TableCell>
                                 <TableCell className="font-medium">{entry.client_name}</TableCell>
@@ -1077,7 +1077,7 @@ export default function TrabajoEntradasPage() {
                               <div>
                                 <h4 className="font-medium text-slate-900">{entry.client_name}</h4>
                                 <p className="text-sm text-slate-600">
-                                  {format(new Date(entry.work_date), "d MMM yyyy", { locale: es })}
+                                {format(new Date(entry.work_date + 'T12:00:00'), "d MMM yyyy", { locale: es })}
                                 </p>
                                 <div className="flex items-center gap-2 mt-1">
                                   <Badge className={`${activityColors[entry.activity]} border-0`}>
@@ -1173,7 +1173,7 @@ export default function TrabajoEntradasPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-slate-400" />
-                            {format(new Date(entry.work_date), "d MMM yyyy", { locale: es })}
+                            {format(new Date(entry.work_date + 'T12:00:00'), "d MMM yyyy", { locale: es })}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1267,8 +1267,8 @@ export default function TrabajoEntradasPage() {
                         <h4 className="font-medium text-slate-900">{entry.client_name}</h4>
                         <p className="text-sm text-slate-600">{entry.cleaner_name}</p>
                         <p className="text-sm text-slate-500">
-                          {format(new Date(entry.work_date), "d MMM yyyy", { locale: es })}
-                        </p>
+                           {format(new Date(entry.work_date + 'T12:00:00'), "d MMM yyyy", { locale: es })}
+                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge className={`${activityColors[entry.activity]} border-0`}>
                             {activityLabels[entry.activity] || entry.activity}
@@ -1488,7 +1488,7 @@ export default function TrabajoEntradasPage() {
             {deleteEntry && (
               <div className="bg-slate-50 p-4 rounded-lg">
                 <p><strong>Cliente:</strong> {deleteEntry.client_name}</p>
-                <p><strong>Fecha:</strong> {format(new Date(deleteEntry.work_date), "d MMM yyyy", { locale: es })}</p>
+                <p><strong>Fecha:</strong> {format(new Date(deleteEntry.work_date + 'T12:00:00'), "d MMM yyyy", { locale: es })}</p>
                 <p><strong>Horas:</strong> {deleteEntry.hours}h</p>
                 <p><strong>Total:</strong> ${deleteEntry.total_amount?.toFixed(2)}</p>
                 {deleteEntry.invoiced && (
