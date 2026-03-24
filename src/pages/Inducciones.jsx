@@ -14,15 +14,16 @@ import {
 } from "lucide-react";
 
 const CATEGORIES = [
-  { value: "cleaning_standards", label: "🧹 Estándares de Limpieza", hasAreas: true },
-  { value: "uniform_presentation", label: "👔 Uniforme y Presentación", hasAreas: false },
-  { value: "punctuality_clockin", label: "⏰ Puntualidad y Clock-In/Out", hasAreas: false },
-  { value: "property_access", label: "🔑 Acceso a Propiedades", hasAreas: false },
-  { value: "pets_protocol", label: "🐾 Protocolo con Mascotas", hasAreas: false },
-  { value: "safety_health", label: "🦺 Seguridad y Salud", hasAreas: false },
-  { value: "app_usage", label: "📱 Uso de la App", hasAreas: false },
-  { value: "hours_payments", label: "💰 Horas y Pagos", hasAreas: false },
-  { value: "general_policies", label: "📋 Políticas Generales", hasAreas: false },
+  { value: 'cleaning_standards', label: 'Estándares de Limpieza', icon: '🧹', hasAreas: true },
+  { value: 'uniform_presentation', label: 'Uniforme y Presentación', icon: '👔' },
+  { value: 'punctuality_clockin', label: 'Puntualidad y Clock In/Out', icon: '⏰' },
+  { value: 'property_access', label: 'Acceso a Propiedades', icon: '🔑' },
+  { value: 'pets_protocol', label: 'Protocolo con Mascotas', icon: '🐾' },
+  { value: 'safety_health', label: 'Seguridad y Salud', icon: '🦺' },
+  { value: 'app_usage', label: 'Uso de la Aplicación', icon: '📱' },
+  { value: 'hours_payments', label: 'Horas y Pagos', icon: '💰' },
+  { value: 'general_policies', label: 'Políticas Generales', icon: '📋' },
+  { value: 'vehicles', label: 'Vehículos', icon: '🚗' },
 ];
 
 const CLEANING_AREAS = [
