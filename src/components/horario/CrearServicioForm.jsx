@@ -93,8 +93,6 @@ export default function CrearServicioForm({
 
     const isNewService = !schedule?.id; // Determine if it's a new service
 
-    const fundingValidation = useMemo(() => getFundingValidation(selectedClient, formData.start_date), [selectedClient, formData.start_date]);
-
     // MODIFICADO: `client_address` y `structured_service_notes` eliminados del formData
     // `client_address` se tomará de `selectedClient.address` y se incluirá en el payload al guardar
     // `structured_service_notes` se leerán directamente de `selectedClient` para la visualización.
@@ -116,6 +114,8 @@ export default function CrearServicioForm({
 
     const [originalScheduleTimes, setOriginalScheduleTimes] = useState(null);
     const [originalRecurrenceRule, setOriginalRecurrenceRule] = useState('none');
+
+    const fundingValidation = useMemo(() => getFundingValidation(selectedClient, formData.start_date), [selectedClient, formData.start_date]);
 
     const cleanerClockData = useMemo(() => schedule?.clock_in_data?.find(c => c.cleaner_id === selectedCleanerId), [schedule, selectedCleanerId]);
     const hasClockIn = !!cleanerClockData?.clock_in_time;
