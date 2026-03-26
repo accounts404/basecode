@@ -28,6 +28,10 @@ export default function ClientesPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [showInactive, setShowInactive] = useState(false);
     const [showPrices, setShowPrices] = useState(false);
+    const [filterFrecuencia, setFilterFrecuencia] = useState('');
+    const [filterEstado, setFilterEstado] = useState('');
+    const [filterAcceso, setFilterAcceso] = useState('');
+    const [filterTipo, setFilterTipo] = useState('');
     // Removed: viewingHistoryClientId state as history will be on a separate page
 
     // Define a default formData structure for easy reset
@@ -239,12 +243,14 @@ export default function ClientesPage() {
         return clients.filter(client => {
             const matchesSearch = (client.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                                  (client.address?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-            
             const matchesActiveFilter = showInactive ? true : (client.active !== false);
-            
-            return matchesSearch && matchesActiveFilter;
+            const matchesFrecuencia = !filterFrecuencia || client.service_frequency === filterFrecuencia;
+            const matchesEstado = !filterEstado || (filterEstado === 'active' ? client.active !== false : client.active === false);
+            const matchesAcceso = !filterAcceso || (filterAcceso === 'yes' ? client.has_access : !client.has_access);
+            const matchesTipo = !filterTipo || client.client_type === filterTipo;
+            return matchesSearch && matchesActiveFilter && matchesFrecuencia && matchesEstado && matchesAcceso && matchesTipo;
         });
-    }, [clients, searchTerm, showInactive]);
+    }, [clients, searchTerm, showInactive, filterFrecuencia, filterEstado, filterAcceso, filterTipo]);
 
     // Removed: viewingHistoryClient memo as history will be on a separate page
 
@@ -256,7 +262,7 @@ export default function ClientesPage() {
                     <Button onClick={handleCreate}><PlusCircle className="mr-2 h-4 w-4" /> Nuevo Cliente</Button>
                 </div>
 
-                <div className="mb-6 flex flex-col sm:flex-row gap-4">
+                <div className="mb-4 flex flex-col sm:flex-row gap-3">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                         <Input
@@ -267,24 +273,64 @@ export default function ClientesPage() {
                             className="pl-10"
                         />
                         {searchTerm && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setSearchTerm("")}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-slate-100"
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => setSearchTerm("")} className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-slate-100">
                                 <X className="h-4 w-4" />
                             </Button>
                         )}
                     </div>
-                    <Button
-                        variant="outline"
-                        onClick={() => setShowInactive(!showInactive)}
-                        className="flex items-center gap-2"
-                    >
+                    <Button variant="outline" onClick={() => setShowInactive(!showInactive)} className="flex items-center gap-2">
                         {showInactive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         {showInactive ? 'Ocultar Inactivos' : 'Mostrar Inactivos'}
                     </Button>
+                </div>
+
+                <div className="mb-6 flex flex-wrap gap-3 items-center">
+                    <Select value={filterFrecuencia} onValueChange={setFilterFrecuencia}>
+                        <SelectTrigger className="w-[160px]"><SelectValue placeholder="Frecuencia" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={null}>Todas</SelectItem>
+                            <SelectItem value="weekly">Semanal</SelectItem>
+                            <SelectItem value="fortnightly">Quincenal</SelectItem>
+                            <SelectItem value="every_3_weeks">Cada 3 semanas</SelectItem>
+                            <SelectItem value="monthly">Mensual</SelectItem>
+                            <SelectItem value="one_off">Servicio Único</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={filterEstado} onValueChange={setFilterEstado}>
+                        <SelectTrigger className="w-[140px]"><SelectValue placeholder="Estado" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={null}>Todos</SelectItem>
+                            <SelectItem value="active">Activo</SelectItem>
+                            <SelectItem value="inactive">Inactivo</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={filterAcceso} onValueChange={setFilterAcceso}>
+                        <SelectTrigger className="w-[140px]"><SelectValue placeholder="Acceso" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={null}>Todos</SelectItem>
+                            <SelectItem value="yes">Con acceso</SelectItem>
+                            <SelectItem value="no">Sin acceso</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={filterTipo} onValueChange={setFilterTipo}>
+                        <SelectTrigger className="w-[180px]"><SelectValue placeholder="Tipo de cliente" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={null}>Todos los tipos</SelectItem>
+                            <SelectItem value="domestic">Doméstico</SelectItem>
+                            <SelectItem value="commercial">Comercial</SelectItem>
+                            <SelectItem value="training">Entrenamiento</SelectItem>
+                            <SelectItem value="ndis_client">NDIS Client</SelectItem>
+                            <SelectItem value="dva_client">DVA Client</SelectItem>
+                            <SelectItem value="age_care_client">Age Care Client</SelectItem>
+                            <SelectItem value="work_cover_client">Work Cover Client</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {(filterFrecuencia || filterEstado || filterAcceso || filterTipo) && (
+                        <Button variant="ghost" size="sm" onClick={() => { setFilterFrecuencia(''); setFilterEstado(''); setFilterAcceso(''); setFilterTipo(''); }} className="text-slate-500 hover:text-slate-800">
+                            <X className="h-4 w-4 mr-1" /> Limpiar filtros
+                        </Button>
+                    )}
+                    <span className="text-sm text-slate-500 ml-auto">{filteredClients.length} cliente(s)</span>
                 </div>
 
                 <div className="bg-white rounded-lg shadow-md overflow-x-auto">
@@ -293,6 +339,7 @@ export default function ClientesPage() {
                             <TableRow>
                                 <TableHead className="min-w-[150px]">Nombre</TableHead>
                                 <TableHead className="min-w-[200px]">Dirección</TableHead>
+                                <TableHead>Tipo</TableHead>
                                 <TableHead>Frecuencia</TableHead>
                                 <TableHead>
                                     <div className="flex items-center gap-2">
@@ -313,25 +360,29 @@ export default function ClientesPage() {
                         </TableHeader>
                         <TableBody>
                             {loading ? (
-                                <TableRow><TableCell colSpan="7" className="text-center py-8">Cargando clientes...</TableCell></TableRow>
+                                <TableRow><TableCell colSpan="8" className="text-center py-8">Cargando clientes...</TableCell></TableRow>
                             ) : filteredClients.length > 0 ? (
                                 filteredClients.map(client => (
                                     <TableRow key={client.id} className="hover:bg-gray-50">
                                         <TableCell className="font-medium">
-                                            <div className="flex items-center gap-2">
-                                                <span>{client.name}</span>
-                                                {client.has_special_billing_instructions && (
-                                                    <FileSignature className="w-4 h-4 text-orange-500" title="Instrucciones especiales de facturación" />
-                                                )}
-                                                {FUNDED_CLIENT_TYPES.includes(client.client_type) && (
-                                                    <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-800">
-                                                        {CLIENT_TYPE_LABELS[client.client_type]}
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{client.name}</span>
+                                                        {client.has_special_billing_instructions && (
+                                                            <FileSignature className="w-4 h-4 text-orange-500" title="Instrucciones especiales de facturación" />
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>{client.address}</TableCell>
+                                                <TableCell>
+                                                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                                        FUNDED_CLIENT_TYPES.includes(client.client_type)
+                                                            ? 'bg-purple-100 text-purple-800'
+                                                            : 'bg-slate-100 text-slate-700'
+                                                    }`}>
+                                                        {CLIENT_TYPE_LABELS[client.client_type] || client.client_type || '—'}
                                                     </span>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>{client.address}</TableCell>
-                                        <TableCell>{client.service_frequency}</TableCell>
+                                                </TableCell>
+                                                <TableCell>{{ weekly: 'Semanal', fortnightly: 'Quincenal', every_3_weeks: 'Cada 3 sem.', monthly: 'Mensual', one_off: 'Único' }[client.service_frequency] || client.service_frequency || '—'}</TableCell>
                                         <TableCell>
                                             {showPrices ? `$${client.current_service_price?.toFixed(2) || '0.00'}` : '••••••'}
                                         </TableCell>
@@ -366,7 +417,7 @@ export default function ClientesPage() {
                                     </TableRow>
                                 ))
                             ) : (
-                                <TableRow><TableCell colSpan="7" className="text-center h-24">No se encontraron clientes.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan="8" className="text-center h-24">No se encontraron clientes.</TableCell></TableRow>
                             )}
                         </TableBody>
                     </Table>
