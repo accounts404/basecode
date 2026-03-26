@@ -330,16 +330,17 @@ function AvailabilityDisplay({ availability }) {
 
 // Cleaner Card Component
 function CleanerCard({ cleaner, onToggleActive, onEdit, onManageRates }) {
+  const [expanded, setExpanded] = useState(false);
+
   const calculateTenure = (startDate) => {
-    if (!startDate) return "N/A";
-    const now = new Date();
-    const start = new Date(startDate);
+    if (!startDate) return null;
+    const now = new Date(); const start = new Date(startDate);
     const years = differenceInYears(now, start);
     const months = differenceInMonths(now, start) % 12;
-    let result = "";
-    if (years > 0) result += `${years} ${years === 1 ? 'año' : 'años'} `;
-    if (months > 0) result += `${months} ${months === 1 ? 'mes' : 'meses'}`;
-    return result.trim() || "Menos de un mes";
+    let r = "";
+    if (years > 0) r += `${years}a `;
+    if (months > 0) r += `${months}m`;
+    return r.trim() || "< 1m";
   };
 
   const calculateAge = (birthDate) => {
@@ -349,319 +350,158 @@ function CleanerCard({ cleaner, onToggleActive, onEdit, onManageRates }) {
 
   const isBirthdayUpcoming = (birthDate) => {
     if (!birthDate) return false;
-    const today = new Date();
-    const birth = new Date(birthDate);
-    const nextBirthday = addYears(new Date(today.getFullYear(), birth.getMonth(), birth.getDate()), today > new Date(today.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
-    const daysUntilBirthday = differenceInDays(nextBirthday, today);
-    return daysUntilBirthday >= 0 && daysUntilBirthday <= 30;
-  };
-  
-  const getEmployeeTypeBadge = (type) => {
-    if (type === "permanent") {
-      return <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">De Planta</span>;
-    }
-    return <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">Casual</span>;
+    const today = new Date(); const birth = new Date(birthDate);
+    const next = addYears(new Date(today.getFullYear(), birth.getMonth(), birth.getDate()), today > new Date(today.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
+    return differenceInDays(next, today) <= 30;
   };
 
   const getCurrentRate = (rateHistory) => {
-    if (!rateHistory || rateHistory.length === 0) {
-      return null;
-    }
-    const sorted = [...rateHistory].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date));
-    return sorted[0];
+    if (!rateHistory || rateHistory.length === 0) return null;
+    return [...rateHistory].sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))[0];
   };
 
   const currentRate = getCurrentRate(cleaner.rate_history);
+  const isActive = cleaner.active !== false;
+  const isPermanent = cleaner.employee_type === 'permanent';
+  const tenure = calculateTenure(cleaner.start_date);
+  const birthday = isBirthdayUpcoming(cleaner.birth_date);
+  const availableDays = cleaner.availability ? Object.entries(cleaner.availability).filter(([, v]) => v.available) : [];
+  const docs = [{ url: cleaner.passport_url, label: 'Pasaporte' }, { url: cleaner.visa_url, label: 'Visa' }, { url: cleaner.police_check_url, label: 'Police Check' }, { url: cleaner.drivers_license_url, label: 'Licencia' }];
 
   return (
-    <Card className={`shadow-lg border-0 transition-all duration-200 hover:shadow-xl ${cleaner.active === false ? 'bg-gray-100 opacity-80' : 'bg-white'}`}>
-      <Accordion type="single" collapsible>
-        <AccordionItem value="cleaner-details" className="border-b-0">
-          <div className="p-6">
-            {/* Vista Compacta - Siempre Visible */}
-            <div className="flex items-center gap-4 w-full mb-4">
-              <div className="relative">
-                <Avatar className="w-16 h-16 border-4 border-slate-200 shadow-md" style={{ borderColor: cleaner.color || '#3b82f6' }}>
+    <Card className={`border transition-all duration-200 hover:shadow-md overflow-hidden ${
+      isActive ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-75'
+    }`}>
+      <CardContent className="p-0">
+        <div className="flex items-stretch">
+          <div className="w-1.5 flex-shrink-0" style={{ backgroundColor: cleaner.color || '#3b82f6' }} />
+          <div className="flex-1 p-5">
+            <div className="flex items-center gap-4">
+              <div className="relative flex-shrink-0">
+                <Avatar className="w-14 h-14" style={{ outline: `3px solid ${cleaner.color || '#3b82f6'}`, outlineOffset: '2px' }}>
                   <AvatarImage src={cleaner.profile_photo_url} alt={cleaner.full_name} />
-                  <AvatarFallback className="bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 text-xl font-semibold">
+                  <AvatarFallback className="text-white text-lg font-bold" style={{ backgroundColor: cleaner.color || '#3b82f6' }}>
                     {cleaner.full_name?.charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                {isBirthdayUpcoming(cleaner.birth_date) && (
-                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center shadow-lg">
-                    <Gift className="w-3 h-3 text-white" />
-                  </div>
-                )}
               </div>
-              
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-2 flex-wrap">
-                  <h3 className="text-xl font-bold text-slate-900 truncate">
-                    {cleaner.invoice_name || cleaner.full_name}
-                  </h3>
-                  {getEmployeeTypeBadge(cleaner.employee_type)}
-                  {isBirthdayUpcoming(cleaner.birth_date) && (
-                    <span className="px-2 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full animate-pulse">
-                      🎂 Cumpleaños próximo
-                    </span>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <h3 className="text-base font-bold text-slate-900">{cleaner.invoice_name || cleaner.full_name}</h3>
+                  {cleaner.display_name && cleaner.display_name !== cleaner.full_name && (
+                    <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{cleaner.display_name}</span>
                   )}
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    isPermanent ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                  }`}>{isPermanent ? 'De Planta' : 'Casual'}</span>
+                  {!isActive && <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Inactivo</span>}
+                  {birthday && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 animate-pulse">🎂 Cumpleñaos pronto</span>}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
-                  <p className="flex items-center gap-2 text-sm text-slate-600 truncate">
-                    <Mail className="w-4 h-4 flex-shrink-0 text-slate-400" />
-                    <span className="truncate">{cleaner.email || 'Email no especificado'}</span>
-                  </p>
-                  <div className="flex items-center gap-2 text-sm text-slate-600">
-                    <DollarSign className="w-4 h-4 text-green-600" />
-                    {currentRate ? (
-                      <span className="font-semibold text-green-700">${currentRate.rate.toFixed(2)}/hr</span>
-                    ) : (
-                      <span className="text-slate-500 italic">Sin tarifa</span>
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                  <span className="flex items-center gap-1 text-sm text-slate-500"><Mail className="w-3.5 h-3.5" />{cleaner.email || '—'}</span>
+                  {cleaner.mobile_number && <span className="flex items-center gap-1 text-sm text-slate-500"><Phone className="w-3.5 h-3.5" />{cleaner.mobile_number}</span>}
+                  {tenure && <span className="flex items-center gap-1 text-sm text-slate-500"><Clock2 className="w-3.5 h-3.5" />{tenure} antigüedad</span>}
+                  {currentRate && <span className="flex items-center gap-1 text-sm font-semibold text-green-700"><DollarSign className="w-3.5 h-3.5" />${currentRate.rate.toFixed(2)}/hr</span>}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex flex-col items-center gap-0.5">
+                  <Switch checked={isActive} onCheckedChange={() => onToggleActive(cleaner)} className="data-[state=checked]:bg-green-500" />
+                  <span className="text-xs text-slate-400">{isActive ? 'Activo' : 'Inactivo'}</span>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => onManageRates(cleaner)} className="hover:bg-green-50 hover:border-green-300 text-xs">
+                  <DollarSign className="w-3.5 h-3.5 mr-1" /> Tarifas
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => onEdit(cleaner)} className="hover:bg-blue-50 hover:border-blue-300 text-xs">
+                  <Edit className="w-3.5 h-3.5 mr-1" /> Editar
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} className="text-slate-400 text-xs">
+                  {expanded ? '▲' : '▼'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Pills */}
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
+              {cleaner.start_date && (
+                <span className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                  <Calendar className="w-3 h-3 text-blue-500" />Desde {format(new Date(cleaner.start_date), "MMM yyyy", { locale: es })}
+                </span>
+              )}
+              {cleaner.birth_date && (
+                <span className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                  <Gift className="w-3 h-3 text-purple-500" />{calculateAge(cleaner.birth_date)}
+                </span>
+              )}
+              {availableDays.length > 0 && (
+                <span className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                  <Clock2 className="w-3 h-3 text-green-500" />{availableDays.length} días disponibles
+                </span>
+              )}
+              {docs.filter(d => d.url).map(d => (
+                <a key={d.label} href={d.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full hover:bg-blue-100">
+                  <CheckCircle className="w-3 h-3" />{d.label}
+                </a>
+              ))}
+            </div>
+
+            {/* Expanded */}
+            {expanded && (
+              <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Contacto</h4>
+                  <div className="space-y-2 text-sm">
+                    {cleaner.address && <p className="text-slate-700">📍 {cleaner.address}</p>}
+                    {(cleaner.emergency_contact_name || cleaner.emergency_contact_phone) && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-2.5">
+                        <p className="text-xs font-medium text-orange-700 mb-1">Emergencia</p>
+                        <p className="text-slate-700">{cleaner.emergency_contact_name}</p>
+                        {cleaner.emergency_contact_phone && <a href={`tel:${cleaner.emergency_contact_phone}`} className="text-blue-600 hover:underline">{cleaner.emergency_contact_phone}</a>}
+                      </div>
                     )}
+                    {!cleaner.address && !cleaner.emergency_contact_name && <p className="text-slate-400 italic text-xs">Sin datos</p>}
                   </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-center">
-                  <Switch
-                    checked={cleaner.active !== false}
-                    onCheckedChange={() => onToggleActive(cleaner)}
-                    className="data-[state=checked]:bg-green-600"
-                  />
-                  <span className="text-xs text-slate-500 mt-1 font-medium">
-                    {cleaner.active !== false ? 'Activo' : 'Inactivo'}
-                  </span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onManageRates(cleaner)}
-                  className="hover:bg-green-50 hover:border-green-300"
-                >
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Tarifas
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onEdit(cleaner)}
-                  className="hover:bg-blue-50 hover:border-blue-300"
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Editar
-                </Button>
-              </div>
-            </div>
-
-            {/* Botón para expandir/contraer */}
-            <AccordionTrigger className="w-full py-3 px-4 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors">
-              <span className="text-sm font-medium text-slate-700">
-                Ver detalles completos del empleado
-              </span>
-            </AccordionTrigger>
-          </div>
-
-          {/* Contenido Expandible */}
-          <AccordionContent className="px-6 pb-6">
-            <div className="bg-slate-50/70 rounded-lg p-6 border border-slate-200 space-y-6">
-              
-              {/* Fila 1: Contacto + Info General */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Columna 1: Contacto */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2 flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-blue-500" />
-                    Contacto
-                  </h4>
-                  <div className="flex items-start gap-3">
-                    <Phone className="w-5 h-5 mt-0.5 text-blue-500 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Teléfono</p>
-                      {cleaner.mobile_number ? (
-                        <a href={`tel:${cleaner.mobile_number}`} className="text-blue-600 font-semibold hover:underline">
-                          {cleaner.mobile_number}
-                        </a>
-                      ) : (
-                        <p className="text-slate-500 italic text-sm">No especificado</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Mail className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Email</p>
-                      <p className="text-slate-700 text-sm break-all">{cleaner.email || 'No especificado'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <IdCard className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Dirección</p>
-                      <p className="text-slate-700 text-sm">{cleaner.address || 'No especificada'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Contact className="w-5 h-5 mt-0.5 text-orange-500 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Contacto de Emergencia</p>
-                      {cleaner.emergency_contact_name || cleaner.emergency_contact_phone ? (
-                        <>
-                          <p className="text-slate-700 font-medium text-sm">{cleaner.emergency_contact_name}</p>
-                          {cleaner.emergency_contact_phone && (
-                            <a href={`tel:${cleaner.emergency_contact_phone}`} className="text-blue-600 text-sm hover:underline">
-                              {cleaner.emergency_contact_phone}
-                            </a>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-slate-500 italic text-sm">No especificado</p>
-                      )}
-                    </div>
+                <div>
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Datos Bancarios</h4>
+                  <div className="space-y-1.5 text-sm">
+                    {[['Banco', cleaner.bank], ['Titular', cleaner.account_name], ['BSB', cleaner.bsb], ['Cuenta', cleaner.account_number], ['ABN', cleaner.abn]]
+                      .filter(([, v]) => v)
+                      .map(([k, v]) => (
+                        <div key={k} className="flex justify-between">
+                          <span className="text-slate-500">{k}</span>
+                          <span className="text-slate-800 font-mono font-medium">{v}</span>
+                        </div>
+                      ))
+                    }
+                    {!cleaner.bank && !cleaner.bsb && <p className="text-slate-400 italic text-xs">Sin datos bancarios</p>}
                   </div>
                 </div>
-
-                {/* Columna 2: Info General */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-purple-500" />
-                    Información General
-                  </h4>
-                  <div className="flex items-start gap-3">
-                    <Calendar className="w-5 h-5 mt-0.5 text-blue-500 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Fecha de Inicio</p>
-                      <p className="text-slate-700 text-sm">
-                        {cleaner.start_date ? format(new Date(cleaner.start_date), "d MMM yyyy", { locale: es }) : "No especificada"}
-                      </p>
-                      {cleaner.start_date && (
-                        <p className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-1">
-                          {calculateTenure(cleaner.start_date)}
-                        </p>
-                      )}
+                <div>
+                  <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Disponibilidad</h4>
+                  {availableDays.length > 0 ? (
+                    <div className="space-y-1">
+                      {availableDays.map(([day, info]) => (
+                        <div key={day} className="flex justify-between text-sm">
+                          <span className="text-green-700 font-medium">{daysOfWeek[day]}</span>
+                          <span className="text-slate-500">{info.start_time && info.end_time ? `${info.start_time}–${info.end_time}` : 'Todo el día'}</span>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Gift className="w-5 h-5 mt-0.5 text-purple-500 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Cumpleaños</p>
-                      <p className="text-slate-700 text-sm">
-                        {cleaner.birth_date ? format(new Date(cleaner.birth_date), "d 'de' MMMM", { locale: es }) : "No especificado"}
-                      </p>
-                      {cleaner.birth_date && (
-                        <p className="text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full inline-block mt-1">
-                          {calculateAge(cleaner.birth_date)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <FileText className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Nombre en Facturas</p>
-                      <p className="text-slate-700 text-sm">{cleaner.invoice_name || cleaner.full_name}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Users2 className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Nombre Corto (Horario)</p>
-                      <p className="text-slate-700 text-sm">{cleaner.display_name || 'No especificado'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <IdCard className="w-5 h-5 mt-0.5 text-slate-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">ABN</p>
-                      <p className="text-slate-700 text-sm font-mono">{cleaner.abn || 'No especificado'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Columna 3: Datos Bancarios */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-slate-800 border-b border-slate-300 pb-2 flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-green-500" />
-                    Datos Bancarios
-                  </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Banco</p>
-                      <p className="text-slate-700 text-sm">{cleaner.bank || 'No especificado'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Titular de Cuenta</p>
-                      <p className="text-slate-700 text-sm">{cleaner.account_name || 'No especificado'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">BSB</p>
-                      <p className="text-slate-700 text-sm font-mono">{cleaner.bsb || 'No especificado'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Número de Cuenta</p>
-                      <p className="text-slate-700 text-sm font-mono">{cleaner.account_number || 'No especificado'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tarifa Actual</p>
-                      {currentRate ? (
-                        <p className="text-green-700 font-bold">${currentRate.rate.toFixed(2)}/hr</p>
-                      ) : (
-                        <p className="text-slate-500 italic text-sm">Sin tarifa registrada</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Fila 2: Disponibilidad + Documentos + Notas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4 border-t border-slate-200">
-                {/* Disponibilidad */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
-                    <Clock2 className="w-4 h-4 text-green-500" />
-                    Disponibilidad Semanal
-                  </h4>
-                  <AvailabilityDisplay availability={cleaner.availability} />
-                </div>
-
-                {/* Documentos */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-indigo-500" />
-                    Documentos Adjuntos
-                  </h4>
-                  <div className="grid grid-cols-1 gap-2 text-sm">
-                    <DocumentLink url={cleaner.passport_url} label="Pasaporte" icon={Contact} />
-                    <DocumentLink url={cleaner.visa_url} label="Visa" icon={Stamp} />
-                    <DocumentLink url={cleaner.police_check_url} label="Police Check" icon={ShieldCheck} />
-                    <DocumentLink url={cleaner.drivers_license_url} label="Licencia" icon={Car} />
-                  </div>
-                </div>
-
-                {/* Notas */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-yellow-500" />
-                    Notas de RRHH
-                  </h4>
-                  {cleaner.hr_notes ? (
-                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-                        {cleaner.hr_notes}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-slate-100 border border-slate-200 rounded-lg text-center">
-                      <p className="text-sm text-slate-500 italic">Sin notas registradas</p>
+                  ) : <p className="text-slate-400 italic text-xs">No configurada</p>}
+                  {cleaner.hr_notes && (
+                    <div className="mt-3">
+                      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Notas RRHH</h4>
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-sm text-slate-700 whitespace-pre-wrap">{cleaner.hr_notes}</div>
                     </div>
                   )}
                 </div>
               </div>
-
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+            )}
+          </div>
+        </div>
+      </CardContent>
     </Card>
   );
 }
@@ -908,25 +748,68 @@ export default function LimpiadoresPage() {
     URL.revokeObjectURL(url);
   };
 
+  const activeCleaners = cleaners.filter(c => c.active !== false);
+  const birthdaySoon = cleaners.filter(c => {
+    if (!c.birth_date) return false;
+    const today = new Date(); const birth = new Date(c.birth_date);
+    const next = addYears(new Date(today.getFullYear(), birth.getMonth(), birth.getDate()), today > new Date(today.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
+    return differenceInDays(next, today) <= 30;
+  }).length;
+
   if (loading) return <div className="p-8">Cargando...</div>;
   if (user?.role !== 'admin') return <div className="p-8">Acceso denegado.</div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 md:p-8">
       <div className="w-full">
-        <div className="flex justify-between items-center mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-                <Users2 className="w-8 h-8 text-blue-600" />
-                Panel de Equipo de Limpieza
-              </h1>
-              <p className="text-slate-600">Administra la información de tu equipo de forma profesional.</p>
-            </div>
-            <Button onClick={handleDownloadCleaners} disabled={filteredCleaners.length === 0}>
-              <Download className="mr-2 h-4 w-4" />
-              Descargar Limpiadores
-            </Button>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+              <Users2 className="w-8 h-8 text-blue-600" />
+              Equipo de Limpieza
+            </h1>
+            <p className="text-slate-500 mt-1">Gestión del personal activo e inactivo</p>
           </div>
+          <Button onClick={handleDownloadCleaners} disabled={filteredCleaners.length === 0} variant="outline">
+            <Download className="mr-2 h-4 w-4" /> Exportar CSV
+          </Button>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Users2 className="w-5 h-5 text-blue-600" />
+              </div>
+              <div><p className="text-2xl font-bold text-slate-900">{activeCleaners.length}</p><p className="text-xs text-slate-500">Activos</p></div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <UserCheck className="w-5 h-5 text-green-600" />
+              </div>
+              <div><p className="text-2xl font-bold text-slate-900">{activeCleaners.filter(c => c.employee_type === 'permanent').length}</p><p className="text-xs text-slate-500">De Planta</p></div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Users className="w-5 h-5 text-purple-600" />
+              </div>
+              <div><p className="text-2xl font-bold text-slate-900">{activeCleaners.filter(c => c.employee_type !== 'permanent').length}</p><p className="text-xs text-slate-500">Casuales</p></div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                <Gift className="w-5 h-5 text-amber-600" />
+              </div>
+              <div><p className="text-2xl font-bold text-slate-900">{birthdaySoon}</p><p className="text-xs text-slate-500">Cumpleaños pronto</p></div>
+            </CardContent>
+          </Card>
+        </div>
 
         {notification.message && (
           <Alert className={`mb-4 ${notification.type === 'success' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
