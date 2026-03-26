@@ -300,7 +300,7 @@ export default function ClientesPage() {
                     <Card className="border-0 shadow-sm bg-white">
                         <CardContent className="p-4 flex items-center gap-3">
                             <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center"><Star className="w-5 h-5 text-purple-600" /></div>
-                            <div><p className="text-2xl font-bold text-slate-900">{specialCount}</p><p className="text-xs text-slate-500">Financiados</p></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{specialCount}</p><p className="text-xs text-slate-500">Government Clients</p></div>
                         </CardContent>
                     </Card>
                 </div>
