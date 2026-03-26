@@ -430,7 +430,8 @@ function CleanerCard({ cleaner, onToggleActive, onEdit, onManageRates }) {
               )}
               {cleaner.birth_date && (
                 <span className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
-                  <Gift className="w-3 h-3 text-purple-500" />{calculateAge(cleaner.birth_date)}
+                  <Gift className="w-3 h-3 text-purple-500" />
+                  {format(new Date(cleaner.birth_date), "d 'de' MMM", { locale: es })} · {calculateAge(cleaner.birth_date)}
                 </span>
               )}
               {availableDays.length > 0 && (
