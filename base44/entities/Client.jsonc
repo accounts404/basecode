@@ -1,0 +1,640 @@
+{
+  "name": "Client",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nombre del cliente"
+    },
+    "sms_name": {
+      "type": "string",
+      "description": "Nombre corto para usar en mensajes SMS"
+    },
+    "client_type": {
+      "type": "string",
+      "enum": [
+        "domestic",
+        "commercial",
+        "training",
+        "ndis_client",
+        "dva_client",
+        "age_care_client",
+        "work_cover_client"
+      ],
+      "default": "domestic",
+      "description": "Tipo de cliente"
+    },
+    "funding_document_url": {
+      "type": "string",
+      "description": "URL del documento soporte (PDF) del cliente con financiamiento especial"
+    },
+    "funding_document_start_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de inicio de vigencia del documento soporte"
+    },
+    "funding_document_end_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de vencimiento del documento soporte"
+    },
+    "mobile_number": {
+      "type": "string",
+      "description": "N\u00famero de tel\u00e9fono principal del cliente"
+    },
+    "secondary_mobile_number": {
+      "type": "string",
+      "description": "N\u00famero de tel\u00e9fono secundario"
+    },
+    "address": {
+      "type": "string",
+      "description": "Direcci\u00f3n del cliente"
+    },
+    "property_type": {
+      "type": "string",
+      "enum": [
+        "house",
+        "townhouse",
+        "unit",
+        "apartment"
+      ],
+      "description": "Tipo de propiedad"
+    },
+    "property_stories": {
+      "type": "string",
+      "enum": [
+        "single_storey",
+        "double_storey",
+        "triple_storey",
+        "other"
+      ],
+      "description": "N\u00famero de plantas"
+    },
+    "num_bedrooms": {
+      "type": "number",
+      "description": "N\u00famero de habitaciones"
+    },
+    "num_bathrooms": {
+      "type": "number",
+      "description": "N\u00famero de ba\u00f1os"
+    },
+    "email": {
+      "type": "string",
+      "description": "Email del cliente"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    },
+    "service_frequency": {
+      "type": "string",
+      "enum": [
+        "weekly",
+        "fortnightly",
+        "every_3_weeks",
+        "monthly",
+        "one_off"
+      ],
+      "description": "Frecuencia del servicio"
+    },
+    "current_service_price": {
+      "type": "number",
+      "description": "Precio actual del servicio en AUD"
+    },
+    "service_hours": {
+      "type": "number",
+      "description": "Horas por servicio"
+    },
+    "gst_type": {
+      "type": "string",
+      "enum": [
+        "inclusive",
+        "exclusive",
+        "no_tax"
+      ],
+      "default": "inclusive"
+    },
+    "payment_method": {
+      "type": "string",
+      "enum": [
+        "bank_transfer",
+        "cash",
+        "credit_card",
+        "gocardless",
+        "stripe",
+        "other"
+      ],
+      "default": "bank_transfer"
+    },
+    "has_special_billing_instructions": {
+      "type": "boolean",
+      "default": false
+    },
+    "special_billing_instructions": {
+      "type": "string"
+    },
+    "admin_notes": {
+      "type": "string"
+    },
+    "pets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "breed": {
+            "type": "string"
+          },
+          "age": {
+            "type": "string"
+          },
+          "temperament": {
+            "type": "string"
+          },
+          "special_instructions": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ]
+      }
+    },
+    "family_details": {
+      "type": "object",
+      "properties": {
+        "spouse_name": {
+          "type": "string"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "family_notes": {
+          "type": "string"
+        },
+        "emergency_contact": {
+          "type": "string"
+        }
+      }
+    },
+    "has_access": {
+      "type": "boolean",
+      "default": false
+    },
+    "access_type": {
+      "type": "string",
+      "enum": [
+        "key",
+        "smart_lock",
+        "lockbox",
+        "other"
+      ]
+    },
+    "access_identifier": {
+      "type": "string"
+    },
+    "access_instructions": {
+      "type": "string"
+    },
+    "access_photos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    },
+    "default_service_notes": {
+      "type": "string"
+    },
+    "default_photo_urls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    },
+    "structured_service_notes": {
+      "type": "object",
+      "properties": {
+        "dusting_wiping_tidyup": {
+          "type": "object",
+          "properties": {
+            "notes": {
+              "type": "string"
+            },
+            "photos": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "kitchen_and_pantry": {
+          "type": "object",
+          "properties": {
+            "notes": {
+              "type": "string"
+            },
+            "photos": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "bathrooms": {
+          "type": "object",
+          "properties": {
+            "notes": {
+              "type": "string"
+            },
+            "photos": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "laundry": {
+          "type": "object",
+          "properties": {
+            "notes": {
+              "type": "string"
+            },
+            "photos": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "floors": {
+          "type": "object",
+          "properties": {
+            "notes": {
+              "type": "string"
+            },
+            "photos": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "other_areas": {
+          "type": "object",
+          "properties": {
+            "notes": {
+              "type": "string"
+            },
+            "photos": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "price_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "previous_price": {
+            "type": "number"
+          },
+          "new_price": {
+            "type": "number"
+          },
+          "effective_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "percentage_increase": {
+            "type": "number"
+          },
+          "comments": {
+            "type": "string"
+          },
+          "gst_type": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive",
+              "no_tax"
+            ]
+          },
+          "payment_method": {
+            "type": "string",
+            "enum": [
+              "bank_transfer",
+              "cash",
+              "credit_card",
+              "gocardless",
+              "stripe",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "previous_price",
+          "new_price",
+          "effective_date"
+        ]
+      }
+    },
+    "price_increase_notifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sent_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "sent_by_admin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sent_date"
+        ]
+      }
+    },
+    "current_price_increase_sent_date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "current_price_increase_notes": {
+      "type": "string"
+    },
+    "windows_cleaning_services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "service_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_charged": {
+            "type": "number"
+          },
+          "service_description": {
+            "type": "string"
+          },
+          "gst_type": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive",
+              "no_tax"
+            ],
+            "default": "inclusive"
+          }
+        },
+        "required": [
+          "service_date",
+          "amount_charged",
+          "service_description"
+        ]
+      }
+    },
+    "steam_vacuum_services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "service_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_charged": {
+            "type": "number"
+          },
+          "service_description": {
+            "type": "string"
+          },
+          "gst_type": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive",
+              "no_tax"
+            ],
+            "default": "inclusive"
+          }
+        },
+        "required": [
+          "service_date",
+          "amount_charged",
+          "service_description"
+        ]
+      }
+    },
+    "fridge_cleaning_services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "service_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_charged": {
+            "type": "number"
+          },
+          "service_description": {
+            "type": "string"
+          },
+          "gst_type": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive",
+              "no_tax"
+            ],
+            "default": "inclusive"
+          }
+        },
+        "required": [
+          "service_date",
+          "amount_charged",
+          "service_description"
+        ]
+      }
+    },
+    "spring_cleaning_services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "service_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_charged": {
+            "type": "number"
+          },
+          "service_description": {
+            "type": "string"
+          },
+          "gst_type": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive",
+              "no_tax"
+            ],
+            "default": "inclusive"
+          }
+        },
+        "required": [
+          "service_date",
+          "amount_charged",
+          "service_description"
+        ]
+      }
+    },
+    "oven_cleaning_services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "service_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_charged": {
+            "type": "number"
+          },
+          "service_description": {
+            "type": "string"
+          },
+          "gst_type": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive",
+              "no_tax"
+            ],
+            "default": "inclusive"
+          }
+        },
+        "required": [
+          "service_date",
+          "amount_charged",
+          "service_description"
+        ]
+      }
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

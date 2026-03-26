@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PlusCircle, Edit, Trash2, Search, X, AlertTriangle, KeySquare, Eye, EyeOff, FileSignature, History } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, X, AlertTriangle, KeySquare, Eye, EyeOff, FileSignature, History, FileText, Upload, ExternalLink } from 'lucide-react';
 import PhotoUploader from '../components/horario/PhotoUploader';
 import ServicePriceManager from '../components/clients/ServicePriceManager';
 import FamilyAndPetsManager from '../components/clients/FamilyAndPetsManager';
@@ -31,10 +31,25 @@ export default function ClientesPage() {
     // Removed: viewingHistoryClientId state as history will be on a separate page
 
     // Define a default formData structure for easy reset
+    const FUNDED_CLIENT_TYPES = ['ndis_client', 'dva_client', 'age_care_client', 'work_cover_client'];
+
+    const CLIENT_TYPE_LABELS = {
+        domestic: 'Doméstico',
+        commercial: 'Comercial',
+        training: 'Entrenamiento',
+        ndis_client: 'NDIS Client',
+        dva_client: 'DVA Client',
+        age_care_client: 'Age Care Client',
+        work_cover_client: 'Work Cover Client',
+    };
+
     const defaultFormData = useMemo(() => ({
         name: '',
         sms_name: '',
         client_type: 'domestic',
+        funding_document_url: '',
+        funding_document_start_date: '',
+        funding_document_end_date: '',
         mobile_number: '',
         secondary_mobile_number: '',
         address: '',
@@ -53,22 +68,18 @@ export default function ClientesPage() {
         access_identifier: '',
         access_instructions: '',
         access_photos: [],
-        // New fields for billing
         has_special_billing_instructions: false,
         special_billing_instructions: '',
         admin_notes: '',
-        // New fields for Family and Pets
         family_members: [],
         pets: [],
-        // New fields for additional services
         fridge_cleaning_services: [],
         spring_cleaning_services: [],
         oven_cleaning_services: [],
-        // Property details
-        property_type: '', // e.g., 'house', 'townhouse', 'unit', 'apartment'
-        property_stories: '', // NEW: 'single_storey', 'double_storey', 'triple_storey', 'other'
-        num_bedrooms: '', // Number of bedrooms
-        num_bathrooms: '', // Number of bathrooms (can be half, e.g., 2.5)
+        property_type: '',
+        property_stories: '',
+        num_bedrooms: '',
+        num_bathrooms: '',
     }), []);
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -115,36 +126,37 @@ export default function ClientesPage() {
         setEditingClient(client);
         // Merge existing client data with defaultFormData to ensure all fields are present
         setFormData({
-            ...defaultFormData, // Start with defaults
-            ...client, // Overlay with client data
-            sms_name: client.sms_name || '',
-            current_service_price: client.current_service_price || 0,
-            service_hours: client.service_hours || 0,
-            gst_type: client.gst_type || 'inclusive',
-            payment_method: client.payment_method || 'bank_transfer',
-            default_service_notes: client.default_service_notes || '',
-            structured_service_notes: client.structured_service_notes || {},
-            default_photo_urls: client.default_photo_urls || [],
-            has_access: client.has_access || false,
-            access_type: client.access_type || 'key',
-            access_identifier: client.access_identifier || '',
-            access_instructions: client.access_instructions || '',
-            access_photos: client.access_photos || [],
-            // New fields for billing
-            has_special_billing_instructions: client.has_special_billing_instructions || false,
-            special_billing_instructions: client.special_billing_instructions || '',
-            admin_notes: client.admin_notes || '',
-            family_members: client.family_members || [],
-            pets: client.pets || [],
-            secondary_mobile_number: client.secondary_mobile_number || '',
-            fridge_cleaning_services: client.fridge_cleaning_services || [],
-            spring_cleaning_services: client.spring_cleaning_services || [],
-            oven_cleaning_services: client.oven_cleaning_services || [],
-            // Property details
-            property_type: client.property_type || '',
-            property_stories: client.property_stories || '', // NEW
-            num_bedrooms: client.num_bedrooms !== undefined && client.num_bedrooms !== null ? client.num_bedrooms : '',
-            num_bathrooms: client.num_bathrooms !== undefined && client.num_bathrooms !== null ? client.num_bathrooms : '',
+        ...defaultFormData,
+        ...client,
+        sms_name: client.sms_name || '',
+        current_service_price: client.current_service_price || 0,
+        service_hours: client.service_hours || 0,
+        gst_type: client.gst_type || 'inclusive',
+        payment_method: client.payment_method || 'bank_transfer',
+        default_service_notes: client.default_service_notes || '',
+        structured_service_notes: client.structured_service_notes || {},
+        default_photo_urls: client.default_photo_urls || [],
+        has_access: client.has_access || false,
+        access_type: client.access_type || 'key',
+        access_identifier: client.access_identifier || '',
+        access_instructions: client.access_instructions || '',
+        access_photos: client.access_photos || [],
+        has_special_billing_instructions: client.has_special_billing_instructions || false,
+        special_billing_instructions: client.special_billing_instructions || '',
+        admin_notes: client.admin_notes || '',
+        family_members: client.family_members || [],
+        pets: client.pets || [],
+        secondary_mobile_number: client.secondary_mobile_number || '',
+        fridge_cleaning_services: client.fridge_cleaning_services || [],
+        spring_cleaning_services: client.spring_cleaning_services || [],
+        oven_cleaning_services: client.oven_cleaning_services || [],
+        property_type: client.property_type || '',
+        property_stories: client.property_stories || '',
+        num_bedrooms: client.num_bedrooms !== undefined && client.num_bedrooms !== null ? client.num_bedrooms : '',
+        num_bathrooms: client.num_bathrooms !== undefined && client.num_bathrooms !== null ? client.num_bathrooms : '',
+        funding_document_url: client.funding_document_url || '',
+        funding_document_start_date: client.funding_document_start_date || '',
+        funding_document_end_date: client.funding_document_end_date || '',
         });
         setShowForm(true);
     }, [defaultFormData]);
@@ -311,6 +323,11 @@ export default function ClientesPage() {
                                                 {client.has_special_billing_instructions && (
                                                     <FileSignature className="w-4 h-4 text-orange-500" title="Instrucciones especiales de facturación" />
                                                 )}
+                                                {FUNDED_CLIENT_TYPES.includes(client.client_type) && (
+                                                    <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-800">
+                                                        {CLIENT_TYPE_LABELS[client.client_type]}
+                                                    </span>
+                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell>{client.address}</TableCell>
@@ -397,22 +414,103 @@ export default function ClientesPage() {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="client_type">Tipo de Cliente</Label>
-                                        <Select value={formData.client_type} onValueChange={(value) => setFormData({ ...formData, client_type: value })}>
-                                            <SelectTrigger><SelectValue placeholder="Seleccionar tipo..."/></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="domestic">Doméstico</SelectItem>
-                                                <SelectItem value="commercial">Comercial</SelectItem>
-                                                <SelectItem value="training">Entrenamiento</SelectItem>
-                                                <SelectItem value="operational_cost">Costo Operativo</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        {formData.client_type === 'operational_cost' && (
-                                            <p className="text-xs text-slate-600 bg-orange-50 px-3 py-2 rounded border border-orange-200">
-                                                ⚠️ Este cliente será tratado como gasto operativo. Sus costos se distribuirán entre los clientes reales en el análisis de rentabilidad.
-                                            </p>
-                                        )}
-                                    </div>
+                                           <Label htmlFor="client_type">Tipo de Cliente</Label>
+                                           <Select value={formData.client_type} onValueChange={(value) => setFormData({ ...formData, client_type: value })}>
+                                               <SelectTrigger><SelectValue placeholder="Seleccionar tipo..."/></SelectTrigger>
+                                               <SelectContent>
+                                                   <SelectItem value="domestic">Doméstico</SelectItem>
+                                                   <SelectItem value="commercial">Comercial</SelectItem>
+                                                   <SelectItem value="training">Entrenamiento</SelectItem>
+                                                   <SelectItem value="ndis_client">NDIS Client</SelectItem>
+                                                   <SelectItem value="dva_client">DVA Client</SelectItem>
+                                                   <SelectItem value="age_care_client">Age Care Client</SelectItem>
+                                                   <SelectItem value="work_cover_client">Work Cover Client</SelectItem>
+                                               </SelectContent>
+                                           </Select>
+                                       </div>
+
+                                       {/* Funding document section for special client types */}
+                                       {FUNDED_CLIENT_TYPES.includes(formData.client_type) && (
+                                           <div className="bg-purple-50 border-l-4 border-purple-400 p-4 rounded-r-lg space-y-4">
+                                               <h3 className="font-semibold text-purple-900 flex items-center gap-2">
+                                                   <FileText className="w-5 h-5" />
+                                                   Documento Soporte ({CLIENT_TYPE_LABELS[formData.client_type]})
+                                               </h3>
+                                               <p className="text-xs text-purple-700">Adjunta la carta o documento de autorización del financiamiento y especifica el período de vigencia.</p>
+                                               <div className="space-y-2">
+                                                   <Label>Documento PDF (carta de autorización)</Label>
+                                                   {formData.funding_document_url ? (
+                                                       <div className="flex items-center gap-3 bg-white border border-purple-200 rounded-lg p-3">
+                                                           <FileText className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                                                           <span className="text-sm text-slate-700 truncate flex-1">Documento adjunto</span>
+                                                           <a href={formData.funding_document_url} target="_blank" rel="noopener noreferrer">
+                                                               <Button type="button" variant="outline" size="sm" className="flex items-center gap-1">
+                                                                   <ExternalLink className="w-3 h-3" /> Ver
+                                                               </Button>
+                                                           </a>
+                                                           <Button
+                                                               type="button"
+                                                               variant="ghost"
+                                                               size="sm"
+                                                               onClick={() => setFormData(prev => ({ ...prev, funding_document_url: '' }))}
+                                                               className="text-red-500 hover:text-red-700"
+                                                           >
+                                                               <X className="w-4 h-4" />
+                                                           </Button>
+                                                       </div>
+                                                   ) : (
+                                                       <div>
+                                                           <label className="flex items-center gap-2 cursor-pointer bg-white border-2 border-dashed border-purple-300 rounded-lg p-4 hover:border-purple-500 transition-colors">
+                                                               <Upload className="w-5 h-5 text-purple-500" />
+                                                               <span className="text-sm text-purple-700">Haz clic para subir PDF</span>
+                                                               <input
+                                                                   type="file"
+                                                                   accept=".pdf,application/pdf"
+                                                                   className="hidden"
+                                                                   onChange={async (e) => {
+                                                                       const file = e.target.files?.[0];
+                                                                       if (!file) return;
+                                                                       try {
+                                                                           const { file_url } = await base44.integrations.Core.UploadFile({ file });
+                                                                           setFormData(prev => ({ ...prev, funding_document_url: file_url }));
+                                                                       } catch (err) {
+                                                                           console.error('Error subiendo PDF:', err);
+                                                                           alert('Error al subir el documento. Intenta de nuevo.');
+                                                                       }
+                                                                   }}
+                                                               />
+                                                           </label>
+                                                       </div>
+                                                   )}
+                                               </div>
+                                               <div className="grid grid-cols-2 gap-4">
+                                                   <div className="space-y-2">
+                                                       <Label htmlFor="funding_start">Fecha de Inicio</Label>
+                                                       <Input
+                                                           id="funding_start"
+                                                           type="date"
+                                                           value={formData.funding_document_start_date}
+                                                           onChange={(e) => setFormData(prev => ({ ...prev, funding_document_start_date: e.target.value }))}
+                                                       />
+                                                   </div>
+                                                   <div className="space-y-2">
+                                                       <Label htmlFor="funding_end">Fecha de Vencimiento</Label>
+                                                       <Input
+                                                           id="funding_end"
+                                                           type="date"
+                                                           value={formData.funding_document_end_date}
+                                                           onChange={(e) => setFormData(prev => ({ ...prev, funding_document_end_date: e.target.value }))}
+                                                       />
+                                                   </div>
+                                               </div>
+                                               {formData.funding_document_end_date && new Date(formData.funding_document_end_date) < new Date() && (
+                                                   <div className="flex items-center gap-2 text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 text-sm">
+                                                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                                       <span>⚠️ El documento de soporte está <strong>vencido</strong>. Por favor actualiza la documentación.</span>
+                                                   </div>
+                                               )}
+                                           </div>
+                                       )}
                                     <div className="space-y-2">
                                         <Label htmlFor="address">Dirección</Label>
                                         <Input id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
