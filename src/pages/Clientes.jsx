@@ -11,7 +11,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PlusCircle, Edit, Trash2, Search, X, AlertTriangle, KeySquare, Eye, EyeOff, FileSignature, History, FileText, Upload, ExternalLink } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, X, AlertTriangle, KeySquare, Eye, EyeOff, FileSignature, History, FileText, Upload, ExternalLink, Users, UserCheck, UserX, Star, Filter, Phone, MapPin, DollarSign, Calendar } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import PhotoUploader from '../components/horario/PhotoUploader';
 import ServicePriceManager from '../components/clients/ServicePriceManager';
 import FamilyAndPetsManager from '../components/clients/FamilyAndPetsManager';
@@ -254,174 +255,254 @@ export default function ClientesPage() {
 
     // Removed: viewingHistoryClient memo as history will be on a separate page
 
+    const activeCount = clients.filter(c => c.active !== false).length;
+    const inactiveCount = clients.filter(c => c.active === false).length;
+    const specialCount = clients.filter(c => FUNDED_CLIENT_TYPES.includes(c.client_type)).length;
+    const accessCount = clients.filter(c => c.has_access).length;
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 md:p-8">
             <div className="w-full">
+                {/* Header */}
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl font-bold">Gestión de Clientes</h1>
-                    <Button onClick={handleCreate}><PlusCircle className="mr-2 h-4 w-4" /> Nuevo Cliente</Button>
-                </div>
-
-                <div className="mb-4 flex flex-col sm:flex-row gap-3">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <Input
-                            type="text"
-                            placeholder="Buscar por nombre o dirección..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10"
-                        />
-                        {searchTerm && (
-                            <Button variant="ghost" size="sm" onClick={() => setSearchTerm("")} className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-slate-100">
-                                <X className="h-4 w-4" />
-                            </Button>
-                        )}
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                            <Users className="w-8 h-8 text-blue-600" />
+                            Gestión de Clientes
+                        </h1>
+                        <p className="text-slate-500 mt-1">Administra la cartera de clientes activos e inactivos</p>
                     </div>
-                    <Button variant="outline" onClick={() => setShowInactive(!showInactive)} className="flex items-center gap-2">
-                        {showInactive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        {showInactive ? 'Ocultar Inactivos' : 'Mostrar Inactivos'}
+                    <Button onClick={handleCreate} className="gap-2">
+                        <PlusCircle className="h-4 w-4" /> Nuevo Cliente
                     </Button>
                 </div>
 
-                <div className="mb-6 flex flex-wrap gap-3 items-center">
-                    <Select value={filterFrecuencia} onValueChange={setFilterFrecuencia}>
-                        <SelectTrigger className="w-[160px]"><SelectValue placeholder="Frecuencia" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={null}>Todas</SelectItem>
-                            <SelectItem value="weekly">Semanal</SelectItem>
-                            <SelectItem value="fortnightly">Quincenal</SelectItem>
-                            <SelectItem value="every_3_weeks">Cada 3 semanas</SelectItem>
-                            <SelectItem value="monthly">Mensual</SelectItem>
-                            <SelectItem value="one_off">Servicio Único</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Select value={filterEstado} onValueChange={setFilterEstado}>
-                        <SelectTrigger className="w-[140px]"><SelectValue placeholder="Estado" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={null}>Todos</SelectItem>
-                            <SelectItem value="active">Activo</SelectItem>
-                            <SelectItem value="inactive">Inactivo</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Select value={filterAcceso} onValueChange={setFilterAcceso}>
-                        <SelectTrigger className="w-[140px]"><SelectValue placeholder="Acceso" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={null}>Todos</SelectItem>
-                            <SelectItem value="yes">Con acceso</SelectItem>
-                            <SelectItem value="no">Sin acceso</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Select value={filterTipo} onValueChange={setFilterTipo}>
-                        <SelectTrigger className="w-[180px]"><SelectValue placeholder="Tipo de cliente" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={null}>Todos los tipos</SelectItem>
-                            <SelectItem value="domestic">Doméstico</SelectItem>
-                            <SelectItem value="commercial">Comercial</SelectItem>
-                            <SelectItem value="training">Entrenamiento</SelectItem>
-                            <SelectItem value="ndis_client">NDIS Client</SelectItem>
-                            <SelectItem value="dva_client">DVA Client</SelectItem>
-                            <SelectItem value="age_care_client">Age Care Client</SelectItem>
-                            <SelectItem value="work_cover_client">Work Cover Client</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {(filterFrecuencia || filterEstado || filterAcceso || filterTipo) && (
-                        <Button variant="ghost" size="sm" onClick={() => { setFilterFrecuencia(''); setFilterEstado(''); setFilterAcceso(''); setFilterTipo(''); }} className="text-slate-500 hover:text-slate-800">
-                            <X className="h-4 w-4 mr-1" /> Limpiar filtros
-                        </Button>
-                    )}
-                    <span className="text-sm text-slate-500 ml-auto">{filteredClients.length} cliente(s)</span>
+                {/* KPI Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <Card className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-blue-600" /></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{clients.length}</p><p className="text-xs text-slate-500">Total clientes</p></div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center"><UserCheck className="w-5 h-5 text-green-600" /></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{activeCount}</p><p className="text-xs text-slate-500">Activos</p></div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center"><KeySquare className="w-5 h-5 text-amber-600" /></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{accessCount}</p><p className="text-xs text-slate-500">Con acceso</p></div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center"><Star className="w-5 h-5 text-purple-600" /></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{specialCount}</p><p className="text-xs text-slate-500">Financiados</p></div>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                <div className="bg-white rounded-lg shadow-md overflow-x-auto">
+                {/* Search & Filters */}
+                <Card className="border-0 shadow-sm mb-6">
+                    <CardContent className="p-4 space-y-3">
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <Input
+                                    type="text"
+                                    placeholder="Buscar por nombre o dirección..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9 h-10"
+                                />
+                                {searchTerm && (
+                                    <Button variant="ghost" size="sm" onClick={() => setSearchTerm("")} className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0">
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
+                            <Button variant="outline" onClick={() => setShowInactive(!showInactive)} className="gap-2 h-10">
+                                {showInactive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                {showInactive ? 'Ocultar Inactivos' : 'Mostrar Inactivos'}
+                            </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2 items-center">
+                            <Filter className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                            <Select value={filterFrecuencia} onValueChange={setFilterFrecuencia}>
+                                <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue placeholder="Frecuencia" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={null}>Todas</SelectItem>
+                                    <SelectItem value="weekly">Semanal</SelectItem>
+                                    <SelectItem value="fortnightly">Quincenal</SelectItem>
+                                    <SelectItem value="every_3_weeks">Cada 3 semanas</SelectItem>
+                                    <SelectItem value="monthly">Mensual</SelectItem>
+                                    <SelectItem value="one_off">Servicio Único</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={filterEstado} onValueChange={setFilterEstado}>
+                                <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue placeholder="Estado" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={null}>Todos</SelectItem>
+                                    <SelectItem value="active">Activo</SelectItem>
+                                    <SelectItem value="inactive">Inactivo</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={filterAcceso} onValueChange={setFilterAcceso}>
+                                <SelectTrigger className="w-[130px] h-8 text-xs"><SelectValue placeholder="Acceso" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={null}>Todos</SelectItem>
+                                    <SelectItem value="yes">Con acceso</SelectItem>
+                                    <SelectItem value="no">Sin acceso</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <Select value={filterTipo} onValueChange={setFilterTipo}>
+                                <SelectTrigger className="w-[170px] h-8 text-xs"><SelectValue placeholder="Tipo de cliente" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={null}>Todos los tipos</SelectItem>
+                                    <SelectItem value="domestic">Doméstico</SelectItem>
+                                    <SelectItem value="commercial">Comercial</SelectItem>
+                                    <SelectItem value="training">Entrenamiento</SelectItem>
+                                    <SelectItem value="ndis_client">NDIS Client</SelectItem>
+                                    <SelectItem value="dva_client">DVA Client</SelectItem>
+                                    <SelectItem value="age_care_client">Age Care Client</SelectItem>
+                                    <SelectItem value="work_cover_client">Work Cover Client</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {(filterFrecuencia || filterEstado || filterAcceso || filterTipo) && (
+                                <Button variant="ghost" size="sm" onClick={() => { setFilterFrecuencia(''); setFilterEstado(''); setFilterAcceso(''); setFilterTipo(''); }} className="h-8 text-xs text-slate-500 hover:text-slate-800">
+                                    <X className="h-3 w-3 mr-1" /> Limpiar
+                                </Button>
+                            )}
+                            <span className="text-sm text-slate-500 ml-auto font-medium">{filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}</span>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Table */}
+                <Card className="border-0 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            <TableRow>
-                                <TableHead className="min-w-[150px]">Nombre</TableHead>
-                                <TableHead className="min-w-[200px]">Dirección</TableHead>
-                                <TableHead>Tipo</TableHead>
-                                <TableHead>Frecuencia</TableHead>
-                                <TableHead>
-                                    <div className="flex items-center gap-2">
+                            <TableRow className="bg-slate-50 hover:bg-slate-50">
+                                <TableHead className="min-w-[180px] font-semibold text-slate-700">Cliente</TableHead>
+                                <TableHead className="min-w-[200px] font-semibold text-slate-700">Dirección</TableHead>
+                                <TableHead className="font-semibold text-slate-700">Tipo</TableHead>
+                                <TableHead className="font-semibold text-slate-700">Frecuencia</TableHead>
+                                <TableHead className="font-semibold text-slate-700">
+                                    <div className="flex items-center gap-1.5">
                                         Precio
-                                        <button
-                                            onClick={() => setShowPrices(!showPrices)}
-                                            className="text-slate-400 hover:text-slate-700 transition-colors"
-                                            title={showPrices ? 'Ocultar precios' : 'Mostrar precios'}
-                                        >
-                                            {showPrices ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        <button onClick={() => setShowPrices(!showPrices)} className="text-slate-400 hover:text-slate-700 transition-colors" title={showPrices ? 'Ocultar precios' : 'Mostrar precios'}>
+                                            {showPrices ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                                         </button>
                                     </div>
                                 </TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead>Acceso</TableHead>
-                                <TableHead className="text-right">Acciones</TableHead>
+                                <TableHead className="font-semibold text-slate-700">Estado</TableHead>
+                                <TableHead className="font-semibold text-slate-700">Acceso</TableHead>
+                                <TableHead className="text-right font-semibold text-slate-700">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
-                                <TableRow><TableCell colSpan="8" className="text-center py-8">Cargando clientes...</TableCell></TableRow>
+                                <TableRow><TableCell colSpan="8" className="text-center py-12">
+                                    <div className="flex items-center justify-center gap-2 text-slate-500">
+                                        <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+                                        Cargando clientes...
+                                    </div>
+                                </TableCell></TableRow>
                             ) : filteredClients.length > 0 ? (
                                 filteredClients.map(client => (
-                                    <TableRow key={client.id} className="hover:bg-gray-50">
-                                        <TableCell className="font-medium">
-                                                    <div className="flex items-center gap-2">
-                                                        <span>{client.name}</span>
-                                                        {client.has_special_billing_instructions && (
-                                                            <FileSignature className="w-4 h-4 text-orange-500" title="Instrucciones especiales de facturación" />
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>{client.address}</TableCell>
-                                                <TableCell>
-                                                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                                                        FUNDED_CLIENT_TYPES.includes(client.client_type)
-                                                            ? 'bg-purple-100 text-purple-800'
-                                                            : 'bg-slate-100 text-slate-700'
-                                                    }`}>
-                                                        {CLIENT_TYPE_LABELS[client.client_type] || client.client_type || '—'}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell>{{ weekly: 'Semanal', fortnightly: 'Quincenal', every_3_weeks: 'Cada 3 sem.', monthly: 'Mensual', one_off: 'Único' }[client.service_frequency] || client.service_frequency || '—'}</TableCell>
-                                        <TableCell>
-                                            {showPrices ? `$${client.current_service_price?.toFixed(2) || '0.00'}` : '••••••'}
+                                    <TableRow key={client.id} className={`hover:bg-blue-50/40 transition-colors border-b border-slate-100 ${
+                                        client.active === false ? 'opacity-60' : ''
+                                    }`}>
+                                        <TableCell className="py-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                                    {client.name?.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-slate-900 text-sm leading-tight">{client.name}</p>
+                                                    {client.mobile_number && <p className="text-xs text-slate-400">{client.mobile_number}</p>}
+                                                </div>
+                                                {client.has_special_billing_instructions && (
+                                                    <FileSignature className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" title="Instrucciones especiales de facturación" />
+                                                )}
+                                            </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${client.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                                {client.active ? 'Activo' : 'Inactivo'}
+                                        <TableCell className="py-3">
+                                            <p className="text-sm text-slate-600 max-w-[220px] truncate">{client.address || '—'}</p>
+                                        </TableCell>
+                                        <TableCell className="py-3">
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                FUNDED_CLIENT_TYPES.includes(client.client_type)
+                                                    ? 'bg-purple-100 text-purple-800'
+                                                    : client.client_type === 'commercial'
+                                                    ? 'bg-blue-100 text-blue-800'
+                                                    : 'bg-slate-100 text-slate-700'
+                                            }`}>
+                                                {CLIENT_TYPE_LABELS[client.client_type] || '—'}
                                             </span>
                                         </TableCell>
-                                        <TableCell>
-                                            {client.has_access && (
-                                                <div className="flex items-center gap-2 text-amber-600" title={`Acceso: ${client.access_identifier}`}>
-                                                    <KeySquare className="w-5 h-5" />
-                                                    <span className="font-semibold">{client.access_type === 'key' ? 'Llave' : client.access_identifier}</span>
+                                        <TableCell className="py-3">
+                                            <span className="text-sm text-slate-600">
+                                                {{ weekly: 'Semanal', fortnightly: 'Quincenal', every_3_weeks: 'Cada 3 sem.', monthly: 'Mensual', one_off: 'Único' }[client.service_frequency] || '—'}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="py-3">
+                                            <span className={`text-sm font-semibold ${ showPrices ? 'text-green-700' : 'text-slate-400' }`}>
+                                                {showPrices ? `$${client.current_service_price?.toFixed(2) || '0.00'}` : '••••'}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="py-3">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                client.active !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'
+                                            }`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${ client.active !== false ? 'bg-green-500' : 'bg-red-500' }`} />
+                                                {client.active !== false ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="py-3">
+                                            {client.has_access ? (
+                                                <div className="flex items-center gap-1.5 text-amber-600">
+                                                    <KeySquare className="w-4 h-4" />
+                                                    <span className="text-xs font-medium">{client.access_type === 'key' ? 'Llave' : client.access_identifier || 'Sí'}</span>
                                                 </div>
+                                            ) : (
+                                                <span className="text-xs text-slate-400">—</span>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button 
-                                                variant="ghost" 
-                                                size="icon" 
-                                                onClick={() => {
-                                                    const url = `${createPageUrl('HistorialClientes')}?client_id=${client.id}`;
-                                                    window.location.href = url;
-                                                }}
-                                                title="Ver Historial"
-                                            >
-                                                <History className="h-4 w-4 text-blue-600" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}><Edit className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" onClick={() => setDeletingClient(client)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                                        <TableCell className="py-3 text-right">
+                                            <div className="flex items-center justify-end gap-0.5">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-700"
+                                                    onClick={() => { window.location.href = `${createPageUrl('HistorialClientes')}?client_id=${client.id}`; }}
+                                                    title="Ver Historial">
+                                                    <History className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-slate-100" onClick={() => handleEdit(client)}>
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-50 hover:text-red-600" onClick={() => setDeletingClient(client)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))
                             ) : (
-                                <TableRow><TableCell colSpan="8" className="text-center h-24">No se encontraron clientes.</TableCell></TableRow>
+                                <TableRow>
+                                    <TableCell colSpan="8" className="text-center py-16">
+                                        <Users className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                                        <p className="text-slate-500 font-medium">No se encontraron clientes</p>
+                                        <p className="text-slate-400 text-sm mt-1">Intenta ajustar los filtros o busca con otros términos</p>
+                                    </TableCell>
+                                </TableRow>
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                    </div>
+                </Card>
 
                 {/* Modal de Edición/Creación - SIN historial */}
                 <Dialog open={showForm} onOpenChange={setShowForm}>
