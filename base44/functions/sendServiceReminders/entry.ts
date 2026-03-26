@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
 
         // 9. Enviar SMS EN LOTES DE 10 (evita rate limits de Twilio)
         const _rn = new Date();
-        const reminderTs = `${_rn.getFullYear()}-${String(_rn.getMonth()+1).padStart(2,'0')}-${String(_rn.getDate()).padStart(2,'0')}T${String(_rn.getHours()).padStart(2,'0')}:${String(_rn.getMinutes()).padStart(2,'0')}:00.000`;
+        const reminderTs = _rn.toISOString(); // UTC con Z, para que el navegador convierta correctamente a hora local
 
         const BATCH_SIZE = 10;
         const allSendResults = [];
