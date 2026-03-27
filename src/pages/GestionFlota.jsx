@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Car, Users, Plus, Edit, Trash2, Calendar, AlertTriangle, Loader2, KeySquare } from 'lucide-react';
+import { Car, Users, Plus, Edit, Trash2, Calendar, AlertTriangle, Loader2, KeySquare, ChevronLeft, ChevronRight, Wrench, XCircle, CheckCircle, Truck, UserCheck, Hash } from 'lucide-react';
 import { format, addDays, subDays, parseISO, startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -372,252 +372,319 @@ export default function GestionFlotaPage() {
     };
 
     if (loading) {
-        return <div className="p-6 text-center">Cargando datos iniciales...</div>;
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+                <div className="flex items-center gap-3 text-slate-600">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                    <span>Cargando datos de flota...</span>
+                </div>
+            </div>
+        );
     }
 
+    const activeVehicles = vehicles.filter(v => v.status === 'active').length;
+    const maintenanceVehicles = vehicles.filter(v => v.status === 'maintenance').length;
+    const outOfServiceVehicles = vehicles.filter(v => v.status === 'out_of_service').length;
+    const assignedToday = assignments.filter(a => a.vehicle_id).length;
+
     return (
-        <div className="p-6 max-w-7xl mx-auto">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-slate-900">Gestión de Flota y Equipos</h1>
-                <p className="text-slate-600">Administra vehículos y asignaciones diarias de equipos</p>
-            </div>
-
-            <Tabs defaultValue="assignments" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="assignments" className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        Asignaciones de Equipos
-                    </TabsTrigger>
-                    <TabsTrigger value="vehicles" className="flex items-center gap-2">
-                        <Car className="w-4 h-4" />
-                        Vehículos
-                    </TabsTrigger>
-                </TabsList>
-
-                {/* --- Pestaña de Asignaciones --- */}
-                <TabsContent value="assignments" className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                            <Button variant="outline" onClick={() => setSelectedDate(format(subDays(parseISO(selectedDate), 1), 'yyyy-MM-dd'))}>←</Button>
-                            <Input
-                                type="date"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                className="w-48"
-                            />
-                            <Button variant="outline" onClick={() => setSelectedDate(format(addDays(parseISO(selectedDate), 1), 'yyyy-MM-dd'))}>→</Button>
-                            <Button variant="outline" onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))}>Hoy</Button>
-                        </div>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
+            <div className="max-w-7xl mx-auto">
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                            <Truck className="w-8 h-8 text-blue-600" />
+                            Gestión de Flota
+                        </h1>
+                        <p className="text-slate-500 mt-1">Vehículos y asignaciones diarias de equipos</p>
                     </div>
+                </div>
 
-                    <div className="mb-4">
-                        <h2 className="text-xl font-semibold text-slate-900">
-                            Equipos para {format(parseISO(selectedDate), "EEEE, d 'de' MMMM", { locale: es })}
-                        </h2>
-                    </div>
+                {/* KPI Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <Card className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center"><Car className="w-5 h-5 text-blue-600" /></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{vehicles.length}</p><p className="text-xs text-slate-500">Total vehículos</p></div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center"><CheckCircle className="w-5 h-5 text-green-600" /></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{activeVehicles}</p><p className="text-xs text-slate-500">Activos</p></div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center"><Wrench className="w-5 h-5 text-amber-600" /></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{maintenanceVehicles}</p><p className="text-xs text-slate-500">En mantenimiento</p></div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-purple-600" /></div>
+                            <div><p className="text-2xl font-bold text-slate-900">{assignedToday}</p><p className="text-xs text-slate-500">Asignados hoy</p></div>
+                        </CardContent>
+                    </Card>
+                </div>
 
-                    {loadingTeams ? (
-                        <div className="text-center py-12"><Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" /><p className="mt-2 text-slate-600">Buscando equipos en el horario...</p></div>
-                    ) : dailyTeams.length > 0 ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                            {dailyTeams.map((team) => {
-                                const teamAssignment = assignments.find(a => {
-                                    const sortedA = [...(a.team_member_ids || [])].sort().join(',');
-                                    const sortedT = [...team.memberIds].sort().join(',');
-                                    return sortedA === sortedT;
-                                });
+                <Tabs defaultValue="assignments" className="space-y-6">
+                    <TabsList className="bg-white border border-slate-200 shadow-sm p-1 h-auto">
+                        <TabsTrigger value="assignments" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2">
+                            <Users className="w-4 h-4" />
+                            Asignaciones de Equipos
+                        </TabsTrigger>
+                        <TabsTrigger value="vehicles" className="flex items-center gap-2 data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-md px-4 py-2">
+                            <Car className="w-4 h-4" />
+                            Vehículos
+                        </TabsTrigger>
+                    </TabsList>
 
-                                const hasVehicleAssigned = teamAssignment && teamAssignment.vehicle_id;
-                                
-                                return (
-                                    <Card 
-                                        key={team.id} 
-                                        className={`hover:shadow-lg transition-shadow ${
-                                            hasVehicleAssigned 
-                                                ? 'bg-green-50 border-green-200 shadow-md' 
-                                                : 'bg-white'
-                                        }`}
-                                    >
-                                        <CardHeader>
-                                            <div className="flex items-center justify-between">
-                                                <CardTitle className="text-lg">Equipo del Día</CardTitle>
-                                                {hasVehicleAssigned && (
-                                                    <Badge className="bg-green-100 text-green-800 border-green-300">
-                                                        Vehículo Asignado
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-wrap gap-2 pt-2">
-                                                {team.memberIds.map(id => (
-                                                    <Badge 
-                                                        key={id} 
-                                                        variant={hasVehicleAssigned ? "default" : "secondary"}
-                                                        className={hasVehicleAssigned ? "bg-green-600 text-white" : ""}
-                                                    >
-                                                        {userMap.get(id) || 'Desconocido'}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <div>
-                                                <Label className={`font-semibold ${hasVehicleAssigned ? 'text-green-800' : 'text-slate-700'}`}>
-                                                    Vehículo Asignado
-                                                </Label>
-                                                <Select
-                                                    value={teamAssignment?.vehicle_id || 'none'}
-                                                    onValueChange={(value) => handleVehicleAssignment(team.memberIds, value)}
-                                                >
-                                                    <SelectTrigger className={hasVehicleAssigned ? 'border-green-300 bg-white' : ''}>
-                                                        <SelectValue placeholder="Asignar un vehículo..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value={'none'}>Sin Asignar</SelectItem>
-                                                        {vehicles.filter(v => v.status === 'active').map(vehicle => {
-                                                            const available = isVehicleAvailable(vehicle.id, team.memberIds);
-                                                            return (
-                                                                <SelectItem key={vehicle.id} value={vehicle.id} disabled={!available}>
-                                                                    {`${vehicle.make} ${vehicle.model} (${vehicle.license_plate})${!available ? ' (Asignado a otro equipo)' : ''}`}
-                                                                </SelectItem>
-                                                            );
-                                                        })}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
+                    {/* --- Pestaña de Asignaciones --- */}
+                    <TabsContent value="assignments" className="space-y-6">
+                        {/* Date Navigator */}
+                        <Card className="border-0 shadow-sm">
+                            <CardContent className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setSelectedDate(format(subDays(parseISO(selectedDate), 1), 'yyyy-MM-dd'))}>
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </Button>
+                                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                                            <Calendar className="w-4 h-4 text-slate-500" />
+                                            <Input
+                                                type="date"
+                                                value={selectedDate}
+                                                onChange={(e) => setSelectedDate(e.target.value)}
+                                                className="border-0 bg-transparent p-0 h-auto w-36 text-sm font-medium focus-visible:ring-0"
+                                            />
+                                        </div>
+                                        <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setSelectedDate(format(addDays(parseISO(selectedDate), 1), 'yyyy-MM-dd'))}>
+                                            <ChevronRight className="w-4 h-4" />
+                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))} className="text-xs">Hoy</Button>
+                                    </div>
+                                    <p className="text-sm font-semibold text-slate-700 capitalize">
+                                        {format(parseISO(selectedDate), "EEEE, d 'de' MMMM yyyy", { locale: es })}
+                                    </p>
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                                            {/* NUEVO: Selector de Conductor Principal */}
-                                            {hasVehicleAssigned && (
-                                                <div>
-                                                    <Label className="font-semibold text-blue-800">
-                                                        Conductor Principal
-                                                    </Label>
-                                                    <Select
-                                                        value={teamAssignment?.main_driver_id || team.memberIds[0]}
-                                                        onValueChange={(value) => handleDriverAssignment(team.memberIds, value)}
-                                                    >
-                                                        <SelectTrigger className="border-blue-300 bg-white">
-                                                            <SelectValue placeholder="Seleccionar conductor..." />
+                        {loadingTeams ? (
+                            <div className="text-center py-16">
+                                <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
+                                <p className="mt-3 text-slate-600">Buscando equipos en el horario...</p>
+                            </div>
+                        ) : dailyTeams.length > 0 ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+                                {dailyTeams.map((team, idx) => {
+                                    const teamAssignment = assignments.find(a => {
+                                        const sortedA = [...(a.team_member_ids || [])].sort().join(',');
+                                        const sortedT = [...team.memberIds].sort().join(',');
+                                        return sortedA === sortedT;
+                                    });
+                                    const hasVehicleAssigned = teamAssignment && teamAssignment.vehicle_id;
+                                    const assignedVehicle = hasVehicleAssigned ? vehicles.find(v => v.id === teamAssignment.vehicle_id) : null;
+
+                                    return (
+                                        <Card key={team.id} className={`border-0 shadow-sm overflow-hidden transition-all hover:shadow-md ${ hasVehicleAssigned ? 'ring-2 ring-green-400' : '' }`}>
+                                            {/* Color bar top */}
+                                            <div className={`h-1.5 w-full ${ hasVehicleAssigned ? 'bg-green-500' : 'bg-slate-300' }`} />
+                                            <CardContent className="p-5 space-y-4">
+                                                {/* Team header */}
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Equipo {idx + 1}</p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {team.memberIds.map(id => (
+                                                                <span key={id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                                                                    hasVehicleAssigned ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'
+                                                                }`}>
+                                                                    <UserCheck className="w-3 h-3" />
+                                                                    {userMap.get(id) || 'Desconocido'}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    {hasVehicleAssigned && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
+                                                            <CheckCircle className="w-3 h-3" /> Asignado
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Vehicle selector */}
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Vehículo</Label>
+                                                    <Select value={teamAssignment?.vehicle_id || 'none'} onValueChange={(value) => handleVehicleAssignment(team.memberIds, value)}>
+                                                        <SelectTrigger className={`h-9 text-sm ${ hasVehicleAssigned ? 'border-green-300 bg-green-50' : 'bg-white' }`}>
+                                                            <SelectValue placeholder="Asignar vehículo..." />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            {team.memberIds.map(memberId => (
-                                                                <SelectItem key={memberId} value={memberId}>
-                                                                    {userMap.get(memberId) || 'Desconocido'}
-                                                                </SelectItem>
-                                                            ))}
+                                                            <SelectItem value="none">Sin asignar</SelectItem>
+                                                            {vehicles.filter(v => v.status === 'active').map(vehicle => {
+                                                                const available = isVehicleAvailable(vehicle.id, team.memberIds);
+                                                                return (
+                                                                    <SelectItem key={vehicle.id} value={vehicle.id} disabled={!available}>
+                                                                        {vehicle.make} {vehicle.model} · {vehicle.license_plate}{!available ? ' (otro equipo)' : ''}
+                                                                    </SelectItem>
+                                                                );
+                                                            })}
                                                         </SelectContent>
                                                     </Select>
-                                                    <p className="text-xs text-blue-600 mt-1">
-                                                        👤 {userMap.get(teamAssignment?.main_driver_id || team.memberIds[0])} será el conductor principal
-                                                    </p>
+                                                    {assignedVehicle && (
+                                                        <p className="text-xs text-green-700 flex items-center gap-1">
+                                                            <Car className="w-3 h-3" /> {assignedVehicle.make} {assignedVehicle.model} — {assignedVehicle.color}
+                                                        </p>
+                                                    )}
                                                 </div>
-                                            )}
 
-                                            <div>
-                                                <h4 className={`font-semibold mb-2 text-sm ${hasVehicleAssigned ? 'text-green-800' : 'text-slate-700'}`}>
-                                                    Servicios del Día ({team.services.length})
-                                                </h4>
-                                                <ul className="text-xs text-slate-600 list-disc list-inside max-h-24 overflow-y-auto">
-                                                    {team.services.sort((a,b) => {
-                                                        const dateA = parseISOAsUTC(a.start_time);
-                                                        const dateB = parseISOAsUTC(b.start_time);
-                                                        return dateA.getTime() - dateB.getTime();
-                                                    }).map((service, index) => {
-                                                        const startTime = parseISOAsUTC(service.start_time);
-                                                        return (
-                                                            <li key={index}>
-                                                                <span className="font-mono">{formatTimeUTC(startTime)}</span> - {service.client_name}
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ul>
-                                            </div>
-                                            
-                                            {/* NUEVA SECCIÓN: LLAVES REQUERIDAS */}
-                                            <div>
-                                                <h4 className="font-semibold mb-2 text-sm flex items-center gap-2 text-slate-700">
-                                                    <KeySquare className="w-4 h-4 text-orange-600" />
-                                                    Llaves Requeridas ({team.requiredKeys.length})
-                                                </h4>
-                                                {team.requiredKeys.length > 0 ? (
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {team.requiredKeys.map((key, index) => (
-                                                            <Badge key={index} variant="outline" className="bg-orange-50 border-orange-200 text-orange-800">
-                                                                {key.identifier} <span className="text-orange-600 ml-1">({key.client_name.split(' ')[0]})</span>
-                                                            </Badge>
-                                                        ))}
+                                                {/* Driver selector */}
+                                                {hasVehicleAssigned && (
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Conductor Principal</Label>
+                                                        <Select value={teamAssignment?.main_driver_id || team.memberIds[0]} onValueChange={(value) => handleDriverAssignment(team.memberIds, value)}>
+                                                            <SelectTrigger className="h-9 text-sm border-blue-200 bg-blue-50">
+                                                                <SelectValue placeholder="Seleccionar conductor..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {team.memberIds.map(memberId => (
+                                                                    <SelectItem key={memberId} value={memberId}>{userMap.get(memberId) || 'Desconocido'}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
-                                                ) : (
-                                                    <p className="text-xs text-slate-500">No se requieren llaves para los servicios de este equipo.</p>
                                                 )}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12">
-                            <Users className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">No se encontraron equipos</h3>
-                            <p className="text-slate-500">No hay servicios con limpiadores asignados en el horario para este día.</p>
-                        </div>
-                    )}
-                </TabsContent>
 
-                {/* --- Pestaña de Vehículos (sin cambios funcionales) --- */}
-                <TabsContent value="vehicles" className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-xl font-semibold text-slate-900">Flota de Vehículos</h2>
-                        <Button onClick={() => { setEditingVehicle(null); setShowVehicleForm(true); }} className="bg-green-600 hover:bg-green-700">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Nuevo Vehículo
-                        </Button>
-                    </div>
+                                                {/* Services */}
+                                                <div className="space-y-1">
+                                                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Servicios del día ({team.services.length})</p>
+                                                    <div className="bg-slate-50 rounded-lg p-2.5 max-h-28 overflow-y-auto space-y-1">
+                                                        {team.services.sort((a,b) => parseISOAsUTC(a.start_time) - parseISOAsUTC(b.start_time)).map((service, index) => {
+                                                            const startTime = parseISOAsUTC(service.start_time);
+                                                            return (
+                                                                <div key={index} className="flex items-center gap-2 text-xs text-slate-700">
+                                                                    <span className="font-mono text-slate-500 w-10 flex-shrink-0">{formatTimeUTC(startTime)}</span>
+                                                                    <span className="font-medium">{service.client_name}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {vehicles.map(vehicle => (
-                            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
-                                <CardHeader>
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-green-100 rounded-lg">
-                                                <Car className="w-6 h-6 text-green-600" />
-                                            </div>
-                                            <div>
-                                                <CardTitle className="text-lg">{vehicle.make} {vehicle.model}</CardTitle>
-                                                <p className="text-sm text-slate-600">{vehicle.year} • {vehicle.color}</p>
-                                            </div>
-                                        </div>
-                                        <Badge className={getStatusColor(vehicle.status)}>{getStatusLabel(vehicle.status)}</Badge>
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        <div className="text-center p-3 bg-slate-50 rounded-lg">
-                                            <p className="font-mono text-lg font-bold text-slate-900">{vehicle.license_plate}</p>
-                                            <p className="text-xs text-slate-600">Matrícula</p>
-                                        </div>
-                                        {vehicle.photos && vehicle.photos.length > 0 && (
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <img src={vehicle.photos[0].url} alt="Foto vehículo" className="w-full h-20 object-cover rounded-lg" />
-                                                {vehicle.photos.length > 1 && <div className="w-full h-20 bg-slate-100 flex items-center justify-center rounded-lg">+{vehicle.photos.length - 1}</div>}
-                                            </div>
-                                        )}
-                                        <div className="flex gap-2 mt-4">
-                                            <Button variant="outline" size="sm" onClick={() => handleEditVehicle(vehicle)} className="flex-1">
-                                                <Edit className="w-3 h-3 mr-1" />Editar
-                                            </Button>
-                                            <Button variant="outline" size="sm" onClick={() => handleDeleteVehicle(vehicle.id)} className="text-red-600 hover:text-red-700">
-                                                <Trash2 className="w-3 h-3" />
-                                            </Button>
-                                        </div>
-                                    </div>
+                                                {/* Keys */}
+                                                {team.requiredKeys.length > 0 && (
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex items-center gap-1">
+                                                            <KeySquare className="w-3.5 h-3.5 text-amber-600" /> Llaves ({team.requiredKeys.length})
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {team.requiredKeys.map((key, index) => (
+                                                                <span key={index} className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-md text-xs font-medium">
+                                                                    <KeySquare className="w-3 h-3" />{key.identifier} <span className="text-amber-600">({key.client_name.split(' ')[0]})</span>
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <Card className="border-0 shadow-sm">
+                                <CardContent className="py-16 text-center">
+                                    <Users className="w-14 h-14 text-slate-200 mx-auto mb-4" />
+                                    <h3 className="text-lg font-semibold text-slate-700 mb-1">No hay equipos para este día</h3>
+                                    <p className="text-slate-400 text-sm">No hay servicios con limpiadores asignados en el horario.</p>
                                 </CardContent>
                             </Card>
-                        ))}
-                    </div>
-                </TabsContent>
-            </Tabs>
+                        )}
+                    </TabsContent>
+
+                    {/* --- Pestaña de Vehículos --- */}
+                    <TabsContent value="vehicles" className="space-y-5">
+                        <div className="flex justify-between items-center">
+                            <p className="text-sm text-slate-500">{vehicles.length} vehículo{vehicles.length !== 1 ? 's' : ''} registrado{vehicles.length !== 1 ? 's' : ''}</p>
+                            <Button onClick={() => { setEditingVehicle(null); setShowVehicleForm(true); }} className="gap-2">
+                                <Plus className="w-4 h-4" /> Nuevo Vehículo
+                            </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {vehicles.map(vehicle => (
+                                <Card key={vehicle.id} className="border-0 shadow-sm hover:shadow-md transition-all overflow-hidden">
+                                    <div className={`h-1.5 w-full ${
+                                        vehicle.status === 'active' ? 'bg-green-500' :
+                                        vehicle.status === 'maintenance' ? 'bg-amber-500' : 'bg-red-400'
+                                    }`} />
+                                    <CardContent className="p-5">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                                                    vehicle.status === 'active' ? 'bg-green-100' :
+                                                    vehicle.status === 'maintenance' ? 'bg-amber-100' : 'bg-red-100'
+                                                }`}>
+                                                    <Car className={`w-6 h-6 ${
+                                                        vehicle.status === 'active' ? 'text-green-600' :
+                                                        vehicle.status === 'maintenance' ? 'text-amber-600' : 'text-red-500'
+                                                    }`} />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-slate-900">{vehicle.make} {vehicle.model}</h3>
+                                                    <p className="text-sm text-slate-500">{vehicle.year}{vehicle.color ? ` · ${vehicle.color}` : ''}</p>
+                                                </div>
+                                            </div>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(vehicle.status)}`}>
+                                                {getStatusLabel(vehicle.status)}
+                                            </span>
+                                        </div>
+
+                                        <div className="bg-slate-50 rounded-xl p-3 text-center mb-4">
+                                            <p className="font-mono text-xl font-bold text-slate-900 tracking-widest">{vehicle.license_plate}</p>
+                                            <p className="text-xs text-slate-400 mt-0.5">Matrícula</p>
+                                        </div>
+
+                                        {vehicle.photos && vehicle.photos.length > 0 && (
+                                            <div className="grid grid-cols-2 gap-2 mb-4">
+                                                <img src={vehicle.photos[0].url} alt="Foto" className="w-full h-20 object-cover rounded-lg" />
+                                                {vehicle.photos.length > 1 && (
+                                                    <div className="w-full h-20 bg-slate-100 flex items-center justify-center rounded-lg text-slate-500 text-sm font-medium">+{vehicle.photos.length - 1}</div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div className="flex gap-2">
+                                            <Button variant="outline" size="sm" onClick={() => handleEditVehicle(vehicle)} className="flex-1 gap-1">
+                                                <Edit className="w-3.5 h-3.5" /> Editar
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => handleDeleteVehicle(vehicle.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                            {vehicles.length === 0 && (
+                                <div className="col-span-3">
+                                    <Card className="border-0 shadow-sm">
+                                        <CardContent className="py-16 text-center">
+                                            <Car className="w-14 h-14 text-slate-200 mx-auto mb-4" />
+                                            <h3 className="text-lg font-semibold text-slate-700 mb-1">No hay vehículos registrados</h3>
+                                            <p className="text-slate-400 text-sm mb-4">Agrega el primer vehículo de tu flota</p>
+                                            <Button onClick={() => { setEditingVehicle(null); setShowVehicleForm(true); }} className="gap-2">
+                                                <Plus className="w-4 h-4" /> Nuevo Vehículo
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            )}
+                        </div>
+                    </TabsContent>
+                </Tabs>
             
             {/* --- Dialog para Formulario de Vehículo --- */}
             <Dialog open={showVehicleForm} onOpenChange={setShowVehicleForm}>
@@ -676,5 +743,6 @@ export default function GestionFlotaPage() {
                 </DialogContent>
             </Dialog>
         </div>
+    </div>
     );
 }
