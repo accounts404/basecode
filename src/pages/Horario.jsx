@@ -1562,18 +1562,22 @@ export default function HorarioPage() {
 
             {isCleanerView && (
               <div className="flex-shrink-0 bg-white border-b">
-                <div className="grid grid-cols-3 divide-x divide-slate-100">
+                <div className="divide-y divide-slate-100">
                     {/* Vehículo */}
-                    <div className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <div className="flex items-start gap-3 px-4 py-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 mt-0.5">
                             <Car className="w-4 h-4 text-blue-600" />
                         </div>
-                        <div className="min-w-0">
-                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Vehículo</p>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Vehículo</p>
                             {assignedVehicle ? (
                                 <>
-                                    <p className="text-sm font-bold text-slate-800 truncate">{assignedVehicle}</p>
-                                    {mainDriverName && <p className="text-xs text-slate-500 truncate">Cond: {mainDriverName}</p>}
+                                    <p className="text-sm font-bold text-slate-800">{assignedVehicle}</p>
+                                    {mainDriverName && (
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            <span className="font-medium">Conductor:</span> {mainDriverName}
+                                        </p>
+                                    )}
                                 </>
                             ) : (
                                 <p className="text-sm text-slate-400 italic">Sin asignar</p>
@@ -1582,33 +1586,40 @@ export default function HorarioPage() {
                     </div>
 
                     {/* Equipo */}
-                    <div className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                    <div className="flex items-start gap-3 px-4 py-3">
+                        <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0 mt-0.5">
                             <Users className="w-4 h-4 text-purple-600" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Equipo</p>
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Equipo del Día</p>
                             {Array.isArray(teamMembers) && teamMembers.length > 0 ? (
-                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                <div className="flex flex-col gap-1">
                                     {teamMembers.map((name, i) => (
-                                        <span key={i} className="inline-flex px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-xs font-medium">{name}</span>
+                                        <p key={i} className="text-sm font-medium text-slate-800">{name}</p>
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-sm text-slate-400 italic">Sin equipo</p>
+                                <p className="text-sm text-slate-400 italic">Sin equipo asignado</p>
                             )}
                         </div>
                     </div>
 
                     {/* Llaves */}
-                    <div className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                    <div className="flex items-start gap-3 px-4 py-3">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0 mt-0.5">
                             <KeySquare className="w-4 h-4 text-amber-600" />
                         </div>
-                        <div className="min-w-0">
-                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Llaves</p>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Llaves Necesarias</p>
                             {requiredKeys.length > 0 ? (
-                                <p className="text-sm font-bold text-slate-800 truncate">{requiredKeys.map(k => k.identifier).join(', ')}</p>
+                                <div className="flex flex-col gap-1">
+                                    {requiredKeys.map((k, i) => (
+                                        <p key={i} className="text-sm font-medium text-slate-800">
+                                            <span className="font-mono bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded text-xs mr-1.5">{k.identifier}</span>
+                                            <span className="text-slate-500 text-xs">{k.client_name}</span>
+                                        </p>
+                                    ))}
+                                </div>
                             ) : (
                                 <p className="text-sm text-slate-400 italic">Sin llaves</p>
                             )}
