@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { User } from "@/entities/User";
 import { WorkEntry } from "@/entities/WorkEntry";
@@ -392,256 +391,159 @@ export default function MisHorasPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 pb-24">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Mis Horas de Trabajo</h1>
-          <p className="text-slate-600">Revisa y gestiona tus entradas de trabajo</p>
-        </div>
+    <div className="min-h-screen bg-slate-50 pb-24">
+      <div className="max-w-2xl mx-auto px-4 pt-5">
 
         {success && (
-          <Alert className="mb-6 border-green-200 bg-green-50">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">{success}</AlertDescription>
-          </Alert>
+          <div className="mb-4 px-3 py-2.5 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+            <p className="text-sm text-green-800">{success}</p>
+          </div>
         )}
-
-        {/* Global Error Alert */}
         {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-5 w-5" />
-            <AlertDescription className="text-base">{error}</AlertDescription>
-          </Alert>
+          <div className="mb-4 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
         )}
 
-        {/* Filters - Optimizado para móvil */}
-        <Card className="mb-6 shadow-md border-0">
-          <CardContent className="p-4 space-y-4">
-            <div>
-              <Label className="text-sm font-semibold mb-2 block">Período</Label>
-              <PeriodSelector
-                selectedPeriod={selectedPeriod}
-                onPeriodChange={setSelectedPeriod}
-              />
-            </div>
-
-            {showFilters && (
-              <div className="space-y-4 pt-4 border-t border-slate-200">
-                <div>
-                  <Label className="text-sm font-semibold mb-2 block">Estado</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Todos los estados" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los estados</SelectItem>
-                      <SelectItem value="invoiced">Facturados</SelectItem>
-                      <SelectItem value="pending">Pendientes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-semibold mb-2 block">Cliente</Label>
-                  <Select value={clientFilter} onValueChange={setClientFilter}>
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Todos los clientes" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      <SelectItem value="all">Todos los clientes</SelectItem>
-                      {Array.from(new Set(workEntries.map(we => we.client_name)))
-                        .sort()
-                        .map(clientName => (
-                          <SelectItem key={clientName} value={clientName}>
-                            {clientName}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+        {/* Filters */}
+        <div className="bg-white rounded-2xl shadow-sm border-0 p-4 mb-4 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Período</p>
+            <PeriodSelector selectedPeriod={selectedPeriod} onPeriodChange={setSelectedPeriod} />
+          </div>
+          {showFilters && (
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Estado</p>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="invoiced">Facturados</SelectItem>
+                    <SelectItem value="pending">Pendientes</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Cliente</p>
+                <Select value={clientFilter} onValueChange={setClientFilter}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    <SelectItem value="all">Todos</SelectItem>
+                    {Array.from(new Set(workEntries.map(we => we.client_name))).sort().map(n => (
+                      <SelectItem key={n} value={n}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 py-1 transition-colors"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            {showFilters ? 'Ocultar filtros' : 'Más filtros'}
+          </button>
+        </div>
 
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="w-full h-12 text-slate-700 border-slate-300 hover:bg-slate-50"
-            >
-              <Filter className="w-5 h-5 mr-2" />
-              {showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
-            </Button>
-          </CardContent>
-        </Card>
+        {/* Summary Strip */}
+        {!loading && filteredEntries.length > 0 && (() => {
+          const s = calculateSummary();
+          return (
+            <div className="grid grid-cols-3 bg-slate-900 rounded-2xl shadow-sm mb-4 overflow-hidden">
+              <div className="text-center py-4 px-2 border-r border-slate-700">
+                <p className="text-lg font-bold text-white tabular-nums">{s.totalHours.toFixed(1)}h</p>
+                <p className="text-xs text-slate-400 mt-0.5">Horas</p>
+              </div>
+              <div className="text-center py-4 px-2 border-r border-slate-700">
+                <p className="text-lg font-bold text-green-400 tabular-nums">${s.totalAmount.toFixed(0)}</p>
+                <p className="text-xs text-slate-400 mt-0.5">Total</p>
+              </div>
+              <div className="text-center py-4 px-2">
+                <p className="text-lg font-bold text-white tabular-nums">{s.totalEntries}</p>
+                <p className="text-xs text-slate-400 mt-0.5">Servicios</p>
+              </div>
+            </div>
+          );
+        })()}
 
-        {/* Summary Cards - Apiladas verticalmente */}
-        {!loading && filteredEntries.length > 0 && (
-          <div className="grid gap-4 mb-6">
-            <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg border-0">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-100 text-sm mb-1">Total Horas</p>
-                    <p className="text-3xl font-bold">{calculateSummary().totalHours.toFixed(2)}h</p>
-                  </div>
-                  <Clock className="w-12 h-12 text-blue-300" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg border-0">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-100 text-sm mb-1">Total a Cobrar</p>
-                    <p className="text-3xl font-bold">${calculateSummary().totalAmount.toFixed(2)}</p>
-                  </div>
-                  <DollarSign className="w-12 h-12 text-green-300" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-lg border-0">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-slate-600 text-sm mb-1">Servicios</p>
-                    <p className="text-2xl font-bold text-slate-900">{calculateSummary().totalEntries}</p>
-                  </div>
-                  <FileText className="w-10 h-10 text-blue-600" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Work Entries List - Cards móviles */}
+        {/* Work Entries List */}
         {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-slate-600">Cargando entradas de trabajo...</p>
+          <div className="text-center py-16">
+            <div className="w-8 h-8 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-sm text-slate-500">Cargando...</p>
           </div>
-        ) : error ? ( // Display general error if any
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-5 w-5" />
-            <AlertDescription className="text-base">{error}</AlertDescription>
-          </Alert>
         ) : filteredEntries.length === 0 ? (
-          <Card className="shadow-md border-0">
-            <CardContent className="p-8 text-center">
-              <FileText className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                No hay entradas de trabajo
-              </h3>
-              <p className="text-slate-600 mb-6">
-                {workEntries.length === 0
-                  ? "Aún no tienes entradas de trabajo registradas para este período."
-                  : "No se encontraron entradas con los filtros aplicados."}
-              </p>
-              {workEntries.length === 0 && user?.active !== false && (
-                <Button onClick={() => { /* navigate(createPageUrl("RegistrarTrabajo")) */ console.log("Navigate to RegistrarTrabajo"); }}>
-                  Registrar Primer Trabajo
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          <div className="text-center py-16">
+            <FileText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+            <p className="font-semibold text-slate-600">No hay entradas</p>
+            <p className="text-sm text-slate-400 mt-1">
+              {workEntries.length === 0 ? 'Sin registros para este período.' : 'Sin resultados con los filtros aplicados.'}
+            </p>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {filteredEntries.map((entry) => (
-              <Card 
+              <div
                 key={entry.id}
-                className={`shadow-md border-0 ${entry.invoiced ? 'bg-green-50 border-green-200' : 'bg-white'}`}
+                className={`bg-white rounded-2xl shadow-sm overflow-hidden ${
+                  entry.invoiced ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-amber-400'
+                }`}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-slate-900 text-lg mb-1">
-                        {entry.client_name}
-                      </h3>
-                      <div className="flex items-center gap-2 text-sm text-slate-600 mb-2">
-                        <Calendar className="w-4 h-4" />
-                        {format(new Date(entry.work_date), 'PPP', { locale: es })}
-                      </div>
+                <div className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-slate-900 truncate">{entry.client_name}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">{format(new Date(entry.work_date), 'd MMM yyyy', { locale: es })}</p>
                     </div>
-                    {entry.invoiced ? (
-                      <Badge className="bg-green-600 text-white flex-shrink-0 px-3 py-1 text-sm font-medium">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Facturado
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="flex-shrink-0 bg-yellow-50 text-yellow-800 border-yellow-200 px-3 py-1 text-sm font-medium">
-                        Pendiente
-                      </Badge>
-                    )}
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ml-2 ${
+                      entry.invoiced ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {entry.invoiced ? 'Facturado' : 'Pendiente'}
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-slate-600 text-xs mb-1">Actividad</p>
-                      <p className="font-semibold text-slate-900">
-                        {ACTIVITY_LABELS[entry.activity]}
-                        {entry.activity === 'otros' && entry.other_activity && (
-                          <span className="block text-xs text-slate-600 mt-1">
-                            {entry.other_activity}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-slate-600 text-xs mb-1">Horas</p>
-                      <p className="font-semibold text-slate-900">
-                        {entry.hours}h
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-slate-600 text-xs mb-1">Tarifa</p>
-                      <p className="font-semibold text-slate-900">
-                        ${entry.hourly_rate.toFixed(2)}/h
-                      </p>
-                    </div>
-
-                    <div className="bg-blue-50 rounded-lg p-3">
-                      <p className="text-blue-600 text-xs mb-1">Total</p>
-                      <p className="font-bold text-blue-900 text-lg">
-                        ${entry.total_amount.toFixed(2)}
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-slate-500 text-xs bg-slate-50 px-2 py-1 rounded-lg">
+                      {ACTIVITY_LABELS[entry.activity]}
+                      {entry.activity === 'otros' && entry.other_activity ? ` — ${entry.other_activity}` : ''}
+                    </span>
+                    <span className="text-slate-600 text-xs">{entry.hours}h</span>
+                    <span className="text-slate-400 text-xs">${entry.hourly_rate.toFixed(2)}/h</span>
+                    <span className="ml-auto font-bold text-slate-900">${entry.total_amount.toFixed(2)}</span>
                   </div>
-
-                  {/* Action buttons visible only if not invoiced */}
-                  {!entry.invoiced && (
-                    <div className="flex gap-2 mt-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEditEntry(entry)}
-                        className="flex-1 h-11 border-blue-200 text-blue-600 hover:bg-blue-50"
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Editar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteEntry(entry)}
-                        className="flex-1 h-11 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Eliminar
-                      </Button>
-                    </div>
-                  )}
 
                   {entry.modified_by_cleaner && (
-                    <div className="mt-3 pt-3 border-t border-slate-200 flex items-center gap-2 text-xs text-amber-700">
-                      <AlertCircle className="w-4 h-4" />
-                      <span>Modificada por ti</span>
+                    <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> Modificada por ti
+                    </p>
+                  )}
+
+                  {!entry.invoiced && (
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
+                      <button
+                        onClick={() => handleEditEntry(entry)}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 py-2 rounded-lg transition-colors"
+                      >
+                        <Edit className="w-3.5 h-3.5" /> Editar
+                      </button>
+                      <button
+                        onClick={() => handleDeleteEntry(entry)}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 py-2 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                      </button>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         )}
