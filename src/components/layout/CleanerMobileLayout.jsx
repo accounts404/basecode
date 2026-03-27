@@ -127,99 +127,124 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   const isCurrentPage = (url) => location.pathname === url;
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
+    <div className="flex flex-col h-screen" style={{ backgroundColor: currentTheme.colors.background }}>
       {theme === 'christmas' && <ChristmasDecoration />}
-
-      {/* Header */}
-      <header className="flex-shrink-0 bg-white border-b border-slate-100 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 flex items-center justify-center">
-              <img
-                src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png"
-                alt="RedOak"
-                className="max-w-full max-h-full object-contain"
-              />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-900 leading-none">
-                {theme === 'christmas' ? `🎄 ¡Hola, ${user?.full_name?.split(' ')[0]}!` : user?.full_name?.split(' ')[0]}
-              </p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {theme === 'christmas' ? '¡Felices Fiestas! 🎅' : 'RedOak Cleaning'}
-              </p>
-            </div>
+      {/* Header móvil simple */}
+      <header 
+        className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0"
+        style={{ 
+          backgroundColor: 'white',
+          borderColor: currentTheme.colors.cardBorder,
+          background: theme === 'christmas' 
+            ? 'linear-gradient(135deg, #ffffff 0%, #fef2f2 100%)' 
+            : 'white'
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 flex items-center justify-center">
+            <img
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png"
+              alt="RedOak"
+              className="max-w-full max-h-full object-contain"
+            />
           </div>
-
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-red-500 transition-colors disabled:opacity-50"
-          >
-            {isLoggingOut ? (
-              <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-            ) : (
-              <LogOut className="w-3.5 h-3.5" />
-            )}
-            Salir
-          </button>
+          <div>
+            <h1 className="text-sm font-bold flex items-center gap-1" style={{ color: theme === 'christmas' ? '#dc2626' : '#0f172a' }}>
+              {theme === 'christmas' && <span>🎄</span>}
+              RedOak
+              {theme === 'christmas' && <span>✨</span>}
+            </h1>
+            <p className="text-xs" style={{ color: theme === 'christmas' ? '#065f46' : '#475569' }}>
+              {theme === 'christmas' ? `¡Feliz Navidad, ${user?.full_name?.split(' ')[0]}! 🎅` : user?.full_name}
+            </p>
+          </div>
         </div>
+        
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className={`p-2 rounded-lg transition-colors ${
+            isLoggingOut 
+              ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
+              : 'text-slate-600 hover:bg-red-50 hover:text-red-600'
+          }`}
+        >
+          {isLoggingOut ? (
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-600" />
+          ) : (
+            <LogOut className="w-5 h-5" />
+          )}
+        </button>
       </header>
 
-      {/* Active service warning */}
+      {/* Alerta de servicio activo */}
       {hasActiveService && location.pathname !== createPageUrl("ServicioActivo") && (
-        <div className="mx-4 mt-3 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
-          <Activity className="w-4 h-4 text-amber-600 flex-shrink-0" />
-          <p className="text-xs font-semibold text-amber-800">Tienes un servicio activo. Finalizalo primero.</p>
-        </div>
+        <Alert className="m-4 bg-amber-50 border-amber-300">
+          <Activity className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-900 font-medium">
+            ⚠️ Tienes un servicio activo. Debes finalizarlo antes de acceder a otras páginas.
+          </AlertDescription>
+        </Alert>
       )}
 
-      {/* Content */}
+      {/* Contenido principal con scroll */}
       <main className="flex-1 overflow-auto pb-20">
         {children}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 pb-safe z-50">
-        <div className="flex items-center justify-around px-2 pt-2 pb-3">
+      <nav 
+        className="fixed bottom-0 left-0 right-0 border-t px-2 py-2 safe-area-inset-bottom z-50"
+        style={{ 
+          backgroundColor: 'white',
+          borderColor: currentTheme.colors.cardBorder,
+          background: theme === 'christmas' 
+            ? 'linear-gradient(180deg, #fef2f2 0%, #ffffff 100%)' 
+            : 'white'
+        }}
+      >
+        <div className="flex items-center justify-around max-w-lg mx-auto">
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isCurrent = isCurrentPage(item.url);
-            const isBlocked = hasActiveService && item.url !== createPageUrl("ServicioActivo");
             const isActiveService = item.isActive;
-
+            
+            // 🔒 Bloquear navegación si hay servicio activo (excepto a ServicioActivo)
+            const isBlocked = hasActiveService && item.url !== createPageUrl("ServicioActivo");
+            
             if (isBlocked) {
               return (
-                <button key={item.title} disabled className="flex flex-col items-center gap-1 px-3 py-1 opacity-30 cursor-not-allowed">
-                  <Icon className="w-5 h-5 text-slate-400" />
-                  <span className="text-[10px] text-slate-400">{item.title}</span>
+                <button
+                  key={item.title}
+                  disabled
+                  className="flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg text-slate-300 cursor-not-allowed opacity-50"
+                >
+                  <Icon className="w-6 h-6 mb-1" />
+                  <span className="text-xs font-medium">{item.title}</span>
                 </button>
               );
             }
-
+            
             return (
               <Link
                 key={item.title}
                 to={item.url}
-                className="flex flex-col items-center gap-1 px-3 py-1 relative"
+                className={`flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg transition-colors ${
+                  isActiveService ? 'animate-pulse' : ''
+                }`}
+                style={
+                  isCurrent 
+                    ? { 
+                        backgroundColor: `${currentTheme.colors.primary}15`,
+                        color: currentTheme.colors.primary 
+                      }
+                    : isActiveService
+                    ? { color: '#16a34a' }
+                    : { color: '#64748b' }
+                }
               >
-                {isActiveService ? (
-                  <div className="relative">
-                    <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-md -mt-5 mb-0.5">
-                      <Icon className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-white animate-pulse" />
-                  </div>
-                ) : (
-                  <Icon className={`w-5 h-5 transition-colors ${isCurrent ? 'text-blue-600' : 'text-slate-400'}`} />
-                )}
-                <span className={`text-[10px] font-medium transition-colors ${
-                  isActiveService ? 'text-green-600' :
-                  isCurrent ? 'text-blue-600' : 'text-slate-400'
-                }`}>{item.title}</span>
-                {isCurrent && !isActiveService && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-blue-600 rounded-full" />
-                )}
+                <Icon className="w-6 h-6 mb-1" />
+                <span className="text-xs font-medium">{item.title}</span>
               </Link>
             );
           })}
