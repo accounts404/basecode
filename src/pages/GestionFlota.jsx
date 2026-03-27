@@ -685,64 +685,63 @@ export default function GestionFlotaPage() {
                         </div>
                     </TabsContent>
                 </Tabs>
-            
-            {/* --- Dialog para Formulario de Vehículo --- */}
-            <Dialog open={showVehicleForm} onOpenChange={setShowVehicleForm}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>{editingVehicle ? 'Editar Vehículo' : 'Nuevo Vehículo'}</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleSaveVehicle} className="space-y-6 pt-4">
-                        {/* Campos del formulario simplificados */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div>
-                                <Label htmlFor="make">Marca *</Label>
-                                <Input id="make" value={vehicleFormData.make} onChange={(e) => setVehicleFormData({...vehicleFormData, make: e.target.value})} required />
+
+                {/* --- Dialog para Formulario de Vehículo --- */}
+                <Dialog open={showVehicleForm} onOpenChange={setShowVehicleForm}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>{editingVehicle ? 'Editar Vehículo' : 'Nuevo Vehículo'}</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleSaveVehicle} className="space-y-6 pt-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                               <div>
+                                    <Label htmlFor="make">Marca *</Label>
+                                    <Input id="make" value={vehicleFormData.make} onChange={(e) => setVehicleFormData({...vehicleFormData, make: e.target.value})} required />
+                                </div>
+                                <div>
+                                    <Label htmlFor="model">Modelo *</Label>
+                                    <Input id="model" value={vehicleFormData.model} onChange={(e) => setVehicleFormData({...vehicleFormData, model: e.target.value})} required />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 <div>
+                                    <Label htmlFor="year">Año</Label>
+                                    <Input id="year" type="number" value={vehicleFormData.year} onChange={(e) => setVehicleFormData({...vehicleFormData, year: e.target.value})} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="license_plate">Matrícula *</Label>
+                                    <Input id="license_plate" value={vehicleFormData.license_plate} onChange={(e) => setVehicleFormData({...vehicleFormData, license_plate: e.target.value.toUpperCase()})} required />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="color">Color</Label>
+                                    <Input id="color" value={vehicleFormData.color} onChange={(e) => setVehicleFormData({...vehicleFormData, color: e.target.value})} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="status">Estado</Label>
+                                    <Select value={vehicleFormData.status} onValueChange={(value) => setVehicleFormData({...vehicleFormData, status: value})}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="active">Activo</SelectItem>
+                                            <SelectItem value="maintenance">En Mantenimiento</SelectItem>
+                                            <SelectItem value="out_of_service">Fuera de Servicio</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                             <div>
-                                <Label htmlFor="model">Modelo *</Label>
-                                <Input id="model" value={vehicleFormData.model} onChange={(e) => setVehicleFormData({...vehicleFormData, model: e.target.value})} required />
+                                <Label>Fotos del Vehículo</Label>
+                                <PhotoUploader uploadedUrls={vehicleFormData.photos} onUrlsChange={(photos) => setVehicleFormData({...vehicleFormData, photos})} />
                             </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div>
-                                <Label htmlFor="year">Año</Label>
-                                <Input id="year" type="number" value={vehicleFormData.year} onChange={(e) => setVehicleFormData({...vehicleFormData, year: e.target.value})} />
+                            <div className="flex justify-end gap-4">
+                                <Button type="button" variant="outline" onClick={handleCloseVehicleForm}>Cancelar</Button>
+                                <Button type="submit" className="bg-green-600 hover:bg-green-700">Guardar Vehículo</Button>
                             </div>
-                            <div>
-                                <Label htmlFor="license_plate">Matrícula *</Label>
-                                <Input id="license_plate" value={vehicleFormData.license_plate} onChange={(e) => setVehicleFormData({...vehicleFormData, license_plate: e.target.value.toUpperCase()})} required />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="color">Color</Label>
-                                <Input id="color" value={vehicleFormData.color} onChange={(e) => setVehicleFormData({...vehicleFormData, color: e.target.value})} />
-                            </div>
-                            <div>
-                                <Label htmlFor="status">Estado</Label>
-                                <Select value={vehicleFormData.status} onValueChange={(value) => setVehicleFormData({...vehicleFormData, status: value})}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="active">Activo</SelectItem>
-                                        <SelectItem value="maintenance">En Mantenimiento</SelectItem>
-                                        <SelectItem value="out_of_service">Fuera de Servicio</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        <div>
-                            <Label>Fotos del Vehículo</Label>
-                            <PhotoUploader uploadedUrls={vehicleFormData.photos} onUrlsChange={(photos) => setVehicleFormData({...vehicleFormData, photos})} />
-                        </div>
-                        <div className="flex justify-end gap-4">
-                            <Button type="button" variant="outline" onClick={handleCloseVehicleForm}>Cancelar</Button>
-                            <Button type="submit" className="bg-green-600 hover:bg-green-700">Guardar Vehículo</Button>
-                        </div>
-                    </form>
-                </DialogContent>
-            </Dialog>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+            </div>
         </div>
-    </div>
     );
 }
