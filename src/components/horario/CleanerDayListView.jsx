@@ -133,103 +133,99 @@ export default function CleanerDayListView({
 
     if (eventsForDate.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-                <div className="text-4xl mb-3">📅</div>
-                <h3 className="text-lg font-semibold text-slate-700 mb-1">
-                    No hay servicios
-                </h3>
-                <p className="text-sm text-slate-500">
-                    para {format(selectedDate, "d 'de' MMMM", { locale: es })}
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                    <Clock className="w-8 h-8 text-slate-300" />
+                </div>
+                <h3 className="text-base font-semibold text-slate-600 mb-1">Sin servicios</h3>
+                <p className="text-sm text-slate-400">
+                    {format(selectedDate, "d 'de' MMMM", { locale: es })}
                 </p>
             </div>
         );
     }
 
     return (
-        <div className="p-3 space-y-2 max-w-2xl mx-auto">
-            {/* Header compacto */}
-            <div className="text-center mb-3">
-                <h2 className="text-lg font-bold text-slate-900">
-                    {format(selectedDate, "EEEE", { locale: es })}
-                </h2>
-                <p className="text-xs text-slate-600">
-                    {format(selectedDate, "d 'de' MMMM, yyyy", { locale: es })}
-                </p>
-                <Badge variant="secondary" className="mt-1 text-xs px-2 py-0.5">
+        <div className="p-4 space-y-3 max-w-lg mx-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-1">
+                <div>
+                    <h2 className="text-base font-bold text-slate-800 capitalize">
+                        {format(selectedDate, "EEEE", { locale: es })}
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                        {format(selectedDate, "d 'de' MMMM, yyyy", { locale: es })}
+                    </p>
+                </div>
+                <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full">
                     {eventsForDate.length} servicio{eventsForDate.length !== 1 ? 's' : ''}
-                </Badge>
+                </span>
             </div>
 
-            {eventsForDate.map((event) => {
+            {eventsForDate.map((event, index) => {
                 const startTime = parseISOAsUTC(event.start_time);
                 const endTime = parseISOAsUTC(event.end_time);
                 const status = getCleanerStatus(event);
                 const isCancelled = event.status === 'cancelled';
+                const eventColor = event.color || '#3b82f6';
 
                 return (
-                    <Card 
+                    <div
                         key={event.id}
-                        className={`overflow-hidden transition-all duration-200 hover:shadow-md ${
-                            isCancelled ? 'opacity-50 bg-slate-50' : 'bg-white'
+                        className={`rounded-2xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md ${
+                            isCancelled ? 'opacity-60' : ''
                         }`}
-                        style={!isCancelled ? {
-                            borderLeft: `4px solid ${event.color || '#3b82f6'}`
-                        } : {}}
+                        style={{ border: `1px solid ${isCancelled ? '#e2e8f0' : eventColor + '30'}` }}
                     >
-                        <CardContent className="p-2.5">
-                            {/* Nombre del cliente */}
-                            <div className="mb-1.5">
-                                <h3 className={`text-sm font-bold leading-tight ${
-                                    isCancelled ? 'line-through text-slate-500' : 'text-slate-900'
-                                }`}>
-                                    {event.client_name}
-                                </h3>
-                            </div>
+                        {/* Color bar top */}
+                        <div className="h-1.5 w-full" style={{ backgroundColor: isCancelled ? '#cbd5e1' : eventColor }} />
 
-                            {/* Hora y Estado en una fila */}
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-1 text-slate-600">
-                                    <Clock className="w-3 h-3 flex-shrink-0" />
-                                    <span className="text-xs font-medium">
-                                        {formatTimeUTC(startTime)} - {formatTimeUTC(endTime)}
-                                    </span>
+                        <div className="bg-white p-3.5">
+                            {/* Cabecera: hora + estado */}
+                            <div className="flex items-start justify-between mb-2">
+                                <div>
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                        <span className="text-sm font-bold text-slate-700">
+                                            {formatTimeUTC(startTime)} – {formatTimeUTC(endTime)}
+                                        </span>
+                                    </div>
+                                    <h3 className={`text-base font-bold leading-tight ${
+                                        isCancelled ? 'line-through text-slate-400' : 'text-slate-900'
+                                    }`}>
+                                        {event.client_name}
+                                    </h3>
                                 </div>
 
-                                {/* Badge de estado más prominente */}
-                                {status && !isCancelled && (
-                                    <Badge 
-                                        className={`${status.color} text-xs font-bold px-2 py-1 rounded border flex items-center gap-1 ${
-                                            status.type === 'in_progress' ? 'animate-pulse' : ''
-                                        }`}
-                                    >
-                                        <span className="text-sm">{status.icon}</span>
+                                {isCancelled ? (
+                                    <span className="text-xs bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-full">CANCELADO</span>
+                                ) : status && (
+                                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${
+                                        status.type === 'in_progress' ? 'bg-green-100 text-green-700 animate-pulse' :
+                                        status.type === 'completed' ? 'bg-slate-100 text-slate-600' :
+                                        'bg-blue-100 text-blue-700'
+                                    }`}>
+                                        <span>{status.icon}</span>
                                         <span>{status.label}</span>
-                                    </Badge>
-                                )}
-
-                                {isCancelled && (
-                                    <Badge variant="destructive" className="text-xs px-2 py-1 font-bold">
-                                        CANCELADO
-                                    </Badge>
+                                    </span>
                                 )}
                             </div>
 
-                            {/* Botones compactos en una sola fila */}
-                            <div className="flex gap-1.5">
+                            {/* Botones */}
+                            <div className="flex gap-2 mt-3">
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => onSelectEvent(event)}
-                                    className="flex-1 h-7 text-[11px] px-2"
+                                    className="flex-1 h-8 text-xs font-semibold rounded-xl border-slate-200 text-slate-600"
                                 >
                                     Ver Detalles
                                 </Button>
 
                                 {status?.type === 'in_progress' && currentUser?.id === selectedCleanerId && (
                                     <Button 
-                                        variant="default"
                                         size="sm"
-                                        className="flex-1 h-7 text-[11px] px-2 bg-red-600 hover:bg-red-700 text-white"
+                                        className="flex-1 h-8 text-xs font-semibold rounded-xl bg-red-500 hover:bg-red-600 text-white"
                                         onClick={(e) => { 
                                             e.stopPropagation(); 
                                             handleClockOut(event); 
@@ -237,21 +233,15 @@ export default function CleanerDayListView({
                                         disabled={processingSchedules?.has(event.id)}
                                     >
                                         {processingSchedules?.has(event.id) ? (
-                                            <>
-                                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1" />
-                                                <span className="text-[10px]">Cerrando...</span>
-                                            </>
+                                            <><div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1.5" />Cerrando...</>
                                         ) : (
-                                            <>
-                                                <Square className="w-3 h-3 mr-1" />
-                                                Cerrar
-                                            </>
+                                            <><Square className="w-3.5 h-3.5 mr-1.5" />Cerrar Servicio</>
                                         )}
                                     </Button>
                                 )}
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
                 );
             })}
         </div>
