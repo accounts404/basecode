@@ -1425,113 +1425,128 @@ export default function HorarioPage() {
         <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: currentTheme.colors.background }}>
             <Toaster />
             {isCleanerView ? (
-                <header className="flex-shrink-0 bg-white border-b" style={{ borderColor: currentTheme.colors.cardBorder }}>
-                    <div className="flex items-center justify-between p-4">
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-lg font-bold flex items-center gap-2" style={{ color: currentTheme.colors.primary }}>
-                                <CalendarIcon className="w-5 h-5" style={{ color: currentTheme.colors.primary }} />
-                                {theme === 'christmas' && <span>🎄</span>}
-                                Mi Horario
-                                {theme === 'christmas' && <span>🎁</span>}
-                                {!loading && (
-                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
-                                )}
-                            </h1>
+                <header className="flex-shrink-0 bg-white border-b shadow-sm" style={{ borderColor: currentTheme.colors.cardBorder }}>
+                    <div className="flex items-center justify-between px-4 py-3">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                                <CalendarIcon className="w-4 h-4 text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                                    {theme === 'christmas' && <span>🎄</span>}
+                                    Mi Horario
+                                    {theme === 'christmas' && <span>🎁</span>}
+                                </h1>
+                                <p className="text-xs text-slate-400 capitalize">{format(date, "EEEE, d 'de' MMMM", { locale: es })}</p>
+                            </div>
+                            {!loading && (
+                                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
+                            )}
                         </div>
-                        
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             onClick={handleRefresh}
                             disabled={refreshing}
                             size="sm"
-                            className="flex items-center gap-1 hover:bg-blue-50"
+                            className="text-slate-500 hover:text-slate-800"
                         >
                             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                         </Button>
                     </div>
                 </header>
             ) : (
-                <header className="flex-shrink-0 bg-white border-b p-2 md:p-4">
-                    <div className="flex flex-col gap-2 md:gap-0 md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-lg md:text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <CalendarIcon className="w-5 h-5 text-blue-600" />
-                                Horario de Servicios
+                <header className="flex-shrink-0 bg-white border-b shadow-sm">
+                    <div className="px-4 md:px-6 py-3 flex flex-col gap-3">
+                        {/* Title row */}
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
+                                    <CalendarIcon className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-lg font-bold text-slate-900 leading-tight">Horario de Servicios</h1>
+                                    <p className="text-xs text-slate-400 capitalize hidden sm:block">{format(date, "EEEE, d 'de' MMMM yyyy", { locale: es })}</p>
+                                </div>
                                 {!loading && (
                                     <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
                                 )}
-                            </h1>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1 md:gap-2 mt-2 md:mt-4">
-                        <div className="flex items-center gap-1">
-                            <Button variant="outline" size="sm" onClick={handlePrev}><ChevronLeft className="w-4 h-4" /></Button>
-                            <Button variant="outline" size="sm" onClick={handleToday}>Hoy</Button>
-                            <Button variant="outline" size="sm" onClick={handleNext}><ChevronRight className="w-4 h-4" /></Button>
-                        </div>
-
-                        <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                            <PopoverTrigger asChild>
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <Button
-                                    variant={"outline"}
-                                    className="text-xs md:text-sm w-auto justify-center text-left font-semibold text-slate-700"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCreateTask}
+                                    className="bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1.5"
                                 >
-                                    {view === 'day' ? format(date, 'd MMM yyyy', { locale: es }) :
-                                     view === 'week' ? `Semana del ${format(startOfWeek(date, { weekStartsOn: 1 }), 'd MMM', { locale: es })}` :
-                                     format(date, 'MMM yyyy', { locale: es })}
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline text-xs font-semibold">Tarea</span>
                                 </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                    mode="single"
-                                    selected={date}
-                                    onSelect={handleDateSelect}
-                                    initialFocus
-                                    locale={es}
-                                />
-                            </PopoverContent>
-                        </Popover>
-
-                        <div className="flex items-center gap-1">
-                            <Button variant={view === 'day' ? 'default' : 'outline'} size="sm" onClick={() => setView('day')}>Día</Button>
-                            <Button variant={view === 'week' ? 'default' : 'outline'} size="sm" onClick={() => setView('week')}>Semana</Button>
-                            <Button variant={view === 'month' ? 'default' : 'outline'} size="sm" onClick={() => setView('month')}>Mes</Button>
-                            <Button variant={view === 'teams' ? 'default' : 'outline'} size="sm" onClick={() => setView('teams')}>Equipos</Button>
-                            <Button variant={view === 'color' ? 'default' : 'outline'} size="sm" onClick={() => setView('color')}>Por Color</Button>
+                                <Button
+                                    onClick={() => { setSelectedEvent(null); setShowForm(true); }}
+                                    size="sm"
+                                    className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1.5"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline text-xs font-semibold">Servicio</span>
+                                </Button>
+                            </div>
                         </div>
 
-                        <Button
-                            variant="outline"
-                            onClick={handleRefresh}
-                            disabled={refreshing}
-                            size="sm"
-                            className="flex items-center gap-1"
-                        >
-                            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                            <span className="hidden sm:inline">Actualizar</span>
-                        </Button>
+                        {/* Controls row */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {/* Date navigation group */}
+                            <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+                                <Button variant="ghost" size="sm" onClick={handlePrev} className="h-7 w-7 p-0 hover:bg-white rounded-md">
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Button>
+                                <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="h-7 px-3 font-semibold text-slate-700 hover:bg-white rounded-md text-xs">
+                                            {view === 'day' ? format(date, 'd MMM yyyy', { locale: es }) :
+                                             view === 'week' ? `Sem. ${format(startOfWeek(date, { weekStartsOn: 1 }), 'd MMM', { locale: es })}` :
+                                             format(date, 'MMM yyyy', { locale: es })}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={date} onSelect={handleDateSelect} initialFocus locale={es} />
+                                    </PopoverContent>
+                                </Popover>
+                                <Button variant="ghost" size="sm" onClick={handleNext} className="h-7 w-7 p-0 hover:bg-white rounded-md">
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
 
-                        <div className="flex items-center gap-1">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleCreateTask}
-                                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-1"
-                            >
-                                <Plus className="w-4 h-4" />
-                                <span className="hidden sm:inline">Tarea</span>
+                            <Button variant="outline" size="sm" onClick={handleToday} className="h-7 px-3 text-xs font-semibold border-slate-200 text-slate-600 hover:bg-slate-50">
+                                Hoy
                             </Button>
+
+                            <div className="w-px h-5 bg-slate-200 hidden sm:block" />
+
+                            {/* View toggle group */}
+                            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
+                                {[['day','Día'],['week','Semana'],['month','Mes'],['teams','Equipos'],['color','Colores']].map(([v, label]) => (
+                                    <button
+                                        key={v}
+                                        onClick={() => setView(v)}
+                                        className={`h-7 px-2.5 rounded-md text-xs font-semibold transition-all ${
+                                            view === v
+                                                ? 'bg-white text-blue-700 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+
                             <Button
-                                onClick={() => {
-                                    setSelectedEvent(null);
-                                    setShowForm(true);
-                                }}
+                                variant="ghost"
+                                onClick={handleRefresh}
+                                disabled={refreshing}
                                 size="sm"
-                                className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1"
+                                className="h-7 px-2 text-slate-400 hover:text-slate-700"
                             >
-                                <Plus className="w-4 h-4" />
-                                <span className="hidden sm:inline">Servicio</span>
+                                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                             </Button>
                         </div>
                     </div>
@@ -1546,75 +1561,60 @@ export default function HorarioPage() {
             )}
 
             {isCleanerView && (
-              <div className="flex-shrink-0 bg-blue-50 border-b border-t border-blue-200">
-                <Accordion type="single" collapsible defaultValue="info-dia" className="w-full">
-                    <AccordionItem value="info-dia" className="border-none">
-                        <AccordionTrigger className="hover:no-underline py-2 px-3 mx-2 my-2 bg-white rounded-lg shadow-sm hover:bg-slate-50 transition-colors">
-                            <div className="flex items-center gap-2">
-                                <Info className="w-5 h-5 text-blue-600" />
-                                <span className="font-semibold text-slate-900">Información del Día</span>
-                            </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="px-2 pb-2">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                <div className="p-2 md:p-3 bg-white rounded-lg shadow-sm flex items-center gap-2 md:gap-3">
-                                    <Car className="w-5 md:w-6 h-5 md:h-6 text-blue-600 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-xs text-slate-500 font-semibold">Vehículo Hoy</p>
-                                        {assignedVehicle ? (
-                                            <>
-                                                <p className="text-sm md:text-base text-slate-900 font-bold truncate">{assignedVehicle}</p>
-                                                {mainDriverName && (
-                                                    <p className="text-xs text-slate-600 mt-1">
-                                                        <span className="font-semibold">Conductor:</span> {mainDriverName}
-                                                    </p>
-                                                )}
-                                            </>
-                                        ) : (
-                                            <p className="text-sm text-slate-400 italic">Sin asignar</p>
-                                        )}
-                                    </div>
-                                </div>
+              <div className="flex-shrink-0 bg-white border-b">
+                <div className="grid grid-cols-3 divide-x divide-slate-100">
+                    {/* Vehículo */}
+                    <div className="flex items-center gap-3 px-4 py-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <Car className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Vehículo</p>
+                            {assignedVehicle ? (
+                                <>
+                                    <p className="text-sm font-bold text-slate-800 truncate">{assignedVehicle}</p>
+                                    {mainDriverName && <p className="text-xs text-slate-500 truncate">Cond: {mainDriverName}</p>}
+                                </>
+                            ) : (
+                                <p className="text-sm text-slate-400 italic">Sin asignar</p>
+                            )}
+                        </div>
+                    </div>
 
-                                <div className="p-2 md:p-3 bg-white rounded-lg shadow-sm flex items-center gap-2 md:gap-3">
-                                    <Users className="w-5 md:w-6 h-5 md:h-6 text-purple-600 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-xs text-slate-500 font-semibold">Equipo del Día</p>
-                                        {Array.isArray(teamMembers) && teamMembers.length > 0 ? (
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                {teamMembers.map((memberName, index) => (
-                                                    <Badge
-                                                        key={index}
-                                                        variant="secondary"
-                                                        className="text-xs"
-                                                    >
-                                                        {memberName}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm text-slate-400 italic">Sin equipo asignado</p>
-                                        )}
-                                    </div>
+                    {/* Equipo */}
+                    <div className="flex items-center gap-3 px-4 py-3">
+                        <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                            <Users className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Equipo</p>
+                            {Array.isArray(teamMembers) && teamMembers.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                    {teamMembers.map((name, i) => (
+                                        <span key={i} className="inline-flex px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-xs font-medium">{name}</span>
+                                    ))}
                                 </div>
+                            ) : (
+                                <p className="text-sm text-slate-400 italic">Sin equipo</p>
+                            )}
+                        </div>
+                    </div>
 
-                                <div className="p-2 md:p-3 bg-white rounded-lg shadow-sm flex items-center gap-2 md:gap-3">
-                                    <KeySquare className="w-5 md:w-6 h-5 md:h-6 text-orange-600 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-xs text-slate-500 font-semibold">Llaves Necesarias</p>
-                                        {requiredKeys.length > 0 ? (
-                                            <p className="text-sm md:text-base text-slate-900 font-bold truncate">
-                                                {requiredKeys.map(k => k.identifier).join(', ')}
-                                            </p>
-                                        ) : (
-                                            <p className="text-sm text-slate-400 italic">Sin llaves</p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </AccordionContent>
-                    </AccordionItem>
-                </Accordion>
+                    {/* Llaves */}
+                    <div className="flex items-center gap-3 px-4 py-3">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                            <KeySquare className="w-4 h-4 text-amber-600" />
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Llaves</p>
+                            {requiredKeys.length > 0 ? (
+                                <p className="text-sm font-bold text-slate-800 truncate">{requiredKeys.map(k => k.identifier).join(', ')}</p>
+                            ) : (
+                                <p className="text-sm text-slate-400 italic">Sin llaves</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
               </div>
             )}
 
