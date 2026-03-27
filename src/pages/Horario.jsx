@@ -1631,17 +1631,7 @@ export default function HorarioPage() {
             )}
 
             <div className="flex-grow overflow-hidden flex flex-col min-h-0">
-                <div className="flex-1 overflow-auto bg-white relative">
-                    <div
-                        className="absolute inset-0 pointer-events-none z-0"
-                        style={{
-                            backgroundImage: `url(https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png)`,
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'center center',
-                            backgroundSize: '320px',
-                            opacity: 0.04
-                        }}
-                    />
+                <div className="flex-1 overflow-auto bg-white">
                     <div className="w-full h-full">
                         <Suspense fallback={
                             <div className="flex items-center justify-center h-full">
