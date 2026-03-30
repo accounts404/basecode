@@ -24,6 +24,16 @@
       "default": "domestic",
       "description": "Tipo de cliente"
     },
+    "start_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha en que el cliente inici\u00f3 con la empresa"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha en que el cliente dej\u00f3 de ser cliente (para calcular promedio de permanencia)"
+    },
     "funding_document_url": {
       "type": "string",
       "description": "URL del documento soporte (PDF) del cliente con financiamiento especial"

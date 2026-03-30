@@ -11,7 +11,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PlusCircle, Edit, Trash2, Search, X, AlertTriangle, KeySquare, Eye, EyeOff, FileSignature, History, FileText, Upload, ExternalLink, Users, UserCheck, UserX, Star, Filter, Phone, MapPin, DollarSign, Calendar } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Search, X, AlertTriangle, KeySquare, Eye, EyeOff, FileSignature, History, FileText, Upload, ExternalLink, Users, UserCheck, UserX, Star, Filter, Phone, MapPin, DollarSign, Calendar, Clock, TrendingDown } from 'lucide-react';
+import { differenceInMonths, differenceInDays, parseISO } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import PhotoUploader from '../components/horario/PhotoUploader';
 import ServicePriceManager from '../components/clients/ServicePriceManager';
@@ -85,6 +86,8 @@ export default function ClientesPage() {
         property_stories: '',
         num_bedrooms: '',
         num_bathrooms: '',
+        start_date: '',
+        end_date: '',
     }), []);
 
     const [formData, setFormData] = useState(defaultFormData);
@@ -162,6 +165,8 @@ export default function ClientesPage() {
         funding_document_url: client.funding_document_url || '',
         funding_document_start_date: client.funding_document_start_date || '',
         funding_document_end_date: client.funding_document_end_date || '',
+        start_date: client.start_date || '',
+        end_date: client.end_date || '',
         });
         setShowForm(true);
     }, [defaultFormData]);
@@ -255,6 +260,44 @@ export default function ClientesPage() {
 
     // Removed: viewingHistoryClient memo as history will be on a separate page
 
+    // Calcular antigüedad de un cliente en texto legible
+    const getClientSeniority = (client) => {
+        const ref = client.start_date ? parseISO(client.start_date) : (client.created_date ? new Date(client.created_date) : null);
+        if (!ref) return '—';
+        const end = (client.active === false && client.end_date) ? parseISO(client.end_date) : new Date();
+        const months = differenceInMonths(end, ref);
+        if (months < 1) {
+            const days = differenceInDays(end, ref);
+            return `${days}d`;
+        }
+        if (months < 12) return `${months}m`;
+        const years = Math.floor(months / 12);
+        const rem = months % 12;
+        return rem > 0 ? `${years}a ${rem}m` : `${years}a`;
+    };
+
+    // Calcular promedio de permanencia por tipo (solo clientes inactivos con fecha de inicio)
+    const avgByType = useMemo(() => {
+        const result = {};
+        clients.forEach(client => {
+            if (client.active !== false) return; // solo inactivos
+            const ref = client.start_date ? parseISO(client.start_date) : (client.created_date ? new Date(client.created_date) : null);
+            if (!ref) return;
+            const end = client.end_date ? parseISO(client.end_date) : new Date();
+            const months = differenceInMonths(end, ref);
+            const type = client.client_type || 'domestic';
+            if (!result[type]) result[type] = { total: 0, count: 0 };
+            result[type].total += months;
+            result[type].count += 1;
+        });
+        return Object.entries(result).map(([type, { total, count }]) => ({
+            type,
+            label: CLIENT_TYPE_LABELS[type] || type,
+            avg: count > 0 ? Math.round(total / count) : 0,
+            count,
+        })).sort((a, b) => b.avg - a.avg);
+    }, [clients]);
+
     const activeCount = clients.filter(c => c.active !== false).length;
     const inactiveCount = clients.filter(c => c.active === false).length;
     const specialCount = clients.filter(c => FUNDED_CLIENT_TYPES.includes(c.client_type)).length;
@@ -276,6 +319,29 @@ export default function ClientesPage() {
                         <PlusCircle className="h-4 w-4" /> Nuevo Cliente
                     </Button>
                 </div>
+
+                {/* Promedio de permanencia por tipo */}
+                {avgByType.length > 0 && (
+                    <div className="mb-6">
+                        <div className="flex items-center gap-2 mb-3">
+                            <TrendingDown className="w-4 h-4 text-slate-500" />
+                            <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">Promedio de permanencia por tipo (clientes inactivos)</h2>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {avgByType.map(({ type, label, avg, count }) => (
+                                <Card key={type} className="border-0 shadow-sm bg-white">
+                                    <CardContent className="p-3">
+                                        <p className="text-xs text-slate-500 mb-1">{label}</p>
+                                        <p className="text-xl font-bold text-slate-800">
+                                            {avg >= 12 ? `${Math.floor(avg/12)}a ${avg%12>0?avg%12+'m':''}` : `${avg}m`}
+                                        </p>
+                                        <p className="text-xs text-slate-400">{count} cliente{count !== 1 ? 's' : ''}</p>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* KPI Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -399,6 +465,7 @@ export default function ClientesPage() {
                                         </button>
                                     </div>
                                 </TableHead>
+                                <TableHead className="font-semibold text-slate-700">Antigüedad</TableHead>
                                 <TableHead className="font-semibold text-slate-700">Estado</TableHead>
                                 <TableHead className="font-semibold text-slate-700">Acceso</TableHead>
                                 <TableHead className="text-right font-semibold text-slate-700">Acciones</TableHead>
@@ -456,9 +523,18 @@ export default function ClientesPage() {
                                             </span>
                                         </TableCell>
                                         <TableCell className="py-3">
-                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                                client.active !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'
-                                            }`}>
+                                            <div className="flex items-center gap-1 text-slate-600">
+                                                <Clock className="w-3 h-3 flex-shrink-0" />
+                                                <span className="text-xs font-medium">{getClientSeniority(client)}</span>
+                                            </div>
+                                            {client.start_date && (
+                                                <p className="text-xs text-slate-400 mt-0.5">{client.start_date}</p>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="py-3">
+                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                 client.active !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-700'
+                                             }`}>
                                                 <span className={`w-1.5 h-1.5 rounded-full ${ client.active !== false ? 'bg-green-500' : 'bg-red-500' }`} />
                                                 {client.active !== false ? 'Activo' : 'Inactivo'}
                                             </span>
@@ -528,6 +604,28 @@ export default function ClientesPage() {
                                 {/* Basic Information Tab */}
                                 <TabsContent value="basic" className="space-y-6 p-1">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-2">
+                                           <div className="space-y-2">
+                                               <Label htmlFor="start_date">Fecha de Inicio como Cliente</Label>
+                                               <Input
+                                                   id="start_date"
+                                                   type="date"
+                                                   value={formData.start_date || ''}
+                                                   onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                                               />
+                                               <p className="text-xs text-slate-500">Si no se indica, se usará la fecha de creación del registro.</p>
+                                           </div>
+                                           <div className="space-y-2">
+                                               <Label htmlFor="end_date">Fecha de Baja (si aplica)</Label>
+                                               <Input
+                                                   id="end_date"
+                                                   type="date"
+                                                   value={formData.end_date || ''}
+                                                   onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                                               />
+                                               <p className="text-xs text-slate-500">Completa si el cliente ya no está activo.</p>
+                                           </div>
+                                        </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="name">Nombre</Label>
                                             <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required />
