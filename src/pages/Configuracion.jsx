@@ -338,20 +338,20 @@ export default function ConfiguracionPage() {
 
                         <Alert>
                            <Info className="h-4 w-4" />
-                            <AlertDescription>
-                                <h5 className="font-bold mb-2">Variables Disponibles:</h5>
-                                <ul className="list-disc pl-5 space-y-1 text-sm">
-                                    <li><code className="bg-slate-200 px-1 rounded">{`{client_name}`}</code>: Nombre del cliente.</li>
-                                    <li><code className="bg-slate-200 px-1 rounded">{`{cleaner_name}`}</code>: Nombre del limpiador principal.</li>
-                                    <li><code className="bg-slate-200 px-1 rounded">{`{service_time}`}</code>: Hora de inicio del servicio (ej: 09:00 AM).</li>
-                                    <li><code className="bg-slate-200 px-1 rounded">{`{service_date}`}</code>: Fecha del servicio (ej: 25 de Diciembre).</li>
-                                    <li><code className="bg-slate-200 px-1 rounded">{`{service_date}`}</code> y <code className="bg-slate-200 px-1 rounded">{`{service_time}`}</code>: Disponibles también en la plantilla de cancelación.</li>
-                                    </ul>
-                                    </AlertDescription>
-                        </Alert>
+                             <AlertDescription>
+                                 <h5 className="font-bold mb-2">Variables Disponibles:</h5>
+                                 <ul className="list-disc pl-5 space-y-1 text-sm">
+                                     <li><code className="bg-slate-200 px-1 rounded">{`{client_name}`}</code>: Nombre del cliente.</li>
+                                     <li><code className="bg-slate-200 px-1 rounded">{`{cleaner_name}`}</code>: Nombre del limpiador principal.</li>
+                                     <li><code className="bg-slate-200 px-1 rounded">{`{service_time}`}</code>: Hora de inicio del servicio (ej: 09:00 AM).</li>
+                                     <li><code className="bg-slate-200 px-1 rounded">{`{service_date}`}</code>: Fecha del servicio (ej: 25 de Diciembre).</li>
+                                     <li><code className="bg-slate-200 px-1 rounded">{`{service_date}`}</code> y <code className="bg-slate-200 px-1 rounded">{`{service_time}`}</code>: Disponibles también en la plantilla de cancelación.</li>
+                                 </ul>
+                             </AlertDescription>
+                         </Alert>
 
-                        
-                    </CardContent>
+
+                        </CardContent>
                 </Card>
 
                 {/* Configuración de Temas */}
