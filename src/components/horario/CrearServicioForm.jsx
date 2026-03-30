@@ -1106,6 +1106,10 @@ export default function CrearServicioForm({
                 schedule={schedule}
                 selectedClient={selectedClient}
                 initialText={cancellationSmsText}
+                onScheduleUpdated={(updated) => {
+                    setFormData(prev => ({ ...prev, status: 'cancelled' }));
+                    if (onUpdateSchedule) onUpdateSchedule(updated);
+                }}
             />
 
             {isReadOnly && schedule ? (

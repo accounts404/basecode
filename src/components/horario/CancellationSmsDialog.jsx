@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { MessageSquare, Send, Loader2 } from 'lucide-react';
 import { sendCancellationSms } from '@/functions/sendCancellationSms';
 
-export default function CancellationSmsDialog({ open, onClose, schedule, selectedClient, initialText }) {
+export default function CancellationSmsDialog({ open, onClose, schedule, selectedClient, initialText, onScheduleUpdated }) {
     const [smsText, setSmsText] = useState(initialText || '');
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
@@ -25,7 +26,10 @@ export default function CancellationSmsDialog({ open, onClose, schedule, selecte
         try {
             const { data } = await sendCancellationSms({ scheduleId: schedule.id, customMessage: smsText });
             if (data.success) {
-                setResult({ success: true, message: '¡SMS de cancelación enviado exitosamente!' });
+                // Also update the schedule status to cancelled
+                await base44.entities.Schedule.update(schedule.id, { status: 'cancelled' });
+                if (onScheduleUpdated) onScheduleUpdated({ ...schedule, status: 'cancelled' });
+                setResult({ success: true, message: '¡SMS de cancelación enviado y servicio marcado como Cancelado!' });
                 setTimeout(() => onClose(), 2000);
             } else {
                 setResult({ success: false, message: data.error || 'Error al enviar el SMS.' });
