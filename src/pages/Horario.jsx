@@ -373,8 +373,8 @@ export default function HorarioPage() {
         }
 
         try {
-            const dayBefore = subDays(forDate, 2);
-            const dayAfter = addDays(forDate, 2);
+            const dayBefore = subDays(forDate, 7);
+            const dayAfter = addDays(forDate, 7);
 
             // Construir fechas UTC desde la fecha LOCAL seleccionada
             const startYear = dayBefore.getFullYear();
