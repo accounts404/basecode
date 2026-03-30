@@ -14,6 +14,7 @@ import ThemeConfigurator from '@/components/theme/ThemeConfigurator';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
 const defaultOnMyWayTemplate = `Hola {client_name}, tu limpiador de RedOak, {cleaner_name}, va de camino para tu servicio. ¡Nos vemos pronto!`;
+const defaultCancellationTemplate = `Hola {client_name}, lamentamos informarte que tu servicio de limpieza de RedOak programado para el {service_date} a las {service_time} ha sido cancelado. Por favor contáctanos para reprogramar. ¡Disculpa los inconvenientes!`;
 const defaultReminderTemplate = `Hola {client_name}, te recordamos tu servicio de limpieza de RedOak programado para mañana a las {service_time}. ¡Gracias!`;
 const defaultUpdateTemplate = `Hola {client_name}, tu servicio con RedOak ha sido actualizado. Nuevos detalles:\nFecha: {service_date}\nHora: {service_time}.\nSi tienes alguna pregunta, contáctanos.`;
 const defaultMotivationalMessage = '¡Hoy es un gran día para brillar! Da lo mejor de ti y haz que cada cliente sonría. 💪✨';
@@ -29,6 +30,7 @@ export default function ConfiguracionPage() {
         on_my_way: '',
         service_reminder: '',
         service_update: '',
+        cancellation: '',
     });
     const [reminderConfig, setReminderConfig] = useState({
         enabled: false,
@@ -55,6 +57,7 @@ export default function ConfiguracionPage() {
                     on_my_way: currentUser.sms_templates?.on_my_way || defaultOnMyWayTemplate,
                     service_reminder: currentUser.sms_templates?.service_reminder || defaultReminderTemplate,
                     service_update: currentUser.sms_templates?.service_update || defaultUpdateTemplate,
+                    cancellation: currentUser.sms_templates?.cancellation || defaultCancellationTemplate,
                 });
                 
                 setReminderConfig({
@@ -320,6 +323,19 @@ export default function ConfiguracionPage() {
                             />
                         </div>
 
+                        <div className="space-y-3">
+                            <Label htmlFor="cancellation" className="text-lg font-semibold">
+                                Mensaje "Cancelación de Servicio" (Manual)
+                            </Label>
+                            <Textarea
+                                id="cancellation"
+                                value={templates.cancellation}
+                                onChange={(e) => setTemplates({ ...templates, cancellation: e.target.value })}
+                                rows={4}
+                                className="text-base"
+                            />
+                        </div>
+
                         <Alert>
                            <Info className="h-4 w-4" />
                             <AlertDescription>
@@ -329,8 +345,9 @@ export default function ConfiguracionPage() {
                                     <li><code className="bg-slate-200 px-1 rounded">{`{cleaner_name}`}</code>: Nombre del limpiador principal.</li>
                                     <li><code className="bg-slate-200 px-1 rounded">{`{service_time}`}</code>: Hora de inicio del servicio (ej: 09:00 AM).</li>
                                     <li><code className="bg-slate-200 px-1 rounded">{`{service_date}`}</code>: Fecha del servicio (ej: 25 de Diciembre).</li>
-                                </ul>
-                            </AlertDescription>
+                                    <li><code className="bg-slate-200 px-1 rounded">{`{service_date}`}</code> y <code className="bg-slate-200 px-1 rounded">{`{service_time}`}</code>: Disponibles también en la plantilla de cancelación.</li>
+                                    </ul>
+                                    </AlertDescription>
                         </Alert>
 
                         
