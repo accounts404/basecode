@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,7 +13,7 @@ export default function CancellationSmsDialog({ open, onClose, schedule, selecte
     const [result, setResult] = useState(null);
 
     // Sync text when initialText changes (dialog opens)
-    React.useEffect(() => {
+    useEffect(() => {
         setSmsText(initialText || '');
         setResult(null);
     }, [initialText, open]);
