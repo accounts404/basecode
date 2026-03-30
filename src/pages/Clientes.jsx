@@ -320,28 +320,6 @@ export default function ClientesPage() {
                     </Button>
                 </div>
 
-                {/* Promedio de permanencia por tipo */}
-                {avgByType.length > 0 && (
-                    <div className="mb-6">
-                        <div className="flex items-center gap-2 mb-3">
-                            <TrendingDown className="w-4 h-4 text-slate-500" />
-                            <h2 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">Promedio de permanencia por tipo (clientes inactivos)</h2>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {avgByType.map(({ type, label, avg, count }) => (
-                                <Card key={type} className="border-0 shadow-sm bg-white">
-                                    <CardContent className="p-3">
-                                        <p className="text-xs text-slate-500 mb-1">{label}</p>
-                                        <p className="text-xl font-bold text-slate-800">
-                                            {avg >= 12 ? `${Math.floor(avg/12)}a ${avg%12>0?avg%12+'m':''}` : `${avg}m`}
-                                        </p>
-                                        <p className="text-xs text-slate-400">{count} cliente{count !== 1 ? 's' : ''}</p>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
                 {/* KPI Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
