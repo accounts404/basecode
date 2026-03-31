@@ -796,7 +796,7 @@ export default function HorarioPage() {
 
             let hasChanges = false;
             const newSchedulesArray = Array.isArray(newCleanerSchedules) ? newCleanerSchedules : [];
-            const originalSchedulesArray = Array.isArray(originalCleanerSchedules) ? originalSchedulesArray : [];
+            const originalSchedulesArray = Array.isArray(originalCleanerSchedules) ? originalCleanerSchedules : [];
 
             if (newSchedulesArray.length !== originalSchedulesArray.length) {
                 hasChanges = true;
