@@ -104,9 +104,9 @@ export default function ServicioActivoPage() {
             try {
                 console.log('[ServicioActivo] 🔄 Actualización automática silenciosa...');
                 
-                const schedules = await base44.entities.Schedule.list();
+                const schedules = await base44.entities.Schedule.filter({ status: { $in: ['scheduled', 'in_progress'] } });
                 const schedulesArray = Array.isArray(schedules) ? schedules : [];
-                
+
                 const active = schedulesArray.find(schedule => {
                     if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(user.id)) return false;
                     const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === user.id);
@@ -198,11 +198,11 @@ export default function ServicioActivoPage() {
 
             // 🚀 PASO 2: Actualizar en background desde la base de datos
             console.log('[ServicioActivo] 🔄 Sincronizando con base de datos en background...');
-            const schedules = await base44.entities.Schedule.list();
+            const schedules = await base44.entities.Schedule.filter({ status: { $in: ['scheduled', 'in_progress'] } });
             if (isUnmountingRef.current) return;
 
             const schedulesArray = Array.isArray(schedules) ? schedules : [];
-            
+
             const active = schedulesArray.find(schedule => {
                 if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userData.id)) return false;
                 const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userData.id);
@@ -288,177 +288,83 @@ export default function ServicioActivoPage() {
         intervalRef.current = setInterval(updateTimer, 1000);
     };
 
-    const handleClockOut = async (retryCount = 0) => {
-        if (!activeService || !user) return;
+    const handleClockOut = async () => {
+        if (!activeService || !user || clockingOut) return;
 
-        const MAX_RETRIES = 3;
-        console.log(`[ServicioActivo] 🕐 Iniciando Clock Out (intento ${retryCount + 1}/${MAX_RETRIES + 1})...`);
-        
-        // 🛑 PASO 1: BLOQUEAR UI Y DETENER ACTUALIZACIONES
+        console.log('[ServicioActivo] 🕐 Iniciando Clock Out via función backend...');
+
+        // PASO 1: Bloquear UI y detener timers
         setClockingOut(true);
         setError("");
         isUnmountingRef.current = true;
 
-        // 🛑 PASO 2: DETENER POLLING Y TIMER INMEDIATAMENTE
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-            console.log('[ServicioActivo] 🛑 Polling detenido');
-        }
+        if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
 
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-            console.log('[ServicioActivo] 🛑 Timer detenido');
-        }
+        // Generar idempotency key único para esta operación
+        const idempotencyKey = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
 
-        try {
-            // 🚀 PASO 3: OBTENER UBICACIÓN GPS (ANTES de actualizar BD)
-            let userLocation = null;
-            if ('geolocation' in navigator) {
-                try {
-                    const position = await Promise.race([
-                        new Promise((resolve, reject) => {
-                            navigator.geolocation.getCurrentPosition(resolve, reject, {
-                                timeout: 8000,
-                                enableHighAccuracy: false,
-                                maximumAge: 30000
-                            });
-                        }),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('GPS timeout')), 8000))
-                    ]);
-                    userLocation = `${position.coords.latitude},${position.coords.longitude}`;
-                    console.log('[ServicioActivo] 📍 Ubicación GPS obtenida');
-                } catch (gpsError) {
-                    console.warn('[ServicioActivo] ⚠️ No se pudo obtener GPS:', gpsError.message);
+        const MAX_RETRIES = 3;
+        let lastError = null;
+
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+                if (attempt > 0) {
+                    const delay = Math.pow(2, attempt - 1) * 1000;
+                    setError(`Reintentando Clock Out (${attempt}/${MAX_RETRIES - 1})...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
                 }
-            }
 
-            // 🚀 PASO 4: ACTUALIZAR CLOCK_IN_DATA EN BASE DE DATOS
-            console.log('[ServicioActivo] 💾 Actualizando clock_in_data en BD...');
-            const updatedClockInData = [...(activeService.clock_in_data || [])];
-            const existingIndex = updatedClockInData.findIndex(c => c.cleaner_id === user.id);
-            // Clock out time en formato local sin timezone
-        const _now = new Date();
-        const currentTime = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}T${String(_now.getHours()).padStart(2,'0')}:${String(_now.getMinutes()).padStart(2,'0')}:00.000`;
+                // PASO 2: Llamar función backend (maneja GPS, timestamps, WorkEntries, todo)
+                console.log(`[ServicioActivo] 🚀 Intento ${attempt + 1}: invocando clockOut backend...`);
+                const { data: result } = await base44.functions.invoke('clockOut', {
+                    scheduleId: activeService.id
+                }, { headers: { 'Idempotency-Key': idempotencyKey } });
 
-            if (existingIndex >= 0) {
-                updatedClockInData[existingIndex] = {
-                    ...updatedClockInData[existingIndex],
-                    clock_out_time: currentTime,
-                    clock_out_location: userLocation
-                };
-            } else {
-                updatedClockInData.push({
-                    cleaner_id: user.id,
-                    clock_in_time: activeService.clock_in_data?.find(c => c.cleaner_id === user.id)?.clock_in_time || currentTime,
-                    clock_out_time: currentTime,
-                    clock_out_location: userLocation
-                });
-            }
+                if (!result?.success) {
+                    throw new Error(result?.error || 'Error desconocido en Clock Out');
+                }
 
-            await base44.entities.Schedule.update(activeService.id, {
-                clock_in_data: updatedClockInData
-            });
-            console.log('[ServicioActivo] ✅ Clock Out registrado en BD');
+                console.log('[ServicioActivo] ✅ Clock Out registrado por backend:', result.message);
 
-            // 🚀 PASO 5: VERIFICAR ESTADO DEL SERVICIO
-            console.log('[ServicioActivo] 🔍 Verificando estado del servicio...');
-            const freshSchedule = await base44.entities.Schedule.get(activeService.id);
-            const allCleanerIds = Array.isArray(freshSchedule.cleaner_ids) ? freshSchedule.cleaner_ids : [];
-            const freshClockData = Array.isArray(freshSchedule.clock_in_data) ? freshSchedule.clock_in_data : [];
+                // PASO 3: Actualizar cache local
+                registerClockOut(activeService.id);
 
-            const allHaveClockedOut = allCleanerIds.every(cleanerId => {
-                const clockData = freshClockData.find(c => c.cleaner_id === cleanerId);
-                return clockData && clockData.clock_out_time;
-            });
+                // PASO 4: Actualizar cache de schedules si existe
+                const cachedSchedules = localStorage.getItem('redoak_cleaner_schedules');
+                if (cachedSchedules && result.schedule) {
+                    try {
+                        const parsed = JSON.parse(cachedSchedules);
+                        const updated = parsed.map(s => s.id === activeService.id ? result.schedule : s);
+                        localStorage.setItem('redoak_cleaner_schedules', JSON.stringify(updated));
+                    } catch (e) { /* ignore cache errors */ }
+                }
 
-            console.log(`[ServicioActivo] 🔍 Todos con clock out: ${allHaveClockedOut}`);
-            const finalStatus = allHaveClockedOut ? 'completed' : 'in_progress';
-
-            // 🚀 PASO 6: ACTUALIZAR ESTADO DEL SERVICIO
-            await base44.entities.Schedule.update(activeService.id, {
-                status: finalStatus
-            });
-            console.log(`[ServicioActivo] ✅ Estado actualizado a: ${finalStatus}`);
-
-            // 🚀 PASO 7: CREAR WORK ENTRIES SI CORRESPONDE
-            if (finalStatus === 'completed') {
-                console.log('[ServicioActivo] 📝 Todos cerraron, creando WorkEntries...');
-                try {
-                    await base44.functions.invoke('processScheduleForWorkEntries', {
-                        scheduleId: activeService.id,
-                        mode: 'create'
+                // PASO 5: Redirigir con mensaje de éxito
+                console.log('[ServicioActivo] 🎉 Redirigiendo a Horario...');
+                setTimeout(() => {
+                    navigate(createPageUrl("Horario"), {
+                        replace: true,
+                        state: { clockOutSuccess: true, message: '✅ Clock Out exitoso. ¡Servicio finalizado!' }
                     });
-                    console.log('[ServicioActivo] ✅ WorkEntries creadas');
-                } catch (workEntryError) {
-                    console.warn('[ServicioActivo] ⚠️ Error creando WorkEntries:', workEntryError);
-                }
-            }
+                }, 500);
+                return; // Salir del loop en éxito
 
-            // 🚀 PASO 8: ACTUALIZAR CACHE LOCAL
-            console.log('[ServicioActivo] 💾 Actualizando cache local...');
-            localStorage.setItem(`active_service_${user.id}`, 'false');
-            registerClockOut(activeService.id, user.id);
-            
-            const cachedSchedules = localStorage.getItem('redoak_cleaner_schedules');
-            if (cachedSchedules) {
-                try {
-                    const schedules = JSON.parse(cachedSchedules);
-                    const updatedSchedules = schedules.map(schedule => {
-                        if (schedule.id === activeService.id) {
-                            return {
-                                ...schedule,
-                                clock_in_data: updatedClockInData,
-                                status: finalStatus
-                            };
-                        }
-                        return schedule;
-                    });
-                    localStorage.setItem('redoak_cleaner_schedules', JSON.stringify(updatedSchedules));
-                } catch (error) {
-                    console.warn('[ServicioActivo] ⚠️ Error actualizando cache:', error);
-                }
+            } catch (error) {
+                lastError = error;
+                console.error(`[ServicioActivo] ❌ Error Clock Out intento ${attempt + 1}:`, error.message);
             }
-
-            // 🎉 PASO 9: ÉXITO - REDIRIGIR
-            console.log('[ServicioActivo] 🎉 Clock Out completado exitosamente, redirigiendo...');
-            setTimeout(() => {
-                navigate(createPageUrl("Horario"), { 
-                    replace: true,
-                    state: { 
-                        clockOutSuccess: true,
-                        message: '✅ Clock Out exitoso. ¡Servicio finalizado!'
-                    }
-                });
-            }, 500);
-
-        } catch (error) {
-            console.error(`[ServicioActivo] ❌ Error en Clock Out (intento ${retryCount + 1}):`, error);
-            
-            // 🔄 REINTENTAR SI NO SE ALCANZÓ EL MÁXIMO
-            if (retryCount < MAX_RETRIES) {
-                const delay = Math.pow(2, retryCount) * 1000; // Backoff exponencial
-                console.log(`[ServicioActivo] 🔄 Reintentando en ${delay/1000}s...`);
-                setError(`Error en Clock Out. Reintentando automáticamente (${retryCount + 1}/${MAX_RETRIES})...`);
-                
-                await new Promise(resolve => setTimeout(resolve, delay));
-                return handleClockOut(retryCount + 1);
-            }
-            
-            // ❌ MÁXIMO DE REINTENTOS ALCANZADO
-            console.error('[ServicioActivo] ❌ Clock Out falló después de todos los reintentos');
-            isUnmountingRef.current = false;
-            setClockingOut(false);
-            setError(
-                `❌ No se pudo completar el Clock Out después de ${MAX_RETRIES + 1} intentos. ` +
-                `Por favor, verifica tu conexión a internet y vuelve a intentar. ` +
-                `Si el problema persiste, contacta al administrador.`
-            );
-            
-            // Reiniciar polling y timer
-            loadUserAndActiveService();
         }
+
+        // Todos los reintentos fallaron
+        console.error('[ServicioActivo] ❌ Clock Out falló tras todos los reintentos');
+        isUnmountingRef.current = false;
+        setClockingOut(false);
+        setError(`❌ No se pudo completar el Clock Out: ${lastError?.message || 'Error de red'}. Verifica tu conexión e intenta de nuevo.`);
+        loadUserAndActiveService();
     };
 
     const handleReportSuccess = (newReport) => {

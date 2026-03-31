@@ -209,9 +209,9 @@ export const syncActiveService = async (userId) => {
         // Importar dinámicamente para evitar problemas de circular dependency
         const { base44 } = await import('@/api/base44Client');
         
-        // Consultar la base de datos con reintentos
+        // Consultar la base de datos con reintentos - solo schedules relevantes
         const schedules = await retryWithBackoff(
-            () => base44.entities.Schedule.list(),
+            () => base44.entities.Schedule.filter({ status: { $in: ['scheduled', 'in_progress'] } }),
             3,
             1000
         );

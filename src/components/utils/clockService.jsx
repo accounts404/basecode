@@ -12,7 +12,6 @@
  */
 
 import { base44 } from '@/api/base44Client';
-import { Schedule } from '@/entities/Schedule'; // usado en canUserClockIn → checkActiveServiceInBackend
 import { 
     getLocalActiveService, 
     setLocalActiveService, 
@@ -155,7 +154,7 @@ export const performClockIn = async (scheduleId, userId, onProgress) => {
         const { data: clockInResult } = await base44.functions.invoke('clockIn', {
             scheduleId,
             location: userLocation
-        });
+        }, { headers: { 'Idempotency-Key': idempotencyKey } });
 
         if (!clockInResult?.success) {
             throw new Error(clockInResult?.error || 'Error al registrar Clock In');
@@ -222,7 +221,7 @@ export const performClockOut = async (scheduleId, userId, onProgress) => {
         const { data: clockOutResult } = await base44.functions.invoke('clockOut', {
             scheduleId,
             location: userLocation
-        });
+        }, { headers: { 'Idempotency-Key': idempotencyKey } });
 
         if (!clockOutResult?.success) {
             throw new Error(clockOutResult?.error || 'Error al registrar Clock Out');
