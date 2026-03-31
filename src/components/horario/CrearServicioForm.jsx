@@ -962,10 +962,9 @@ export default function CrearServicioForm({
         setFormData(prev => ({ ...prev, status: value }));
         if (value === 'cancelled' && schedule?.id && selectedClient) {
             try {
-                const { SystemSetting } = await import('@/entities/SystemSetting');
-                const settings = await SystemSetting.list();
-                const cancellationSetting = settings.find(s => s.key === 'sms_template_cancellation');
-                let template = cancellationSetting?.value || 'Hola {client_name}, lamentamos informarte que el servicio del {service_date} a las {service_time} ha sido cancelado. Por favór contáctanos para reprogramar. Gracias.';
+                const { base44 } = await import('@/api/base44Client');
+                const me = await base44.auth.me();
+                let template = me?.sms_templates?.cancellation || 'Hola {client_name}, lamentamos informarte que el servicio del {service_date} a las {service_time} ha sido cancelado. Por favor contáctanos para reprogramar. Gracias.';
                 const serviceDate = schedule.start_time ? new Date(schedule.start_time) : new Date();
                 const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
                 const dateStr = `${serviceDate.getUTCDate()} de ${monthNames[serviceDate.getUTCMonth()]}`;
