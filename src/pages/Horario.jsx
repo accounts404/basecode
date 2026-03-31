@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from '@/utils';
+import { base44 } from '@/api/base44Client';
 import {
     registerClockIn,
     registerClockOut,
@@ -657,7 +658,7 @@ export default function HorarioPage() {
         await handleRefresh();
     };
 
-    // OPTIMIZADO: Proceso simplificado y robusto para Clock In/Out
+    // Clock In/Out usando funciones backend (atómico, idempotente, timestamp del servidor)
     const handleClockInOut = async (scheduleId, action) => {
         if (clockInProcessingRef.current) {
             console.log('[Horario] ⏳ Proceso en curso, ignorando click duplicado');
@@ -667,224 +668,79 @@ export default function HorarioPage() {
         clockInProcessingRef.current = true;
         navigationInProgressRef.current = true;
 
-        // 🎯 MOSTRAR INDICADOR DE PROCESANDO
+        // Generar idempotency key único para esta operación
+        const idempotencyKey = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+
         toast({
-            title: action === 'clock_in' ? "⏳ Iniciando Clock In..." : "⏳ Finalizando Clock Out...",
-            description: "Por favor espera, procesando...",
-            duration: 60000, // Duración larga mientras procesa
+            title: action === 'clock_in' ? '⏳ Iniciando servicio...' : '⏳ Finalizando servicio...',
+            description: 'Por favor espera...',
+            duration: 30000,
         });
 
         try {
-            console.log(`[Horario] 🎬 Iniciando ${action === 'clock_in' ? 'Clock In' : 'Clock Out'}...`);
+            const functionName = action === 'clock_in' ? 'clockIn' : 'clockOut';
+            console.log(`[Horario] 🎬 Invocando backend ${functionName}...`);
 
-            // PASO 1: Verificaciones previas
-            if (action === 'clock_in') {
-                const verification = await canUserClockIn(user.id);
-                if (!verification.canClockIn) {
-                    toast({
-                        variant: "destructive",
-                        title: "⚠️ No se puede hacer Clock In",
-                        description: verification.reason,
-                        duration: 5000,
-                    });
-                    clockInProcessingRef.current = false;
-                    navigationInProgressRef.current = false;
-                    navigate(createPageUrl('ServicioActivo'));
-                    return;
-                }
+            const { data: result } = await base44.functions.invoke(functionName, {
+                scheduleId
+            }, { headers: { 'Idempotency-Key': idempotencyKey } });
+
+            if (!result?.success) {
+                throw new Error(result?.error || `Error en ${functionName}`);
             }
 
-            // PASO 2: Obtener ubicación GPS (sin bloquear)
-            let userLocation = null;
-            if ('geolocation' in navigator) {
-                try {
-                    const position = await Promise.race([
-                        new Promise((resolve, reject) => {
-                            navigator.geolocation.getCurrentPosition(resolve, reject, {
-                                timeout: 5000,
-                                enableHighAccuracy: false,
-                                maximumAge: 30000
-                            });
-                        }),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('GPS timeout')), 5000))
-                    ]);
-                    userLocation = `${position.coords.latitude},${position.coords.longitude}`;
-                    console.log('[Horario] 📍 Ubicación GPS obtenida');
-                } catch (gpsError) {
-                    console.warn('[Horario] ⚠️ No se pudo obtener GPS:', gpsError.message);
-                }
+            console.log(`[Horario] ✅ ${functionName} exitoso:`, result.message);
+
+            // Actualizar caché local con el schedule retornado por el backend
+            if (result.schedule) {
+                const schedulesArray = Array.isArray(schedules) ? schedules : [];
+                const updated = schedulesArray.map(s => s.id === scheduleId ? result.schedule : s);
+                setSchedules(updated);
+                saveToCache(LEGACY_CACHE_KEYS.SCHEDULES, updated);
             }
 
-            // PASO 3: Obtener y actualizar el schedule
-            console.log('[Horario] 📥 Obteniendo información del servicio...');
-            const schedule = await Schedule.get(scheduleId);
-            if (!schedule) {
-                throw new Error('Servicio no encontrado');
-            }
-
-            let updatedClockData = [...(schedule.clock_in_data || [])];
-            const existingIndex = updatedClockData.findIndex(c => c.cleaner_id === user.id);
-            // Formato local sin timezone
-            const _clockNow = new Date();
-            const currentTime = `${_clockNow.getFullYear()}-${String(_clockNow.getMonth()+1).padStart(2,'0')}-${String(_clockNow.getDate()).padStart(2,'0')}T${String(_clockNow.getHours()).padStart(2,'0')}:${String(_clockNow.getMinutes()).padStart(2,'0')}:00.000`;
-
-            if (action === 'clock_in') {
-                const clockData = {
-                    cleaner_id: user.id,
-                    clock_in_time: currentTime,
-                    clock_in_location: userLocation,
-                    clock_out_time: null,
-                    clock_out_location: null
-                };
-
-                if (existingIndex >= 0) {
-                    updatedClockData[existingIndex] = { ...updatedClockData[existingIndex], ...clockData };
-                } else {
-                    updatedClockData.push(clockData);
-                }
-
-                // Registrar en localStorage ANTES de actualizar BD
-                registerClockIn(scheduleId, schedule);
-
-            } else if (action === 'clock_out') {
-                if (existingIndex >= 0) {
-                    updatedClockData[existingIndex] = {
-                        ...updatedClockData[existingIndex],
-                        clock_out_time: currentTime,
-                        clock_out_location: userLocation
-                    };
-                }
-
-                // CRÍTICO: Registrar Clock Out ANTES de cualquier otra acción
-                registerClockOut(scheduleId);
-                console.log('[Horario] ✅ Clock Out registrado en localStorage (20s de gracia)');
-            }
-
-            // PASO 4: Actualizar clock_in_data con reintentos
-            console.log('[Horario] 💾 Actualizando clock_in_data en base de datos...');
-            const { updateScheduleWithRetry } = await import('@/components/utils/activeServiceManager');
-            
-            await updateScheduleWithRetry(scheduleId, {
-                clock_in_data: updatedClockData
-            });
-
-            // PASO 5: Determinar y actualizar el estado correcto del servicio
-            let finalStatus = schedule.status; // Mantener el status actual por defecto
-
-            if (action === 'clock_in') {
-                // Si es clock in y está scheduled, cambiar a in_progress
-                if (schedule.status === 'scheduled') {
-                    finalStatus = 'in_progress';
-                }
-            } else if (action === 'clock_out') {
-                console.log('[Horario] 🔄 Verificando si todos los limpiadores han cerrado...');
-                
-                // CRÍTICO: Obtener el schedule FRESCO después de actualizar clock_in_data
-                const freshSchedule = await Schedule.get(scheduleId);
-                const allCleanerIds = Array.isArray(freshSchedule.cleaner_ids) ? freshSchedule.cleaner_ids : [];
-                const freshClockData = Array.isArray(freshSchedule.clock_in_data) ? freshSchedule.clock_in_data : [];
-
-                // Verificar si TODOS los limpiadores asignados tienen clock_out_time
-                const allHaveClockedOut = allCleanerIds.every(cleanerId => {
-                    const clockData = freshClockData.find(c => c.cleaner_id === cleanerId);
-                    return clockData && clockData.clock_out_time;
-                });
-
-                console.log(`[Horario] 🔍 Total limpiadores: ${allCleanerIds.length}, Todos con clock out: ${allHaveClockedOut}`);
-
-                // SOLO marcar como completado si TODOS han cerrado
-                finalStatus = allHaveClockedOut ? 'completed' : 'in_progress';
-            }
-
-            // PASO 6: Actualizar el estado final del servicio con reintentos
-            await updateScheduleWithRetry(scheduleId, { status: finalStatus });
-            console.log(`[Horario] ✅ Estado del servicio actualizado a: ${finalStatus}`);
-
-            // PASO 7: Procesamiento post-Clock Out (crear WorkEntries solo si está completado)
-            if (action === 'clock_out' && finalStatus === 'completed') {
-                console.log('[Horario] ✅ Todos cerraron, creando WorkEntries...');
-                try {
-                    const { data } = await processScheduleForWorkEntries({
-                        scheduleId: scheduleId,
-                        mode: 'create'
-                    });
-
-                    if (data.success && data.created_entries > 0) {
-                        console.log(`[Horario] ✅ ${data.created_entries} WorkEntries creadas`);
-                    }
-                } catch (workEntryError) {
-                    console.error("[Horario] ⚠️ Error creando WorkEntries:", workEntryError);
-                }
-            } else if (action === 'clock_out' && finalStatus === 'in_progress') {
-                console.log('[Horario] ⏳ Algunos limpiadores aún activos, WorkEntries no creadas aún');
-            }
-
-            // CRÍTICO: Actualizar cache local con el estado correcto
-            const schedulesArray = Array.isArray(schedules) ? schedules : [];
-            const updatedSchedules = schedulesArray.map(s => {
-                if (s.id === scheduleId) {
-                    return {
-                        ...s,
-                        clock_in_data: updatedClockData,
-                        status: finalStatus
-                    };
-                }
-                return s;
-            });
-            setSchedules(updatedSchedules);
-            saveToCache(LEGACY_CACHE_KEYS.SCHEDULES, updatedSchedules);
-
-            // PASO 6: Cerrar modal y mostrar mensaje
             setShowForm(false);
             setSelectedEvent(null);
 
             if (action === 'clock_in') {
+                // Registrar en localStorage y redirigir a ServicioActivo
+                registerClockIn(scheduleId, result.schedule);
                 toast({
-                    title: "✅ Clock In Exitoso",
-                    description: "Servicio iniciado. Redirigiendo...",
+                    title: '✅ Servicio iniciado',
+                    description: 'Redirigiendo...',
                     duration: 2000,
-                    className: "bg-green-50 border-green-200"
+                    className: 'bg-green-50 border-green-200'
                 });
-
-                console.log('[Horario] 🚀 Navegando a ServicioActivo...');
                 setTimeout(() => {
                     navigate(createPageUrl('ServicioActivo'), { replace: true });
                     clockInProcessingRef.current = false;
                     navigationInProgressRef.current = false;
                 }, 500);
-
-            } else if (action === 'clock_out') {
+            } else {
+                // Clock Out: limpiar caché y recargar
+                registerClockOut(scheduleId);
                 toast({
-                    title: "✅ Clock Out Exitoso",
-                    description: "Servicio finalizado. ¡Buen trabajo!",
-                    duration: 5000,
-                    className: "bg-green-50 border-green-200"
+                    title: '✅ Servicio finalizado',
+                    description: result.message || '¡Buen trabajo!',
+                    duration: 4000,
+                    className: 'bg-green-50 border-green-200'
                 });
-
-                // Recargar datos antes de navegar
-                console.log('[Horario] 🔄 Recargando datos...');
                 await loadCleanerSpecificData(date, true);
-
-                console.log('[Horario] 🚀 Quedándose en Horario (refresh)...');
-                setTimeout(() => {
-                    // No navegar, solo forzar refresh del estado
-                    window.location.reload();
-                }, 1000);
+                clockInProcessingRef.current = false;
+                navigationInProgressRef.current = false;
             }
 
         } catch (error) {
             console.error(`[Horario] ❌ Error en ${action}:`, error);
-            
             toast({
-                variant: "destructive",
-                title: "❌ Error",
-                description: `No se pudo completar el ${action === 'clock_in' ? 'Clock In' : 'Clock Out'}. Por favor, intenta de nuevo.`,
+                variant: 'destructive',
+                title: '❌ Error',
+                description: error.message || 'No se pudo completar. Por favor intenta de nuevo.',
                 duration: 5000,
             });
-
-            setError(`Error: ${error.message || 'Error desconocido'}`);
-            
-        } finally {
             clockInProcessingRef.current = false;
             navigationInProgressRef.current = false;
         }
