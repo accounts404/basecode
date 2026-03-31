@@ -307,6 +307,17 @@ export default function ServicioActivoPage() {
             return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
         });
 
+        // Capturar GPS — solicita permiso al usuario si no fue otorgado aún
+        let userLocation = null;
+        try {
+            const { getUserLocation } = await import('@/components/utils/clockService');
+            setError('📍 Obteniendo tu ubicación... Si tu navegador lo solicita, permite el acceso.');
+            userLocation = await getUserLocation();
+            setError('');
+        } catch (e) {
+            setError('');
+        }
+
         const MAX_RETRIES = 3;
         let lastError = null;
 
@@ -322,7 +333,8 @@ export default function ServicioActivoPage() {
                 console.log(`[ServicioActivo] 🚀 Intento ${attempt + 1}: invocando clockOut backend...`);
                 const { data: result } = await base44.functions.invoke('clockOut', {
                     scheduleId: activeService.id,
-                    idempotencyKey // en el body
+                    idempotencyKey,
+                    location: userLocation
                 });
 
                 if (!result?.success) {

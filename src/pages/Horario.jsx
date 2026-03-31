@@ -674,6 +674,23 @@ export default function HorarioPage() {
             return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
         });
 
+        // Capturar GPS — solicita permiso al usuario si aún no lo ha otorgado
+        // El navegador mostrará el diálogo nativo: "Permitir una vez" / "Siempre" / "No permitir"
+        let userLocation = null;
+        if ('geolocation' in navigator) {
+            toast({
+                title: action === 'clock_in' ? '📍 Obteniendo ubicación...' : '⏳ Finalizando servicio...',
+                description: action === 'clock_in' ? 'Si tu navegador lo solicita, permite el acceso a tu ubicación.' : 'Por favor espera...',
+                duration: 20000,
+            });
+            try {
+                const { getUserLocation } = await import('@/components/utils/clockService');
+                userLocation = await getUserLocation();
+            } catch (e) {
+                console.warn('[Horario] Error importando getUserLocation:', e);
+            }
+        }
+
         toast({
             title: action === 'clock_in' ? '⏳ Iniciando servicio...' : '⏳ Finalizando servicio...',
             description: 'Por favor espera...',
@@ -696,7 +713,8 @@ export default function HorarioPage() {
                     }
                     const response = await base44.functions.invoke(functionName, {
                         scheduleId,
-                        idempotencyKey // en el body, no en headers
+                        idempotencyKey,
+                        location: userLocation  // puede ser null si el usuario negó GPS
                     });
                     result = response.data;
                     break; // éxito

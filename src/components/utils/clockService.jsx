@@ -29,31 +29,55 @@ const generateUUID = () => {
 };
 
 /**
- * Obtener ubicación GPS del usuario (con timeout)
+ * Obtener ubicación GPS del usuario.
+ * Solicita permiso si aún no fue otorgado — el navegador muestra el diálogo nativo
+ * con opciones "Permitir una vez", "Permitir siempre" o "No permitir".
  */
-const getUserLocation = async () => {
+export const getUserLocation = async () => {
     if (!('geolocation' in navigator)) {
-        console.warn('[ClockService] Geolocalización no disponible');
+        console.warn('[ClockService] Geolocalización no disponible en este dispositivo');
         return null;
+    }
+
+    // Verificar estado del permiso si la API está disponible
+    if (navigator.permissions) {
+        try {
+            const status = await navigator.permissions.query({ name: 'geolocation' });
+            if (status.state === 'denied') {
+                console.warn('[ClockService] Permiso GPS denegado por el usuario. Para activarlo, ve a Configuración del navegador.');
+                return null;
+            }
+            // Si es 'prompt' o 'granted', continuar — el navegador mostrará el diálogo si es necesario
+        } catch (e) {
+            // permissions.query no disponible en todos los navegadores, continuar igual
+        }
     }
 
     try {
         const position = await new Promise((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(
-                resolve, 
-                reject, 
-                { 
-                    timeout: 5000,
+                resolve,
+                reject,
+                {
+                    timeout: 15000,        // 15s para que el usuario tenga tiempo de responder
                     enableHighAccuracy: false,
-                    maximumAge: 60000 // Cache de 1 minuto
+                    maximumAge: 60000
                 }
             );
         });
-        
+
         return `${position.coords.latitude},${position.coords.longitude}`;
     } catch (error) {
-        console.warn('[ClockService] No se pudo obtener ubicación:', error.message);
-        return null; // No bloqueamos el clock-in/out por falta de GPS
+        if (error.code === 1) {
+            // PERMISSION_DENIED
+            console.warn('[ClockService] El usuario denegó el permiso de GPS.');
+        } else if (error.code === 3) {
+            // TIMEOUT
+            console.warn('[ClockService] Tiempo de espera agotado para obtener GPS.');
+        } else {
+            console.warn('[ClockService] No se pudo obtener ubicación:', error.message);
+        }
+        return null; // GPS es opcional — el clock-in/out continúa igual
     }
 };
 
