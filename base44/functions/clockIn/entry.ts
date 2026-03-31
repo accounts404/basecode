@@ -1,162 +1,96 @@
-/**
- * FUNCIÓN BACKEND: CLOCK IN
- * 
- * Maneja el clock-in de limpiadores con:
- * - Idempotencia mediante Idempotency-Key
- * - Timestamps del servidor (fuente de verdad)
- * - Validaciones estrictas (solo un clock-in activo por limpiador)
- * - Actualización de estado del servicio
- */
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
-
-// Cache en memoria para idempotencia (en producción, usar Redis o base de datos)
+// Cache en memoria para idempotencia
 const idempotencyCache = new Map();
 const IDEMPOTENCY_TTL = 24 * 60 * 60 * 1000; // 24 horas
 
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        
-        // PASO 1: Autenticación
+
+        // Auth
         const user = await base44.auth.me();
         if (!user) {
-            return Response.json({ 
-                success: false, 
-                error: 'No autenticado' 
-            }, { status: 401 });
+            return Response.json({ success: false, error: 'No autenticado' }, { status: 401 });
         }
 
-        // PASO 2: Validar Idempotency-Key
-        const idempotencyKey = req.headers.get('Idempotency-Key');
-        if (!idempotencyKey) {
-            return Response.json({ 
-                success: false, 
-                error: 'Falta Idempotency-Key en headers' 
-            }, { status: 400 });
+        // Parsear body
+        let body;
+        try {
+            body = await req.json();
+        } catch {
+            return Response.json({ success: false, error: 'Body inválido' }, { status: 400 });
         }
 
-        // PASO 3: Verificar si ya procesamos esta solicitud (idempotencia)
-        const cacheKey = `${user.id}:${idempotencyKey}`;
-        const cached = idempotencyCache.get(cacheKey);
-        
-        if (cached) {
-            const now = Date.now();
-            if (now - cached.timestamp < IDEMPOTENCY_TTL) {
-                console.log('[ClockIn] ♻️ Retornando respuesta en caché (idempotente)');
+        const { scheduleId, location, idempotencyKey } = body;
+
+        if (!scheduleId) {
+            return Response.json({ success: false, error: 'scheduleId es requerido' }, { status: 400 });
+        }
+
+        // Idempotencia opcional
+        if (idempotencyKey) {
+            const cacheKey = `${user.id}:${idempotencyKey}`;
+            const cached = idempotencyCache.get(cacheKey);
+            if (cached && (Date.now() - cached.timestamp < IDEMPOTENCY_TTL)) {
+                console.log('[ClockIn] ♻️ Respuesta idempotente');
                 return Response.json(cached.response);
-            } else {
-                // Expirado, eliminar del caché
-                idempotencyCache.delete(cacheKey);
             }
         }
 
-        // PASO 4: Parsear body
-        const { scheduleId, location } = await req.json();
-        
-        if (!scheduleId) {
-            return Response.json({ 
-                success: false, 
-                error: 'scheduleId es requerido' 
-            }, { status: 400 });
+        console.log(`[ClockIn] 🟢 Usuario ${user.id}, Schedule ${scheduleId}`);
+
+        // Obtener el schedule
+        let schedule;
+        try {
+            schedule = await base44.asServiceRole.entities.Schedule.get(scheduleId);
+        } catch {
+            return Response.json({ success: false, error: 'Servicio no encontrado' }, { status: 404 });
         }
-
-        console.log(`[ClockIn] 🟢 Procesando Clock In: Usuario ${user.id}, Schedule ${scheduleId}`);
-
-        // PASO 5: CONSTRAINT - Verificar que el usuario NO tenga un servicio activo
-        const activeSchedules = await base44.asServiceRole.entities.Schedule.filter({
-            cleaner_ids: { $contains: user.id },
-            status: { $in: ['scheduled', 'in_progress'] }
-        });
-
-        const hasActiveService = activeSchedules.some(schedule => {
-            if (!schedule.clock_in_data) return false;
-            const cleanerClockData = schedule.clock_in_data.find(c => c.cleaner_id === user.id);
-            return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
-        });
-
-        if (hasActiveService) {
-            const errorResponse = {
-                success: false,
-                error: 'Ya tienes un servicio activo. Debes hacer Clock Out primero.',
-                constraint: 'ACTIVE_SERVICE_EXISTS'
-            };
-            
-            // Cachear respuesta de error también (para evitar reintentos)
-            idempotencyCache.set(cacheKey, {
-                response: errorResponse,
-                timestamp: Date.now()
-            });
-            
-            return Response.json(errorResponse, { status: 409 });
-        }
-
-        // PASO 6: Obtener el schedule (con privilegios de servicio)
-        const schedule = await base44.asServiceRole.entities.Schedule.get(scheduleId);
-        
         if (!schedule) {
-            return Response.json({ 
-                success: false, 
-                error: 'Servicio no encontrado' 
-            }, { status: 404 });
+            return Response.json({ success: false, error: 'Servicio no encontrado' }, { status: 404 });
         }
 
-        // PASO 7: Validar que el usuario esté asignado a este servicio
-        if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(user.id)) {
-            return Response.json({ 
-                success: false, 
-                error: 'No estás asignado a este servicio' 
-            }, { status: 403 });
+        // Validar asignación
+        if (!schedule.cleaner_ids?.includes(user.id)) {
+            return Response.json({ success: false, error: 'No estás asignado a este servicio' }, { status: 403 });
         }
 
-        // PASO 8: TIMESTAMP DEL SERVIDOR en formato local sin timezone
-        const _n = new Date();
-        const serverTimestamp = `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}T${String(_n.getHours()).padStart(2,'0')}:${String(_n.getMinutes()).padStart(2,'0')}:00.000`;
-        
-        console.log(`[ClockIn] ⏰ Timestamp del servidor: ${serverTimestamp}`);
+        // Timestamp del servidor en hora Melbourne (UTC+10/+11)
+        const now = new Date();
+        const melbOffset = 10 * 60; // Melbourne base UTC+10 (AEST)
+        const melbTime = new Date(now.getTime() + melbOffset * 60000);
+        const serverTimestamp = melbTime.toISOString().slice(0, 16).replace('T', 'T') + ':00.000';
 
-        // PASO 9: Preparar datos de clock-in
+        console.log(`[ClockIn] ⏰ Timestamp Melbourne: ${serverTimestamp}`);
+
+        // Preparar clock_in_data
         const updatedClockData = [...(schedule.clock_in_data || [])];
         const existingIndex = updatedClockData.findIndex(c => c.cleaner_id === user.id);
-        
-        const clockInData = {
+
+        const clockInEntry = {
             cleaner_id: user.id,
-            clock_in_time: serverTimestamp, // ⭐ TIMESTAMP DEL SERVIDOR
+            clock_in_time: serverTimestamp,
             clock_in_location: location || null,
             clock_out_time: null,
             clock_out_location: null
         };
 
         if (existingIndex >= 0) {
-            // Actualizar registro existente
-            updatedClockData[existingIndex] = { 
-                ...updatedClockData[existingIndex], 
-                ...clockInData 
-            };
+            updatedClockData[existingIndex] = { ...updatedClockData[existingIndex], ...clockInEntry };
         } else {
-            // Crear nuevo registro
-            updatedClockData.push(clockInData);
+            updatedClockData.push(clockInEntry);
         }
 
-        // PASO 10: Actualizar estado del servicio
-        const updatePayload = {
-            clock_in_data: updatedClockData
-        };
-        
-        // Cambiar estado a 'in_progress' si estaba 'scheduled'
+        const updatePayload = { clock_in_data: updatedClockData };
         if (schedule.status === 'scheduled') {
             updatePayload.status = 'in_progress';
         }
 
-        // PASO 11: Actualizar en la base de datos (con privilegios de servicio)
-        const updatedSchedule = await base44.asServiceRole.entities.Schedule.update(
-            scheduleId, 
-            updatePayload
-        );
+        const updatedSchedule = await base44.asServiceRole.entities.Schedule.update(scheduleId, updatePayload);
 
-        console.log(`[ClockIn] ✅ Clock In registrado exitosamente para usuario ${user.id}`);
+        console.log(`[ClockIn] ✅ Clock In registrado para usuario ${user.id}`);
 
-        // PASO 12: Preparar respuesta exitosa
         const successResponse = {
             success: true,
             schedule: updatedSchedule,
@@ -164,29 +98,22 @@ Deno.serve(async (req) => {
             message: 'Clock In registrado exitosamente'
         };
 
-        // PASO 13: Cachear respuesta para idempotencia
-        idempotencyCache.set(cacheKey, {
-            response: successResponse,
-            timestamp: Date.now()
-        });
-
-        // Limpiar caché antiguo (mantener solo las últimas 1000 entradas)
-        if (idempotencyCache.size > 1000) {
-            const oldestKeys = Array.from(idempotencyCache.entries())
-                .sort((a, b) => a[1].timestamp - b[1].timestamp)
-                .slice(0, 100)
-                .map(entry => entry[0]);
-            
-            oldestKeys.forEach(key => idempotencyCache.delete(key));
+        // Cachear para idempotencia
+        if (idempotencyKey) {
+            const cacheKey = `${user.id}:${idempotencyKey}`;
+            idempotencyCache.set(cacheKey, { response: successResponse, timestamp: Date.now() });
+            if (idempotencyCache.size > 1000) {
+                const oldest = Array.from(idempotencyCache.entries())
+                    .sort((a, b) => a[1].timestamp - b[1].timestamp)
+                    .slice(0, 100).map(e => e[0]);
+                oldest.forEach(k => idempotencyCache.delete(k));
+            }
         }
 
         return Response.json(successResponse);
 
     } catch (error) {
         console.error('[ClockIn] ❌ Error:', error);
-        return Response.json({ 
-            success: false, 
-            error: error.message || 'Error interno del servidor' 
-        }, { status: 500 });
+        return Response.json({ success: false, error: error.message || 'Error interno del servidor' }, { status: 500 });
     }
 });

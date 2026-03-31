@@ -318,11 +318,12 @@ export default function ServicioActivoPage() {
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
 
-                // PASO 2: Llamar función backend (maneja GPS, timestamps, WorkEntries, todo)
+                // PASO 2: Llamar función backend (idempotencyKey en body)
                 console.log(`[ServicioActivo] 🚀 Intento ${attempt + 1}: invocando clockOut backend...`);
                 const { data: result } = await base44.functions.invoke('clockOut', {
-                    scheduleId: activeService.id
-                }, { headers: { 'Idempotency-Key': idempotencyKey } });
+                    scheduleId: activeService.id,
+                    idempotencyKey // en el body
+                });
 
                 if (!result?.success) {
                     throw new Error(result?.error || 'Error desconocido en Clock Out');

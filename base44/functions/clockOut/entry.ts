@@ -1,14 +1,4 @@
-/**
- * FUNCIÓN BACKEND: CLOCK OUT
- * 
- * Maneja el clock-out de limpiadores con:
- * - Idempotencia mediante Idempotency-Key
- * - Timestamps del servidor (fuente de verdad)
- * - Validaciones estrictas (debe existir clock-in previo)
- * - Procesamiento automático de WorkEntries al completar servicio
- */
-
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 // Cache en memoria para idempotencia
 const idempotencyCache = new Map();
@@ -17,175 +7,129 @@ const IDEMPOTENCY_TTL = 24 * 60 * 60 * 1000; // 24 horas
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        
-        // PASO 1: Autenticación
+
+        // Auth
         const user = await base44.auth.me();
         if (!user) {
-            return Response.json({ 
-                success: false, 
-                error: 'No autenticado' 
-            }, { status: 401 });
+            return Response.json({ success: false, error: 'No autenticado' }, { status: 401 });
         }
 
-        // PASO 2: Validar Idempotency-Key
-        const idempotencyKey = req.headers.get('Idempotency-Key');
-        if (!idempotencyKey) {
-            return Response.json({ 
-                success: false, 
-                error: 'Falta Idempotency-Key en headers' 
-            }, { status: 400 });
+        // Parsear body
+        let body;
+        try {
+            body = await req.json();
+        } catch {
+            return Response.json({ success: false, error: 'Body inválido' }, { status: 400 });
         }
 
-        // PASO 3: Verificar si ya procesamos esta solicitud (idempotencia)
-        const cacheKey = `${user.id}:${idempotencyKey}`;
-        const cached = idempotencyCache.get(cacheKey);
-        
-        if (cached) {
-            const now = Date.now();
-            if (now - cached.timestamp < IDEMPOTENCY_TTL) {
-                console.log('[ClockOut] ♻️ Retornando respuesta en caché (idempotente)');
+        const { scheduleId, location, idempotencyKey } = body;
+
+        if (!scheduleId) {
+            return Response.json({ success: false, error: 'scheduleId es requerido' }, { status: 400 });
+        }
+
+        // Idempotencia opcional
+        if (idempotencyKey) {
+            const cacheKey = `${user.id}:${idempotencyKey}`;
+            const cached = idempotencyCache.get(cacheKey);
+            if (cached && (Date.now() - cached.timestamp < IDEMPOTENCY_TTL)) {
+                console.log('[ClockOut] ♻️ Respuesta idempotente');
                 return Response.json(cached.response);
-            } else {
-                // Expirado, eliminar del caché
-                idempotencyCache.delete(cacheKey);
             }
         }
 
-        // PASO 4: Parsear body
-        const { scheduleId, location } = await req.json();
-        
-        if (!scheduleId) {
-            return Response.json({ 
-                success: false, 
-                error: 'scheduleId es requerido' 
-            }, { status: 400 });
+        console.log(`[ClockOut] 🔴 Usuario ${user.id}, Schedule ${scheduleId}`);
+
+        // Obtener el schedule
+        let schedule;
+        try {
+            schedule = await base44.asServiceRole.entities.Schedule.get(scheduleId);
+        } catch {
+            return Response.json({ success: false, error: 'Servicio no encontrado' }, { status: 404 });
         }
-
-        console.log(`[ClockOut] 🔴 Procesando Clock Out: Usuario ${user.id}, Schedule ${scheduleId}`);
-
-        // PASO 5: Obtener el schedule (con privilegios de servicio)
-        const schedule = await base44.asServiceRole.entities.Schedule.get(scheduleId);
-        
         if (!schedule) {
-            return Response.json({ 
-                success: false, 
-                error: 'Servicio no encontrado' 
-            }, { status: 404 });
+            return Response.json({ success: false, error: 'Servicio no encontrado' }, { status: 404 });
         }
 
-        // Guardar estado original para determinar si invocar WorkEntries
         const originalStatus = schedule.status;
 
-        // PASO 6: CONSTRAINT - Validar que el usuario tenga clock-in en este servicio
+        // Validar clock-in previo
         const existingClockIn = schedule.clock_in_data?.find(c => c.cleaner_id === user.id);
-        
-        if (!existingClockIn || !existingClockIn.clock_in_time) {
-            const errorResponse = {
+        if (!existingClockIn?.clock_in_time) {
+            return Response.json({
                 success: false,
                 error: 'No tienes un Clock In registrado para este servicio',
                 constraint: 'NO_CLOCK_IN_FOUND'
-            };
-            
-            // Cachear respuesta de error
-            idempotencyCache.set(cacheKey, {
-                response: errorResponse,
-                timestamp: Date.now()
-            });
-            
-            return Response.json(errorResponse, { status: 409 });
+            }, { status: 409 });
         }
 
-        // PASO 7: CONSTRAINT - Validar que no haya clock-out previo
+        // Si ya tiene clock-out, retornar éxito (idempotente)
         if (existingClockIn.clock_out_time) {
-            const errorResponse = {
-                success: false,
-                error: 'Ya has hecho Clock Out en este servicio',
-                constraint: 'ALREADY_CLOCKED_OUT',
-                clockOutTime: existingClockIn.clock_out_time
-            };
-            
-            // Cachear respuesta de error
-            idempotencyCache.set(cacheKey, {
-                response: errorResponse,
-                timestamp: Date.now()
+            console.log('[ClockOut] ℹ️ Ya tenía Clock Out, retornando éxito idempotente');
+            return Response.json({
+                success: true,
+                schedule: schedule,
+                clockOutTime: existingClockIn.clock_out_time,
+                serviceCompleted: schedule.status === 'completed',
+                message: 'Clock Out ya registrado anteriormente'
             });
-            
-            return Response.json(errorResponse, { status: 409 });
         }
 
-        // PASO 8: TIMESTAMP DEL SERVIDOR en formato local sin timezone
-        const _n = new Date();
-        const serverTimestamp = `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}T${String(_n.getHours()).padStart(2,'0')}:${String(_n.getMinutes()).padStart(2,'0')}:00.000`;
-        
-        console.log(`[ClockOut] ⏰ Timestamp del servidor: ${serverTimestamp}`);
+        // Timestamp del servidor en hora Melbourne (UTC+10/+11)
+        const now = new Date();
+        const melbOffset = 10 * 60; // Melbourne base UTC+10 (AEST)
+        const melbTime = new Date(now.getTime() + melbOffset * 60000);
+        const serverTimestamp = melbTime.toISOString().slice(0, 16) + ':00.000';
 
-        // PASO 9: Preparar datos de clock-out
+        console.log(`[ClockOut] ⏰ Timestamp Melbourne: ${serverTimestamp}`);
+
+        // Preparar datos de clock-out
         const updatedClockData = [...schedule.clock_in_data];
         const cleanerIndex = updatedClockData.findIndex(c => c.cleaner_id === user.id);
-        
         updatedClockData[cleanerIndex] = {
             ...updatedClockData[cleanerIndex],
-            clock_out_time: serverTimestamp, // ⭐ TIMESTAMP DEL SERVIDOR
+            clock_out_time: serverTimestamp,
             clock_out_location: location || null
         };
 
-        // PASO 10: Determinar si todos los limpiadores hicieron clock-out
+        // Determinar si todos los limpiadores hicieron clock-out
         const allCleanersClockedOut = schedule.cleaner_ids?.every(cleanerId => {
-            const clockData = updatedClockData.find(c => c.cleaner_id === cleanerId);
-            return clockData && clockData.clock_out_time;
+            const cd = updatedClockData.find(c => c.cleaner_id === cleanerId);
+            return cd?.clock_out_time;
         }) || false;
 
         const newStatus = allCleanersClockedOut ? 'completed' : schedule.status;
 
-        console.log(`[ClockOut] 📊 Todos clock-out: ${allCleanersClockedOut}, Nuevo estado: ${newStatus}`);
+        console.log(`[ClockOut] 📊 Todos clock-out: ${allCleanersClockedOut}, Estado: ${newStatus}`);
 
-        // PASO 11: Actualizar en la base de datos (con privilegios de servicio)
-        const updatePayload = {
+        const updatedSchedule = await base44.asServiceRole.entities.Schedule.update(scheduleId, {
             clock_in_data: updatedClockData,
             status: newStatus
-        };
+        });
 
-        const updatedSchedule = await base44.asServiceRole.entities.Schedule.update(
-            scheduleId, 
-            updatePayload
-        );
+        console.log(`[ClockOut] ✅ Clock Out registrado para usuario ${user.id}`);
 
-        console.log(`[ClockOut] ✅ Clock Out registrado exitosamente para usuario ${user.id}`);
-
-        // PASO 12: Procesar WorkEntries SOLO si el servicio cambió a 'completed' por primera vez
+        // Procesar WorkEntries si el servicio se completó
         let workEntriesProcessed = false;
         let workEntriesCreated = 0;
 
         if (newStatus === 'completed' && originalStatus !== 'completed') {
-            console.log('[ClockOut] 📊 Servicio completado por primera vez, procesando WorkEntries...');
-            
+            console.log('[ClockOut] 📊 Procesando WorkEntries...');
             try {
-                // Invocar la función de procesamiento de WorkEntries
-                const workEntriesResult = await base44.asServiceRole.functions.invoke(
-                    'processScheduleForWorkEntries',
-                    {
-                        scheduleId: scheduleId,
-                        mode: 'create'
-                    }
-                );
-
-                if (workEntriesResult?.data?.success) {
-                    workEntriesCreated = workEntriesResult.data.created_entries || 0;
+                const result = await base44.asServiceRole.functions.invoke('processScheduleForWorkEntries', {
+                    scheduleId,
+                    mode: 'create'
+                });
+                if (result?.data?.success) {
+                    workEntriesCreated = result.data.created_entries || 0;
                     workEntriesProcessed = true;
-                    console.log(`[ClockOut] ✅ WorkEntries procesadas: ${workEntriesCreated} entradas`);
-                } else {
-                    console.warn('[ClockOut] ⚠️ Respuesta inesperada al procesar WorkEntries:', workEntriesResult?.data);
+                    console.log(`[ClockOut] ✅ WorkEntries: ${workEntriesCreated}`);
                 }
-            } catch (workEntryError) {
-                // NO bloqueamos el Clock Out si falla el procesamiento de WorkEntries
-                console.error('[ClockOut] ❌ Error procesando WorkEntries:', workEntryError);
-                console.warn('[ClockOut] ⚠️ El Clock Out se completó pero las WorkEntries deben revisarse manualmente');
+            } catch (err) {
+                console.error('[ClockOut] ⚠️ Error WorkEntries (no bloqueante):', err);
             }
-        } else if (newStatus === 'completed') {
-            console.log('[ClockOut] ℹ️ Servicio ya estaba completado, no se procesan WorkEntries de nuevo');
         }
 
-        // PASO 13: Preparar respuesta exitosa
         const successResponse = {
             success: true,
             schedule: updatedSchedule,
@@ -193,34 +137,25 @@ Deno.serve(async (req) => {
             serviceCompleted: allCleanersClockedOut,
             workEntriesProcessed,
             workEntriesCreated,
-            message: allCleanersClockedOut 
-                ? 'Clock Out registrado. ¡Servicio completado!' 
-                : 'Clock Out registrado exitosamente'
+            message: allCleanersClockedOut ? 'Clock Out registrado. ¡Servicio completado!' : 'Clock Out registrado exitosamente'
         };
 
-        // PASO 14: Cachear respuesta para idempotencia
-        idempotencyCache.set(cacheKey, {
-            response: successResponse,
-            timestamp: Date.now()
-        });
-
-        // Limpiar caché antiguo
-        if (idempotencyCache.size > 1000) {
-            const oldestKeys = Array.from(idempotencyCache.entries())
-                .sort((a, b) => a[1].timestamp - b[1].timestamp)
-                .slice(0, 100)
-                .map(entry => entry[0]);
-            
-            oldestKeys.forEach(key => idempotencyCache.delete(key));
+        // Cachear para idempotencia
+        if (idempotencyKey) {
+            const cacheKey = `${user.id}:${idempotencyKey}`;
+            idempotencyCache.set(cacheKey, { response: successResponse, timestamp: Date.now() });
+            if (idempotencyCache.size > 1000) {
+                const oldest = Array.from(idempotencyCache.entries())
+                    .sort((a, b) => a[1].timestamp - b[1].timestamp)
+                    .slice(0, 100).map(e => e[0]);
+                oldest.forEach(k => idempotencyCache.delete(k));
+            }
         }
 
         return Response.json(successResponse);
 
     } catch (error) {
         console.error('[ClockOut] ❌ Error:', error);
-        return Response.json({ 
-            success: false, 
-            error: error.message || 'Error interno del servidor' 
-        }, { status: 500 });
+        return Response.json({ success: false, error: error.message || 'Error interno del servidor' }, { status: 500 });
     }
 });

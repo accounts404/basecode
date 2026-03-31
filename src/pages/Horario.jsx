@@ -684,17 +684,34 @@ export default function HorarioPage() {
             const functionName = action === 'clock_in' ? 'clockIn' : 'clockOut';
             console.log(`[Horario] 🎬 Invocando backend ${functionName}...`);
 
-            const { data: result } = await base44.functions.invoke(functionName, {
-                scheduleId
-            }, { headers: { 'Idempotency-Key': idempotencyKey } });
-
-            if (!result?.success) {
-                throw new Error(result?.error || `Error en ${functionName}`);
+            // Reintentos automáticos con backoff (hasta 4 intentos)
+            let result = null;
+            let lastError = null;
+            for (let attempt = 0; attempt < 4; attempt++) {
+                try {
+                    if (attempt > 0) {
+                        const delay = attempt * 1500;
+                        console.log(`[Horario] 🔄 Reintento ${attempt} en ${delay}ms...`);
+                        await new Promise(r => setTimeout(r, delay));
+                    }
+                    const response = await base44.functions.invoke(functionName, {
+                        scheduleId,
+                        idempotencyKey // en el body, no en headers
+                    });
+                    result = response.data;
+                    break; // éxito
+                } catch (err) {
+                    lastError = err;
+                    console.warn(`[Horario] ⚠️ Intento ${attempt + 1} falló:`, err.message);
+                }
             }
+
+            if (!result) throw lastError || new Error('Sin respuesta del servidor');
+            if (!result.success) throw new Error(result.error || `Error en ${functionName}`);
 
             console.log(`[Horario] ✅ ${functionName} exitoso:`, result.message);
 
-            // Actualizar caché local con el schedule retornado por el backend
+            // Actualizar caché local con el schedule retornado
             if (result.schedule) {
                 const schedulesArray = Array.isArray(schedules) ? schedules : [];
                 const updated = schedulesArray.map(s => s.id === scheduleId ? result.schedule : s);
@@ -706,7 +723,6 @@ export default function HorarioPage() {
             setSelectedEvent(null);
 
             if (action === 'clock_in') {
-                // Registrar en localStorage y redirigir a ServicioActivo
                 registerClockIn(scheduleId, result.schedule);
                 toast({
                     title: '✅ Servicio iniciado',
@@ -720,7 +736,6 @@ export default function HorarioPage() {
                     navigationInProgressRef.current = false;
                 }, 500);
             } else {
-                // Clock Out: limpiar caché y recargar
                 registerClockOut(scheduleId);
                 toast({
                     title: '✅ Servicio finalizado',
@@ -738,8 +753,8 @@ export default function HorarioPage() {
             toast({
                 variant: 'destructive',
                 title: '❌ Error',
-                description: error.message || 'No se pudo completar. Por favor intenta de nuevo.',
-                duration: 5000,
+                description: error.message || 'Sin conexión. Por favor intenta de nuevo cuando tengas señal.',
+                duration: 8000,
             });
             clockInProcessingRef.current = false;
             navigationInProgressRef.current = false;
