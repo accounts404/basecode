@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
 
         // Get template from admin settings
         const adminUser = admins[0];
-        const defaultTemplate = `Hola {client_name}, lamentamos informarte que tu servicio de limpieza de RedOak programado para el {service_date} a las {service_time} ha sido cancelado. Por favor contáctanos para reprogramar. ¡Disculpa los inconvenientes!`;
+        const defaultTemplate = `Hi {client_name}, we're sorry to inform you that your RedOak cleaning service scheduled for {service_date} at {service_time} has been cancelled. Please contact us to reschedule. We apologise for any inconvenience.`;
         const messageTemplate = adminUser?.sms_templates?.cancellation || defaultTemplate;
 
         // Format phone numbers
@@ -69,8 +69,8 @@ Deno.serve(async (req) => {
         let serviceTime = timePart;
         try {
             const d = new Date(startISO.endsWith('Z') ? startISO : startISO + 'Z');
-            const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-            serviceDate = `${d.getUTCDate()} de ${months[d.getUTCMonth()]}`;
+            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            serviceDate = `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
             serviceTime = `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
         } catch(e) { /* use raw values */ }
 

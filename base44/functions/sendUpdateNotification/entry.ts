@@ -1,4 +1,3 @@
-
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.0';
 import Twilio from 'npm:twilio@5.2.0';
 import { DateTime } from 'npm:luxon@3.4.4';
@@ -53,7 +52,7 @@ Deno.serve(async (req) => {
 
         // 3. Obtener plantilla de SMS y credenciales de Twilio
         const adminUser = admins[0];
-        const defaultTemplate = `Hola {client_name}, tu servicio con RedOak ha sido actualizado. Nuevos detalles:\nFecha: {service_date}\nHora: {service_time}.\nSi tienes alguna pregunta, contáctanos.`;
+        const defaultTemplate = `Hi {client_name}, your RedOak service has been updated. New details:\nDate: {service_date}\nTime: {service_time}.\nPlease contact us if you have any questions.`;
         const messageTemplate = adminUser?.sms_templates?.service_update || defaultTemplate;
 
         const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');

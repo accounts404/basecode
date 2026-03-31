@@ -87,8 +87,8 @@ Deno.serve(async (req) => {
         // 3. Obtener plantilla de SMS y definir mensaje por defecto
         const adminUser = admins[0];
         const defaultTemplate = estimatedArrivalMinutes 
-            ? `Hola {client_name}, tu limpiador de RedOak, {cleaner_name}, va de camino y llegará en aproximadamente {eta_minutes} minutos. ¡Nos vemos pronto!`
-            : `Hola {client_name}, tu limpiador de RedOak, {cleaner_name}, va de camino para tu servicio. ¡Nos vemos pronto!`;
+            ? `Hi {client_name}, your RedOak cleaner, {cleaner_name}, is on the way and will arrive in approximately {eta_minutes} minutes. See you soon!`
+            : `Hi {client_name}, your RedOak cleaner, {cleaner_name}, is on the way to your service. See you soon!`;
         
         const messageTemplate = adminUser?.sms_templates?.on_my_way || defaultTemplate;
 

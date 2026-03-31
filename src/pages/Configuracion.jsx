@@ -13,10 +13,10 @@ import { sendServiceReminders } from '@/functions/sendServiceReminders';
 import ThemeConfigurator from '@/components/theme/ThemeConfigurator';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
-const defaultOnMyWayTemplate = `Hola {client_name}, tu limpiador de RedOak, {cleaner_name}, va de camino para tu servicio. ¡Nos vemos pronto!`;
-const defaultCancellationTemplate = `Hola {client_name}, lamentamos informarte que tu servicio de limpieza de RedOak programado para el {service_date} a las {service_time} ha sido cancelado. Por favor contáctanos para reprogramar. ¡Disculpa los inconvenientes!`;
-const defaultReminderTemplate = `Hola {client_name}, te recordamos tu servicio de limpieza de RedOak programado para mañana a las {service_time}. ¡Gracias!`;
-const defaultUpdateTemplate = `Hola {client_name}, tu servicio con RedOak ha sido actualizado. Nuevos detalles:\nFecha: {service_date}\nHora: {service_time}.\nSi tienes alguna pregunta, contáctanos.`;
+const defaultOnMyWayTemplate = `Hi {client_name}, your RedOak cleaner, {cleaner_name}, is on the way to your service. See you soon!`;
+const defaultCancellationTemplate = `Hi {client_name}, we're sorry to inform you that your RedOak cleaning service scheduled for {service_date} at {service_time} has been cancelled. Please contact us to reschedule. We apologise for any inconvenience.`;
+const defaultReminderTemplate = `Hi {client_name}, this is a reminder of your RedOak cleaning service scheduled for {service_date} at {service_time}. Thank you!`;
+const defaultUpdateTemplate = `Hi {client_name}, your RedOak service has been updated. New details:\nDate: {service_date}\nTime: {service_time}.\nPlease contact us if you have any questions.`;
 const defaultMotivationalMessage = '¡Hoy es un gran día para brillar! Da lo mejor de ti y haz que cada cliente sonría. 💪✨';
 
 export default function ConfiguracionPage() {

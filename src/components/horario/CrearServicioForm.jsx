@@ -964,17 +964,17 @@ export default function CrearServicioForm({
             try {
                 const { base44 } = await import('@/api/base44Client');
                 const me = await base44.auth.me();
-                let template = me?.sms_templates?.cancellation || 'Hola {client_name}, lamentamos informarte que el servicio del {service_date} a las {service_time} ha sido cancelado. Por favor contáctanos para reprogramar. Gracias.';
+                let template = me?.sms_templates?.cancellation || "Hi {client_name}, we're sorry to inform you that your RedOak cleaning service scheduled for {service_date} at {service_time} has been cancelled. Please contact us to reschedule. We apologise for any inconvenience.";
                 const serviceDate = schedule.start_time ? new Date(schedule.start_time) : new Date();
-                const monthNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-                const dateStr = `${serviceDate.getUTCDate()} de ${monthNames[serviceDate.getUTCMonth()]}`;
+                const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const dateStr = `${serviceDate.getUTCDate()} ${monthNames[serviceDate.getUTCMonth()]}`;
                 const timeStr = `${String(serviceDate.getUTCHours()).padStart(2,'0')}:${String(serviceDate.getUTCMinutes()).padStart(2,'0')}`;
                 const clientSmsName = selectedClient.sms_name || selectedClient.name || '';
                 template = template.replace(/\{client_name\}/g, clientSmsName).replace(/\{service_date\}/g, dateStr).replace(/\{service_time\}/g, timeStr);
                 setCancellationSmsText(template);
             } catch (err) {
                 const clientSmsName = selectedClient.sms_name || selectedClient.name || '';
-                setCancellationSmsText(`Hola ${clientSmsName}, lamentamos informarte que tu servicio ha sido cancelado. Por favor contáctanos para reprogramar. Gracias.`);
+                setCancellationSmsText(`Hi ${clientSmsName}, we're sorry to inform you that your RedOak cleaning service has been cancelled. Please contact us to reschedule. We apologise for any inconvenience.`);
             }
             setShowCancellationDialog(true);
         }
