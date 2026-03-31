@@ -36,6 +36,8 @@ import ProjectHeader from '@/components/projects/ProjectHeader';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { startOfDay, endOfDay, isAfter, isBefore, isToday } from 'date-fns';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from '@/components/ui/alert-dialog';
+import { Trash2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 
@@ -64,6 +66,7 @@ export default function AdminTasksPanel() {
   const [editingProject, setEditingProject] = useState(null);
   const [showArchivedProjects, setShowArchivedProjects] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
+  const [deleteDialogTask, setDeleteDialogTask] = useState(null); // task to confirm delete
   
   // Estados de filtros
   const [filters, setFilters] = useState({
@@ -488,9 +491,35 @@ export default function AdminTasksPanel() {
     }
   };
 
-  const handleDeleteTask = async (taskId) => {
+  const requestDeleteTask = (taskOrId) => {
+    const task = typeof taskOrId === 'string' ? tasks.find(t => t.id === taskOrId) : taskOrId;
+    if (!task) return;
+    // If recurring, show dialog; otherwise delete immediately
+    if (task.task_recurrence_id) {
+      setDeleteDialogTask(task);
+    } else {
+      handleDeleteTask(task.id, 'single');
+    }
+  };
+
+  const handleDeleteTask = async (taskId, scope = 'single') => {
     try {
-      await base44.entities.Task.delete(taskId);
+      if (scope === 'this_and_future') {
+        const task = tasks.find(t => t.id === taskId);
+        if (task?.task_recurrence_id) {
+          // Delete all future tasks in the series (including this one)
+          const futureTasks = tasks.filter(t =>
+            t.task_recurrence_id === task.task_recurrence_id &&
+            t.due_date >= task.due_date
+          );
+          await Promise.all(futureTasks.map(t => base44.entities.Task.delete(t.id)));
+        } else {
+          await base44.entities.Task.delete(taskId);
+        }
+      } else {
+        await base44.entities.Task.delete(taskId);
+      }
+      setDeleteDialogTask(null);
       await loadInitialData();
       setShowTaskForm(false);
       setSelectedTask(null);
@@ -499,7 +528,7 @@ export default function AdminTasksPanel() {
 
       toast({
         title: "🗑️ Tarea Eliminada",
-        description: "La tarea fue eliminada correctamente",
+        description: scope === 'this_and_future' ? "Esta tarea y todas las futuras de la serie fueron eliminadas" : "La tarea fue eliminada correctamente",
         duration: 2000,
       });
     } catch (error) {
@@ -1129,7 +1158,7 @@ export default function AdminTasksPanel() {
                 projects={projects}
                 onViewTask={handleViewTaskDetail}
                 onEditTask={handleEditTask}
-                onDeleteTask={(task) => handleDeleteTask(task.id)}
+                onDeleteTask={(task) => requestDeleteTask(task)}
                 onStatusChange={handleToggleTaskStatus}
                 onCompleteWithNotes={handleCompleteWithNotes}
                 currentUser={user}
@@ -1177,7 +1206,7 @@ export default function AdminTasksPanel() {
             projects={projects}
             currentUser={user}
             onSave={handleSaveTask}
-            onDelete={selectedTask?.id ? () => handleDeleteTask(selectedTask.id) : null}
+            onDelete={selectedTask?.id ? () => requestDeleteTask(selectedTask) : null}
             onCancel={() => {
               setShowTaskForm(false);
               setSelectedTask(null);
@@ -1203,10 +1232,7 @@ export default function AdminTasksPanel() {
                 setShowTaskDetail(false);
                 handleEditTask(taskForDetail);
               }}
-              onDelete={async () => {
-                await handleDeleteTask(taskForDetail.id);
-                setShowTaskDetail(false);
-              }}
+              onDelete={() => requestDeleteTask(taskForDetail)}
               onAddComment={handleAddComment}
               onToggleChecklistItem={handleToggleChecklistItem}
               onStatusChange={handleToggleTaskStatus}
@@ -1238,6 +1264,37 @@ export default function AdminTasksPanel() {
         </DialogContent>
       </Dialog>
       </div>
+
+      {/* Delete Confirmation Dialog for Recurring Tasks */}
+      <AlertDialog open={!!deleteDialogTask} onOpenChange={(open) => !open && setDeleteDialogTask(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-600" />
+              Eliminar Tarea Recurrente
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>"{deleteDialogTask?.title}"</strong> es parte de una serie recurrente. ¿Qué deseas eliminar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button
+              variant="outline"
+              className="border-red-300 text-red-700 hover:bg-red-50"
+              onClick={() => handleDeleteTask(deleteDialogTask.id, 'single')}
+            >
+              Solo esta tarea
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => handleDeleteTask(deleteDialogTask.id, 'this_and_future')}
+            >
+              Esta y todas las futuras
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
