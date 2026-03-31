@@ -13,10 +13,9 @@
 
 import { base44 } from '@/api/base44Client';
 import { 
-    getLocalActiveService, 
-    setLocalActiveService, 
-    clearLocalActiveService,
-    checkActiveServiceInBackend 
+    getActiveServiceFromCache,
+    syncActiveService,
+    clearAllFlags
 } from './activeServiceManager';
 
 // Generar UUID para idempotencia
@@ -91,7 +90,7 @@ export const canUserClockIn = async (userId) => {
     
     try {
         // 1. Verificar caché local primero (rápido)
-        const localActive = getLocalActiveService();
+        const localActive = getActiveServiceFromCache();
         if (localActive && localActive.userId === userId) {
             console.log('[ClockService] ❌ Ya hay un servicio activo en caché local');
             return {
@@ -101,19 +100,10 @@ export const canUserClockIn = async (userId) => {
         }
 
         // 2. Verificar en el backend (fuente de verdad)
-        const { hasActive, service } = await checkActiveServiceInBackend(userId);
+        const { hasActive, activeSchedule: service } = await syncActiveService(userId);
         
         if (hasActive) {
             console.log('[ClockService] ❌ Servicio activo encontrado en backend:', service.id);
-            
-            // Sincronizar caché local con backend
-            setLocalActiveService({
-                scheduleId: service.id,
-                userId: userId,
-                clockInTime: service.clock_in_data?.find(c => c.cleaner_id === userId)?.clock_in_time,
-                clientName: service.client_name
-            });
-            
             return {
                 canClockIn: false,
                 reason: `Ya tienes el servicio "${service.client_name}" activo. Debes hacer Clock Out primero.`,
@@ -190,13 +180,14 @@ export const performClockIn = async (scheduleId, userId, onProgress) => {
         // PASO 5: Actualizar caché local con datos del servidor
         const serverClockInData = updatedSchedule.clock_in_data?.find(c => c.cleaner_id === userId);
         
-        setLocalActiveService({
+        localStorage.setItem('redoak_active_service', JSON.stringify({
             scheduleId: updatedSchedule.id,
             userId: userId,
             clockInTime: serverClockInData?.clock_in_time,
             clientName: updatedSchedule.client_name,
-            clientAddress: updatedSchedule.client_address
-        });
+            clientAddress: updatedSchedule.client_address,
+            timestamp: Date.now()
+        }));
 
         console.log('[ClockService] ✅ Caché local actualizado');
 
@@ -258,7 +249,7 @@ export const performClockOut = async (scheduleId, userId, onProgress) => {
         }
 
         // PASO 3: Limpiar caché local
-        clearLocalActiveService();
+        clearAllFlags();
         console.log('[ClockService] ✅ Caché local limpiado');
 
         return {

@@ -1451,59 +1451,110 @@ export default function HorarioPage() {
 
             {isCleanerView && (
               <div className="flex-shrink-0 bg-white border-b">
-                <div className="grid grid-cols-3 divide-x divide-slate-100">
-                    {/* Vehículo */}
-                    <div className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                            <Car className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Vehículo</p>
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="info" className="border-0">
+                    <AccordionTrigger className="px-4 py-2.5 hover:no-underline hover:bg-slate-50">
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="flex items-center gap-1.5 text-slate-500">
+                          <Car className="w-4 h-4 text-blue-500" />
+                          <span className="font-medium text-slate-700 truncate max-w-[100px]">
+                            {assignedVehicle || <span className="italic text-slate-400">Sin vehículo</span>}
+                          </span>
+                        </span>
+                        <span className="text-slate-300">·</span>
+                        <span className="flex items-center gap-1.5 text-slate-500">
+                          <Users className="w-4 h-4 text-purple-500" />
+                          <span className="font-medium text-slate-700">
+                            {Array.isArray(teamMembers) && teamMembers.length > 0
+                              ? `${teamMembers.length} miembro${teamMembers.length > 1 ? 's' : ''}`
+                              : <span className="italic text-slate-400">Sin equipo</span>}
+                          </span>
+                        </span>
+                        <span className="text-slate-300">·</span>
+                        <span className="flex items-center gap-1.5 text-slate-500">
+                          <KeySquare className="w-4 h-4 text-amber-500" />
+                          <span className="font-medium text-slate-700">
+                            {requiredKeys.length > 0
+                              ? `${requiredKeys.length} llave${requiredKeys.length > 1 ? 's' : ''}`
+                              : <span className="italic text-slate-400">Sin llaves</span>}
+                          </span>
+                        </span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 pb-4 pt-0">
+                      <div className="grid grid-cols-1 gap-3">
+
+                        {/* Vehículo */}
+                        <div className="flex items-start gap-3 bg-blue-50 rounded-xl p-3">
+                          <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <Car className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-0.5">Vehículo</p>
                             {assignedVehicle ? (
-                                <>
-                                    <p className="text-sm font-bold text-slate-800 truncate">{assignedVehicle}</p>
-                                    {mainDriverName && <p className="text-xs text-slate-500 truncate">Cond: {mainDriverName}</p>}
-                                </>
+                              <>
+                                <p className="text-sm font-bold text-slate-800">{assignedVehicle}</p>
+                                {mainDriverName && (
+                                  <p className="text-xs text-slate-500 mt-0.5">Conductor: <span className="font-medium text-slate-700">{mainDriverName}</span></p>
+                                )}
+                              </>
                             ) : (
-                                <p className="text-sm text-slate-400 italic">Sin asignar</p>
+                              <p className="text-sm text-slate-400 italic">No hay vehículo asignado para hoy</p>
                             )}
+                          </div>
                         </div>
-                    </div>
 
-                    {/* Equipo */}
-                    <div className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                            <Users className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Equipo</p>
+                        {/* Equipo */}
+                        <div className="flex items-start gap-3 bg-purple-50 rounded-xl p-3">
+                          <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                            <Users className="w-5 h-5 text-purple-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-purple-500 uppercase tracking-wide mb-1">Equipo</p>
                             {Array.isArray(teamMembers) && teamMembers.length > 0 ? (
-                                <div className="flex flex-wrap gap-1 mt-0.5">
-                                    {teamMembers.map((name, i) => (
-                                        <span key={i} className="inline-flex px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-xs font-medium">{name}</span>
-                                    ))}
-                                </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {teamMembers.map((name, i) => (
+                                  <span key={i} className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-lg text-sm font-medium">{name}</span>
+                                ))}
+                              </div>
                             ) : (
-                                <p className="text-sm text-slate-400 italic">Sin equipo</p>
+                              <p className="text-sm text-slate-400 italic">No hay equipo asignado para hoy</p>
                             )}
+                          </div>
                         </div>
-                    </div>
 
-                    {/* Llaves */}
-                    <div className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                            <KeySquare className="w-4 h-4 text-amber-600" />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Llaves</p>
+                        {/* Llaves */}
+                        <div className="flex items-start gap-3 bg-amber-50 rounded-xl p-3">
+                          <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                            <KeySquare className="w-5 h-5 text-amber-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">Llaves requeridas</p>
                             {requiredKeys.length > 0 ? (
-                                <p className="text-sm font-bold text-slate-800 truncate">{requiredKeys.map(k => k.identifier).join(', ')}</p>
+                              <div className="flex flex-col gap-1.5">
+                                {requiredKeys.map((key, i) => (
+                                  <div key={i} className="flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-amber-200 text-amber-800 text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                                    <div>
+                                      <span className="text-sm font-semibold text-slate-800">{key.identifier}</span>
+                                      <span className="text-xs text-slate-500 ml-1.5">— {key.client_name}</span>
+                                      {key.access_type && (
+                                        <span className="ml-1.5 text-xs text-amber-700 capitalize">({key.access_type})</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             ) : (
-                                <p className="text-sm text-slate-400 italic">Sin llaves</p>
+                              <p className="text-sm text-slate-400 italic">No se requieren llaves para hoy</p>
                             )}
+                          </div>
                         </div>
-                    </div>
-                </div>
+
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </div>
             )}
 
