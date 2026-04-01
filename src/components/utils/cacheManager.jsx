@@ -35,7 +35,20 @@ class CacheManager {
         try {
             localStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
         } catch (error) {
-            console.warn('[Cache] Error guardando en localStorage:', error);
+            if (error.name === 'QuotaExceededError') {
+                // Limpiar todas las entradas de cache antiguas y reintentar
+                try {
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        if (k && k.startsWith(CACHE_PREFIX)) keysToRemove.push(k);
+                    }
+                    keysToRemove.forEach(k => localStorage.removeItem(k));
+                    localStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
+                } catch (retryError) {
+                    // Si sigue fallando, solo usar memoria — no bloqueamos el flujo
+                }
+            }
         }
 
         // Notificar a suscriptores
