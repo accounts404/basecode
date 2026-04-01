@@ -10,7 +10,6 @@ import {
 } from '@/components/utils/activeServiceManager';
 import cacheManager, { CACHE_KEYS, CACHE_TTL } from '@/components/utils/cacheManager';
 import logger from '@/components/utils/logger';
-import GpsPermissionModal from '@/components/utils/GpsPermissionModal';
 import { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -156,8 +155,6 @@ export default function HorarioPage() {
     const loadingRef = useRef(false);
     const navigationInProgressRef = useRef(false);
     const clockInProcessingRef = useRef(false);
-
-    const [gpsModal, setGpsModal] = useState(null); // { scheduleId, action } | null
 
     const currentDateRef = useRef(date);
     const currentViewRef = useRef(view);
@@ -663,13 +660,6 @@ export default function HorarioPage() {
 
     // Clock In/Out usando funciones backend (atómico, idempotente, timestamp del servidor)
     const handleClockInOut = async (scheduleId, action) => {
-        // Mostrar modal GPS primero — la acción real ocurre en handleClockInOutWithLocation
-        setGpsModal({ scheduleId, action });
-    };
-
-    const handleClockInOutWithLocation = async (scheduleId, action, userLocation) => {
-        setGpsModal(null);
-
         if (clockInProcessingRef.current) {
             console.log('[Horario] ⏳ Proceso en curso, ignorando click duplicado');
             return;
@@ -684,7 +674,22 @@ export default function HorarioPage() {
             return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
         });
 
-        // userLocation ya fue capturado por el modal GPS
+        // Capturar GPS — solicita permiso al usuario si aún no lo ha otorgado
+        // El navegador mostrará el diálogo nativo: "Permitir una vez" / "Siempre" / "No permitir"
+        let userLocation = null;
+        if ('geolocation' in navigator) {
+            toast({
+                title: action === 'clock_in' ? '📍 Obteniendo ubicación...' : '⏳ Finalizando servicio...',
+                description: action === 'clock_in' ? 'Si tu navegador lo solicita, permite el acceso a tu ubicación.' : 'Por favor espera...',
+                duration: 20000,
+            });
+            try {
+                const { getUserLocation } = await import('@/components/utils/clockService');
+                userLocation = await getUserLocation();
+            } catch (e) {
+                console.warn('[Horario] Error importando getUserLocation:', e);
+            }
+        }
 
         toast({
             title: action === 'clock_in' ? '⏳ Iniciando servicio...' : '⏳ Finalizando servicio...',
@@ -1319,13 +1324,6 @@ export default function HorarioPage() {
     return (
         <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: currentTheme.colors.background }}>
             <Toaster />
-            {gpsModal && (
-                <GpsPermissionModal
-                    action={gpsModal.action}
-                    onConfirm={(loc) => handleClockInOutWithLocation(gpsModal.scheduleId, gpsModal.action, loc)}
-                    onCancel={() => setGpsModal(null)}
-                />
-            )}
             {isCleanerView ? (
                 <header className="flex-shrink-0 bg-white border-b shadow-sm" style={{ borderColor: currentTheme.colors.cardBorder }}>
                     <div className="flex items-center justify-between px-4 py-3">
