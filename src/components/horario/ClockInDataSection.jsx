@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Play, Square, Navigation, ExternalLink, AlertTriangle, User, Mail, CheckCircle, Loader2, Clock, Timer } from 'lucide-react';
+import { MapPin, Navigation, ExternalLink, AlertTriangle, Mail, CheckCircle, Loader2, Clock } from 'lucide-react';
 import { parseISO, format, differenceInMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { base44 } from '@/api/base44Client';
@@ -19,9 +18,7 @@ function parseGPSCoordinates(locationString) {
 }
 
 function openLocationInMaps(latitude, longitude) {
-    if (latitude && longitude) {
-        window.open(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`, '_blank');
-    }
+    window.open(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`, '_blank');
 }
 
 function formatDateWithTime(isoString) {
@@ -49,12 +46,9 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
             setTimeout(() => setEmailError(''), 4000);
             return;
         }
-
         setSendingEmail(true);
         setEmailError('');
-
         try {
-            // Build cleaner rows for email
             const cleanerRows = schedule.clock_in_data.map((cd, i) => {
                 const cleaner = allUsers.find(u => u.id === cd.cleaner_id);
                 const name = cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Limpiador';
@@ -65,105 +59,70 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                 const workedMin = cd.clock_in_time && cd.clock_out_time
                     ? differenceInMinutes(parseISO(cd.clock_out_time), parseISO(cd.clock_in_time))
                     : null;
-
-                return `
-                <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}">
-                  <td style="padding:12px 16px;font-weight:600;color:#1e293b;border-bottom:1px solid #e2e8f0">${name}</td>
-                  <td style="padding:12px 16px;color:#166534;border-bottom:1px solid #e2e8f0">
-                    <div style="font-weight:600">${cd.clock_in_time ? formatDateWithTime(cd.clock_in_time) : '—'}</div>
-                    ${inCoords ? `<div style="font-size:12px;color:#15803d;margin-top:4px">📍 ${inCoords.latitude.toFixed(6)}, ${inCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${inMapLink}" style="font-size:11px;color:#2563eb">Ver en Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS no disponible</div>'}
-                  </td>
-                  <td style="padding:12px 16px;color:#991b1b;border-bottom:1px solid #e2e8f0">
-                    ${cd.clock_out_time ? `
-                    <div style="font-weight:600">${formatDateWithTime(cd.clock_out_time)}</div>
-                    ${outCoords ? `<div style="font-size:12px;color:#b91c1c;margin-top:4px">📍 ${outCoords.latitude.toFixed(6)}, ${outCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${outMapLink}" style="font-size:11px;color:#2563eb">Ver en Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS no disponible</div>'}
-                    ` : '<div style="color:#64748b">En progreso</div>'}
-                  </td>
-                  <td style="padding:12px 16px;text-align:center;font-weight:600;color:#1d4ed8;border-bottom:1px solid #e2e8f0">${workedMin !== null ? formatDuration(workedMin) : '—'}</td>
-                </tr>`;
+                const bg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
+                return `<tr style="background:${bg}">
+  <td style="padding:12px 16px;font-weight:600;color:#1e293b;border-bottom:1px solid #e2e8f0">${name}</td>
+  <td style="padding:12px 16px;color:#166534;border-bottom:1px solid #e2e8f0">
+    <div style="font-weight:600">${cd.clock_in_time ? formatDateWithTime(cd.clock_in_time) : '—'}</div>
+    ${inCoords ? `<div style="font-size:12px;color:#15803d;margin-top:4px">📍 ${inCoords.latitude.toFixed(6)}, ${inCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${inMapLink}" style="font-size:11px;color:#2563eb">Ver en Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS no disponible</div>'}
+  </td>
+  <td style="padding:12px 16px;color:#991b1b;border-bottom:1px solid #e2e8f0">
+    ${cd.clock_out_time ? `<div style="font-weight:600">${formatDateWithTime(cd.clock_out_time)}</div>${outCoords ? `<div style="font-size:12px;color:#b91c1c;margin-top:4px">📍 ${outCoords.latitude.toFixed(6)}, ${outCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${outMapLink}" style="font-size:11px;color:#2563eb">Ver en Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS no disponible</div>'}` : '<div style="color:#64748b">En progreso</div>'}
+  </td>
+  <td style="padding:12px 16px;text-align:center;font-weight:600;color:#1d4ed8;border-bottom:1px solid #e2e8f0">${workedMin !== null ? formatDuration(workedMin) : '—'}</td>
+</tr>`;
             }).join('');
 
             const serviceDate = schedule.start_time ? format(parseISO(schedule.start_time), "EEEE d 'de' MMMM yyyy", { locale: es }) : 'N/A';
-            const serviceTime = schedule.start_time ? `${schedule.start_time.slice(11,16)} – ${schedule.end_time?.slice(11,16) || ''}` : '';
+            const serviceTime = schedule.start_time ? `${schedule.start_time.slice(11, 16)} – ${schedule.end_time?.slice(11, 16) || ''}` : '';
 
-            const emailBody = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
+            const emailBody = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f1f5f9">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px">
-    <tr><td>
-      <table width="600" cellpadding="0" cellspacing="0" align="center" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-        <!-- Header -->
-        <tr>
-          <td style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:32px 40px;text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px">RedOak Cleaning Solutions</div>
-            <div style="font-size:13px;color:#93c5fd;margin-top:4px">Informe Oficial de Asistencia</div>
-          </td>
-        </tr>
-        <!-- Service Info -->
-        <tr>
-          <td style="padding:28px 40px 16px">
-            <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px 20px">
-              <div style="font-size:13px;color:#0369a1;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:8px">Detalles del Servicio</div>
-              <table width="100%">
-                <tr>
-                  <td style="width:50%;padding:4px 0">
-                    <span style="color:#64748b;font-size:13px">Cliente:</span>
-                    <span style="font-weight:600;color:#1e293b;font-size:14px;margin-left:6px">${selectedClient?.name || schedule.client_name}</span>
-                  </td>
-                  <td style="width:50%;padding:4px 0">
-                    <span style="color:#64748b;font-size:13px">Fecha:</span>
-                    <span style="font-weight:600;color:#1e293b;font-size:14px;margin-left:6px;text-transform:capitalize">${serviceDate}</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td colspan="2" style="padding:4px 0">
-                    <span style="color:#64748b;font-size:13px">Horario planificado:</span>
-                    <span style="font-weight:600;color:#1e293b;font-size:14px;margin-left:6px">${serviceTime}</span>
-                  </td>
-                </tr>
-                ${selectedClient?.address ? `<tr><td colspan="2" style="padding:4px 0"><span style="color:#64748b;font-size:13px">Dirección:</span><span style="font-weight:600;color:#1e293b;font-size:14px;margin-left:6px">${selectedClient.address}</span></td></tr>` : ''}
-              </table>
-            </div>
-          </td>
-        </tr>
-        <!-- Attendance Table -->
-        <tr>
-          <td style="padding:8px 40px 28px">
-            <div style="font-size:13px;color:#475569;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:12px">Registro de Asistencia con GPS</div>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
-              <thead>
-                <tr style="background:#1e3a5f">
-                  <th style="padding:12px 16px;text-align:left;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Limpiador</th>
-                  <th style="padding:12px 16px;text-align:left;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">🟢 Clock In</th>
-                  <th style="padding:12px 16px;text-align:left;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">🔴 Clock Out</th>
-                  <th style="padding:12px 16px;text-align:center;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Duración</th>
-                </tr>
-              </thead>
-              <tbody>${cleanerRows}</tbody>
-            </table>
-          </td>
-        </tr>
-        <!-- Footer -->
-        <tr>
-          <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center">
-            <div style="font-size:12px;color:#94a3b8">Este informe fue generado automáticamente por el sistema RedOak Cleaning Solutions.</div>
-            <div style="font-size:12px;color:#94a3b8;margin-top:4px">Los registros GPS y horarios son verificables y están almacenados en nuestro sistema.</div>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px">
+<tr><td>
+<table width="600" cellpadding="0" cellspacing="0" align="center" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+<tr><td style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:32px 40px;text-align:center">
+  <div style="font-size:22px;font-weight:700;color:#ffffff">RedOak Cleaning Solutions</div>
+  <div style="font-size:13px;color:#93c5fd;margin-top:4px">Informe Oficial de Asistencia</div>
+</td></tr>
+<tr><td style="padding:28px 40px 16px">
+  <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px 20px">
+    <div style="font-size:13px;color:#0369a1;font-weight:600;margin-bottom:8px">DETALLES DEL SERVICIO</div>
+    <table width="100%">
+      <tr>
+        <td style="padding:4px 0;width:50%"><span style="color:#64748b;font-size:13px">Cliente:</span> <strong style="color:#1e293b">${selectedClient?.name || schedule.client_name}</strong></td>
+        <td style="padding:4px 0"><span style="color:#64748b;font-size:13px">Fecha:</span> <strong style="color:#1e293b;text-transform:capitalize">${serviceDate}</strong></td>
+      </tr>
+      <tr><td colspan="2" style="padding:4px 0"><span style="color:#64748b;font-size:13px">Horario planificado:</span> <strong style="color:#1e293b">${serviceTime}</strong></td></tr>
+      ${selectedClient?.address ? `<tr><td colspan="2" style="padding:4px 0"><span style="color:#64748b;font-size:13px">Dirección:</span> <strong style="color:#1e293b">${selectedClient.address}</strong></td></tr>` : ''}
+    </table>
+  </div>
+</td></tr>
+<tr><td style="padding:8px 40px 28px">
+  <div style="font-size:13px;color:#475569;font-weight:600;margin-bottom:12px;text-transform:uppercase">Registro de Asistencia con GPS</div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+    <thead><tr style="background:#1e3a5f">
+      <th style="padding:12px 16px;text-align:left;color:#fff;font-size:12px">Limpiador</th>
+      <th style="padding:12px 16px;text-align:left;color:#fff;font-size:12px">🟢 Clock In</th>
+      <th style="padding:12px 16px;text-align:left;color:#fff;font-size:12px">🔴 Clock Out</th>
+      <th style="padding:12px 16px;text-align:center;color:#fff;font-size:12px">Duración</th>
+    </tr></thead>
+    <tbody>${cleanerRows}</tbody>
   </table>
-</body>
-</html>`;
+</td></tr>
+<tr><td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center">
+  <div style="font-size:12px;color:#94a3b8">Este informe fue generado automáticamente por el sistema RedOak Cleaning Solutions.</div>
+  <div style="font-size:12px;color:#94a3b8;margin-top:4px">Los registros GPS y horarios son verificables y están almacenados en nuestro sistema.</div>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
 
             await base44.integrations.Core.SendEmail({
                 to: clientEmail,
                 subject: `Informe de Asistencia – ${selectedClient?.name || schedule.client_name} – ${serviceDate}`,
                 body: emailBody
             });
-
             setEmailSent(true);
             setTimeout(() => setEmailSent(false), 5000);
         } catch (err) {
@@ -206,8 +165,9 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                     </Button>
                 </div>
             </div>
+
+            {/* Cleaner cards */}
             <div className="divide-y divide-slate-100">
-            <div className="space-y-4">
                 {schedule.clock_in_data.map((clockData, index) => {
                     const cleaner = allUsers.find(u => u.id === clockData.cleaner_id);
                     const cleanerName = cleaner ? (cleaner.display_name || cleaner.invoice_name || cleaner.full_name) : 'Limpiador no encontrado';
@@ -240,16 +200,16 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                                     {isCompleted ? '✓ Completado' : '● En progreso'}
                                 </Badge>
                             </div>
-                            {/* Clock In / Clock Out side by side */}
+
+                            {/* Clock In / Clock Out */}
                             <div className="grid grid-cols-2 gap-3 mb-4">
-                                {/* Clock In */}
                                 <div className="bg-green-50 border border-green-200 rounded-xl p-3">
                                     <div className="flex items-center gap-1.5 mb-2">
                                         <div className="w-2 h-2 rounded-full bg-green-500"></div>
                                         <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Clock In</span>
                                     </div>
                                     {clockData.clock_in_time ? (
-                                        <>
+                                        <div>
                                             <p className="font-bold text-slate-900 text-sm">{formatDateWithTime(clockData.clock_in_time)}</p>
                                             {clockInCoords ? (
                                                 <div className="mt-2">
@@ -263,17 +223,19 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                                                     <AlertTriangle className="w-3 h-3" /> GPS no disponible
                                                 </p>
                                             )}
-                                        </>
-                                    ) : <p className="text-xs text-slate-400">No registrado</p>}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-slate-400">No registrado</p>
+                                    )}
                                 </div>
-                                {/* Clock Out */}
+
                                 <div className="bg-red-50 border border-red-200 rounded-xl p-3">
                                     <div className="flex items-center gap-1.5 mb-2">
                                         <div className="w-2 h-2 rounded-full bg-red-500"></div>
                                         <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Clock Out</span>
                                     </div>
                                     {clockData.clock_out_time ? (
-                                        <>
+                                        <div>
                                             <p className="font-bold text-slate-900 text-sm">{formatDateWithTime(clockData.clock_out_time)}</p>
                                             {clockOutCoords ? (
                                                 <div className="mt-2">
@@ -287,12 +249,14 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                                                     <AlertTriangle className="w-3 h-3" /> GPS no disponible
                                                 </p>
                                             )}
-                                        </>
-                                    ) : <p className="text-xs text-slate-400 italic">Aún en progreso</p>}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-slate-400 italic">Aún en progreso</p>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Progress bar (live or final) */}
+                            {/* Progress bar */}
                             {timeData && (
                                 <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-4">
                                     <div className="flex-1">
@@ -308,7 +272,7 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                                 </div>
                             )}
 
-                            {/* Client address button */}
+                            {/* Client address */}
                             {selectedClient?.address && openInMaps && (
                                 <button onClick={() => openInMaps(selectedClient.address)} className="mt-3 w-full flex items-center justify-center gap-2 text-xs text-blue-600 hover:text-blue-800 py-2 rounded-lg border border-blue-100 hover:bg-blue-50 transition-colors">
                                     <Navigation className="w-3.5 h-3.5" /> Ver dirección del cliente
@@ -317,7 +281,6 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                         </div>
                     );
                 })}
-            </div>
             </div>
         </div>
     );
