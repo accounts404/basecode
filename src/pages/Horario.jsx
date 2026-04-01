@@ -474,7 +474,7 @@ export default function HorarioPage() {
 
     // Helper para cargar TODOS los registros con paginación automática
     const loadAllRecords = async (entityName, sortField = '-created_date') => {
-        const { base44 } = await import('@/api/base44Client');
+        // base44 ya está importado estáticamente al inicio del módulo
         const BATCH_SIZE = 5000;
         let allRecords = [];
         let skip = 0;
@@ -742,6 +742,17 @@ export default function HorarioPage() {
 
             if (action === 'clock_in') {
                 registerClockIn(scheduleId, result.schedule);
+                // Guardar fullSchedule en cache para que ServicioActivo lo cargue instantáneamente
+                const serverClockInData = result.schedule?.clock_in_data?.find(c => c.cleaner_id === user?.id);
+                localStorage.setItem('redoak_active_service', JSON.stringify({
+                    scheduleId: result.schedule?.id,
+                    userId: user?.id,
+                    clockInTime: serverClockInData?.clock_in_time,
+                    clientName: result.schedule?.client_name,
+                    clientAddress: result.schedule?.client_address,
+                    fullSchedule: result.schedule,
+                    timestamp: Date.now()
+                }));
                 toast({
                     title: '✅ Servicio iniciado',
                     description: 'Redirigiendo...',
