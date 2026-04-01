@@ -7,6 +7,7 @@ import { MapPin, Navigation, ExternalLink, AlertTriangle, Mail, CheckCircle, Loa
 import { parseISO, format, differenceInMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { base44 } from '@/api/base44Client';
+import { sendAttendanceReport } from '@/functions/sendAttendanceReport';
 
 function parseGPSCoordinates(locationString) {
     if (!locationString || typeof locationString !== 'string') return null;
@@ -144,9 +145,7 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
         const { html, serviceDate } = buildEmailBody(schedule, selectedClient, allUsers);
         const subject = `Informe de Asistencia – ${selectedClient?.name || schedule.client_name} – ${serviceDate}`;
         try {
-            await Promise.all(recipients.map(to =>
-                base44.integrations.Core.SendEmail({ to, subject, body: html })
-            ));
+            await sendAttendanceReport({ recipients, subject, html });
             setSent(true);
             setTimeout(() => { setSent(false); onClose(); }, 2500);
         } catch (err) {
