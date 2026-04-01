@@ -1661,6 +1661,7 @@ export default function HorarioPage() {
                             onClockInOut={isCleanerView ? handleClockInOut : null}
                             openInMaps={openInMaps}
                             currentServiceElapsedTime={currentServiceElapsedTime}
+                            currentUser={user}
                         />
                     </Suspense>
                 </DialogContent>
