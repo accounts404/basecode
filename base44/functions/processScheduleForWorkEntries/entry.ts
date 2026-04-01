@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 import { format, differenceInMinutes } from 'npm:date-fns@2.30.0';
 
 Deno.serve(async (req) => {
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
             console.log('--- Iniciando calculateWorkEntries ---');
             console.log('Procesando', schedule.cleaner_ids?.length || 0, 'limpiadores');
             
-            for (const cleanerId of schedule.cleaner_ids) {
+            for (const cleanerId of (schedule.cleaner_ids || [])) {
                 console.log(`\n>>> Procesando limpiador: ${cleanerId}`);
                 
                 let cleanerHours = 0;
@@ -97,9 +97,10 @@ Deno.serve(async (req) => {
                 console.log('- Rate history length:', cleanerUser?.rate_history?.length || 0);
                 
                 if (cleanerUser?.rate_history?.length > 0) {
+                    // Comparar fechas como strings YYYY-MM-DD para evitar problemas de timezone
                     const effectiveRate = cleanerUser.rate_history
-                        .filter(rh => new Date(rh.effective_date) <= workDate)
-                        .sort((a, b) => new Date(b.effective_date) - new Date(a.effective_date))[0];
+                        .filter(rh => rh.effective_date <= workDateStr)
+                        .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
                     if (effectiveRate) {
                         cleanerRate = effectiveRate.rate;
                         console.log('- Tarifa efectiva encontrada:', cleanerRate, 'desde', effectiveRate.effective_date);
