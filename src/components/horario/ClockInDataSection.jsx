@@ -349,6 +349,7 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                         </div>
                     </div>
                     <Button
+                        type="button"
                         size="sm"
                         onClick={(e) => { e.stopPropagation(); setShowDialog(true); }}
                         className="bg-blue-600 hover:bg-blue-500 text-white border-0"
