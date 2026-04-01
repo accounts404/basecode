@@ -56,11 +56,17 @@ Deno.serve(async (req) => {
             return Response.json({ success: false, error: 'No estás asignado a este servicio' }, { status: 403 });
         }
 
-        // Timestamp del servidor en hora Melbourne (UTC+10/+11)
+        // Timestamp del servidor en hora Melbourne (DST-aware: AEST UTC+10 / AEDT UTC+11)
         const now = new Date();
-        const melbOffset = 10 * 60; // Melbourne base UTC+10 (AEST)
-        const melbTime = new Date(now.getTime() + melbOffset * 60000);
-        const serverTimestamp = melbTime.toISOString().slice(0, 16).replace('T', 'T') + ':00.000';
+        const melbParts = new Intl.DateTimeFormat('en-AU', {
+            timeZone: 'Australia/Melbourne',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            hour12: false
+        }).formatToParts(now);
+        const p = {};
+        melbParts.forEach(({ type, value }) => { p[type] = value; });
+        const serverTimestamp = `${p.year}-${p.month}-${p.day}T${p.hour === '24' ? '00' : p.hour}:${p.minute}:${p.second}.000`;
 
         console.log(`[ClockIn] ⏰ Timestamp Melbourne: ${serverTimestamp}`);
 
