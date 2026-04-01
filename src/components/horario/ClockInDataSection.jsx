@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -109,12 +109,23 @@ function buildEmailBody(schedule, selectedClient, allUsers) {
 
 // ─── Preview Dialog ──────────────────────────────────────────────────────────
 function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers }) {
-    const [recipients, setRecipients] = useState(() => selectedClient?.email ? [selectedClient.email] : []);
+    const [recipients, setRecipients] = useState([]);
     const [newEmail, setNewEmail] = useState('');
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
     const [error, setError] = useState('');
-    const [tab, setTab] = useState('preview'); // 'preview' | 'recipients'
+    const [tab, setTab] = useState('preview');
+
+    useEffect(() => {
+        if (open) {
+            setRecipients(selectedClient?.email ? [selectedClient.email] : []);
+            setNewEmail('');
+            setSending(false);
+            setSent(false);
+            setError('');
+            setTab('preview');
+        }
+    }, [open, selectedClient?.email]);
 
     const addEmail = () => {
         const trimmed = newEmail.trim();
@@ -150,7 +161,7 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+            <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0" aria-describedby={undefined}>
                 <DialogHeader className="px-6 py-4 border-b border-slate-200 flex-shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-slate-900">
                         <Mail className="w-5 h-5 text-blue-600" />
