@@ -99,12 +99,11 @@ Deno.serve(async (req) => {
             clock_out_location: location || null
         };
 
-        // Determinar si todos los limpiadores que hicieron clock-in ya hicieron clock-out
-        // NOTA: Se ignoran los limpiadores que nunca hicieron clock-in (no están en clock_in_data)
-        // para que el servicio pueda completarse aunque algún asignado no haya fichado
-        const cleanersWhoCheckedIn = updatedClockData.filter(cd => cd.clock_in_time);
-        const allCleanersClockedOut = cleanersWhoCheckedIn.length > 0 &&
-            cleanersWhoCheckedIn.every(cd => !!cd.clock_out_time);
+        // Determinar si todos los limpiadores hicieron clock-out
+        const allCleanersClockedOut = schedule.cleaner_ids?.every(cleanerId => {
+            const cd = updatedClockData.find(c => c.cleaner_id === cleanerId);
+            return cd?.clock_out_time;
+        }) || false;
 
         const newStatus = allCleanersClockedOut ? 'completed' : schedule.status;
 

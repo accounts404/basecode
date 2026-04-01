@@ -34,17 +34,8 @@ export const registerClockIn = (scheduleId, scheduleData) => {
 export const registerClockOut = (scheduleId) => {
     console.log('[ActiveServiceManager] 🔴 Registrando Clock Out:', scheduleId || 'actual');
     
-    // CRÍTICO: localStorage.getItem devuelve string — hay que parsear JSON antes de acceder a propiedades
-    let resolvedScheduleId = scheduleId;
-    if (!resolvedScheduleId) {
-        try {
-            const raw = localStorage.getItem(ACTIVE_SERVICE_KEY);
-            resolvedScheduleId = raw ? JSON.parse(raw).scheduleId : null;
-        } catch (e) { /* ignorar */ }
-    }
-
     const clockOutData = {
-        scheduleId: resolvedScheduleId,
+        scheduleId: scheduleId || localStorage.getItem(ACTIVE_SERVICE_KEY)?.scheduleId,
         timestamp: Date.now(),
         expiresAt: Date.now() + 20000 // 20 segundos de gracia
     };

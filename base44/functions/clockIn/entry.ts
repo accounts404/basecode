@@ -56,14 +56,6 @@ Deno.serve(async (req) => {
             return Response.json({ success: false, error: 'No estás asignado a este servicio' }, { status: 403 });
         }
 
-        // Validar estado del servicio
-        if (schedule.status === 'cancelled') {
-            return Response.json({ success: false, error: 'Este servicio ha sido cancelado' }, { status: 409 });
-        }
-        if (schedule.status === 'completed') {
-            return Response.json({ success: false, error: 'Este servicio ya fue completado' }, { status: 409 });
-        }
-
         // Timestamp del servidor en hora Melbourne (DST-aware: AEST UTC+10 / AEDT UTC+11)
         const now = new Date();
         const melbParts = new Intl.DateTimeFormat('en-AU', {
