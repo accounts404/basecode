@@ -15,6 +15,7 @@ import { base44 } from '@/api/base44Client';
 import { 
     syncActiveService,
     clearAllFlags,
+    registerClockIn,
     registerClockOut
 } from './activeServiceManager';
 
@@ -123,7 +124,9 @@ export const performClockIn = async (scheduleId, userId, onProgress) => {
         const updatedSchedule = clockInResult.schedule;
         console.log('[ClockService] ✅ Clock In registrado (hora Melbourne):', clockInResult.clockInTime);
 
-        // PASO 4: Actualizar caché local con datos del servidor
+        // PASO 4: Actualizar caché local via registerClockIn (limpia RECENT_CLOCKOUT_KEY y otros flags)
+        registerClockIn(updatedSchedule.id, updatedSchedule);
+        // Enriquecer el cache con datos completos
         const serverClockInData = updatedSchedule.clock_in_data?.find(c => c.cleaner_id === userId);
         localStorage.setItem('redoak_active_service', JSON.stringify({
             scheduleId: updatedSchedule.id,
