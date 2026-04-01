@@ -262,7 +262,7 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
                                                 <Badge className="bg-blue-100 text-blue-700 text-xs">Principal</Badge>
                                             )}
                                         </div>
-                                        <button onClick={() => removeEmail(email)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                        <button type="button" onClick={() => removeEmail(email)} className="text-slate-400 hover:text-red-500 transition-colors">
                                             <X className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -280,7 +280,7 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
                                     onKeyDown={e => e.key === 'Enter' && addEmail()}
                                     className="flex-1"
                                 />
-                                <Button variant="outline" onClick={addEmail} disabled={!newEmail.trim()}>
+                                <Button type="button" variant="outline" onClick={addEmail} disabled={!newEmail.trim()}>
                                     <Plus className="w-4 h-4 mr-1" /> Agregar
                                 </Button>
                             </div>
