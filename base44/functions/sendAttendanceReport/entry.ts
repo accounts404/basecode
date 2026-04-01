@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    from: 'RedOak Cleaning Solutions <info@redoakcleaning.com.au>',
+                    from: 'RedOak Cleaning Solutions <info@redoaktimes.com.au>',
                     to,
                     subject,
                     html,
