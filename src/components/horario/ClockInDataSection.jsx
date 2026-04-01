@@ -176,13 +176,8 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
                 {/* Tabs */}
                 <div className="flex border-b border-slate-200 flex-shrink-0">
                     <button
+                        type="button"
                         onClick={() => setTab('preview')}
-                        className={`px-6 py-3 text-sm font-medium transition-colors ${tab === 'preview' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <Eye className="w-4 h-4 inline mr-2" />Vista previa
-                    </button>
-                    <button
-                        onClick={() => setTab('recipients')}
                         className={`px-6 py-3 text-sm font-medium transition-colors ${tab === 'recipients' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         <Mail className="w-4 h-4 inline mr-2" />Destinatarios
