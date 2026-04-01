@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { MapPin, Play, Square, Navigation, ExternalLink, AlertTriangle, User } from 'lucide-react';
-import { parseISO, format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { MapPin, Play, Square, Navigation, ExternalLink, AlertTriangle, User, Mail, CheckCircle, Loader2, Clock, Timer } from 'lucide-react';
+import { parseISO, format, differenceInMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { base44 } from '@/api/base44Client';
 
 function parseGPSCoordinates(locationString) {
     if (!locationString || typeof locationString !== 'string') return null;
@@ -25,15 +28,185 @@ function formatDateWithTime(isoString) {
     return isoString ? format(parseISO(isoString), 'dd/MM/yyyy HH:mm', { locale: es }) : 'N/A';
 }
 
+function formatDuration(minutes) {
+    if (!minutes || minutes <= 0) return '—';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h > 0 ? `${h}h ${m}min` : `${m}min`;
+}
+
 export default function ClockInDataSection({ schedule, allUsers, selectedClient, liveCleanerTimes, openInMaps }) {
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [emailSent, setEmailSent] = useState(false);
+    const [emailError, setEmailError] = useState('');
+
     if (!schedule?.clock_in_data || schedule.clock_in_data.length === 0) return null;
 
+    const handleSendReport = async () => {
+        const clientEmail = selectedClient?.email;
+        if (!clientEmail) {
+            setEmailError('El cliente no tiene email registrado.');
+            setTimeout(() => setEmailError(''), 4000);
+            return;
+        }
+
+        setSendingEmail(true);
+        setEmailError('');
+
+        try {
+            // Build cleaner rows for email
+            const cleanerRows = schedule.clock_in_data.map((cd, i) => {
+                const cleaner = allUsers.find(u => u.id === cd.cleaner_id);
+                const name = cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Limpiador';
+                const inCoords = parseGPSCoordinates(cd.clock_in_location);
+                const outCoords = parseGPSCoordinates(cd.clock_out_location);
+                const inMapLink = inCoords ? `https://www.google.com/maps/search/?api=1&query=${inCoords.latitude},${inCoords.longitude}` : null;
+                const outMapLink = outCoords ? `https://www.google.com/maps/search/?api=1&query=${outCoords.latitude},${outCoords.longitude}` : null;
+                const workedMin = cd.clock_in_time && cd.clock_out_time
+                    ? differenceInMinutes(parseISO(cd.clock_out_time), parseISO(cd.clock_in_time))
+                    : null;
+
+                return `
+                <tr style="background:${i % 2 === 0 ? '#f8fafc' : '#ffffff'}">
+                  <td style="padding:12px 16px;font-weight:600;color:#1e293b;border-bottom:1px solid #e2e8f0">${name}</td>
+                  <td style="padding:12px 16px;color:#166534;border-bottom:1px solid #e2e8f0">
+                    <div style="font-weight:600">${cd.clock_in_time ? formatDateWithTime(cd.clock_in_time) : '—'}</div>
+                    ${inCoords ? `<div style="font-size:12px;color:#15803d;margin-top:4px">📍 ${inCoords.latitude.toFixed(6)}, ${inCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${inMapLink}" style="font-size:11px;color:#2563eb">Ver en Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS no disponible</div>'}
+                  </td>
+                  <td style="padding:12px 16px;color:#991b1b;border-bottom:1px solid #e2e8f0">
+                    ${cd.clock_out_time ? `
+                    <div style="font-weight:600">${formatDateWithTime(cd.clock_out_time)}</div>
+                    ${outCoords ? `<div style="font-size:12px;color:#b91c1c;margin-top:4px">📍 ${outCoords.latitude.toFixed(6)}, ${outCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${outMapLink}" style="font-size:11px;color:#2563eb">Ver en Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS no disponible</div>'}
+                    ` : '<div style="color:#64748b">En progreso</div>'}
+                  </td>
+                  <td style="padding:12px 16px;text-align:center;font-weight:600;color:#1d4ed8;border-bottom:1px solid #e2e8f0">${workedMin !== null ? formatDuration(workedMin) : '—'}</td>
+                </tr>`;
+            }).join('');
+
+            const serviceDate = schedule.start_time ? format(parseISO(schedule.start_time), "EEEE d 'de' MMMM yyyy", { locale: es }) : 'N/A';
+            const serviceTime = schedule.start_time ? `${schedule.start_time.slice(11,16)} – ${schedule.end_time?.slice(11,16) || ''}` : '';
+
+            const emailBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f1f5f9">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px">
+    <tr><td>
+      <table width="600" cellpadding="0" cellspacing="0" align="center" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:32px 40px;text-align:center">
+            <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px">RedOak Cleaning Solutions</div>
+            <div style="font-size:13px;color:#93c5fd;margin-top:4px">Informe Oficial de Asistencia</div>
+          </td>
+        </tr>
+        <!-- Service Info -->
+        <tr>
+          <td style="padding:28px 40px 16px">
+            <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px 20px">
+              <div style="font-size:13px;color:#0369a1;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:8px">Detalles del Servicio</div>
+              <table width="100%">
+                <tr>
+                  <td style="width:50%;padding:4px 0">
+                    <span style="color:#64748b;font-size:13px">Cliente:</span>
+                    <span style="font-weight:600;color:#1e293b;font-size:14px;margin-left:6px">${selectedClient?.name || schedule.client_name}</span>
+                  </td>
+                  <td style="width:50%;padding:4px 0">
+                    <span style="color:#64748b;font-size:13px">Fecha:</span>
+                    <span style="font-weight:600;color:#1e293b;font-size:14px;margin-left:6px;text-transform:capitalize">${serviceDate}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding:4px 0">
+                    <span style="color:#64748b;font-size:13px">Horario planificado:</span>
+                    <span style="font-weight:600;color:#1e293b;font-size:14px;margin-left:6px">${serviceTime}</span>
+                  </td>
+                </tr>
+                ${selectedClient?.address ? `<tr><td colspan="2" style="padding:4px 0"><span style="color:#64748b;font-size:13px">Dirección:</span><span style="font-weight:600;color:#1e293b;font-size:14px;margin-left:6px">${selectedClient.address}</span></td></tr>` : ''}
+              </table>
+            </div>
+          </td>
+        </tr>
+        <!-- Attendance Table -->
+        <tr>
+          <td style="padding:8px 40px 28px">
+            <div style="font-size:13px;color:#475569;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:12px">Registro de Asistencia con GPS</div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+              <thead>
+                <tr style="background:#1e3a5f">
+                  <th style="padding:12px 16px;text-align:left;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Limpiador</th>
+                  <th style="padding:12px 16px;text-align:left;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">🟢 Clock In</th>
+                  <th style="padding:12px 16px;text-align:left;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">🔴 Clock Out</th>
+                  <th style="padding:12px 16px;text-align:center;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Duración</th>
+                </tr>
+              </thead>
+              <tbody>${cleanerRows}</tbody>
+            </table>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center">
+            <div style="font-size:12px;color:#94a3b8">Este informe fue generado automáticamente por el sistema RedOak Cleaning Solutions.</div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:4px">Los registros GPS y horarios son verificables y están almacenados en nuestro sistema.</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+            await base44.integrations.Core.SendEmail({
+                to: clientEmail,
+                subject: `Informe de Asistencia – ${selectedClient?.name || schedule.client_name} – ${serviceDate}`,
+                body: emailBody
+            });
+
+            setEmailSent(true);
+            setTimeout(() => setEmailSent(false), 5000);
+        } catch (err) {
+            setEmailError('Error al enviar el email. Intenta nuevamente.');
+            setTimeout(() => setEmailError(''), 4000);
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
     return (
-        <div className="my-6 bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200 rounded-xl p-4 sm:p-6 shadow-lg space-y-4">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-blue-900">
-                <MapPin className="w-5 h-5 text-blue-600" />
-                Registros de Asistencia y Ubicaciones GPS
-            </h3>
+        <div className="my-6 rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center">
+                        <MapPin className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                        <h3 className="text-white font-semibold text-base">Registro de Asistencia</h3>
+                        <p className="text-slate-300 text-xs">Clock In / Clock Out con GPS</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2">
+                    {emailError && <span className="text-red-300 text-xs">{emailError}</span>}
+                    {emailSent && (
+                        <Badge className="bg-green-500 text-white gap-1">
+                            <CheckCircle className="w-3 h-3" /> Enviado
+                        </Badge>
+                    )}
+                    <Button
+                        size="sm"
+                        onClick={handleSendReport}
+                        disabled={sendingEmail || !selectedClient?.email}
+                        className="bg-blue-600 hover:bg-blue-500 text-white border-0"
+                        title={!selectedClient?.email ? 'El cliente no tiene email registrado' : 'Enviar informe al cliente'}
+                    >
+                        {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                        <span className="ml-1.5 hidden sm:inline">{sendingEmail ? 'Enviando...' : 'Enviar Informe'}</span>
+                    </Button>
+                </div>
+            </div>
+            <div className="divide-y divide-slate-100">
             <div className="space-y-4">
                 {schedule.clock_in_data.map((clockData, index) => {
                     const cleaner = allUsers.find(u => u.id === clockData.cleaner_id);
@@ -41,102 +214,110 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                     const clockInCoords = parseGPSCoordinates(clockData.clock_in_location);
                     const clockOutCoords = parseGPSCoordinates(clockData.clock_out_location);
                     const timeData = liveCleanerTimes[clockData.cleaner_id];
+                    const workedMin = clockData.clock_in_time && clockData.clock_out_time
+                        ? differenceInMinutes(parseISO(clockData.clock_out_time), parseISO(clockData.clock_in_time))
+                        : null;
+                    const isCompleted = !!clockData.clock_out_time;
 
                     return (
-                        <Card key={index} className="bg-white border-blue-100 shadow-sm">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                                        <User className="w-4 h-4 text-blue-600" />
-                                        {cleanerName}
-                                    </h4>
+                        <div key={index} className="p-5">
+                            {/* Cleaner header */}
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 text-sm">
+                                        {cleanerName.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-slate-900">{cleanerName}</p>
+                                        {workedMin !== null && (
+                                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                                                <Clock className="w-3 h-3" /> Total: {formatDuration(workedMin)}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Card className="border border-green-200 bg-green-50">
-                                        <CardContent className="p-4">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <Play className="w-4 h-4 text-green-600" />
-                                                <span className="font-semibold text-green-800">Clock In</span>
-                                            </div>
-                                            {clockData.clock_in_time ? (
-                                                <>
-                                                    <div className="text-lg font-bold text-green-900 mb-2">{formatDateWithTime(clockData.clock_in_time)}</div>
-                                                    {clockInCoords ? (
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-sm text-green-700">📍 {clockInCoords.latitude.toFixed(6)}, {clockInCoords.longitude.toFixed(6)}</span>
-                                                            <Button variant="outline" size="sm" onClick={() => openLocationInMaps(clockInCoords.latitude, clockInCoords.longitude)} className="text-xs bg-green-100 hover:bg-green-200 text-green-800">
-                                                                <ExternalLink className="w-3 h-3 mr-1" /> Ver en Mapa
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-sm text-amber-600 bg-amber-100 p-2 rounded flex items-center gap-1">
-                                                            <AlertTriangle className="w-4 h-4" /> Ubicación GPS no disponible
-                                                        </div>
-                                                    )}
-                                                </>
-                                            ) : <div className="text-slate-500 text-sm">No registrado</div>}
-                                        </CardContent>
-                                    </Card>
-                                    <Card className="border border-red-200 bg-red-50">
-                                        <CardContent className="p-4">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <Square className="w-4 h-4 text-red-600" />
-                                                <span className="font-semibold text-red-800">Clock Out</span>
-                                            </div>
-                                            {clockData.clock_out_time ? (
-                                                <>
-                                                    <div className="text-lg font-bold text-red-900 mb-2">{formatDateWithTime(clockData.clock_out_time)}</div>
-                                                    {clockOutCoords ? (
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-sm text-red-700">📍 {clockOutCoords.latitude.toFixed(6)}, {clockOutCoords.longitude.toFixed(6)}</span>
-                                                            <Button variant="outline" size="sm" onClick={() => openLocationInMaps(clockOutCoords.latitude, clockOutCoords.longitude)} className="text-xs bg-red-100 hover:bg-red-200 text-red-800">
-                                                                <ExternalLink className="w-3 h-3 mr-1" /> Ver en Mapa
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="text-sm text-amber-600 bg-amber-100 p-2 rounded flex items-center gap-1">
-                                                            <AlertTriangle className="w-4 h-4" /> Ubicación GPS no disponible
-                                                        </div>
-                                                    )}
-                                                </>
-                                            ) : <div className="text-slate-500 text-sm">Aún en progreso</div>}
-                                        </CardContent>
-                                    </Card>
+                                <Badge className={isCompleted ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}>
+                                    {isCompleted ? '✓ Completado' : '● En progreso'}
+                                </Badge>
+                            </div>
+                            {/* Clock In / Clock Out side by side */}
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                                {/* Clock In */}
+                                <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                        <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">Clock In</span>
+                                    </div>
+                                    {clockData.clock_in_time ? (
+                                        <>
+                                            <p className="font-bold text-slate-900 text-sm">{formatDateWithTime(clockData.clock_in_time)}</p>
+                                            {clockInCoords ? (
+                                                <div className="mt-2">
+                                                    <p className="text-xs text-slate-500 font-mono">📍 {clockInCoords.latitude.toFixed(5)}, {clockInCoords.longitude.toFixed(5)}</p>
+                                                    <button onClick={() => openLocationInMaps(clockInCoords.latitude, clockInCoords.longitude)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1">
+                                                        <ExternalLink className="w-3 h-3" /> Ver en Google Maps
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-amber-600 flex items-center gap-1 mt-2">
+                                                    <AlertTriangle className="w-3 h-3" /> GPS no disponible
+                                                </p>
+                                            )}
+                                        </>
+                                    ) : <p className="text-xs text-slate-400">No registrado</p>}
                                 </div>
-                                {timeData && (
-                                    <div className="mt-4 pt-4 border-t space-y-3">
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-700">Tiempo Trabajado</span>
-                                            <span className={`font-mono font-bold text-lg ${timeData.isLive ? 'text-green-600' : 'text-slate-800'}`}>{timeData.workedTime}</span>
+                                {/* Clock Out */}
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                        <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Clock Out</span>
+                                    </div>
+                                    {clockData.clock_out_time ? (
+                                        <>
+                                            <p className="font-bold text-slate-900 text-sm">{formatDateWithTime(clockData.clock_out_time)}</p>
+                                            {clockOutCoords ? (
+                                                <div className="mt-2">
+                                                    <p className="text-xs text-slate-500 font-mono">📍 {clockOutCoords.latitude.toFixed(5)}, {clockOutCoords.longitude.toFixed(5)}</p>
+                                                    <button onClick={() => openLocationInMaps(clockOutCoords.latitude, clockOutCoords.longitude)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1">
+                                                        <ExternalLink className="w-3 h-3" /> Ver en Google Maps
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs text-amber-600 flex items-center gap-1 mt-2">
+                                                    <AlertTriangle className="w-3 h-3" /> GPS no disponible
+                                                </p>
+                                            )}
+                                        </>
+                                    ) : <p className="text-xs text-slate-400 italic">Aún en progreso</p>}
+                                </div>
+                            </div>
+
+                            {/* Progress bar (live or final) */}
+                            {timeData && (
+                                <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-4">
+                                    <div className="flex-1">
+                                        <div className="w-full bg-slate-200 rounded-full h-2">
+                                            <div className="bg-blue-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(timeData.progress, 100)}%` }}></div>
                                         </div>
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-semibold text-slate-700">Tiempo Restante</span>
-                                            <span className="font-mono font-bold text-lg text-orange-600">{timeData.remainingTime}</span>
-                                        </div>
-                                        <div>
-                                            <div className="w-full bg-slate-200 rounded-full h-2.5">
-                                                <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${timeData.progress}%` }}></div>
-                                            </div>
-                                            <p className="text-xs text-right mt-1 text-slate-500">{Math.round(timeData.progress)}% completado</p>
+                                        <div className="flex justify-between mt-1">
+                                            <span className="text-xs text-slate-500">Trabajado: <span className={`font-mono font-semibold ${timeData.isLive ? 'text-green-600' : 'text-slate-700'}`}>{timeData.workedTime}</span></span>
+                                            <span className="text-xs text-slate-500">Restante: <span className="font-mono font-semibold text-orange-500">{timeData.remainingTime}</span></span>
                                         </div>
                                     </div>
-                                )}
-                                <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                                    {selectedClient?.address && openInMaps && (
-                                        <Button variant="outline" size="sm" onClick={() => openInMaps(selectedClient.address)} className="bg-blue-100 hover:bg-blue-200 text-blue-800">
-                                            <Navigation className="w-4 h-4 mr-2" /> Ver Dirección Cliente
-                                        </Button>
-                                    )}
-                                    {clockInCoords && clockOutCoords && (
-                                        <Button variant="outline" size="sm" onClick={() => window.open(`https://www.google.com/maps/dir/${clockInCoords.latitude},${clockInCoords.longitude}/${clockOutCoords.latitude},${clockOutCoords.longitude}`, '_blank')} className="bg-purple-100 hover:bg-purple-200 text-purple-800">
-                                            <MapPin className="w-4 h-4 mr-2" /> Ruta Clock In → Out
-                                        </Button>
-                                    )}
+                                    <span className="text-sm font-bold text-blue-700 whitespace-nowrap">{Math.round(timeData.progress)}%</span>
                                 </div>
-                            </CardContent>
-                        </Card>
+                            )}
+
+                            {/* Client address button */}
+                            {selectedClient?.address && openInMaps && (
+                                <button onClick={() => openInMaps(selectedClient.address)} className="mt-3 w-full flex items-center justify-center gap-2 text-xs text-blue-600 hover:text-blue-800 py-2 rounded-lg border border-blue-100 hover:bg-blue-50 transition-colors">
+                                    <Navigation className="w-3.5 h-3.5" /> Ver dirección del cliente
+                                </button>
+                            )}
+                        </div>
                     );
                 })}
+            </div>
             </div>
         </div>
     );
