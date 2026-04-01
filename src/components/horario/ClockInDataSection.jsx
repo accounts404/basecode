@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
 import { MapPin, Navigation, ExternalLink, AlertTriangle, Mail, CheckCircle, Loader2, Clock, Send, X, Plus, Eye } from 'lucide-react';
 import { parseISO, format, differenceInMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -159,15 +159,19 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
     const { html: previewHtml, serviceDate, serviceTime } = buildEmailBody(schedule, selectedClient, allUsers);
     const cleanerData = schedule?.clock_in_data || [];
 
+    if (!open) return null;
+
     return (
-        <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0" aria-describedby={undefined}>
-                <DialogHeader className="px-6 py-4 border-b border-slate-200 flex-shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-slate-900">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+            <div className="relative max-w-3xl w-full mx-4 max-h-[90vh] flex flex-col bg-white rounded-xl shadow-2xl overflow-hidden">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-200 flex-shrink-0">
+                    <h2 className="flex items-center gap-2 text-slate-900 font-semibold text-lg">
                         <Mail className="w-5 h-5 text-blue-600" />
                         Vista previa del informe
-                    </DialogTitle>
-                </DialogHeader>
+                    </h2>
+                </div>
 
                 {/* Tabs */}
                 <div className="flex border-b border-slate-200 flex-shrink-0">
@@ -190,7 +194,6 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
                 <div className="flex-1 overflow-y-auto">
                     {tab === 'preview' && (
                         <div className="p-6">
-                            {/* Summary cards */}
                             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
                                 <p className="text-xs font-semibold text-blue-600 uppercase mb-2">Detalles del servicio</p>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -200,8 +203,6 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
                                     {selectedClient?.address && <div><span className="text-slate-500">Dirección:</span> <span className="font-semibold text-slate-800">{selectedClient.address}</span></div>}
                                 </div>
                             </div>
-
-                            {/* Attendance table preview */}
                             <p className="text-xs font-semibold text-slate-500 uppercase mb-3">Registro de asistencia</p>
                             <div className="border border-slate-200 rounded-xl overflow-hidden">
                                 <table className="w-full text-sm">
@@ -255,9 +256,7 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
 
                     {tab === 'recipients' && (
                         <div className="p-6">
-                            <p className="text-sm text-slate-600 mb-4">El informe se enviará a los siguientes destinatarios. Puedes agregar correos adicionales.</p>
-
-                            {/* Existing recipients */}
+                            <p className="text-sm text-slate-600 mb-4">El informe se enviará a los siguientes destinatarios.</p>
                             <div className="space-y-2 mb-5">
                                 {recipients.map((email, i) => (
                                     <div key={i} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
@@ -277,8 +276,6 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
                                     <div className="text-center py-6 text-slate-400 text-sm">No hay destinatarios. Agrega al menos uno.</div>
                                 )}
                             </div>
-
-                            {/* Add new email */}
                             <div className="flex gap-2">
                                 <Input
                                     type="email"
@@ -318,8 +315,8 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
                         </Button>
                     </div>
                 </div>
-            </DialogContent>
-        </Dialog>
+            </div>
+        </div>
     );
 }
 
