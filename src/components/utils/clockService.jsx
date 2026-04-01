@@ -13,9 +13,9 @@
 
 import { base44 } from '@/api/base44Client';
 import { 
-    getActiveServiceFromCache,
     syncActiveService,
-    clearAllFlags
+    clearAllFlags,
+    registerClockOut
 } from './activeServiceManager';
 
 // Generar UUID para idempotencia
@@ -191,9 +191,9 @@ export const performClockOut = async (scheduleId, userId, onProgress) => {
             onProgress?.({ stage: 'processing', message: 'Procesando horas trabajadas...' });
         }
 
-        // PASO 3: Limpiar caché local
-        clearAllFlags();
-        console.log('[ClockService] ✅ Caché local limpiado');
+        // PASO 3: Limpiar caché local con grace period para evitar redirecciones inmediatas
+        registerClockOut(scheduleId);
+        console.log('[ClockService] ✅ Caché local limpiado con grace period');
 
         return {
             success: true,

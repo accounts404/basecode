@@ -74,6 +74,25 @@ Deno.serve(async (req) => {
         const updatedClockData = [...(schedule.clock_in_data || [])];
         const existingIndex = updatedClockData.findIndex(c => c.cleaner_id === user.id);
 
+        // Validar que no haya ya un clock-in activo o completado
+        if (existingIndex >= 0) {
+            const existing = updatedClockData[existingIndex];
+            if (existing.clock_in_time && !existing.clock_out_time) {
+                return Response.json({
+                    success: false,
+                    error: 'Ya tienes un Clock In activo para este servicio. Debes hacer Clock Out primero.',
+                    constraint: 'ALREADY_CLOCKED_IN'
+                }, { status: 409 });
+            }
+            if (existing.clock_in_time && existing.clock_out_time) {
+                return Response.json({
+                    success: false,
+                    error: 'Ya completaste este servicio.',
+                    constraint: 'ALREADY_COMPLETED'
+                }, { status: 409 });
+            }
+        }
+
         const clockInEntry = {
             cleaner_id: user.id,
             clock_in_time: serverTimestamp,
