@@ -353,7 +353,7 @@ export default function ClockInDataSection({ schedule, allUsers, selectedClient,
                     </div>
                     <Button
                         size="sm"
-                        onClick={() => setShowDialog(true)}
+                        onClick={(e) => { e.stopPropagation(); setShowDialog(true); }}
                         className="bg-blue-600 hover:bg-blue-500 text-white border-0"
                     >
                         <Mail className="w-4 h-4" />
