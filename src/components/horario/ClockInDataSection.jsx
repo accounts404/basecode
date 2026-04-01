@@ -36,12 +36,12 @@ function formatDuration(minutes) {
 }
 
 function buildEmailBody(schedule, selectedClient, allUsers) {
-    const serviceDate = schedule.start_time ? format(parseISO(schedule.start_time), "EEEE d 'de' MMMM yyyy", { locale: es }) : 'N/A';
+    const serviceDate = schedule.start_time ? format(parseISO(schedule.start_time), 'EEEE, MMMM d yyyy') : 'N/A';
     const serviceTime = schedule.start_time ? `${schedule.start_time.slice(11, 16)} – ${schedule.end_time?.slice(11, 16) || ''}` : '';
 
     const cleanerRows = (schedule.clock_in_data || []).map((cd, i) => {
         const cleaner = allUsers.find(u => u.id === cd.cleaner_id);
-        const name = cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Limpiador';
+        const name = cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Cleaner';
         const inCoords = parseGPSCoordinates(cd.clock_in_location);
         const outCoords = parseGPSCoordinates(cd.clock_out_location);
         const inMapLink = inCoords ? `https://www.google.com/maps/search/?api=1&query=${inCoords.latitude},${inCoords.longitude}` : null;
@@ -54,10 +54,10 @@ function buildEmailBody(schedule, selectedClient, allUsers) {
   <td style="padding:12px 16px;font-weight:600;color:#1e293b;border-bottom:1px solid #e2e8f0">${name}</td>
   <td style="padding:12px 16px;color:#166534;border-bottom:1px solid #e2e8f0">
     <div style="font-weight:600">${cd.clock_in_time ? formatDateWithTime(cd.clock_in_time) : '—'}</div>
-    ${inCoords ? `<div style="font-size:12px;color:#15803d;margin-top:4px">📍 ${inCoords.latitude.toFixed(6)}, ${inCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${inMapLink}" style="font-size:11px;color:#2563eb">Ver en Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS no disponible</div>'}
+    ${inCoords ? `<div style="font-size:12px;color:#15803d;margin-top:4px">📍 ${inCoords.latitude.toFixed(6)}, ${inCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${inMapLink}" style="font-size:11px;color:#2563eb">View on Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS not available</div>'}
   </td>
   <td style="padding:12px 16px;color:#991b1b;border-bottom:1px solid #e2e8f0">
-    ${cd.clock_out_time ? `<div style="font-weight:600">${formatDateWithTime(cd.clock_out_time)}</div>${outCoords ? `<div style="font-size:12px;color:#b91c1c;margin-top:4px">📍 ${outCoords.latitude.toFixed(6)}, ${outCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${outMapLink}" style="font-size:11px;color:#2563eb">Ver en Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS no disponible</div>'}` : '<div style="color:#64748b">En progreso</div>'}
+    ${cd.clock_out_time ? `<div style="font-weight:600">${formatDateWithTime(cd.clock_out_time)}</div>${outCoords ? `<div style="font-size:12px;color:#b91c1c;margin-top:4px">📍 ${outCoords.latitude.toFixed(6)}, ${outCoords.longitude.toFixed(6)}</div><div style="margin-top:4px"><a href="${outMapLink}" style="font-size:11px;color:#2563eb">View on Google Maps →</a></div>` : '<div style="font-size:12px;color:#b45309;margin-top:4px">⚠️ GPS not available</div>'}` : '<div style="color:#64748b">In progress</div>'}
   </td>
   <td style="padding:12px 16px;text-align:center;font-weight:600;color:#1d4ed8;border-bottom:1px solid #e2e8f0">${workedMin !== null ? formatDuration(workedMin) : '—'}</td>
 </tr>`;
@@ -70,36 +70,36 @@ function buildEmailBody(schedule, selectedClient, allUsers) {
 <table width="600" cellpadding="0" cellspacing="0" align="center" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
 <tr><td style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:32px 40px;text-align:center">
   <div style="font-size:22px;font-weight:700;color:#ffffff">RedOak Cleaning Solutions</div>
-  <div style="font-size:13px;color:#93c5fd;margin-top:4px">Informe Oficial de Asistencia</div>
+  <div style="font-size:13px;color:#93c5fd;margin-top:4px">Official Attendance Report</div>
 </td></tr>
 <tr><td style="padding:28px 40px 16px">
   <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px 20px">
-    <div style="font-size:13px;color:#0369a1;font-weight:600;margin-bottom:8px">DETALLES DEL SERVICIO</div>
+    <div style="font-size:13px;color:#0369a1;font-weight:600;margin-bottom:8px">SERVICE DETAILS</div>
     <table width="100%">
       <tr>
-        <td style="padding:4px 0;width:50%"><span style="color:#64748b;font-size:13px">Cliente:</span> <strong style="color:#1e293b">${selectedClient?.name || schedule.client_name}</strong></td>
-        <td style="padding:4px 0"><span style="color:#64748b;font-size:13px">Fecha:</span> <strong style="color:#1e293b;text-transform:capitalize">${serviceDate}</strong></td>
+        <td style="padding:4px 0;width:50%"><span style="color:#64748b;font-size:13px">Client:</span> <strong style="color:#1e293b">${selectedClient?.name || schedule.client_name}</strong></td>
+        <td style="padding:4px 0"><span style="color:#64748b;font-size:13px">Date:</span> <strong style="color:#1e293b">${serviceDate}</strong></td>
       </tr>
-      <tr><td colspan="2" style="padding:4px 0"><span style="color:#64748b;font-size:13px">Horario planificado:</span> <strong style="color:#1e293b">${serviceTime}</strong></td></tr>
-      ${selectedClient?.address ? `<tr><td colspan="2" style="padding:4px 0"><span style="color:#64748b;font-size:13px">Dirección:</span> <strong style="color:#1e293b">${selectedClient.address}</strong></td></tr>` : ''}
+      <tr><td colspan="2" style="padding:4px 0"><span style="color:#64748b;font-size:13px">Scheduled time:</span> <strong style="color:#1e293b">${serviceTime}</strong></td></tr>
+      ${selectedClient?.address ? `<tr><td colspan="2" style="padding:4px 0"><span style="color:#64748b;font-size:13px">Address:</span> <strong style="color:#1e293b">${selectedClient.address}</strong></td></tr>` : ''}
     </table>
   </div>
 </td></tr>
 <tr><td style="padding:8px 40px 28px">
-  <div style="font-size:13px;color:#475569;font-weight:600;margin-bottom:12px;text-transform:uppercase">Registro de Asistencia con GPS</div>
+  <div style="font-size:13px;color:#475569;font-weight:600;margin-bottom:12px;text-transform:uppercase">Attendance Record with GPS</div>
   <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
     <thead><tr style="background:#1e3a5f">
-      <th style="padding:12px 16px;text-align:left;color:#fff;font-size:12px">Limpiador</th>
+      <th style="padding:12px 16px;text-align:left;color:#fff;font-size:12px">Cleaner</th>
       <th style="padding:12px 16px;text-align:left;color:#fff;font-size:12px">🟢 Clock In</th>
       <th style="padding:12px 16px;text-align:left;color:#fff;font-size:12px">🔴 Clock Out</th>
-      <th style="padding:12px 16px;text-align:center;color:#fff;font-size:12px">Duración</th>
+      <th style="padding:12px 16px;text-align:center;color:#fff;font-size:12px">Duration</th>
     </tr></thead>
     <tbody>${cleanerRows}</tbody>
   </table>
 </td></tr>
 <tr><td style="background:#f8fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center">
-  <div style="font-size:12px;color:#94a3b8">Este informe fue generado automáticamente por el sistema RedOak Cleaning Solutions.</div>
-  <div style="font-size:12px;color:#94a3b8;margin-top:4px">Los registros GPS y horarios son verificables y están almacenados en nuestro sistema.</div>
+  <div style="font-size:12px;color:#94a3b8">This report was automatically generated by the RedOak Cleaning Solutions system.</div>
+  <div style="font-size:12px;color:#94a3b8;margin-top:4px">GPS records and timestamps are verifiable and stored in our system.</div>
 </td></tr>
 </table>
 </td></tr></table>
@@ -143,7 +143,7 @@ function SendReportDialog({ open, onClose, schedule, selectedClient, allUsers })
         setSending(true);
         setError('');
         const { html, serviceDate } = buildEmailBody(schedule, selectedClient, allUsers);
-        const subject = `Informe de Asistencia – ${selectedClient?.name || schedule.client_name} – ${serviceDate}`;
+        const subject = `Attendance Report – ${selectedClient?.name || schedule.client_name} – ${serviceDate}`;
         try {
             await sendAttendanceReport({ recipients, subject, html });
             setSent(true);
