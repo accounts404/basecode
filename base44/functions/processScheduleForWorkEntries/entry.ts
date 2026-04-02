@@ -1,5 +1,4 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
-import { format, differenceInMinutes } from 'npm:date-fns@2.30.0';
 
 Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req).asServiceRole;
@@ -7,117 +6,93 @@ Deno.serve(async (req) => {
     try {
         const authUser = await createClientFromRequest(req).auth.me();
         if (!authUser) {
-            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+            return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { scheduleId, mode = 'preview' } = await req.json();
 
         if (!scheduleId) {
-            return new Response(JSON.stringify({ error: 'scheduleId is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+            return Response.json({ error: 'scheduleId is required' }, { status: 400 });
         }
 
         const schedule = await base44.entities.Schedule.get(scheduleId);
 
         if (!schedule) {
-            return new Response(JSON.stringify({ error: 'Schedule not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+            return Response.json({ error: 'Schedule not found' }, { status: 404 });
         }
 
-        // NOTA: La verificación de duplicados se hace individualmente por limpiador más abajo (verificación individual final)
-        // Esto permite que si un servicio tiene 2 limpiadores y solo se creó la entry de uno, el otro se pueda crear igual.
-
-        // Obtener información del cliente para determinar el tipo de actividad
+        // Obtener tipo de actividad del cliente
         let clientActivity = 'domestic';
         try {
             const client = await base44.entities.Client.get(schedule.client_id);
-            if (client && client.client_type) {
+            if (client?.client_type) {
                 clientActivity = client.client_type;
             }
-        } catch (error) {
-            console.log('No se pudo obtener el tipo de cliente, usando "domestic" por defecto:', error.message);
+        } catch {
+            console.log('No se pudo obtener cliente, usando "domestic"');
         }
 
-        console.log('=== DEBUGGING processScheduleForWorkEntries ===');
+        console.log('=== processScheduleForWorkEntries ===');
         console.log('Schedule ID:', scheduleId);
         console.log('Mode:', mode);
-        console.log('Invoked by user:', authUser.email);
-        console.log('Schedule client:', schedule.client_name);
-        console.log('Client activity type:', clientActivity);
-        console.log('Schedule cleaner_ids:', schedule.cleaner_ids);
-        console.log('Schedule cleaner_ids length:', schedule.cleaner_ids?.length || 0);
-        console.log('Schedule status:', schedule.status);
-        console.log('Schedule start_time:', schedule.start_time);
-        console.log('Schedule end_time:', schedule.end_time);
-        console.log('Schedule cleaner_schedules:', schedule.cleaner_schedules);
+        console.log('Client:', schedule.client_name);
+        console.log('Client activity:', clientActivity);
+        console.log('Cleaners:', schedule.cleaner_ids?.length || 0);
 
-        // Extraer fecha directamente del string ISO sin conversión de timezone
-        const workDateStr = schedule.start_time.slice(0, 10); // YYYY-MM-DD
-        const workDate = new Date(workDateStr + 'T12:00:00'); // mediodía local para evitar desfases
+        const workDateStr = schedule.start_time.slice(0, 10);
+        const [wyear, wmonth, wday] = workDateStr.split('-').map(Number);
+
+        const isoToMinutes = (iso) => {
+            if (!iso) return 0;
+            return parseInt(iso.slice(11, 13)) * 60 + parseInt(iso.slice(14, 16));
+        };
 
         const calculateWorkEntries = async () => {
-            const calculatedEntries = [];
-            console.log('--- Iniciando calculateWorkEntries ---');
-            console.log('Procesando', schedule.cleaner_ids?.length || 0, 'limpiadores');
-            
+            const entries = [];
+
             for (const cleanerId of (schedule.cleaner_ids || [])) {
-                console.log(`\n>>> Procesando limpiador: ${cleanerId}`);
-                
-                let cleanerHours = 0;
-                let cleanerRate = 0;
+                console.log(`\n>>> Limpiador: ${cleanerId}`);
 
                 const individualSchedule = schedule.cleaner_schedules?.find(cs => cs.cleaner_id === cleanerId);
-                
-                let startTime, endTime;
-                // Calcular minutos directamente desde los strings ISO (sin new Date, sin timezone)
-                const isoToMinutes = (iso) => {
-                    if (!iso) return 0;
-                    return parseInt(iso.slice(11, 13)) * 60 + parseInt(iso.slice(14, 16));
-                };
 
-                if (individualSchedule) {
-                    console.log('- Usando horario individual para', cleanerId);
-                    console.log('- Start time individual:', individualSchedule.start_time);
-                    console.log('- End time individual:', individualSchedule.end_time);
-                    const totalMinutes = isoToMinutes(individualSchedule.end_time) - isoToMinutes(individualSchedule.start_time);
-                    cleanerHours = totalMinutes / 60; // SIN redondeo — horas exactas
-                    console.log('- Minutos totales:', totalMinutes);
-                    console.log('- Horas calculadas (exactas):', cleanerHours);
-                } else {
-                    // Sin horario individual: NO crear entrada — dejar para auditoría
-                    console.log('- ⚠️ SALTANDO limpiador', cleanerId, '- No tiene horario individual (cleaner_schedules). Debe revisarse en Auditoría.');
+                if (!individualSchedule) {
+                    console.log('- SALTANDO: sin horario individual');
                     continue;
                 }
-                
+
+                const totalMinutes = isoToMinutes(individualSchedule.end_time) - isoToMinutes(individualSchedule.start_time);
+                const cleanerHours = totalMinutes / 60;
+
+                console.log('- Horas:', cleanerHours);
+
                 if (cleanerHours <= 0) {
-                    console.log('- ⚠️ SALTANDO limpiador', cleanerId, '- Horas <= 0');
+                    console.log('- SALTANDO: horas <= 0');
                     continue;
                 }
 
                 const cleanerUser = await base44.entities.User.get(cleanerId);
-                console.log('- Usuario encontrado:', cleanerUser?.full_name || 'No encontrado');
-                console.log('- Rate history length:', cleanerUser?.rate_history?.length || 0);
-                
+                if (!cleanerUser) {
+                    console.log('- SALTANDO: usuario no encontrado');
+                    continue;
+                }
+
+                let cleanerRate = 0;
                 if (cleanerUser?.rate_history?.length > 0) {
-                    // Comparar fechas como strings YYYY-MM-DD para evitar problemas de timezone
                     const effectiveRate = cleanerUser.rate_history
                         .filter(rh => rh.effective_date <= workDateStr)
                         .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
                     if (effectiveRate) {
                         cleanerRate = effectiveRate.rate;
-                        console.log('- Tarifa efectiva encontrada:', cleanerRate, 'desde', effectiveRate.effective_date);
-                    } else {
-                        console.log('- ⚠️ No hay tarifa efectiva para la fecha del servicio');
+                        console.log('- Tarifa:', cleanerRate);
                     }
-                } else {
-                    console.log('- ⚠️ No hay rate_history para el usuario');
                 }
 
                 if (cleanerRate === 0) {
-                    console.log('- ⚠️ SALTANDO limpiador', cleanerId, '- Tarifa = 0');
+                    console.log('- SALTANDO: tarifa = 0');
                     continue;
                 }
 
-                const [wyear, wmonth, wday] = workDateStr.split('-').map(Number);
-                const entryData = {
+                entries.push({
                     cleaner_id: cleanerId,
                     cleaner_name: cleanerUser.invoice_name || cleanerUser.full_name,
                     client_id: schedule.client_id,
@@ -130,28 +105,16 @@ Deno.serve(async (req) => {
                     period: `${workDateStr.slice(0, 7)}-${wday <= 15 ? '1st' : '2nd'}`,
                     invoiced: false,
                     schedule_id: scheduleId,
-                };
-
-                console.log('- ✅ Entrada preparada:', {
-                    cleaner_name: entryData.cleaner_name,
-                    hours: entryData.hours,
-                    activity: entryData.activity,
-                    hourly_rate: entryData.hourly_rate,
-                    total_amount: entryData.total_amount
                 });
-
-                calculatedEntries.push(entryData);
             }
-            
-            console.log('--- Fin calculateWorkEntries ---');
-            console.log('Total entradas calculadas:', calculatedEntries.length);
-            return calculatedEntries;
+
+            return entries;
         };
 
         if (mode === 'preview') {
             const previewEntries = await calculateWorkEntries();
-            return new Response(JSON.stringify({ 
-                success: true, 
+            return Response.json({
+                success: true,
                 preview_entries: previewEntries,
                 schedule: {
                     client_name: schedule.client_name,
@@ -160,83 +123,53 @@ Deno.serve(async (req) => {
                     end_time: schedule.end_time.slice(11, 16),
                     client_activity_type: clientActivity
                 }
-            }), { headers: { 'Content-Type': 'application/json' } });
+            });
 
         } else if (mode === 'create') {
-            console.log('\n=== MODO CREATE - Iniciando creación ===');
+            console.log('\n=== MODO CREATE ===');
             const entriesToCreate = await calculateWorkEntries();
             const createdEntries = [];
             const skippedEntries = [];
 
-            console.log('Entradas para crear:', entriesToCreate.length);
-
             for (const entryData of entriesToCreate) {
-                console.log(`\n>>> Creando entrada para: ${entryData.cleaner_name} (${entryData.cleaner_id})`);
-                
-                // VERIFICACIÓN INDIVIDUAL FINAL: Justo antes de crear, verificar que no exista
-                console.log('- Ejecutando verificación individual final...');
-                const finalCheck = await base44.entities.WorkEntry.filter({
+                const existing = await base44.entities.WorkEntry.filter({
                     schedule_id: scheduleId,
                     cleaner_id: entryData.cleaner_id
                 });
 
-                console.log('- Resultado verificación individual:', finalCheck.length, 'entradas encontradas');
-
-                if (finalCheck.length > 0) {
-                    console.log('- ⚠️ VERIFICACIÓN INDIVIDUAL: Ya existe WorkEntry para este limpiador en este servicio');
-                    console.log('- Entrada existente:', {
-                        id: finalCheck[0].id,
-                        created_date: finalCheck[0].created_date,
-                        hours: finalCheck[0].hours,
-                        total_amount: finalCheck[0].total_amount
-                    });
+                if (existing.length > 0) {
+                    console.log(`- Ya existe WorkEntry para ${entryData.cleaner_name}`);
                     skippedEntries.push({
                         cleaner_id: entryData.cleaner_id,
                         cleaner_name: entryData.cleaner_name,
                         reason: 'Ya existe WorkEntry',
-                        existing_id: finalCheck[0].id
+                        existing_id: existing[0].id
                     });
-                    continue; // Saltar a la siguiente iteración
+                    continue;
                 }
 
-                console.log('- ✅ Verificación individual pasada, creando WorkEntry...');
                 const newEntry = await base44.entities.WorkEntry.create(entryData);
-                console.log('- ✅ WorkEntry creada con ID:', newEntry.id);
+                console.log(`- ✅ WorkEntry creada: ${newEntry.id}`);
                 createdEntries.push(newEntry);
             }
 
-            console.log('\n=== FIN MODO CREATE ===');
-            console.log('Total entradas creadas:', createdEntries.length);
-            console.log('Total entradas omitidas:', skippedEntries.length);
+            console.log('Creadas:', createdEntries.length, '| Omitidas:', skippedEntries.length);
 
-            if (skippedEntries.length > 0) {
-                console.log('Entradas omitidas:', skippedEntries);
-            }
-
-            return new Response(JSON.stringify({ 
-                success: true, 
-                message: `Se crearon exitosamente ${createdEntries.length} entradas de trabajo.${skippedEntries.length > 0 ? ` Se omitieron ${skippedEntries.length} entradas que ya existían.` : ''}`,
+            return Response.json({
+                success: true,
+                message: `Se crearon ${createdEntries.length} entradas.${skippedEntries.length > 0 ? ` Se omitieron ${skippedEntries.length} que ya existían.` : ''}`,
                 created_entries: createdEntries.length,
                 skipped_entries: skippedEntries.length,
                 work_entries: createdEntries,
                 skipped_details: skippedEntries
-            }), { headers: { 'Content-Type': 'application/json' } });
+            });
         }
 
-        return new Response(JSON.stringify({ error: 'Invalid mode' }), { 
-            status: 400, 
-            headers: { 'Content-Type': 'application/json' } 
-        });
+        return Response.json({ error: 'Invalid mode' }, { status: 400 });
 
     } catch (error) {
-        console.error('❌ Error en processScheduleForWorkEntries:', error);
-        console.error('❌ Stack trace:', error.stack);
-        return new Response(JSON.stringify({ 
-            error: error.message || 'Internal server error',
-            details: error.stack
-        }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        console.error('❌ Error:', error.message);
+        console.error('Stack:', error.stack);
+        return Response.json({ error: error.message || 'Internal server error' }, { status: 500 });
     }
 });
