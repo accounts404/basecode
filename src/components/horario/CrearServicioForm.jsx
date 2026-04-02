@@ -16,7 +16,7 @@ import { ServiceReport } from '@/entities/ServiceReport';
 import { sendOnMyWaySms } from '@/functions/sendOnMyWaySms';
 import { sendUpdateNotification } from '@/functions/sendUpdateNotification';
 import { processScheduleForWorkEntries } from "@/functions/processScheduleForWorkEntries";
-import { eliminarSerieRecurrente } from '@/functions/eliminarSerieRecurrente';
+
 import { isEqual } from 'lodash';
 import PhotoUploader from './PhotoUploader';
 import ClientSearchCombobox from '../work/ClientSearchCombobox';
@@ -921,36 +921,28 @@ export default function CrearServicioForm({
         setError('');
 
         try {
-            const response = await eliminarSerieRecurrente({
-                scheduleId: schedule.id,
-                deleteMode: deleteMode
-            });
-
-            if (response.data.success) {
-                console.log(`Eliminación exitosa: ${response.data.deletedCount} servicio(s) eliminado(s).`);
-
-                if (onDelete) {
-                    onDelete();
+            if (deleteMode === 'only_this') {
+                await Schedule.delete(schedule.id);
+            } else if (deleteMode === 'this_and_future') {
+                if (!schedule.recurrence_id) {
+                    await Schedule.delete(schedule.id);
+                } else {
+                    const seriesSchedules = await Schedule.filter({ recurrence_id: schedule.recurrence_id });
+                    const targetDate = new Date(schedule.start_time);
+                    const toDelete = seriesSchedules.filter(s => new Date(s.start_time) >= targetDate);
+                    await Promise.all(toDelete.map(s => Schedule.delete(s.id).catch(() => {})));
                 }
-                if (onCancel) {
-                    onCancel();
-                }
-            } else {
-                throw new Error(response.data.error || "Error desconocido al eliminar el servicio.");
             }
+
+            setShowDeleteDialog(false);
+            if (onDelete) onDelete();
+            if (onCancel) onCancel();
 
         } catch (error) {
             console.error('Error durante la eliminación del servicio:', error);
-            let errorMessage = 'No se pudo eliminar el servicio. Por favor, inténtalo de nuevo.';
-            if (error.response?.data?.error) {
-                errorMessage = error.response.data.error;
-            } else if (error.message.includes('not found')) {
-                errorMessage = 'El servicio ya fue eliminado previamente.';
-            }
-            setError(errorMessage);
-
-            if (error.message.includes('not found') || error.response?.status === 404) {
-                 if (onCancel) onCancel();
+            setError('No se pudo eliminar el servicio. Por favor, inténtalo de nuevo.');
+            if (error.message?.includes('not found')) {
+                if (onCancel) onCancel();
             }
 
         } finally {
