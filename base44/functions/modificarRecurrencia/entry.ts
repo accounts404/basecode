@@ -1,14 +1,12 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.4';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 import { addWeeks } from 'npm:date-fns@3.6.0';
 
-// Formato sin timezone: YYYY-MM-DDTHH:mm:00.000
 const formatLocalISO = (d) => {
     const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
     const h = String(d.getUTCHours()).padStart(2,'0'), mi = String(d.getUTCMinutes()).padStart(2,'0');
     return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
 };
 
-// Función para generar nuevas recurrencias con manejo de errores mejorado
 async function generarNuevasRecurrencias(base44, citaBase) {
     const { recurrence_rule, id: baseId } = citaBase;
     if (!recurrence_rule || recurrence_rule === 'none') {
@@ -22,17 +20,10 @@ async function generarNuevasRecurrencias(base44, citaBase) {
 
     const citasCreadas = [];
     const citasFallidas = [];
-    // Parsear fecha y hora directamente del string ISO (sin new Date para evitar timezone)
-    const fechaBase = new Date(citaBase.start_time);
-    const horaOriginal = {
-        hours: parseInt(citaBase.start_time.slice(11, 13)),
-        minutes: parseInt(citaBase.start_time.slice(14, 16)),
-        seconds: 0
-    };
 
-    let fechaDeCalculo = fechaBase;
+    const horaOriginalStart = citaBase.start_time.slice(11, 16);
+    const horaOriginalEnd = citaBase.end_time.slice(11, 16);
 
-    // Límites según frecuencia
     const numSemanales = 25;
     const numQuincenales = 12;
     const numCada3Semanas = 9;
@@ -51,49 +42,43 @@ async function generarNuevasRecurrencias(base44, citaBase) {
         return { created: [], failed: [] };
     }
 
+    let fechaDeCalculo = new Date(citaBase.start_time);
+
     for (let i = 0; i < limite; i++) {
         let siguienteFechaBase;
 
-        // Calcular siguiente fecha base
         switch (recurrence_rule) {
-            case 'weekly':
-                siguienteFechaBase = addWeeks(fechaDeCalculo, 1);
-                break;
-            case 'fortnightly':
-                siguienteFechaBase = addWeeks(fechaDeCalculo, 2);
-                break;
-            case 'every_3_weeks':
-                siguienteFechaBase = addWeeks(fechaDeCalculo, 3);
-                break;
-            case 'every_4_weeks':
-                siguienteFechaBase = addWeeks(fechaDeCalculo, 4);
-                break;
-            case 'monthly':
-                siguienteFechaBase = addWeeks(fechaDeCalculo, 4);
-                break;
-            default:
-                return { created: citasCreadas, failed: citasFallidas };
+            case 'weekly': siguienteFechaBase = addWeeks(fechaDeCalculo, 1); break;
+            case 'fortnightly': siguienteFechaBase = addWeeks(fechaDeCalculo, 2); break;
+            case 'every_3_weeks': siguienteFechaBase = addWeeks(fechaDeCalculo, 3); break;
+            case 'every_4_weeks': siguienteFechaBase = addWeeks(fechaDeCalculo, 4); break;
+            case 'monthly': siguienteFechaBase = addWeeks(fechaDeCalculo, 4); break;
+            default: return { created: citasCreadas, failed: citasFallidas };
         }
 
-        // Calcular duración del servicio original en minutos (sin timezone)
-        const startMinutes = parseInt(citaBase.start_time.slice(11,13))*60 + parseInt(citaBase.start_time.slice(14,16));
-        const endMinutes = parseInt(citaBase.end_time.slice(11,13))*60 + parseInt(citaBase.end_time.slice(14,16));
-        const duracionMin = endMinutes - startMinutes;
+        const dateStr = `${siguienteFechaBase.getUTCFullYear()}-${String(siguienteFechaBase.getUTCMonth()+1).padStart(2,'0')}-${String(siguienteFechaBase.getUTCDate()).padStart(2,'0')}`;
+        const siguienteInicio = `${dateStr}T${horaOriginalStart}:00.000`;
+        const siguienteFin = `${dateStr}T${horaOriginalEnd}:00.000`;
 
-        // Construir fecha siguiente usando la fecha base y la hora original
-        const siguienteFechaStr = `${siguienteFechaBase.getUTCFullYear()}-${String(siguienteFechaBase.getUTCMonth()+1).padStart(2,'0')}-${String(siguienteFechaBase.getUTCDate()).padStart(2,'0')}`;
-        const startHH = String(horaOriginal.hours).padStart(2,'0');
-        const startMM = String(horaOriginal.minutes).padStart(2,'0');
-        const siguienteInicio = `${siguienteFechaStr}T${startHH}:${startMM}:00.000`;
-
-        const endH = String(Math.floor((horaOriginal.hours*60 + horaOriginal.minutes + duracionMin)/60) % 24).padStart(2,'0');
-        const endM = String((horaOriginal.minutes + duracionMin) % 60).padStart(2,'0');
-        const siguienteFin = `${siguienteFechaStr}T${endH}:${endM}:00.000`;
+        // Ajustar cleaner_schedules si existen
+        let nuevasCleanerSchedules = null;
+        if (citaBase.cleaner_schedules && citaBase.cleaner_schedules.length > 0) {
+            nuevasCleanerSchedules = citaBase.cleaner_schedules.map(cs => {
+                const csStartHora = cs.start_time ? cs.start_time.slice(11, 16) : horaOriginalStart;
+                const csEndHora = cs.end_time ? cs.end_time.slice(11, 16) : horaOriginalEnd;
+                return {
+                    ...cs,
+                    start_time: `${dateStr}T${csStartHora}:00.000`,
+                    end_time: `${dateStr}T${csEndHora}:00.000`,
+                };
+            });
+        }
 
         const nuevaCita = {
             ...citaBase,
             start_time: siguienteInicio,
             end_time: siguienteFin,
+            cleaner_schedules: nuevasCleanerSchedules,
             status: 'scheduled',
             recurrence_id: recurrenceId,
             clock_in_data: [],
@@ -108,16 +93,13 @@ async function generarNuevasRecurrencias(base44, citaBase) {
             const creada = await base44.asServiceRole.entities.Schedule.create(nuevaCita);
             citasCreadas.push(creada);
         } catch (e) {
-            console.error(`[generarNuevasRecurrencias] Error creando cita: ${e.message}`);
-            citasFallidas.push({
-                fecha: siguienteInicio,
-                error: e.message
-            });
+            console.error(`[generarNuevasRecurrencias] Error: ${e.message}`);
+            citasFallidas.push({ fecha: siguienteInicio, error: e.message });
         }
-        
+
         fechaDeCalculo = siguienteFechaBase;
     }
-    
+
     return { created: citasCreadas, failed: citasFallidas };
 }
 
@@ -125,127 +107,70 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         const user = await base44.auth.me();
-        
-        // VALIDACIÓN DE SEGURIDAD
+
         if (!user || user.role !== 'admin') {
-            return new Response(JSON.stringify({ 
-                success: false,
-                error: 'Unauthorized: Solo administradores pueden modificar recurrencias' 
-            }), { 
-                status: 401, 
-                headers: { 'Content-Type': 'application/json' } 
-            });
+            return Response.json({ success: false, error: 'Unauthorized: Solo administradores' }, { status: 401 });
         }
 
         const { scheduleId, updatedData } = await req.json();
 
-        // VALIDACIÓN MEJORADA
         if (!scheduleId) {
-            return new Response(JSON.stringify({ 
-                success: false,
-                error: "Se requiere scheduleId"
-            }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return Response.json({ success: false, error: "Se requiere scheduleId" }, { status: 400 });
         }
 
         if (!updatedData) {
-            return new Response(JSON.stringify({ 
-                success: false,
-                error: "Se requiere updatedData"
-            }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return Response.json({ success: false, error: "Se requiere updatedData" }, { status: 400 });
         }
 
-        // 1. Obtener el servicio base original
         const servicioOriginal = await base44.asServiceRole.entities.Schedule.get(scheduleId);
         if (!servicioOriginal) {
-            return new Response(JSON.stringify({ 
-                success: false,
-                error: `No se encontró el servicio con ID ${scheduleId}`
-            }), {
-                status: 404,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return Response.json({ success: false, error: `No se encontró el servicio con ID ${scheduleId}` }, { status: 404 });
         }
 
         const oldRecurrenceId = servicioOriginal.recurrence_id;
 
-        // 2. Actualizar el servicio que se está editando
+        // Actualizar el servicio base
         await base44.asServiceRole.entities.Schedule.update(scheduleId, updatedData);
         const servicioBaseActualizado = await base44.asServiceRole.entities.Schedule.get(scheduleId);
 
         let deletedCount = 0;
-        let deleteFailedCount = 0;
         let createdCount = 0;
-        let createFailedCount = 0;
 
-        // 3. Eliminar citas futuras de la serie antigua
+        // Eliminar citas futuras de la serie antigua
         if (oldRecurrenceId) {
-            const allSchedules = await base44.asServiceRole.entities.Schedule.list();
-            const oldSeriesSchedules = allSchedules.filter(s => s.recurrence_id === oldRecurrenceId);
-            
+            const allSchedules = await base44.asServiceRole.entities.Schedule.filter({ recurrence_id: oldRecurrenceId });
             const fechaDeCorte = (servicioBaseActualizado.start_time || '').slice(0, 10);
 
-            const schedulesToDelete = oldSeriesSchedules.filter(s => {
+            const schedulesToDelete = allSchedules.filter(s => {
                 const scheduleDate = (s.start_time || '').slice(0, 10);
-                return scheduleDate > fechaDeCorte && 
-                       s.id !== scheduleId && 
-                       s.status !== 'completed';
+                return scheduleDate > fechaDeCorte && s.id !== scheduleId && s.status !== 'completed';
             });
 
             if (schedulesToDelete.length > 0) {
-                console.log(`[modificarRecurrencia] 🗑️ Eliminando ${schedulesToDelete.length} servicios antiguos...`);
+                console.log(`[modificarRecurrencia] Eliminando ${schedulesToDelete.length} servicios...`);
                 const deleteResults = await Promise.allSettled(
                     schedulesToDelete.map(s => base44.asServiceRole.entities.Schedule.delete(s.id))
                 );
                 deletedCount = deleteResults.filter(r => r.status === 'fulfilled').length;
-                deleteFailedCount = deleteResults.filter(r => r.status === 'rejected').length;
-                
-                if (deleteFailedCount > 0) {
-                    console.warn(`[modificarRecurrencia] ⚠️ ${deleteFailedCount} servicios no pudieron eliminarse`);
-                }
             }
         }
-        
-        // 4. Generar nuevas citas si la regla no es 'none'
+
+        // Generar nuevas citas
         if (servicioBaseActualizado.recurrence_rule && servicioBaseActualizado.recurrence_rule !== 'none') {
-            console.log(`[modificarRecurrencia] 🔄 Generando nuevos servicios con regla: ${servicioBaseActualizado.recurrence_rule}`);
+            console.log(`[modificarRecurrencia] Generando con regla: ${servicioBaseActualizado.recurrence_rule}`);
             const resultado = await generarNuevasRecurrencias(base44, servicioBaseActualizado);
             createdCount = resultado.created.length;
-            createFailedCount = resultado.failed.length;
-            
-            if (createFailedCount > 0) {
-                console.warn(`[modificarRecurrencia] ⚠️ ${createFailedCount} servicios no pudieron crearse`);
-            }
         }
 
-        const message = `Recurrencia modificada exitosamente. Eliminados: ${deletedCount}, Creados: ${createdCount}${createFailedCount > 0 ? `, Fallidos: ${createFailedCount}` : ''}`;
-
-        return new Response(JSON.stringify({
+        return Response.json({
             success: true,
-            message: message,
+            message: `Recurrencia modificada. Eliminados: ${deletedCount}, Creados: ${createdCount}`,
             deletedCount,
-            deleteFailedCount,
             createdCount,
-            createFailedCount
-        }), { 
-            headers: { 'Content-Type': 'application/json' }, 
-            status: 200 
         });
 
     } catch (error) {
-        console.error('[modificarRecurrencia] ❌ Error:', error);
-        return new Response(JSON.stringify({ 
-            success: false,
-            error: error.message || 'Error desconocido',
-            stack: error.stack
-        }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        console.error('[modificarRecurrencia] Error:', error);
+        return Response.json({ success: false, error: error.message || 'Error desconocido' }, { status: 500 });
     }
 });
