@@ -77,6 +77,7 @@ const adminMenuItems = [
   { name: 'Revisión Precios', path: 'RevisionPrecios', icon: FileText },
   { name: 'Puntuación Limpiadores', path: 'PuntuacionLimpiadores', icon: Trophy },
   { name: 'Gestión de Uniformes', path: 'GestionCamisas', icon: Shirt },
+  { name: 'Gestión de Llaves', path: 'GestionLlaves', icon: KeySquare },
   { name: 'Historial Clientes', path: 'HistorialClientes', icon: History },
   { name: 'Configuración', path: 'Configuracion', icon: Settings },
 ];

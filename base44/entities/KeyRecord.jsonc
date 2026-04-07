@@ -1,0 +1,135 @@
+{
+  "name": "KeyRecord",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente al que pertenece la llave"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente para referencia r\u00e1pida"
+    },
+    "client_address": {
+      "type": "string",
+      "description": "Direcci\u00f3n del cliente"
+    },
+    "safe_box_number": {
+      "type": "string",
+      "description": "N\u00famero asignado en la caja fuerte"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "returned",
+        "lost"
+      ],
+      "default": "active",
+      "description": "Estado actual de la llave"
+    },
+    "key_photos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "description": "Fotos de la llave original"
+    },
+    "copies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Etiqueta de la copia (ej: Copia #1 - Daniel)"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "comment": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          },
+          "created_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "description": "Copias de la llave"
+    },
+    "log_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "action"
+        ]
+      },
+      "description": "Historial de eventos de la llave"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas adicionales sobre la llave"
+    },
+    "received_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha en que se recibi\u00f3 la llave"
+    },
+    "returned_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha en que se devolvi\u00f3 la llave"
+    }
+  },
+  "required": [
+    "client_id",
+    "client_name",
+    "safe_box_number"
+  ]
+}

@@ -58,6 +58,7 @@ import Cotizaciones from './pages/Cotizaciones';
 import Dashboard from './pages/Dashboard';
 import Facturas from './pages/Facturas';
 import GestionCamisas from './pages/GestionCamisas';
+import GestionLlaves from './pages/GestionLlaves';
 import GestionFlota from './pages/GestionFlota';
 import GestionServiciosAdmin from './pages/GestionServiciosAdmin';
 import HistorialClientes from './pages/HistorialClientes';
@@ -98,6 +99,7 @@ export const PAGES = {
     "Dashboard": Dashboard,
     "Facturas": Facturas,
     "GestionCamisas": GestionCamisas,
+    "GestionLlaves": GestionLlaves,
     "GestionFlota": GestionFlota,
     "GestionServiciosAdmin": GestionServiciosAdmin,
     "HistorialClientes": HistorialClientes,
