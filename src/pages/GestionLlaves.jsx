@@ -37,8 +37,8 @@ export default function GestionLlaves() {
         base44.entities.Client.list(),
         base44.entities.KeyRecord.list(),
       ]);
-      // Clientes con llave (has_access = true o tienen access_identifier)
-      const clientsWithKeys = allClients.filter(c => c.active !== false && (c.has_access || c.access_identifier));
+      // Solo clientes con llave física
+      const clientsWithKeys = allClients.filter(c => c.active !== false && c.access_type === 'key');
       setClients(clientsWithKeys);
       setKeyRecords(allRecords);
     } catch (err) {
