@@ -35,6 +35,7 @@ import {
   History,
   ListChecks,
   BookOpen,
+  KeySquare,
 } from "lucide-react";
 import {
   Sidebar,
