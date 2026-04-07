@@ -68,6 +68,7 @@ const adminMenuItems = [
   { name: 'Limpiadores', path: 'Limpiadores', icon: UserCheck },
   { name: 'Inducciones', path: 'Inducciones', icon: BookOpen },
   { name: 'Gestión de Flota', path: 'GestionFlota', icon: Car },
+  { name: 'Gestión de Llaves', path: 'GestionLlaves', icon: KeySquare },
   { name: 'Entradas de Trabajo', path: 'TrabajoEntradas', icon: Clock },
   { name: 'Auditoría WorkEntries', path: 'AuditoriaWorkEntries', icon: GitCompare },
   { name: 'Facturas', path: 'Facturas', icon: FileText },
@@ -78,7 +79,6 @@ const adminMenuItems = [
   { name: 'Revisión Precios', path: 'RevisionPrecios', icon: FileText },
   { name: 'Puntuación Limpiadores', path: 'PuntuacionLimpiadores', icon: Trophy },
   { name: 'Gestión de Uniformes', path: 'GestionCamisas', icon: Shirt },
-  { name: 'Gestión de Llaves', path: 'GestionLlaves', icon: KeySquare },
   { name: 'Historial Clientes', path: 'HistorialClientes', icon: History },
   { name: 'Configuración', path: 'Configuracion', icon: Settings },
 ];
