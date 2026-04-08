@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { KeyRound, Search, Plus, Copy, AlertTriangle, CheckCircle, RotateCcw, Eye, Shield } from 'lucide-react';
+import { KeyRound, Search, Plus, Copy, AlertTriangle, CheckCircle, RotateCcw, Eye, Shield, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import KeyRecordModal from '@/components/keys/KeyRecordModal';
@@ -25,9 +25,10 @@ export default function GestionLlaves() {
   const [keyRecords, setKeyRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [selectedModal, setSelectedModal] = useState(null); // { client, record }
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -68,6 +69,7 @@ export default function GestionLlaves() {
 
       const matchStatus = statusFilter === 'all' ||
         (statusFilter === 'unregistered' && !record) ||
+        (statusFilter === 'with_copies' && record?.copies?.length > 0) ||
         (record && record.status === statusFilter);
 
       return matchSearch && matchStatus;
@@ -84,6 +86,20 @@ export default function GestionLlaves() {
 
   const handleOpenModal = (client, record) => {
     setSelectedModal({ client, record });
+  };
+
+  const handleDelete = async (recordId, e) => {
+    e.stopPropagation();
+    if (!window.confirm('¿Eliminar el registro de esta llave? Esta acción no se puede deshacer.')) return;
+    setDeletingId(recordId);
+    try {
+      await base44.entities.KeyRecord.delete(recordId);
+      await loadData();
+    } catch (err) {
+      setError('Error al eliminar.');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleSave = async (data) => {
@@ -175,6 +191,7 @@ export default function GestionLlaves() {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="active">✅ Activas</SelectItem>
+                <SelectItem value="with_copies">📋 Con Copias</SelectItem>
                 <SelectItem value="returned">↩️ Devueltas</SelectItem>
                 <SelectItem value="lost">❌ Perdidas</SelectItem>
                 <SelectItem value="unregistered">⚠️ Sin registrar</SelectItem>
@@ -263,7 +280,21 @@ export default function GestionLlaves() {
                     </div>
                   )}
 
-                  <div className="flex justify-end mt-3 pt-2 border-t border-slate-100">
+                  <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-100">
+                    <div>
+                      {record && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-red-400 hover:text-red-600 hover:bg-red-50 h-7"
+                          disabled={deletingId === record.id}
+                          onClick={(e) => handleDelete(record.id, e)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                          {deletingId === record.id ? 'Eliminando...' : 'Eliminar'}
+                        </Button>
+                      )}
+                    </div>
                     <Button variant="ghost" size="sm" className="text-xs text-slate-500 h-7">
                       <Eye className="w-3.5 h-3.5 mr-1" />
                       {record ? 'Ver / Editar' : 'Registrar'}
