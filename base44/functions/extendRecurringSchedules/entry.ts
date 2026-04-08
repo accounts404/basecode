@@ -9,7 +9,7 @@ const formatLocalISO = (d) => {
 };
 
 // CONFIGURACIÓN
-const HORIZON_DAYS = 90; // Generar nuevos servicios si la última cita está a menos de 90 días
+const HORIZON_DAYS = 90; // Extender si la última cita está a menos de 90 días
 const EXTENSION_COUNT = {
     weekly: 26,        // aprox 6 meses
     fortnightly: 13,   // aprox 6 meses
@@ -18,7 +18,7 @@ const EXTENSION_COUNT = {
     monthly: 6,        // 6 meses
 };
 
-async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
+async function extendSeries(base44, lastServiceInSeries, existingStartDays, today) {
     const { recurrence_rule, recurrence_id } = lastServiceInSeries;
     if (!recurrence_rule || !recurrence_id || recurrence_rule === 'none') {
         return { created: [], failed: [] };
@@ -30,10 +30,7 @@ async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
     let currentEndDate = new Date(lastServiceInSeries.end_time);
 
     const limit = EXTENSION_COUNT[recurrence_rule] || 0;
-    if (limit === 0) {
-        console.warn(`[extendSeries] No hay límite definido para: ${recurrence_rule}`);
-        return { created: [], failed: [] };
-    }
+    if (limit === 0) return { created: [], failed: [] };
 
     for (let i = 0; i < limit; i++) {
         let nextStartDate, nextEndDate;
@@ -60,8 +57,14 @@ async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
                 nextEndDate = addMonths(currentEndDate, 1);
                 break;
             default:
-                console.warn(`[extendSeries] Regla desconocida: ${recurrence_rule}`);
                 return { created: createdServices, failed: failedServices };
+        }
+
+        // FIX: Nunca crear servicios en el pasado
+        if (nextStartDate <= today) {
+            currentStartDate = nextStartDate;
+            currentEndDate = nextEndDate;
+            continue;
         }
 
         const nextDayStartISO = formatLocalISO(nextStartDate).slice(0, 10);
@@ -94,7 +97,7 @@ async function extendSeries(base44, lastServiceInSeries, existingStartDays) {
                 existingStartDays.add(nextDayStartISO);
             }
         } catch (e) {
-            console.error(`[extendSeries] ❌ Error creando servicio para serie ${recurrence_id}:`, e.message);
+            console.error(`[extendSeries] ❌ Error serie ${recurrence_id}:`, e.message);
             failedServices.push({ recurrence_id, fecha: formatLocalISO(nextStartDate), error: e.message });
         }
 
@@ -113,12 +116,17 @@ Deno.serve(async (req) => {
         log('🔄 Iniciando revisión para extender series recurrentes...');
         const today = new Date();
 
-        // Obtener todos los servicios que pertenecen a una serie (en lotes)
+        // FIX: Cargar solo clientes activos y filtrar por ellos
+        const allClients = await base44.asServiceRole.entities.Client.list();
+        const activeClientIds = new Set(allClients.filter(c => c.active !== false).map(c => c.id));
+        log(`👥 Clientes activos: ${activeClientIds.size} de ${allClients.length} total`);
+
+        // Obtener servicios recurrentes solo de clientes activos
         const allSchedules = await base44.asServiceRole.entities.Schedule.list('-start_time', 2000);
-        const recurringSchedules = allSchedules.filter(s => s.recurrence_id);
+        const recurringSchedules = allSchedules.filter(s => s.recurrence_id && activeClientIds.has(s.client_id));
 
         if (recurringSchedules.length === 0) {
-            log('ℹ️ No se encontraron series recurrentes.');
+            log('ℹ️ No se encontraron series recurrentes de clientes activos.');
             return Response.json({ success: true, message: 'No recurring schedules found.', extended_series_count: 0 });
         }
 
@@ -130,7 +138,7 @@ Deno.serve(async (req) => {
             }
             seriesMap.get(schedule.recurrence_id).push(schedule);
         }
-        log(`📊 Se encontraron ${seriesMap.size} series recurrentes únicas`);
+        log(`📊 ${seriesMap.size} series recurrentes únicas (solo clientes activos)`);
 
         const results = {
             extended_series_count: 0,
@@ -145,10 +153,10 @@ Deno.serve(async (req) => {
             const daysUntilLast = differenceInDays(new Date(lastService.start_time), today);
 
             if (daysUntilLast < HORIZON_DAYS) {
-                log(`🔧 Extendiendo serie ${recurrenceId} (última cita en ${daysUntilLast} días)...`);
+                log(`🔧 Extendiendo serie ${recurrenceId} (${lastService.client_name}, última cita en ${daysUntilLast} días)...`);
                 try {
                     const existingStartDays = new Set(schedulesInSeries.map(s => (s.start_time || '').slice(0, 10)));
-                    const resultado = await extendSeries(base44, lastService, existingStartDays);
+                    const resultado = await extendSeries(base44, lastService, existingStartDays, today);
 
                     if (resultado.created.length > 0) {
                         results.extended_series_count++;
@@ -168,7 +176,6 @@ Deno.serve(async (req) => {
                 }
             } else {
                 results.skipped_series++;
-                log(`⏭️ Serie ${recurrenceId} omitida (última cita en ${daysUntilLast} días)`);
             }
         }
 
