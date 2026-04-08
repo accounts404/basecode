@@ -1716,7 +1716,7 @@ export default function CrearServicioForm({
             )}
 
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <DialogContent className="max-w-xl p-0">
+                <DialogContent className="max-w-xl p-0 max-h-[90vh] overflow-y-auto">
                     <DialogHeader className="text-center p-6 border-b">
                         <DialogTitle className="text-xl font-bold text-red-700 flex items-center justify-center gap-3">
                             <Trash2 className="w-6 h-6" />
