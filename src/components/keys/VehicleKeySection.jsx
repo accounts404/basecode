@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Car, Battery, Copy, AlertTriangle, Plus, CheckCircle, Edit, Clock } from 'lucide-react';
+import { Car, Battery, Copy, AlertTriangle, Plus, CheckCircle, Edit, Clock, Trash2 } from 'lucide-react';
 import { format, differenceInMonths, addMonths, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 import KeyPhotoUploader from '@/components/keys/KeyPhotoUploader';
@@ -40,13 +40,17 @@ function getBatteryStatus(record) {
 }
 
 export default function VehicleKeySection() {
+  const [allVehicles, setAllVehicles] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [keyRecords, setKeyRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editModal, setEditModal] = useState(null); // vehicle key record or null
+  const [editModal, setEditModal] = useState(null);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showAddPicker, setShowAddPicker] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const [form, setForm] = useState({
     key_type: 'standard',
@@ -66,11 +70,15 @@ export default function VehicleKeySection() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [allVehicles, allRecords] = await Promise.all([
+      const [fetchedVehicles, allRecords] = await Promise.all([
         base44.entities.Vehicle.list(),
         base44.entities.VehicleKeyRecord.list(),
       ]);
-      setVehicles(allVehicles.filter(v => v.status !== 'out_of_service'));
+      const active = fetchedVehicles.filter(v => v.status !== 'out_of_service');
+      setAllVehicles(active);
+      // Solo mostrar vehículos que tienen un VehicleKeyRecord
+      const vehicleIds = new Set(allRecords.map(r => r.vehicle_id));
+      setVehicles(active.filter(v => vehicleIds.has(v.id)));
       setKeyRecords(allRecords);
     } catch (err) {
       setError('Error cargando datos.');
@@ -132,12 +140,46 @@ export default function VehicleKeySection() {
     }
   };
 
+  const handleAddVehicle = async (vehicle) => {
+    try {
+      await base44.entities.VehicleKeyRecord.create({
+        vehicle_id: vehicle.id,
+        vehicle_info: `${vehicle.make} ${vehicle.model} - ${vehicle.license_plate}`,
+        key_type: 'standard',
+        has_copy: false,
+        status: 'active',
+      });
+      setShowAddPicker(false);
+      setPickerSearch('');
+      await loadData();
+    } catch (err) {
+      setError('Error al agregar vehículo.');
+    }
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!confirmDelete?.record?.id) return;
+    try {
+      await base44.entities.VehicleKeyRecord.delete(confirmDelete.record.id);
+      setConfirmDelete(null);
+      await loadData();
+    } catch (err) {
+      setError('Error al eliminar.');
+    }
+  };
+
+  const availableVehicles = allVehicles.filter(v => {
+    const taken = new Set(keyRecords.map(r => r.vehicle_id));
+    if (taken.has(v.id)) return false;
+    if (!pickerSearch) return true;
+    return `${v.make} ${v.model} ${v.license_plate}`.toLowerCase().includes(pickerSearch.toLowerCase());
+  });
+
   const combined = vehicles.map(v => ({
     vehicle: v,
     record: keyRecords.find(r => r.vehicle_id === v.id) || null,
   }));
 
-  // Stats
   const batteryAlerts = keyRecords.filter(r => {
     const bs = getBatteryStatus(r);
     return bs?.urgent;
@@ -148,6 +190,12 @@ export default function VehicleKeySection() {
   return (
     <div>
       {error && <Alert variant="destructive" className="mb-4"><AlertDescription>{error}</AlertDescription></Alert>}
+
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setShowAddPicker(true)} className="bg-blue-600 hover:bg-blue-700 gap-2">
+          <Plus className="w-4 h-4" /> Agregar Vehículo
+        </Button>
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -238,7 +286,11 @@ export default function VehicleKeySection() {
                   </div>
                 )}
 
-                <div className="flex justify-end mt-3 pt-2 border-t border-slate-100">
+                <div className="flex justify-between mt-3 pt-2 border-t border-slate-100">
+                  <Button variant="ghost" size="sm" className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 h-7"
+                    onClick={e => { e.stopPropagation(); setConfirmDelete({ vehicle, record }); }}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminar
+                  </Button>
                   <Button variant="ghost" size="sm" className="text-xs text-slate-500 h-7">
                     <Edit className="w-3.5 h-3.5 mr-1" />
                     {record ? 'Ver / Editar' : 'Registrar'}
@@ -249,6 +301,52 @@ export default function VehicleKeySection() {
           );
         })}
       </div>
+
+      {/* Add Vehicle Picker */}
+      {showAddPicker && (
+        <Dialog open={true} onOpenChange={v => { setShowAddPicker(v); setPickerSearch(''); }}>
+          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Car className="w-5 h-5 text-blue-600" /> Agregar Vehículo</DialogTitle>
+            </DialogHeader>
+            <div className="relative mb-3">
+              <input placeholder="Buscar vehículo..." value={pickerSearch} onChange={e => setPickerSearch(e.target.value)}
+                className="w-full border rounded-lg px-4 py-2 pl-9 text-sm outline-none focus:ring-2 focus:ring-blue-300" />
+              <span className="absolute left-3 top-2.5 text-slate-400">🔍</span>
+            </div>
+            <div className="space-y-2">
+              {availableVehicles.length === 0 && (
+                <p className="text-center text-slate-500 py-8 text-sm">No hay vehículos disponibles para agregar.</p>
+              )}
+              {availableVehicles.map(v => (
+                <button key={v.id} onClick={() => handleAddVehicle(v)}
+                  className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all">
+                  <p className="font-medium text-slate-800 text-sm">{v.make} {v.model} <span className="font-mono text-slate-500">{v.license_plate}</span></p>
+                  <p className="text-xs text-slate-400">{v.color} · {v.year}</p>
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Confirm Delete */}
+      {confirmDelete && (
+        <Dialog open={true} onOpenChange={v => !v && setConfirmDelete(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>¿Eliminar vehículo de gestión de llaves?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-slate-600 mb-4">
+              Se eliminará <strong>{confirmDelete.vehicle?.make} {confirmDelete.vehicle?.model} - {confirmDelete.vehicle?.license_plate}</strong> y su registro de llave.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+              <Button variant="destructive" onClick={handleDeleteRecord}>Eliminar</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Edit Modal */}
       {editModal && selectedVehicle && (

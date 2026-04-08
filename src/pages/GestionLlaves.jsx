@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import VehicleKeySection from '@/components/keys/VehicleKeySection';
 import { Car } from 'lucide-react';
@@ -9,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { KeyRound, Search, Plus, Copy, AlertTriangle, CheckCircle, RotateCcw, Eye, Shield } from 'lucide-react';
+import { KeyRound, Search, Plus, Copy, AlertTriangle, CheckCircle, RotateCcw, Eye, Shield, Trash2, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import KeyRecordModal from '@/components/keys/KeyRecordModal';
@@ -21,6 +22,7 @@ const STATUS_CONFIG = {
 };
 
 export default function GestionLlaves() {
+  const [allClients, setAllClients] = useState([]);
   const [clients, setClients] = useState([]);
   const [keyRecords, setKeyRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,9 @@ export default function GestionLlaves() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedModal, setSelectedModal] = useState(null); // { client, record }
   const [error, setError] = useState('');
+  const [showAddClientPicker, setShowAddClientPicker] = useState(false);
+  const [clientPickerSearch, setClientPickerSearch] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(null); // { client, record }
 
   useEffect(() => {
     loadData();
@@ -36,13 +41,15 @@ export default function GestionLlaves() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [allClients, allRecords] = await Promise.all([
+      const [fetchedClients, allRecords] = await Promise.all([
         base44.entities.Client.list(),
         base44.entities.KeyRecord.list(),
       ]);
-      // Solo clientes con llave física
-      const clientsWithKeys = allClients.filter(c => c.active !== false && c.access_type === 'key');
-      setClients(clientsWithKeys);
+      const active = fetchedClients.filter(c => c.active !== false);
+      setAllClients(active);
+      // Mostrar solo clientes que tienen un KeyRecord
+      const clientIds = new Set(allRecords.map(r => r.client_id));
+      setClients(active.filter(c => clientIds.has(c.id)));
       setKeyRecords(allRecords);
     } catch (err) {
       setError('Error cargando datos.');
@@ -99,6 +106,44 @@ export default function GestionLlaves() {
       setError('Error al guardar.');
     }
   };
+
+  const handleAddClient = async (client) => {
+    try {
+      await base44.entities.KeyRecord.create({
+        client_id: client.id,
+        client_name: client.name,
+        client_address: client.address || '',
+        safe_box_number: '',
+        status: 'active',
+      });
+      setShowAddClientPicker(false);
+      setClientPickerSearch('');
+      await loadData();
+    } catch (err) {
+      setError('Error al agregar cliente.');
+    }
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!confirmDelete) return;
+    try {
+      if (confirmDelete.record?.id) {
+        await base44.entities.KeyRecord.delete(confirmDelete.record.id);
+      }
+      setConfirmDelete(null);
+      await loadData();
+    } catch (err) {
+      setError('Error al eliminar.');
+    }
+  };
+
+  // Clientes disponibles para agregar (que no tienen registro aún)
+  const availableClients = useMemo(() => {
+    const existingIds = new Set(keyRecords.map(r => r.client_id));
+    return allClients.filter(c => !existingIds.has(c.id) &&
+      (!clientPickerSearch || c.name.toLowerCase().includes(clientPickerSearch.toLowerCase()) || c.address?.toLowerCase().includes(clientPickerSearch.toLowerCase()))
+    );
+  }, [allClients, keyRecords, clientPickerSearch]);
 
   if (loading) {
     return (
@@ -157,7 +202,7 @@ export default function GestionLlaves() {
             ))}
           </div>
 
-          {/* Filters */}
+          {/* Filters + Add Button */}
           <div className="flex flex-col sm:flex-row gap-3 mb-5">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
@@ -177,9 +222,11 @@ export default function GestionLlaves() {
                 <SelectItem value="active">✅ Activas</SelectItem>
                 <SelectItem value="returned">↩️ Devueltas</SelectItem>
                 <SelectItem value="lost">❌ Perdidas</SelectItem>
-                <SelectItem value="unregistered">⚠️ Sin registrar</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={() => setShowAddClientPicker(true)} className="bg-amber-600 hover:bg-amber-700 gap-2 shrink-0">
+              <UserPlus className="w-4 h-4" /> Agregar Cliente
+            </Button>
           </div>
 
           {/* Key Cards Grid */}
@@ -263,7 +310,11 @@ export default function GestionLlaves() {
                     </div>
                   )}
 
-                  <div className="flex justify-end mt-3 pt-2 border-t border-slate-100">
+                  <div className="flex justify-between mt-3 pt-2 border-t border-slate-100">
+                    <Button variant="ghost" size="sm" className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 h-7"
+                      onClick={e => { e.stopPropagation(); setConfirmDelete({ client, record }); }}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Eliminar
+                    </Button>
                     <Button variant="ghost" size="sm" className="text-xs text-slate-500 h-7">
                       <Eye className="w-3.5 h-3.5 mr-1" />
                       {record ? 'Ver / Editar' : 'Registrar'}
@@ -296,6 +347,47 @@ export default function GestionLlaves() {
           onClose={() => setSelectedModal(null)}
         />
       )}
+
+      {/* Add Client Picker */}
+      <Dialog open={showAddClientPicker} onOpenChange={v => { setShowAddClientPicker(v); setClientPickerSearch(''); }}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-amber-600" /> Agregar Cliente</DialogTitle>
+          </DialogHeader>
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+            <Input placeholder="Buscar cliente..." value={clientPickerSearch} onChange={e => setClientPickerSearch(e.target.value)} className="pl-9" />
+          </div>
+          <div className="space-y-2">
+            {availableClients.length === 0 && (
+              <p className="text-center text-slate-500 py-8 text-sm">No hay clientes disponibles para agregar.</p>
+            )}
+            {availableClients.map(client => (
+              <button key={client.id} onClick={() => handleAddClient(client)}
+                className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-all">
+                <p className="font-medium text-slate-800 text-sm">{client.name}</p>
+                <p className="text-xs text-slate-500">{client.address || 'Sin dirección'}</p>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Delete */}
+      <Dialog open={!!confirmDelete} onOpenChange={v => !v && setConfirmDelete(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>¿Eliminar cliente de gestión de llaves?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-600 mb-4">
+            Se eliminará <strong>{confirmDelete?.client?.name}</strong> y su registro de llave. Esta acción no se puede deshacer.
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDeleteRecord}>Eliminar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
