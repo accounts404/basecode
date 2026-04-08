@@ -1,0 +1,106 @@
+{
+  "name": "VehicleKeyRecord",
+  "type": "object",
+  "properties": {
+    "vehicle_id": {
+      "type": "string",
+      "description": "ID del veh\u00edculo"
+    },
+    "vehicle_info": {
+      "type": "string",
+      "description": "Descripci\u00f3n del veh\u00edculo (marca, modelo, placa)"
+    },
+    "key_type": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "remote_fob",
+        "smart_key",
+        "other"
+      ],
+      "default": "standard",
+      "description": "Tipo de llave"
+    },
+    "has_copy": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si existe copia de la llave"
+    },
+    "copy_location": {
+      "type": "string",
+      "description": "D\u00f3nde est\u00e1 guardada la copia"
+    },
+    "battery_last_changed": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha del \u00faltimo cambio de bater\u00eda del control remoto"
+    },
+    "battery_reminder_months": {
+      "type": "number",
+      "default": 12,
+      "description": "Cada cu\u00e1ntos meses recordar cambio de bater\u00eda"
+    },
+    "key_photos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "description": "Fotos de la llave"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "lost",
+        "spare_only"
+      ],
+      "default": "active",
+      "description": "Estado de la llave"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas adicionales"
+    },
+    "log_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "action"
+        ]
+      },
+      "description": "Historial de eventos"
+    }
+  },
+  "required": [
+    "vehicle_id",
+    "vehicle_info"
+  ]
+}
