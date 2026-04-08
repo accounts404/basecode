@@ -83,8 +83,10 @@ export default function CrearServicioForm({
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [showCancellationDialog, setShowCancellationDialog] = useState(false);
+    const [deleteStep, setDeleteStep] = useState('choose'); // 'choose' | 'select'
+    const [futureServices, setFutureServices] = useState([]);
+    const [selectedDeleteIds, setSelectedDeleteIds] = useState([]);
+    const [loadingFuture, setLoadingFuture] = useState(false);
     const [cancellationSmsText, setCancellationSmsText] = useState(''); // Add this state for general errors, especially deletion
 
     // NUEVO: Estado separado para las Notas Generales por Defecto (NGPD) del cliente
@@ -908,9 +910,31 @@ export default function CrearServicioForm({
     const handleDeleteClick = () => {
         if (!schedule?.id) return;
         if (schedule.recurrence_id) {
+            setDeleteStep('choose');
+            setFutureServices([]);
+            setSelectedDeleteIds([]);
             setShowDeleteDialog(true);
         } else {
             handleConfirmDelete('only_this');
+        }
+    };
+
+    const handleShowFutureServices = async () => {
+        if (!schedule?.recurrence_id) return;
+        setLoadingFuture(true);
+        try {
+            const seriesSchedules = await Schedule.filter({ recurrence_id: schedule.recurrence_id });
+            const targetDate = new Date(schedule.start_time);
+            const future = seriesSchedules
+                .filter(s => new Date(s.start_time) >= targetDate)
+                .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+            setFutureServices(future);
+            setSelectedDeleteIds(future.map(s => s.id));
+            setDeleteStep('select');
+        } catch (e) {
+            setError('Error al cargar los servicios futuros.');
+        } finally {
+            setLoadingFuture(false);
         }
     };
 
@@ -923,15 +947,8 @@ export default function CrearServicioForm({
         try {
             if (deleteMode === 'only_this') {
                 await Schedule.delete(schedule.id);
-            } else if (deleteMode === 'this_and_future') {
-                if (!schedule.recurrence_id) {
-                    await Schedule.delete(schedule.id);
-                } else {
-                    const seriesSchedules = await Schedule.filter({ recurrence_id: schedule.recurrence_id });
-                    const targetDate = new Date(schedule.start_time);
-                    const toDelete = seriesSchedules.filter(s => new Date(s.start_time) >= targetDate);
-                    await Promise.all(toDelete.map(s => Schedule.delete(s.id).catch(() => {})));
-                }
+            } else if (deleteMode === 'selected') {
+                await Promise.all(selectedDeleteIds.map(id => Schedule.delete(id).catch(() => {})));
             }
 
             setShowDeleteDialog(false);
@@ -944,7 +961,6 @@ export default function CrearServicioForm({
             if (error.message?.includes('not found')) {
                 if (onCancel) onCancel();
             }
-
         } finally {
             setDeleteLoading(false);
         }
@@ -1714,55 +1730,111 @@ export default function CrearServicioForm({
                             </p>
                         </div>
 
-                        <div className="text-center">
-                            <p className="text-slate-700 text-base leading-relaxed mb-2">
-                                Este servicio forma parte de una <strong>serie recurrente</strong>.
-                            </p>
-                            <p className="text-slate-600 text-sm">
-                                Selecciona qué servicios deseas eliminar:
-                            </p>
-                        </div>
-
-                        <Button
-                            variant="outline"
-                            className="w-full h-auto p-4 border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
-                            onClick={() => handleConfirmDelete('only_this')}
-                            disabled={deleteLoading}
-                        >
-                            <div className="flex items-center gap-4 text-left w-full">
-                                <div className="flex-shrink-0 bg-blue-100 rounded-full p-3">
-                                    <Calendar className="w-5 h-5 text-blue-600" />
+                        {deleteStep === 'choose' && (
+                            <>
+                                <div className="text-center">
+                                    <p className="text-slate-700 text-base leading-relaxed mb-2">
+                                        Este servicio forma parte de una <strong>serie recurrente</strong>.
+                                    </p>
+                                    <p className="text-slate-600 text-sm">Selecciona qué servicios deseas eliminar:</p>
                                 </div>
-                                <div className="flex-1">
-                                    <p className="font-semibold text-slate-800">Eliminar solo este servicio</p>
-                                    <p className="text-sm text-slate-600 mt-1">
-                                        Los demás servicios de la serie se mantendrán programados.
+
+                                <Button
+                                    variant="outline"
+                                    className="w-full h-auto p-4 border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
+                                    onClick={() => handleConfirmDelete('only_this')}
+                                    disabled={deleteLoading}
+                                >
+                                    <div className="flex items-center gap-4 text-left w-full">
+                                        <div className="flex-shrink-0 bg-blue-100 rounded-full p-3">
+                                            <Calendar className="w-5 h-5 text-blue-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-slate-800">Eliminar solo este servicio</p>
+                                            <p className="text-sm text-slate-600 mt-1">Los demás servicios de la serie se mantendrán programados.</p>
+                                        </div>
+                                    </div>
+                                </Button>
+
+                                <Button
+                                    variant="outline"
+                                    className="w-full h-auto p-4 border-2 border-red-200 hover:border-red-400 hover:bg-red-50 transition-all duration-200"
+                                    onClick={handleShowFutureServices}
+                                    disabled={deleteLoading || loadingFuture}
+                                >
+                                    <div className="flex items-center gap-4 text-left w-full">
+                                        <div className="flex-shrink-0 bg-red-100 rounded-full p-3">
+                                            {loadingFuture ? <Loader2 className="w-5 h-5 text-red-600 animate-spin" /> : <RotateCcw className="w-5 h-5 text-red-600" />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-slate-800">Eliminar este y todos los futuros</p>
+                                            <p className="text-sm text-slate-600 mt-1">Ver y seleccionar cuáles servicios futuros eliminar.</p>
+                                        </div>
+                                    </div>
+                                </Button>
+                            </>
+                        )}
+
+                        {deleteStep === 'select' && (
+                            <>
+                                <div className="text-center">
+                                    <p className="text-slate-700 text-sm">
+                                        Selecciona los servicios que deseas eliminar ({selectedDeleteIds.length} de {futureServices.length} seleccionados):
                                     </p>
                                 </div>
-                            </div>
-                        </Button>
 
-                        <Button
-                            variant="outline"
-                            className="w-full h-auto p-4 border-2 border-red-200 hover:border-red-400 hover:bg-red-50 transition-all duration-200"
-                            onClick={() => handleConfirmDelete('this_and_future')}
-                            disabled={deleteLoading}
-                        >
-                            <div className="flex items-center gap-4 text-left w-full">
-                                <div className="flex-shrink-0 bg-red-100 rounded-full p-3">
-                                    <RotateCcw className="w-5 h-5 text-red-600" />
+                                <div className="max-h-64 overflow-y-auto border rounded-lg divide-y bg-white">
+                                    {futureServices.map(s => (
+                                        <label key={s.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                                            <Checkbox
+                                                checked={selectedDeleteIds.includes(s.id)}
+                                                onCheckedChange={(checked) => {
+                                                    setSelectedDeleteIds(prev =>
+                                                        checked ? [...prev, s.id] : prev.filter(id => id !== s.id)
+                                                    );
+                                                }}
+                                            />
+                                            <div>
+                                                <p className="text-sm font-medium text-slate-800">
+                                                    {format(parseISO(s.start_time), "EEEE d 'de' MMMM yyyy", { locale: es })}
+                                                </p>
+                                                <p className="text-xs text-slate-500">
+                                                    {format(parseISO(s.start_time), 'HH:mm', { locale: es })} — {format(parseISO(s.end_time), 'HH:mm', { locale: es })}
+                                                </p>
+                                            </div>
+                                        </label>
+                                    ))}
                                 </div>
-                                <div className="flex-1">
-                                    <p className="font-semibold text-slate-800">Eliminar este y todos los futuros</p>
-                                    <p className="text-sm text-slate-600 mt-1">
-                                        Se eliminarán todos los servicios desde esta fecha en adelante.
-                                    </p>
+
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline" size="sm"
+                                        onClick={() => setSelectedDeleteIds(futureServices.map(s => s.id))}
+                                        className="text-xs"
+                                    >Seleccionar todos</Button>
+                                    <Button
+                                        variant="outline" size="sm"
+                                        onClick={() => setSelectedDeleteIds([])}
+                                        className="text-xs"
+                                    >Deseleccionar todos</Button>
                                 </div>
-                            </div>
-                        </Button>
+
+                                <Button
+                                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                    onClick={() => handleConfirmDelete('selected')}
+                                    disabled={deleteLoading || selectedDeleteIds.length === 0}
+                                >
+                                    {deleteLoading ? (
+                                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Eliminando...</>
+                                    ) : (
+                                        <><Trash2 className="w-4 h-4 mr-2" />Eliminar {selectedDeleteIds.length} servicio{selectedDeleteIds.length !== 1 ? 's' : ''}</>
+                                    )}
+                                </Button>
+                            </>
+                        )}
                     </div>
 
-                    {deleteLoading && (
+                    {deleteLoading && deleteStep === 'choose' && (
                         <div className="flex justify-center items-center gap-3 pt-4">
                             <Loader2 className="w-5 h-5 animate-spin text-slate-600" />
                             <span className="text-slate-600 font-medium">Eliminando servicios...</span>
@@ -1770,17 +1842,22 @@ export default function CrearServicioForm({
                     )}
 
                     {error && (
-                        <Alert variant="destructive" className="mt-4">
+                        <Alert variant="destructive" className="mt-4 mx-6">
                             <AlertCircle className="h-4 w-4" />
                             <AlertDescription>{error}</AlertDescription>
                         </Alert>
                     )}
-                    <div className="flex justify-center p-6 border-t bg-slate-50 rounded-b-lg">
+                    <div className="flex justify-between p-6 border-t bg-slate-50 rounded-b-lg">
+                        {deleteStep === 'select' && (
+                            <Button variant="ghost" onClick={() => setDeleteStep('choose')} disabled={deleteLoading} className="text-slate-600">
+                                ← Volver
+                            </Button>
+                        )}
                         <Button
                             variant="ghost"
                             onClick={() => setShowDeleteDialog(false)}
                             disabled={deleteLoading}
-                            className="text-slate-600 hover:text-slate-900"
+                            className="text-slate-600 hover:text-slate-900 ml-auto"
                         >
                             <X className="w-4 h-4 mr-2" />
                             Cancelar
