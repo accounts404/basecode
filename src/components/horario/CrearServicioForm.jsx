@@ -83,11 +83,13 @@ export default function CrearServicioForm({
 
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [showCancellationDialog, setShowCancellationDialog] = useState(false);
     const [deleteStep, setDeleteStep] = useState('choose'); // 'choose' | 'select'
     const [futureServices, setFutureServices] = useState([]);
     const [selectedDeleteIds, setSelectedDeleteIds] = useState([]);
     const [loadingFuture, setLoadingFuture] = useState(false);
-    const [cancellationSmsText, setCancellationSmsText] = useState(''); // Add this state for general errors, especially deletion
+    const [cancellationSmsText, setCancellationSmsText] = useState('');
 
     // NUEVO: Estado separado para las Notas Generales por Defecto (NGPD) del cliente
     const [clientDefaultNotes, setClientDefaultNotes] = useState('');
