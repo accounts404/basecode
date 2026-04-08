@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { scheduleId } = await req.json();
+        const { scheduleId, customMessage } = await req.json();
         if (!scheduleId) {
             return Response.json({ error: 'scheduleId is required' }, { status: 400 });
         }
@@ -41,10 +41,30 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Client phone number not found.' }, { status: 404 });
         }
 
-        // Get template from admin settings
-        const adminUser = admins[0];
-        const defaultTemplate = `Hi {client_name}, we're sorry to inform you that your RedOak cleaning service scheduled for {service_date} at {service_time} has been cancelled. Please contact us to reschedule. We apologise for any inconvenience.`;
-        const messageTemplate = adminUser?.sms_templates?.cancellation || defaultTemplate;
+        // Build message body: use customMessage if provided, otherwise use template
+        let messageBody = customMessage;
+
+        if (!messageBody) {
+            const adminUser = admins[0];
+            const defaultTemplate = `Hi {client_name}, we're sorry to inform you that your RedOak cleaning service scheduled for {service_date} at {service_time} has been cancelled. Please contact us to reschedule. We apologise for any inconvenience.`;
+            const messageTemplate = adminUser?.sms_templates?.cancellation || defaultTemplate;
+
+            const clientNameForSMS = clientData.sms_name || clientData.name;
+            const startISO = schedule.start_time || '';
+            let serviceDate = startISO.slice(0, 10);
+            let serviceTime = startISO.slice(11, 16);
+            try {
+                const d = new Date(startISO.endsWith('Z') ? startISO : startISO + 'Z');
+                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                serviceDate = `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
+                serviceTime = `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
+            } catch(e) { /* use raw values */ }
+
+            messageBody = messageTemplate
+                .replace(/\{client_name\}/g, clientNameForSMS)
+                .replace(/\{service_date\}/g, serviceDate)
+                .replace(/\{service_time\}/g, serviceTime);
+        }
 
         // Format phone numbers
         const formattedPhoneNumber = formatAustralianPhoneNumber(clientData.mobile_number);
@@ -55,29 +75,6 @@ Deno.serve(async (req) => {
         if (!formattedPhoneNumber) {
             return Response.json({ error: `Invalid phone number format: ${clientData.mobile_number}` }, { status: 400 });
         }
-
-        // Build message
-        const clientNameForSMS = clientData.sms_name || clientData.name;
-
-        // Parse date and time from schedule
-        const startISO = schedule.start_time || '';
-        const datePart = startISO.slice(0, 10); // YYYY-MM-DD
-        const timePart = startISO.slice(11, 16); // HH:MM
-
-        // Format date nicely
-        let serviceDate = datePart;
-        let serviceTime = timePart;
-        try {
-            const d = new Date(startISO.endsWith('Z') ? startISO : startISO + 'Z');
-            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-            serviceDate = `${d.getUTCDate()} ${months[d.getUTCMonth()]}`;
-            serviceTime = `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
-        } catch(e) { /* use raw values */ }
-
-        let messageBody = messageTemplate
-            .replace(/\{client_name\}/g, clientNameForSMS)
-            .replace(/\{service_date\}/g, serviceDate)
-            .replace(/\{service_time\}/g, serviceTime);
 
         // Twilio credentials
         const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
