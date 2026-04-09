@@ -154,8 +154,13 @@ export default function RentabilityAnalysisTab({
                 currentDate = addMonths(currentDate, 1);
             }
 
-            const relevantFixedCosts = allFixedCosts.filter(fc => periodMonths.includes(fc.period));
-            const totalRangeFixedCosts = relevantFixedCosts.reduce((sum, fc) => sum + (fc.amount || 0), 0);
+            // CRITICO: Para cada mes tomar solo el PRIMER registro (igual que en modo mes)
+            // para evitar sumar duplicados si hay multiples entradas por periodo
+            const totalRangeFixedCosts = periodMonths.reduce((sum, period) => {
+                const costsForPeriod = allFixedCosts.filter(fc => fc.period === period);
+                const amount = costsForPeriod.length > 0 ? costsForPeriod[0].amount : 0;
+                return sum + (amount || 0);
+            }, 0);
             setFixedCostInput(totalRangeFixedCosts);
             setSavedFixedCosts(totalRangeFixedCosts);
 
