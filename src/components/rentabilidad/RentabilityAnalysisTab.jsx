@@ -146,7 +146,9 @@ export default function RentabilityAnalysisTab({
             const startPeriod = format(startDate, 'yyyy-MM');
             const endPeriod = format(endDate, 'yyyy-MM');
             const periodMonths = [];
-            let currentDate = new Date(startPeriod + '-01');
+            // CRITICO: Usar constructor local para evitar desfase UTC
+            const [startYear, startMonth] = startPeriod.split('-').map(Number);
+            let currentDate = new Date(startYear, startMonth - 1, 1);
             while (format(currentDate, 'yyyy-MM') <= endPeriod) {
                 periodMonths.push(format(currentDate, 'yyyy-MM'));
                 currentDate = addMonths(currentDate, 1);
@@ -157,7 +159,7 @@ export default function RentabilityAnalysisTab({
             setFixedCostInput(totalRangeFixedCosts);
             setSavedFixedCosts(totalRangeFixedCosts);
 
-            // CRÍTICO: Pasar el valor calculado directamente para evitar condición de carrera
+            // CRITICO: Pasar el valor calculado directamente para evitar condicion de carrera
             processData(periodStart, periodEnd, totalRangeFixedCosts);
         } catch (err) {
             console.error("Error loading range data:", err);
