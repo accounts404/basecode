@@ -25,18 +25,18 @@ import { getPriceForSchedule, calculateGST, isDateInRange, extractDateOnly } fro
 const generateMonthOptions = () => {
     const months = [];
     const currentDate = new Date();
-    for (let i = 0; i < 12; i++) {
-        const date = subMonths(currentDate, i);
+    const minDate = new Date(2025, 3, 1); // Abril 2025
+    let date = startOfMonth(currentDate);
+
+    while (date >= minDate) {
         const monthValue = format(date, 'yyyy-MM');
-        
-        if (monthValue === '2025-08' || monthValue === '2025-09') {
-            continue;
+        if (monthValue !== '2025-08' && monthValue !== '2025-09') {
+            months.push({
+                value: monthValue,
+                label: format(date, 'MMMM yyyy', { locale: es })
+            });
         }
-        
-        months.push({
-            value: monthValue,
-            label: format(date, 'MMMM yyyy', { locale: es })
-        });
+        date = subMonths(date, 1);
     }
     return months;
 };
@@ -156,7 +156,9 @@ export default function RentabilityAnalysisTab({
 
             // CRITICO: Para cada mes tomar solo el PRIMER registro (igual que en modo mes)
             // para evitar sumar duplicados si hay multiples entradas por periodo
-            const totalRangeFixedCosts = periodMonths.reduce((sum, period) => {
+            // CRITICO: Excluir Aug/Sep 2025 de los gastos fijos también
+            const filteredPeriodMonths = periodMonths.filter(m => m !== '2025-08' && m !== '2025-09');
+            const totalRangeFixedCosts = filteredPeriodMonths.reduce((sum, period) => {
                 const costsForPeriod = allFixedCosts.filter(fc => fc.period === period);
                 const amount = costsForPeriod.length > 0 ? costsForPeriod[0].amount : 0;
                 return sum + (amount || 0);
@@ -408,7 +410,7 @@ export default function RentabilityAnalysisTab({
         return Object.values(costsByClient);
     }, [allWorkEntries, clients, selectedPeriod]);
 
-    // Calcular número de meses en el rango
+    // Calcular número de meses en el rango (excluyendo Aug/Sep 2025)
     const monthsInRange = useMemo(() => {
         if (!selectedPeriod || filterMode !== 'range') return 1;
         
@@ -417,9 +419,17 @@ export default function RentabilityAnalysisTab({
         
         const yearsDiff = end.getFullYear() - start.getFullYear();
         const monthsDiff = end.getMonth() - start.getMonth();
-        const totalMonths = yearsDiff * 12 + monthsDiff + 1; // +1 para incluir el mes final
+        let totalMonths = yearsDiff * 12 + monthsDiff + 1;
         
-        return totalMonths;
+        // Descontar meses excluidos que caigan dentro del rango
+        const EXCLUDED = ['2025-08', '2025-09'];
+        const startStr = format(start, 'yyyy-MM');
+        const endStr = format(end, 'yyyy-MM');
+        EXCLUDED.forEach(m => {
+            if (m >= startStr && m <= endStr) totalMonths--;
+        });
+        
+        return Math.max(totalMonths, 1);
     }, [selectedPeriod, filterMode]);
 
     const profitabilityData = useMemo(() => {

@@ -28,21 +28,17 @@ export default function NotificationBell({ userId, userRole }) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  // PROTECTION: Don't render if not admin
-  if (userRole !== 'admin') {
-    console.warn('[NotificationBell] ⛔ Component should only be used for admin users');
-    return null;
-  }
-
+  // Hooks must be unconditional — guard is applied inside the effect
   useEffect(() => {
-    if (userId && userRole === 'admin') {
-      loadNotifications();
-      
-      // Poll for new notifications every 30 seconds
-      const interval = setInterval(loadNotifications, 30000);
-      return () => clearInterval(interval);
-    }
+    if (userRole !== 'admin' || !userId) return;
+
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000);
+    return () => clearInterval(interval);
   }, [userId, userRole]);
+
+  // PROTECTION: Don't render if not admin
+  if (userRole !== 'admin') return null;
 
   const loadNotifications = async () => {
     try {
@@ -54,7 +50,7 @@ export default function NotificationBell({ userId, userRole }) {
         new Date(b.created_date).getTime() - new Date(a.created_date).getTime()
       );
 
-      setNotifications(sorted.slice(0, 20)); // Last 20 notifications
+      setNotifications(sorted.slice(0, 20));
       setUnreadCount(sorted.filter(n => !n.read).length);
     } catch (error) {
       console.error('[NotificationBell] Error loading notifications:', error);

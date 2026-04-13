@@ -152,7 +152,7 @@ export const performClockIn = async (scheduleId, userId, onProgress) => {
         // PASO 2: Obtener el schedule actual desde el backend (fuente de verdad)
         onProgress?.({ stage: 'loading', message: 'Cargando servicio...' });
         
-        const schedule = await Schedule.get(scheduleId);
+        const schedule = await base44.entities.Schedule.get(scheduleId);
         if (!schedule) {
             throw new Error('Servicio no encontrado');
         }

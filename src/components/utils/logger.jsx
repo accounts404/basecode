@@ -24,7 +24,7 @@ class Logger {
         this.listeners = new Set();
         
         // Detectar entorno
-        this.isDevelopment = process.env.NODE_ENV === 'development';
+        this.isDevelopment = import.meta.env.DEV;
         
         // En desarrollo, mostrar todos los logs
         if (this.isDevelopment) {
