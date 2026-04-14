@@ -11,8 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Edit, Trash2, List, Check, X } from 'lucide-react';
+import { Plus, Edit, Trash2, List, GripVertical } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 const AREAS = {
   dusting_wiping_tidy: 'Dusting / Wiping / Tidy Up',
@@ -45,7 +46,7 @@ export default function ServiceItemsManagement() {
   const loadItems = async () => {
     setIsLoading(true);
     try {
-      const data = await base44.entities.ServiceAreaItem.list('-created_date', 1000);
+      const data = await base44.entities.ServiceAreaItem.list('sort_order', 1000);
       setItems(data);
     } catch (error) {
       console.error('Error loading items:', error);
@@ -140,79 +141,137 @@ export default function ServiceItemsManagement() {
   };
 
   const getItemsByArea = (areaName) => {
-    return items.filter(item => item.area_name === areaName);
+    return items
+      .filter(item => item.area_name === areaName)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  };
+
+  const handleDragEnd = async (result, areaName) => {
+    if (!result.destination) return;
+    const { source, destination } = result;
+    if (source.index === destination.index) return;
+
+    const areaItems = getItemsByArea(areaName);
+    const reordered = Array.from(areaItems);
+    const [moved] = reordered.splice(source.index, 1);
+    reordered.splice(destination.index, 0, moved);
+
+    // Actualizar estado local inmediatamente
+    const updatedItems = items.map(item => {
+      const idx = reordered.findIndex(r => r.id === item.id);
+      if (idx !== -1) return { ...item, sort_order: idx };
+      return item;
+    });
+    setItems(updatedItems);
+
+    // Persistir en backend
+    try {
+      await Promise.all(
+        reordered.map((item, idx) =>
+          base44.entities.ServiceAreaItem.update(item.id, { sort_order: idx })
+        )
+      );
+    } catch (error) {
+      console.error('Error saving order:', error);
+      toast.error('Error al guardar el orden');
+      loadItems();
+    }
   };
 
   const renderItemsTable = (areaName) => {
     const areaItems = getItemsByArea(areaName);
 
     return (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Item</TableHead>
-            <TableHead>Descripción</TableHead>
-            <TableHead>Tipo Servicio</TableHead>
-            <TableHead>Estado</TableHead>
-            <TableHead className="text-right">Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {areaItems.length === 0 ? (
+      <DragDropContext onDragEnd={(result) => handleDragEnd(result, areaName)}>
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={5} className="text-center py-10 text-gray-500">
-                No hay items en esta área
-              </TableCell>
+              <TableHead className="w-10"></TableHead>
+              <TableHead>Item</TableHead>
+              <TableHead>Descripción</TableHead>
+              <TableHead>Tipo Servicio</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
-          ) : (
-            areaItems.map(item => (
-              <TableRow key={item.id}>
-                <TableCell className="font-medium">{item.item_name}</TableCell>
-                <TableCell className="text-sm text-gray-600 max-w-md">
-                  {item.item_description || '-'}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="text-xs">
-                    {item.service_type === 'initial' ? 'Inicial' :
-                     item.service_type === 'regular' ? 'Regular' :
-                     item.service_type === 'commercial' ? 'Comercial' : 'Ambos'}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={item.is_active}
-                      onCheckedChange={() => toggleActive(item)}
-                    />
-                    <span className="text-xs text-gray-600">
-                      {item.is_active ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex gap-1 justify-end">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(item)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(item.id)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <Droppable droppableId={areaName}>
+            {(provided) => (
+              <TableBody ref={provided.innerRef} {...provided.droppableProps}>
+                {areaItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10 text-gray-500">
+                      No hay items en esta área
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  areaItems.map((item, index) => (
+                    <Draggable key={item.id} draggableId={item.id} index={index}>
+                      {(provided, snapshot) => (
+                        <TableRow
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={snapshot.isDragging ? 'bg-blue-50 shadow-lg opacity-90' : ''}
+                        >
+                          <TableCell className="w-10 px-2">
+                            <div
+                              {...provided.dragHandleProps}
+                              className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 flex items-center justify-center"
+                            >
+                              <GripVertical className="w-4 h-4" />
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{item.item_name}</TableCell>
+                          <TableCell className="text-sm text-gray-600 max-w-md">
+                            {item.item_description || '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {item.service_type === 'initial' ? 'Inicial' :
+                               item.service_type === 'regular' ? 'Regular' :
+                               item.service_type === 'commercial' ? 'Comercial' : 'Ambos'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={item.is_active}
+                                onCheckedChange={() => toggleActive(item)}
+                              />
+                              <span className="text-xs text-gray-600">
+                                {item.is_active ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-1 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEdit(item)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(item.id)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Draggable>
+                  ))
+                )}
+                {provided.placeholder}
+              </TableBody>
+            )}
+          </Droppable>
+        </Table>
+      </DragDropContext>
     );
   };
 
