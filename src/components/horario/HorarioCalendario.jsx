@@ -1276,7 +1276,7 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                                         
                                         {/* Eventos del día */}
                                         <div className="space-y-2">
-                                            {dayEvents && Array.isArray(dayEvents) && dayEvents.map(event => (
+                                            {dayEvents.map(event => (
                                                 <div key={event.id}>
                                                     <EventBlock
                                                         event={event}
