@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, Camera, Trash2 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, Camera, Trash2, CheckCircle2, AlertCircle, BarChart2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import SimplePagination from "@/components/ui/simple-pagination";
@@ -404,12 +405,22 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     monthlyScores.some(s => s.cleaner_id === c.id && s.is_participating)
   );
 
+  // Coverage stats
+  const reviewCountByCleaner = {};
+  reviews.forEach(r => {
+    reviewCountByCleaner[r.cleaner_id] = (reviewCountByCleaner[r.cleaner_id] || 0) + 1;
+  });
+  const maxReviews = Math.max(0, ...Object.values(reviewCountByCleaner));
+  const reviewedCleaners = participatingCleaners.filter(c => reviewCountByCleaner[c.id] > 0)
+    .sort((a, b) => (reviewCountByCleaner[b.id] || 0) - (reviewCountByCleaner[a.id] || 0));
+  const notReviewedCleaners = participatingCleaners.filter(c => !reviewCountByCleaner[c.id]);
+
   const allReviewsSorted = [...reviews].sort((a, b) => new Date(b.review_date) - new Date(a.review_date));
   const totalHistoryPages = Math.ceil(allReviewsSorted.length / HISTORY_PAGE_SIZE);
   const pagedHistory = allReviewsSorted.slice((historyPage - 1) * HISTORY_PAGE_SIZE, historyPage * HISTORY_PAGE_SIZE);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex justify-between items-center">
         <div>
           <h3 className="text-lg font-semibold text-slate-800">Evaluaciones de Performance por Casa</h3>
@@ -426,54 +437,163 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
       {loading ? (
         <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" /></div>
       ) : (
-        <>
-          {reviews.length > 0 ? (
-            <Card className="border-0 shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <TrendingUp className="w-4 h-4" /> Historial de Evaluaciones
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {pagedHistory.map(r => (
-                    <div key={r.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-sm">{r.cleaner_name}</p>
-                        <p className="text-xs text-slate-500">
-                          {format(parseISO(r.review_date), "d MMM yyyy", { locale: es })}
-                          {r.client_name ? ` · 🏠 ${r.client_name}` : ""}
-                          {" · "}{r.reviewed_by_admin_name}
-                        </p>
-                        {r.general_notes && (
-                          <p className="text-xs text-slate-400 italic mt-0.5">"{r.general_notes}"</p>
-                        )}
-                      </div>
-                      <div className="text-right flex flex-col items-end gap-1">
-                        <ScoreBadge score={r.overall_score || 0} />
-                        {r.points_impact !== 0 && (
-                          <span className="text-xs text-red-600 font-medium">{r.points_impact} pts ranking</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+        <Tabs defaultValue="coverage">
+          <TabsList className="mb-4">
+            <TabsTrigger value="coverage" className="flex items-center gap-1.5">
+              <BarChart2 className="w-4 h-4" /> Estado de Revisiones
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4" /> Historial
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ─── TAB: COVERAGE ─── */}
+          <TabsContent value="coverage" className="space-y-4">
+            {/* Summary pills */}
+            <div className="flex gap-3 flex-wrap">
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-semibold text-green-700">{reviewedCleaners.length} revisados</span>
+              </div>
+              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="w-4 h-4 text-red-500" />
+                <span className="text-sm font-semibold text-red-600">{notReviewedCleaners.length} sin revisar</span>
+              </div>
+              {maxReviews > 0 && (
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  <BarChart2 className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-semibold text-blue-700">Máx. {maxReviews} revisión(es)</span>
                 </div>
-                <SimplePagination
-                  currentPage={historyPage}
-                  totalPages={totalHistoryPages}
-                  onPageChange={setHistoryPage}
-                  totalItems={allReviewsSorted.length}
-                  pageSize={HISTORY_PAGE_SIZE}
-                />
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="text-center py-12 text-slate-500">
-              <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-40" />
-              <p>No hay evaluaciones este mes.</p>
+              )}
             </div>
-          )}
-        </>
+
+            {/* Pending */}
+            {notReviewedCleaners.length > 0 && (
+              <Card className="border-0 shadow-md">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2 text-red-600">
+                    <AlertCircle className="w-4 h-4" /> Sin revisión este mes ({notReviewedCleaners.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {notReviewedCleaners.map(c => (
+                      <div key={c.id} className="flex items-center justify-between bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center">
+                            <User className="w-3.5 h-3.5 text-red-500" />
+                          </div>
+                          <span className="text-sm font-medium text-slate-700">{c.invoice_name || c.full_name}</span>
+                        </div>
+                        <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openDialog(c)}>
+                          <Plus className="w-3 h-3 mr-1" /> Evaluar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Reviewed */}
+            {reviewedCleaners.length > 0 && (
+              <Card className="border-0 shadow-md">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2 text-green-600">
+                    <CheckCircle2 className="w-4 h-4" /> Revisados este mes ({reviewedCleaners.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {reviewedCleaners.map(c => {
+                      const count = reviewCountByCleaner[c.id] || 0;
+                      const cleanerReviews = reviews.filter(r => r.cleaner_id === c.id);
+                      const avg = cleanerReviews.reduce((s, r) => s + (r.overall_score || 0), 0) / cleanerReviews.length;
+                      const barWidth = maxReviews > 0 ? Math.round((count / maxReviews) * 100) : 100;
+                      return (
+                        <div key={c.id} className="bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center">
+                                <User className="w-3.5 h-3.5 text-green-600" />
+                              </div>
+                              <span className="text-sm font-medium text-slate-700">{c.invoice_name || c.full_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500">{count}x</span>
+                              <ScoreBadge score={avg} />
+                            </div>
+                          </div>
+                          {/* Mini bar showing review count relative to max */}
+                          <div className="h-1.5 bg-green-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${barWidth}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {participatingCleaners.length === 0 && (
+              <div className="text-center py-10 text-slate-400">
+                <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No hay limpiadores participando este mes.</p>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ─── TAB: HISTORY ─── */}
+          <TabsContent value="history">
+            {reviews.length > 0 ? (
+              <Card className="border-0 shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TrendingUp className="w-4 h-4" /> Historial de Evaluaciones
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {pagedHistory.map(r => (
+                      <div key={r.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                        <div>
+                          <p className="font-medium text-sm">{r.cleaner_name}</p>
+                          <p className="text-xs text-slate-500">
+                            {format(parseISO(r.review_date), "d MMM yyyy", { locale: es })}
+                            {r.client_name ? ` · 🏠 ${r.client_name}` : ""}
+                            {" · "}{r.reviewed_by_admin_name}
+                          </p>
+                          {r.general_notes && (
+                            <p className="text-xs text-slate-400 italic mt-0.5">"{r.general_notes}"</p>
+                          )}
+                        </div>
+                        <div className="text-right flex flex-col items-end gap-1">
+                          <ScoreBadge score={r.overall_score || 0} />
+                          {r.points_impact !== 0 && (
+                            <span className="text-xs text-red-600 font-medium">{r.points_impact} pts ranking</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <SimplePagination
+                    currentPage={historyPage}
+                    totalPages={totalHistoryPages}
+                    onPageChange={setHistoryPage}
+                    totalItems={allReviewsSorted.length}
+                    pageSize={HISTORY_PAGE_SIZE}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="text-center py-12 text-slate-500">
+                <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <p>No hay evaluaciones este mes.</p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* Dialog nueva evaluación */}
