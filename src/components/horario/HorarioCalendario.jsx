@@ -1068,6 +1068,10 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
     };
 
     const renderDayOrWeekView = (days) => {
+        if (!days || !Array.isArray(days) || days.length === 0) {
+            return <div className="p-4 text-gray-500">No hay días para mostrar</div>;
+        }
+        
         const isWeekView = days.length > 1;
         const timeSlots = [];
         // Generate 15-minute slots for each hour within the visible range (UTC)
