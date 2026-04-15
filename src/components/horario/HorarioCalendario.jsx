@@ -1094,11 +1094,11 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                 <div className="flex flex-1 overflow-auto" ref={calendarGridRef}>
                     {/* Columna de horas (Mostrando horas UTC) */}
                     <div className="w-20 flex-shrink-0 border-r border-gray-200">
-                        {Array.from({ length: TOTAL_VISIBLE_HOURS || 24 }).map((_, i) => {
-                            const hour = (VISIBLE_START_HOUR || 0) + i;
+                        {Array.from({ length: TOTAL_VISIBLE_HOURS }).map((_, i) => {
+                            const hour = VISIBLE_START_HOUR + i;
                             return (
-                                <div key={`hour-${hour}`} className="p-2 text-sm text-gray-500 bg-gray-50 border-b border-gray-100 flex items-center justify-center"
-                                    style={{height: `${HOUR_HEIGHT || 60}px`}}
+                                <div key={hour} className="p-2 text-sm text-gray-500 bg-gray-50 border-b border-gray-100 flex items-center justify-center"
+                                    style={{height: `${HOUR_HEIGHT}px`}}
                                 >
                                     {hour.toString().padStart(2, '0')}:00
                                 </div>
