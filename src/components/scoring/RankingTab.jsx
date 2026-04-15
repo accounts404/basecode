@@ -192,7 +192,7 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   const [customAdjustments, setCustomAdjustments] = useState([]);
   const [customLoading, setCustomLoading] = useState(false);
   const [customPage, setCustomPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 30;
 
   useEffect(() => {
     if (limpiadores.length > 0) loadAdjustments();
@@ -266,7 +266,10 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
     const excluded = entries.filter(e => !e.isParticipating);
     const avgScore = participating.length > 0 ? Math.round(participating.reduce((s, e) => s + e.score, 0) / participating.length) : null;
     const topScore = participating.length > 0 ? Math.round(participating[0].score) : null;
-    const paged = entries;
+    const currentPage = isCustom ? customPage : page;
+    const setCurrentPage = isCustom ? setCustomPage : setPage;
+    const totalPages = Math.ceil(entries.length / PAGE_SIZE);
+    const paged = entries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
     return (
       <div className="space-y-4">
@@ -351,6 +354,14 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
                 isManageMode={!isCustom && isManageMode}
               />
             ))}
+
+            <SimplePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={entries.length}
+              pageSize={PAGE_SIZE}
+            />
           </div>
         )}
 
