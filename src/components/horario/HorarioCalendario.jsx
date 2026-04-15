@@ -1141,16 +1141,17 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
 
                                 {/* Eventos del día */}
                                 {(() => {
-                                    const dayEvents = getEventsForDay(day);
-                                    const organizedEvents = organizeOverlappingEvents(dayEvents);
+                                    const dayEvents = getEventsForDay(day) || [];
+                                    const organizedEvents = organizeOverlappingEvents(dayEvents) || [];
                                     
-                                    return (organizedEvents || []).map(event => {
+                                    return organizedEvents.map(event => {
+                                        if (!event) return null;
                                         const position = calculateEventPosition(event);
                                         // Si el evento no es visible (o solo una parte mínima), no lo renderizamos o ajustamos su posición.
                                         if (!position) return null;
 
-                                        const columnWidth = 100 / event.totalColumns;
-                                        const leftPosition = event.columnIndex * columnWidth;
+                                        const columnWidth = 100 / (event.totalColumns || 1);
+                                        const leftPosition = (event.columnIndex || 0) * columnWidth;
                                         
                                         const topPx = position.startPosition * HOUR_HEIGHT;
                                         const heightPx = Math.max(position.duration * HOUR_HEIGHT, 32); // Altura mínima de 32px
