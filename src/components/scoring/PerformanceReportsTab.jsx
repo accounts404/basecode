@@ -7,10 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   BarChart2, TrendingUp, User, Home, Calendar, Filter, X, Star, AlertCircle,
   CheckCircle2, Clock, Car, MessageSquare, ClipboardList, ChevronDown, ChevronRight,
-  ArrowLeft, ExternalLink, ThumbsDown, ThumbsUp, Minus, Eye
+  ArrowLeft, ExternalLink, ThumbsDown, ThumbsUp, Minus, Eye, Check
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -424,34 +427,68 @@ export default function PerformanceReportsTab({ limpiadores }) {
             )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Cleaner combobox */}
             <div>
               <Label className="text-xs mb-1 block">Limpiador</Label>
-              <Select value={selectedCleanerId} onValueChange={v => { setSelectedCleanerId(v); setPerfPage(1); setPunctPage(1); setFeedPage(1); setVehPage(1); }}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {limpiadores.map(l => (
-                    <SelectItem key={l.id} value={l.id}>{l.invoice_name || l.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("h-8 w-full justify-between text-xs", selectedCleanerId === "all" && "text-slate-500")}>
+                    {selectedCleanerId === "all" ? "Todos" : limpiadores.find(l => l.id === selectedCleanerId)?.invoice_name || "Seleccionar"}
+                    <ChevronDown className="w-3 h-3 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar limpiador..." className="h-8" />
+                    <CommandEmpty>No encontrado.</CommandEmpty>
+                    <CommandGroup className="max-h-[200px] overflow-y-auto">
+                      <CommandItem value="all" onSelect={() => { setSelectedCleanerId("all"); setPerfPage(1); setPunctPage(1); setFeedPage(1); setVehPage(1); }}>
+                        <Check className={cn("w-4 h-4 mr-2", selectedCleanerId === "all" ? "opacity-100" : "opacity-0")} />
+                        Todos
+                      </CommandItem>
+                      {limpiadores.map(l => (
+                        <CommandItem key={l.id} value={l.id} onSelect={() => { setSelectedCleanerId(l.id); setPerfPage(1); setPunctPage(1); setFeedPage(1); setVehPage(1); }}>
+                          <Check className={cn("w-4 h-4 mr-2", selectedCleanerId === l.id ? "opacity-100" : "opacity-0")} />
+                          {l.invoice_name || l.full_name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
+
+            {/* Client combobox */}
             <div>
-              <Label className="text-xs mb-1 block">Cliente</Label>
-              <Select value={selectedClientId} onValueChange={v => { setSelectedClientId(v); setPerfPage(1); setFeedPage(1); }}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {allClients.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs mb-1 block">Cliente / Casa</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("h-8 w-full justify-between text-xs", selectedClientId === "all" && "text-slate-500")}>
+                    {selectedClientId === "all" ? "Todos" : allClients.find(c => c.id === selectedClientId)?.name || "Seleccionar"}
+                    <ChevronDown className="w-3 h-3 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[220px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar cliente/casa..." className="h-8" />
+                    <CommandEmpty>No encontrado.</CommandEmpty>
+                    <CommandGroup className="max-h-[200px] overflow-y-auto">
+                      <CommandItem value="all" onSelect={() => { setSelectedClientId("all"); setPerfPage(1); setFeedPage(1); }}>
+                        <Check className={cn("w-4 h-4 mr-2", selectedClientId === "all" ? "opacity-100" : "opacity-0")} />
+                        Todos
+                      </CommandItem>
+                      {allClients.map(c => (
+                        <CommandItem key={c.id} value={c.id} onSelect={() => { setSelectedClientId(c.id); setPerfPage(1); setFeedPage(1); }}>
+                          <Check className={cn("w-4 h-4 mr-2", selectedClientId === c.id ? "opacity-100" : "opacity-0")} />
+                          {c.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
+
             <div>
               <Label className="text-xs mb-1 block">Desde</Label>
               <Input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="h-8 text-xs" />
