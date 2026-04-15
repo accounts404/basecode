@@ -15,14 +15,6 @@ import SimplePagination from "@/components/ui/simple-pagination";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 
-/* Weights for scoring components */
-const WEIGHTS = {
-  performance: 0.50,   // 50%
-  punctuality: 0.10,   // 10%
-  vehicles: 0.18,      // 18%
-  feedback: 0.22       // 22%
-};
-
 /* ─── helpers ─────────────────────────────────────────── */
 function scoreColor(s) {
   if (s >= 95) return { text: "text-emerald-700", bg: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-800" };
@@ -67,16 +59,11 @@ function AdjRow({ adj }) {
   );
 }
 
-function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, onToggleParticipation, isManageMode, componentScores }) {
+function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, onToggleParticipation, isManageMode }) {
   const [expanded, setExpanded] = useState(false);
   const [toggling, setToggling] = useState(false);
   const { cleaner, score, isParticipating } = entry;
   const col = scoreColor(score);
-  
-  const perf = componentScores?.performance?.[cleaner.id] || 100;
-  const punct = componentScores?.punctuality?.[cleaner.id] || 100;
-  const vehicles = componentScores?.vehicles?.[cleaner.id] || 100;
-  const feedback = componentScores?.feedback?.[cleaner.id] || 100;
 
   const myAdj = adjustments
     .filter(a => a.cleaner_id === cleaner.id)
@@ -125,27 +112,6 @@ function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, on
                 <div className="flex items-center gap-2 mt-1.5 mb-2">
                   <ScoreBar score={score} />
                 </div>
-                
-                {/* Component Scores Breakdown */}
-                <div className="grid grid-cols-4 gap-2 mt-2 mb-2 text-xs">
-                  <div className="bg-slate-50 rounded p-2 text-center">
-                    <p className="font-bold text-slate-700">{perf}</p>
-                    <p className="text-slate-500">Performance (50%)</p>
-                  </div>
-                  <div className="bg-slate-50 rounded p-2 text-center">
-                    <p className="font-bold text-slate-700">{punct}</p>
-                    <p className="text-slate-500">Puntualidad (10%)</p>
-                  </div>
-                  <div className="bg-slate-50 rounded p-2 text-center">
-                    <p className="font-bold text-slate-700">{vehicles}</p>
-                    <p className="text-slate-500">Vehículos (18%)</p>
-                  </div>
-                  <div className="bg-slate-50 rounded p-2 text-center">
-                    <p className="font-bold text-slate-700">{feedback}</p>
-                    <p className="text-slate-500">Feedback (22%)</p>
-                  </div>
-                </div>
-                
                 <div className="flex items-center gap-3 text-xs flex-wrap">
                   <span className="text-slate-400">Base 100</span>
                   {deductionTotal > 0 && (
@@ -226,98 +192,11 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   const [customAdjustments, setCustomAdjustments] = useState([]);
   const [customLoading, setCustomLoading] = useState(false);
   const [customPage, setCustomPage] = useState(1);
-  const [performanceScores, setPerformanceScores] = useState({});
-  const [punctualityScores, setPunctualityScores] = useState({});
-  const [vehicleScores, setVehicleScores] = useState({});
-  const [feedbackScores, setFeedbackScores] = useState({});
   const PAGE_SIZE = 30;
 
   useEffect(() => {
-    if (limpiadores.length > 0) {
-      loadAdjustments();
-      loadComponentScores();
-    }
+    if (limpiadores.length > 0) loadAdjustments();
   }, [monthPeriod, limpiadores]);
-
-  const loadComponentScores = async () => {
-    try {
-      const perfReviews = await base44.entities.PerformanceReview?.list() || [];
-      const punctRecords = await base44.entities.PunctualityRecord?.list() || [];
-      const vehicleRecords = await base44.entities.VehicleChecklistRecord?.list() || [];
-      const feedbackRecords = await base44.entities.ClientFeedback?.list() || [];
-
-      // Calculate average scores per cleaner per month
-      const perfByMonth = {};
-      perfReviews.forEach(p => {
-        if (p.month_period === monthPeriod) {
-          if (!perfByMonth[p.cleaner_id]) perfByMonth[p.cleaner_id] = [];
-          perfByMonth[p.cleaner_id].push(p.overall_score || 100);
-        }
-      });
-
-      const punctByMonth = {};
-      punctRecords.forEach(p => {
-        if (p.month_period === monthPeriod) {
-          if (!punctByMonth[p.cleaner_id]) punctByMonth[p.cleaner_id] = [];
-          punctByMonth[p.cleaner_id].push(p.score || 100);
-        }
-      });
-
-      const vehicleByMonth = {};
-      vehicleRecords.forEach(v => {
-        if (v.month_period === monthPeriod) {
-          if (!vehicleByMonth[v.cleaner_id]) vehicleByMonth[v.cleaner_id] = [];
-          vehicleByMonth[v.cleaner_id].push(v.overall_score || 100);
-        }
-      });
-
-      const feedbackByMonth = {};
-      feedbackRecords.forEach(f => {
-        if (f.month_period === monthPeriod) {
-          if (!feedbackByMonth[f.cleaner_id]) feedbackByMonth[f.cleaner_id] = [];
-          feedbackByMonth[f.cleaner_id].push(f.score || 100);
-        }
-      });
-
-      setPerformanceScores(
-        Object.fromEntries(
-          Object.entries(perfByMonth).map(([id, scores]) => [
-            id,
-            scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b) / scores.length) : 100
-          ])
-        )
-      );
-
-      setPunctualityScores(
-        Object.fromEntries(
-          Object.entries(punctByMonth).map(([id, scores]) => [
-            id,
-            scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b) / scores.length) : 100
-          ])
-        )
-      );
-
-      setVehicleScores(
-        Object.fromEntries(
-          Object.entries(vehicleByMonth).map(([id, scores]) => [
-            id,
-            scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b) / scores.length) : 100
-          ])
-        )
-      );
-
-      setFeedbackScores(
-        Object.fromEntries(
-          Object.entries(feedbackByMonth).map(([id, scores]) => [
-            id,
-            scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b) / scores.length) : 100
-          ])
-        )
-      );
-    } catch (e) {
-      console.error('Error loading component scores:', e);
-    }
-  };
 
   const loadAdjustments = async () => {
     setLoading(true);
@@ -326,20 +205,6 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       setAdjustments(adjs);
     } catch (e) { console.error(e); }
     setLoading(false);
-  };
-
-  const calculateWeightedScore = (cleanerId) => {
-    const perf = performanceScores[cleanerId] || 100;
-    const punct = punctualityScores[cleanerId] || 100;
-    const vehicles = vehicleScores[cleanerId] || 100;
-    const feedback = feedbackScores[cleanerId] || 100;
-    
-    return (
-      perf * WEIGHTS.performance +
-      punct * WEIGHTS.punctuality +
-      vehicles * WEIGHTS.vehicles +
-      feedback * WEIGHTS.feedback
-    );
   };
 
   const loadCustomRanking = async () => {
@@ -397,12 +262,6 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   const paged = allEntries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const renderRankingContent = (entries, isCustom = false) => {
-    const componentScores = {
-      performance: performanceScores,
-      punctuality: punctualityScores,
-      vehicles: vehicleScores,
-      feedback: feedbackScores
-    };
     const participating = entries.filter(e => e.isParticipating);
     const excluded = entries.filter(e => !e.isParticipating);
     const avgScore = participating.length > 0 ? Math.round(participating.reduce((s, e) => s + e.score, 0) / participating.length) : null;
@@ -493,7 +352,6 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
                 monthlyScores={monthlyScores}
                 onToggleParticipation={handleToggleParticipation}
                 isManageMode={!isCustom && isManageMode}
-                componentScores={componentScores}
               />
             ))}
 
