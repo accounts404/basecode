@@ -232,6 +232,9 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
   const [reportVehicleId, setReportVehicleId] = useState("all");
   const [reportCleanerId, setReportCleanerId] = useState("all");
   const [applyingMonthly, setApplyingMonthly] = useState(false);
+  const [revisionsPage, setRevisionsPage] = useState(1);
+  const [reportPage, setReportPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Calcular promedio mensual por limpiador a partir de las revisiones del mes
   const cleanerMonthlyAverages = useMemo(() => {
@@ -566,11 +569,20 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
             <div className="text-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" /></div>
           ) : records.length > 0 ? (() => {
             const sorted = [...records].sort((a, b) => b.date.localeCompare(a.date));
+            const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+            const paginated = sorted.slice((revisionsPage - 1) * PAGE_SIZE, revisionsPage * PAGE_SIZE);
             return (
               <div className="space-y-3">
-                {sorted.map(record => (
+                {paginated.map(record => (
                   <RecordCard key={record.id} record={record} onEdit={openDialog} />
                 ))}
+                <SimplePagination
+                  currentPage={revisionsPage}
+                  totalPages={totalPages}
+                  onPageChange={setRevisionsPage}
+                  totalItems={sorted.length}
+                  pageSize={PAGE_SIZE}
+                />
               </div>
             );
           })() : (
@@ -682,9 +694,16 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
               <div>
                 <h4 className="font-semibold text-slate-700 mb-3">Detalle por fecha ({reportRecords.length} registros)</h4>
                 <div className="space-y-3">
-                  {reportRecords.map(record => (
+                  {reportRecords.slice((reportPage - 1) * PAGE_SIZE, reportPage * PAGE_SIZE).map(record => (
                     <RecordCard key={record.id} record={record} />
                   ))}
+                  <SimplePagination
+                    currentPage={reportPage}
+                    totalPages={Math.ceil(reportRecords.length / PAGE_SIZE)}
+                    onPageChange={setReportPage}
+                    totalItems={reportRecords.length}
+                    pageSize={PAGE_SIZE}
+                  />
                 </div>
               </div>
             </>
