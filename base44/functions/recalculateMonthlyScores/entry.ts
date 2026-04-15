@@ -3,11 +3,44 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const { cleaner_id, month_period } = await req.json();
+    const body = await req.json();
+    
+    // Si viene de una automatización
+    let cleaner_id = body.cleaner_id;
+    let month_period = body.month_period;
+    let entity_name = body.event?.entity_name;
+    let entity_data = body.data;
+    
+    // Extraer cleaner_id y month_period según el tipo de entidad
+    if (!cleaner_id || !month_period) {
+      if (entity_data) {
+        cleaner_id = entity_data.cleaner_id;
+        month_period = entity_data.month_period;
+        
+        // Para VehicleChecklistRecord, obtener el team_member_ids
+        if (entity_name === 'VehicleChecklistRecord' && entity_data.team_member_ids) {
+          // Recalcular para cada miembro del equipo
+          for (const memberId of entity_data.team_member_ids) {
+            await recalculateForCleaner(base44, memberId, month_period);
+          }
+          return Response.json({ success: true, message: 'Scores updated for team members' });
+        }
+      }
+    }
 
     if (!cleaner_id || !month_period) {
-      return Response.json({ error: 'Missing required fields' }, { status: 400 });
+      return Response.json({ error: 'Missing required fields: cleaner_id and month_period' }, { status: 400 });
     }
+    
+    await recalculateForCleaner(base44, cleaner_id, month_period);
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error('Error:', error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+});
+
+async function recalculateForCleaner(base44, cleaner_id, month_period) {
 
     // Get monthly score record
     const monthlyScores = await base44.entities.MonthlyCleanerScore.filter({
@@ -130,18 +163,4 @@ Deno.serve(async (req) => {
       vehicle_count: vehicleChecksForTeam.length,
       feedback_count: cleanerFeedback.length
     });
-
-    return Response.json({
-      success: true,
-      scores: {
-        performance: Math.round(performanceScore * 100) / 100,
-        punctuality: Math.round(punctualityScore * 100) / 100,
-        vehicle: Math.round(vehicleScore * 100) / 100,
-        feedback: Math.round(feedbackScore * 100) / 100,
-        overall: Math.round(currentScore * 100) / 100
-      }
-    });
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
-  }
-});
+}
