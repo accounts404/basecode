@@ -34,7 +34,7 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
   const [filterCleaner, setFilterCleaner] = useState("all");
   const [showDialog, setShowDialog] = useState(false);
   const [incidentType, setIncidentType] = useState("punctuality"); // "punctuality" | "presentation"
-  const [selectedCleaner, setSelectedCleaner] = useState("");
+  const [selectedCleaner, setSelectedCleaner] = useState(null); // objeto completo del limpiador
   const [formData, setFormData] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
     scheduled_time: "",
@@ -73,7 +73,7 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
 
   const openDialog = (type) => {
     setIncidentType(type);
-    setSelectedCleaner("");
+    setSelectedCleaner(null);
     setFormData({ date: format(new Date(), "yyyy-MM-dd"), scheduled_time: "", actual_clock_in: "", uniform_ok: true, presentation_ok: true, absence: false, notes: "" });
     setShowDialog(true);
   };
@@ -82,10 +82,10 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
     if (!selectedCleaner) { alert("Selecciona un limpiador"); return; }
     setSaving(true);
     try {
-      const cleaner = limpiadores.find(c => c.id === selectedCleaner);
+      const cleaner = selectedCleaner;
       const mins = minutesLate();
       const impact = previewPoints();
-      const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner);
+      const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
 
       let adjustmentId = null;
       if (monthlyScore && impact !== 0) {
@@ -101,7 +101,7 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
 
         const adj = await base44.entities.ScoreAdjustment.create({
           monthly_score_id: monthlyScore.id,
-          cleaner_id: selectedCleaner,
+          cleaner_id: selectedCleaner.id,
           month_period: monthPeriod,
           adjustment_type: "deduction",
           category: incidentType === "punctuality" ? "Puntualidad" : "Uniforme y Presentación",
@@ -117,7 +117,7 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
       }
 
       await base44.entities.PunctualityRecord.create({
-        cleaner_id: selectedCleaner,
+        cleaner_id: selectedCleaner.id,
         cleaner_name: cleaner.invoice_name || cleaner.full_name,
         date: formData.date,
         month_period: monthPeriod,
@@ -267,11 +267,16 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label>Limpiador *</Label>
-              <Select value={selectedCleaner} onValueChange={setSelectedCleaner}>
-                <SelectTrigger><SelectValue placeholder="Selecciona un limpiador" /></SelectTrigger>
+              <Label className="font-semibold flex items-center gap-1 mb-1">
+                <User className="w-4 h-4" /> Limpiador *
+              </Label>
+              <Select
+                value={selectedCleaner?.id || ""}
+                onValueChange={(id) => setSelectedCleaner(limpiadores.find(l => l.id === id) || null)}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccionar limpiador..." /></SelectTrigger>
                 <SelectContent>
-                  {participatingCleaners.map(c => (
+                  {limpiadores.map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.invoice_name || c.full_name}</SelectItem>
                   ))}
                 </SelectContent>
