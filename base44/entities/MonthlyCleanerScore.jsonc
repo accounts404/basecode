@@ -1,0 +1,127 @@
+{
+  "name": "MonthlyCleanerScore",
+  "type": "object",
+  "properties": {
+    "cleaner_id": {
+      "type": "string",
+      "description": "ID del limpiador"
+    },
+    "cleaner_name": {
+      "type": "string",
+      "description": "Nombre del limpiador para referencia r\u00e1pida"
+    },
+    "month_period": {
+      "type": "string",
+      "description": "Per\u00edodo del mes en formato YYYY-MM (ej: 2024-09)"
+    },
+    "performance_score": {
+      "type": "number",
+      "default": 0,
+      "description": "Promedio de puntajes de Performance"
+    },
+    "punctuality_score": {
+      "type": "number",
+      "default": 0,
+      "description": "Promedio de puntajes de Puntualidad"
+    },
+    "vehicle_score": {
+      "type": "number",
+      "default": 0,
+      "description": "Promedio de puntajes de Veh\u00edculos"
+    },
+    "feedback_score": {
+      "type": "number",
+      "default": 0,
+      "description": "Promedio de puntajes de Feedback del Cliente"
+    },
+    "current_score": {
+      "type": "number",
+      "default": 0,
+      "description": "Promedio general de los 4 componentes"
+    },
+    "performance_count": {
+      "type": "number",
+      "default": 0,
+      "description": "N\u00famero de evaluaciones de Performance"
+    },
+    "punctuality_count": {
+      "type": "number",
+      "default": 0,
+      "description": "N\u00famero de registros de Puntualidad"
+    },
+    "vehicle_count": {
+      "type": "number",
+      "default": 0,
+      "description": "N\u00famero de revisiones de Veh\u00edculos"
+    },
+    "feedback_count": {
+      "type": "number",
+      "default": 0,
+      "description": "N\u00famero de feedbacks del cliente"
+    },
+    "is_participating": {
+      "type": "boolean",
+      "default": true,
+      "description": "Si el limpiador est\u00e1 participando en el ranking este mes"
+    },
+    "final_rank": {
+      "type": "number",
+      "description": "Posici\u00f3n final en el ranking al cerrar el mes (1=Oro, 2=Plata, 3=Bronce)"
+    },
+    "medal": {
+      "type": "string",
+      "enum": [
+        "gold",
+        "silver",
+        "bronze",
+        "none"
+      ],
+      "default": "none",
+      "description": "Medalla otorgada (oro, plata, bronce o ninguna)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "closed"
+      ],
+      "default": "active",
+      "description": "Estado del per\u00edodo: activo o cerrado"
+    },
+    "created_by_admin": {
+      "type": "string",
+      "description": "ID del administrador que configur\u00f3 la participaci\u00f3n"
+    },
+    "monthly_bonus_amount": {
+      "type": "number",
+      "description": "Monto de la bonificaci\u00f3n mensual en AUD"
+    },
+    "monthly_bonus_description": {
+      "type": "string",
+      "description": "Descripci\u00f3n de la bonificaci\u00f3n mensual"
+    },
+    "monthly_bonus_work_entry_id": {
+      "type": "string",
+      "description": "ID de la WorkEntry creada para la bonificaci\u00f3n"
+    },
+    "monthly_bonus_date_awarded": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha cuando se otorg\u00f3 la bonificaci\u00f3n mensual"
+    },
+    "closed_by_admin": {
+      "type": "string",
+      "description": "ID del admin que cerr\u00f3 el mes"
+    },
+    "closed_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha cuando se cerr\u00f3 el mes"
+    }
+  },
+  "required": [
+    "cleaner_id",
+    "cleaner_name",
+    "month_period"
+  ]
+}
