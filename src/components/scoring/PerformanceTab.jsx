@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X } from "lucide-react";
+import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, Camera, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import SimplePagination from "@/components/ui/simple-pagination";
@@ -96,6 +96,7 @@ const initAreaStates = () =>
     area_key: a.key,
     included: true,
     notes: "",
+    photos: [],
     checklist: Object.fromEntries(
       (AREA_CHECKLISTS[a.key] || []).map(item => [item.key, true])
     ),
@@ -228,6 +229,24 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setAreaStates(prev => prev.map(a => a.area_key === areaKey ? { ...a, notes } : a));
   };
 
+  const addAreaPhoto = async (areaKey, file) => {
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setAreaStates(prev => prev.map(a =>
+        a.area_key === areaKey ? { ...a, photos: [...(a.photos || []), { url: file_url, comment: "" }] } : a
+      ));
+    } catch (e) {
+      console.error("Error subiendo foto:", e);
+      alert("Error al subir la foto");
+    }
+  };
+
+  const removeAreaPhoto = (areaKey, idx) => {
+    setAreaStates(prev => prev.map(a =>
+      a.area_key === areaKey ? { ...a, photos: a.photos.filter((_, i) => i !== idx) } : a
+    ));
+  };
+
   const overallScore = computeOverallScore(areaStates);
   const includedCount = areaStates.filter(a => a.included).length;
 
@@ -275,6 +294,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           included: state.included,
           checklist: state.checklist,
           notes: state.notes,
+          photos: state.photos || [],
         };
       });
 
@@ -525,6 +545,35 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                             rows={1}
                             className="text-sm mt-2"
                           />
+                          {/* Fotos del área */}
+                          <div className="mt-2">
+                            {(state.photos || []).length > 0 && (
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                {state.photos.map((photo, idx) => (
+                                  <div key={idx} className="relative group">
+                                    <img src={photo.url} alt={`foto-${idx}`} className="w-16 h-16 object-cover rounded-md border border-slate-200" />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeAreaPhoto(area.key, idx)}
+                                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                      <X className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <label className={`inline-flex items-center gap-1.5 text-xs cursor-pointer px-2 py-1 rounded border border-dashed ${colors.border} ${colors.text} hover:opacity-80 transition-opacity`}>
+                              <Camera className="w-3.5 h-3.5" />
+                              Adjuntar foto
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={e => { if (e.target.files?.[0]) addAreaPhoto(area.key, e.target.files[0]); e.target.value = ""; }}
+                              />
+                            </label>
+                          </div>
                         </div>
                       )}
                     </div>
