@@ -27,7 +27,6 @@ import PunctualityTab from "../components/scoring/PunctualityTab";
 import VehicleChecklistTab from "../components/scoring/VehicleChecklistTab";
 import ClientFeedbackTab from "../components/scoring/ClientFeedbackTab";
 import PerformanceReportsTab from "../components/scoring/PerformanceReportsTab";
-import RankingCustomDateTab from "../components/scoring/RankingCustomDateTab";
 
 export default function PuntuacionLimpiadoresPage() {
     const [user, setUser] = useState(null);
@@ -492,12 +491,9 @@ export default function PuntuacionLimpiadoresPage() {
 
             {/* TABS PRINCIPALES */}
             <Tabs defaultValue="ranking">
-                <TabsList className="grid w-full grid-cols-7 h-12">
+                <TabsList className="grid w-full grid-cols-6 h-12">
                     <TabsTrigger value="ranking" className="flex items-center gap-1 text-xs md:text-sm">
                         <Trophy className="w-4 h-4" /><span className="hidden sm:inline">Ranking</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="ranking-custom" className="flex items-center gap-1 text-xs md:text-sm">
-                        <Calendar className="w-4 h-4" /><span className="hidden sm:inline">Rango Fechas</span>
                     </TabsTrigger>
                     <TabsTrigger value="performance" className="flex items-center gap-1 text-xs md:text-sm">
                         <ClipboardList className="w-4 h-4" /><span className="hidden sm:inline">Performance</span>
@@ -524,14 +520,6 @@ export default function PuntuacionLimpiadoresPage() {
                         monthlyScores={monthlyScores}
                         onViewHistory={handleViewHistory}
                         onScoresChanged={loadMonthlyScores}
-                    />
-                </TabsContent>
-
-                {/* TAB 1B: RANKING CON RANGO DE FECHAS */}
-                <TabsContent value="ranking-custom" className="mt-4">
-                    <RankingCustomDateTab
-                        limpiadores={limpiadores}
-                        onViewHistory={handleViewHistory}
                     />
                 </TabsContent>
 
