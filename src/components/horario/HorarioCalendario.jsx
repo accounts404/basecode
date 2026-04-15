@@ -1144,7 +1144,7 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                                     const dayEvents = getEventsForDay(day);
                                     const organizedEvents = organizeOverlappingEvents(dayEvents);
                                     
-                                    return (organizedEvents || []).map(event => {
+                                    return organizedEvents.map(event => {
                                         const position = calculateEventPosition(event);
                                         // Si el evento no es visible (o solo una parte mínima), no lo renderizamos o ajustamos su posición.
                                         if (!position) return null;
