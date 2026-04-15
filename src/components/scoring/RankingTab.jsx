@@ -200,17 +200,12 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
     try {
       const [adjs, perfReviews, vehicleRecs] = await Promise.all([
         base44.entities.ScoreAdjustment.filter({ month_period: monthPeriod }),
-        base44.entities.PerformanceReview.list(),
-        base44.entities.VehicleChecklistRecord.list()
+        base44.entities.PerformanceReview.filter({ month_period: monthPeriod }),
+        base44.entities.VehicleChecklistRecord.filter({ month_period: monthPeriod })
       ]);
-      
-      // Filtrar reviews y records por month_period
-      const filteredPerfReviews = perfReviews.filter(r => r.month_period === monthPeriod);
-      const filteredVehicleRecs = vehicleRecs.filter(r => r.month_period === monthPeriod);
-      
       setAdjustments(adjs);
-      setPerformanceReviews(filteredPerfReviews);
-      setVehicleRecords(filteredVehicleRecs);
+      setPerformanceReviews(perfReviews);
+      setVehicleRecords(vehicleRecs);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
