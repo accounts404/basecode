@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, TrendingUp, Users, Calendar, Plus, Medal, Crown, Award, Gift, Star, CheckCircle, Eye, ClipboardList, Clock, Car, MessageSquare } from "lucide-react";
+import { Trophy, TrendingUp, Users, Calendar, Plus, Medal, Crown, Award, Gift, Star, CheckCircle, Eye, ClipboardList, Clock, Car, MessageSquare, BarChart2 } from "lucide-react";
 import RankingTab from "../components/scoring/RankingTab";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -26,6 +26,7 @@ import PerformanceTab from "../components/scoring/PerformanceTab";
 import PunctualityTab from "../components/scoring/PunctualityTab";
 import VehicleChecklistTab from "../components/scoring/VehicleChecklistTab";
 import ClientFeedbackTab from "../components/scoring/ClientFeedbackTab";
+import PerformanceReportsTab from "../components/scoring/PerformanceReportsTab";
 
 export default function PuntuacionLimpiadoresPage() {
     const [user, setUser] = useState(null);
@@ -490,7 +491,7 @@ export default function PuntuacionLimpiadoresPage() {
 
             {/* TABS PRINCIPALES */}
             <Tabs defaultValue="ranking">
-                <TabsList className="grid w-full grid-cols-5 h-12">
+                <TabsList className="grid w-full grid-cols-6 h-12">
                     <TabsTrigger value="ranking" className="flex items-center gap-1 text-xs md:text-sm">
                         <Trophy className="w-4 h-4" /><span className="hidden sm:inline">Ranking</span>
                     </TabsTrigger>
@@ -505,6 +506,9 @@ export default function PuntuacionLimpiadoresPage() {
                     </TabsTrigger>
                     <TabsTrigger value="feedback" className="flex items-center gap-1 text-xs md:text-sm">
                         <MessageSquare className="w-4 h-4" /><span className="hidden sm:inline">Feedback</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="reports" className="flex items-center gap-1 text-xs md:text-sm">
+                        <BarChart2 className="w-4 h-4" /><span className="hidden sm:inline">Reportes</span>
                     </TabsTrigger>
                 </TabsList>
 
@@ -561,6 +565,11 @@ export default function PuntuacionLimpiadoresPage() {
                         user={user}
                         onScoreApplied={loadMonthlyScores}
                     />
+                </TabsContent>
+
+                {/* TAB 6: REPORTES */}
+                <TabsContent value="reports" className="mt-4">
+                    <PerformanceReportsTab limpiadores={limpiadores} />
                 </TabsContent>
             </Tabs>
 

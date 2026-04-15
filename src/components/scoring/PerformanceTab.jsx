@@ -16,6 +16,7 @@ import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import SimplePagination from "@/components/ui/simple-pagination";
 import ChecklistConfigModal, { loadChecklistConfig } from "@/components/scoring/ChecklistConfigModal";
+import PerformanceReportsTab from "@/components/scoring/PerformanceReportsTab";
 
 const AREAS = [
   { key: "bathrooms",          name: "Baños",                      max: 25, color: "blue" },
@@ -483,6 +484,9 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
             <TabsTrigger value="history" className="flex items-center gap-1.5">
               <TrendingUp className="w-4 h-4" /> Historial
             </TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-1.5">
+              <Search className="w-4 h-4" /> Reportes
+            </TabsTrigger>
           </TabsList>
 
           {/* ─── TAB: COVERAGE ─── */}
@@ -638,6 +642,11 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                 <p>No hay evaluaciones este mes.</p>
               </div>
             )}
+          </TabsContent>
+
+          {/* ─── TAB: REPORTS ─── */}
+          <TabsContent value="reports">
+            <PerformanceReportsTab limpiadores={limpiadores} />
           </TabsContent>
         </Tabs>
       )}
