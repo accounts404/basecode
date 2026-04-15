@@ -31,6 +31,7 @@ const calcPresentationPoints = (uniform, presentation) => {
 export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores, user, onScoreApplied }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filterCleaner, setFilterCleaner] = useState("all");
   const [showDialog, setShowDialog] = useState(false);
   const [incidentType, setIncidentType] = useState("punctuality"); // "punctuality" | "presentation"
   const [selectedCleaner, setSelectedCleaner] = useState("");
@@ -145,6 +146,10 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
 
   const participatingCleaners = limpiadores.filter(c => monthlyScores.some(s => s.cleaner_id === c.id && s.is_participating));
 
+  const visibleCleaners = filterCleaner === "all"
+    ? participatingCleaners
+    : participatingCleaners.filter(c => c.id === filterCleaner);
+
   // Stats por limpiador
   const statsByCleaner = {};
   records.forEach(r => {
@@ -156,12 +161,24 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h3 className="text-lg font-semibold text-slate-800">Puntualidad y Presentación Personal</h3>
           <p className="text-sm text-slate-500">Registra retrasos, ausencias e incumplimientos de presentación</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={filterCleaner} onValueChange={setFilterCleaner}>
+            <SelectTrigger className="w-48">
+              <User className="w-4 h-4 mr-1 text-slate-400" />
+              <SelectValue placeholder="Todos los limpiadores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los limpiadores</SelectItem>
+              {participatingCleaners.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.invoice_name || c.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={() => openDialog("presentation")} className="border-purple-300 text-purple-700 hover:bg-purple-50">
             <Shirt className="w-4 h-4 mr-1" /> Uniforme / Presentación
           </Button>
@@ -194,7 +211,7 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
 
       {/* Cards de limpiadores */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {participatingCleaners.map(cleaner => {
+        {visibleCleaners.map(cleaner => {
           const stats = statsByCleaner[cleaner.id];
           const cleanerRecords = records.filter(r => r.cleaner_id === cleaner.id).sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -216,7 +233,7 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
                   )}
                 </div>
 
-                {cleanerRecords.slice(0, 2).map(r => (
+                {(filterCleaner === "all" ? cleanerRecords.slice(0, 2) : cleanerRecords).map(r => (
                   <div key={r.id} className={`text-xs p-2 rounded mb-1 ${r.points_impact < 0 ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
                     <div className="flex justify-between">
                       <span>{format(new Date(r.date), "d MMM", { locale: es })} — {r.absence ? "Ausencia" : r.minutes_late > 0 ? `${r.minutes_late} min tarde` : !r.uniform_ok ? "Sin uniforme" : "OK"}</span>
@@ -229,7 +246,7 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
           );
         })}
 
-        {participatingCleaners.length === 0 && (
+        {visibleCleaners.length === 0 && (
           <div className="col-span-3 text-center py-12 text-slate-500">
             <Clock className="w-12 h-12 mx-auto mb-3 opacity-40" />
             <p>No hay limpiadores participando este mes.</p>
