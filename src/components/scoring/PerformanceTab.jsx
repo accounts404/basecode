@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, Camera, Trash2, CheckCircle2, AlertCircle, BarChart2, Settings } from "lucide-react";
+import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, Camera, Trash2, CheckCircle2, AlertCircle, BarChart2, Settings, Pencil } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import SimplePagination from "@/components/ui/simple-pagination";
@@ -177,6 +177,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   const [areaStates, setAreaStates] = useState(() => initAreaStates());
   const [generalNotes, setGeneralNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingReview, setEditingReview] = useState(null); // null = new, object = editing
+  const [deletingId, setDeletingId] = useState(null);
   const [historyPage, setHistoryPage] = useState(1);
   const HISTORY_PAGE_SIZE = 10;
 
@@ -196,6 +198,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   };
 
   const openDialog = (cleaner = null) => {
+    setEditingReview(null);
     setSelectedCleaner(cleaner);
     setReviewDate(format(new Date(), "yyyy-MM-dd"));
     setSelectedClientId("");
@@ -203,6 +206,32 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setShowClientDropdown(false);
     setAreaStates(initAreaStates()); // always reads latest config from localStorage
     setGeneralNotes("");
+    setShowDialog(true);
+  };
+
+  const openEditDialog = (review) => {
+    setEditingReview(review);
+    setSelectedCleaner(limpiadores.find(l => l.id === review.cleaner_id) || { id: review.cleaner_id, full_name: review.cleaner_name });
+    setReviewDate(review.review_date);
+    const client = clients.find(c => c.id === review.client_id);
+    setSelectedClientId(review.client_id || "");
+    setClientSearch(review.client_name || "");
+    setShowClientDropdown(false);
+    setGeneralNotes(review.general_notes || "");
+    // Restore area states from saved review
+    const cfg = loadChecklistConfig();
+    const restored = initAreaStates(cfg).map(state => {
+      const saved = (review.area_scores || []).find(a => a.area_key === state.area_key);
+      if (!saved) return state;
+      return {
+        ...state,
+        included: saved.included !== undefined ? saved.included : true,
+        notes: saved.notes || "",
+        photos: saved.photos || [],
+        checklist: saved.checklist || state.checklist,
+      };
+    });
+    setAreaStates(restored);
     setShowDialog(true);
   };
 
@@ -276,26 +305,6 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     try {
       const client = clients.find(c => c.id === selectedClientId);
       const impact = calcPointsImpact(overallScore);
-      const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
-      let adjustmentId = null;
-
-      if (monthlyScore && impact !== 0) {
-        const adj = await base44.entities.ScoreAdjustment.create({
-          monthly_score_id: monthlyScore.id,
-          cleaner_id: selectedCleaner.id,
-          month_period: monthPeriod,
-          adjustment_type: "deduction",
-          category: "Evaluación de Performance",
-          points_impact: impact,
-          notes: `Puntaje: ${overallScore}/100 (${includedCount} áreas evaluadas)${client ? ` · Cliente: ${client.name}` : ""}${generalNotes ? ` · ${generalNotes}` : ""}`,
-          admin_id: user.id,
-          admin_name: user.full_name,
-          date_applied: new Date().toISOString()
-        });
-        adjustmentId = adj.id;
-        const newScore = Math.max(0, monthlyScore.current_score + impact);
-        await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
-      }
 
       // Build area_scores for saving
       const areaScoresForSave = areaStates.map(state => {
@@ -314,23 +323,94 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         };
       });
 
-      await base44.entities.PerformanceReview.create({
-        cleaner_id: selectedCleaner.id,
-        cleaner_name: selectedCleaner.invoice_name || selectedCleaner.full_name,
-        review_date: reviewDate,
-        month_period: monthPeriod,
-        client_id: selectedClientId || null,
-        client_name: client?.name || "",
-        reviewed_by_admin: user.id,
-        reviewed_by_admin_name: user.full_name,
-        area_scores: areaScoresForSave,
-        overall_score: overallScore,
-        general_notes: generalNotes,
-        points_impact: impact,
-        score_adjustment_id: adjustmentId
-      });
+      if (editingReview) {
+        // --- UPDATE existing review ---
+        // Revert old score adjustment if existed
+        if (editingReview.score_adjustment_id) {
+          const oldAdj = await base44.entities.ScoreAdjustment.filter({ id: editingReview.score_adjustment_id }).catch(() => []);
+          if (oldAdj.length > 0) {
+            await base44.entities.ScoreAdjustment.delete(oldAdj[0].id);
+            const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
+            if (monthlyScore) {
+              const revertedScore = Math.min(100, monthlyScore.current_score - editingReview.points_impact);
+              await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: revertedScore });
+            }
+          }
+        }
+
+        // Create new adjustment if needed
+        let adjustmentId = null;
+        const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
+        if (monthlyScore && impact !== 0) {
+          const adj = await base44.entities.ScoreAdjustment.create({
+            monthly_score_id: monthlyScore.id,
+            cleaner_id: selectedCleaner.id,
+            month_period: monthPeriod,
+            adjustment_type: "deduction",
+            category: "Evaluación de Performance",
+            points_impact: impact,
+            notes: `Puntaje: ${overallScore}/100 (${includedCount} áreas evaluadas)${client ? ` · Cliente: ${client.name}` : ""}${generalNotes ? ` · ${generalNotes}` : ""}`,
+            admin_id: user.id,
+            admin_name: user.full_name,
+            date_applied: new Date().toISOString()
+          });
+          adjustmentId = adj.id;
+          const newScore = Math.max(0, monthlyScore.current_score + impact);
+          await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
+        }
+
+        await base44.entities.PerformanceReview.update(editingReview.id, {
+          review_date: reviewDate,
+          client_id: selectedClientId || null,
+          client_name: client?.name || editingReview.client_name || "",
+          area_scores: areaScoresForSave,
+          overall_score: overallScore,
+          general_notes: generalNotes,
+          points_impact: impact,
+          score_adjustment_id: adjustmentId
+        });
+
+      } else {
+        // --- CREATE new review ---
+        let adjustmentId = null;
+        const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
+        if (monthlyScore && impact !== 0) {
+          const adj = await base44.entities.ScoreAdjustment.create({
+            monthly_score_id: monthlyScore.id,
+            cleaner_id: selectedCleaner.id,
+            month_period: monthPeriod,
+            adjustment_type: "deduction",
+            category: "Evaluación de Performance",
+            points_impact: impact,
+            notes: `Puntaje: ${overallScore}/100 (${includedCount} áreas evaluadas)${client ? ` · Cliente: ${client.name}` : ""}${generalNotes ? ` · ${generalNotes}` : ""}`,
+            admin_id: user.id,
+            admin_name: user.full_name,
+            date_applied: new Date().toISOString()
+          });
+          adjustmentId = adj.id;
+          const newScore = Math.max(0, monthlyScore.current_score + impact);
+          await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
+        }
+
+        await base44.entities.PerformanceReview.create({
+          cleaner_id: selectedCleaner.id,
+          cleaner_name: selectedCleaner.invoice_name || selectedCleaner.full_name,
+          review_date: reviewDate,
+          month_period: monthPeriod,
+          client_id: selectedClientId || null,
+          client_name: client?.name || "",
+          reviewed_by_admin: user.id,
+          reviewed_by_admin_name: user.full_name,
+          area_scores: areaScoresForSave,
+          overall_score: overallScore,
+          general_notes: generalNotes,
+          points_impact: impact,
+          score_adjustment_id: adjustmentId
+        });
+      }
 
       setShowDialog(false);
+      setEditingReview(null);
       await loadData();
       if (onScoreApplied) onScoreApplied();
     } catch (e) {
@@ -338,6 +418,32 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
       alert("Error guardando la evaluación");
     }
     setSaving(false);
+  };
+
+  const handleDelete = async (review) => {
+    if (!confirm(`¿Eliminar la evaluación de ${review.cleaner_name} del ${format(parseISO(review.review_date), "d MMM yyyy", { locale: es })}?`)) return;
+    setDeletingId(review.id);
+    try {
+      // Revert score adjustment if existed
+      if (review.score_adjustment_id) {
+        const oldAdj = await base44.entities.ScoreAdjustment.filter({ id: review.score_adjustment_id }).catch(() => []);
+        if (oldAdj.length > 0) {
+          await base44.entities.ScoreAdjustment.delete(oldAdj[0].id);
+          const monthlyScore = monthlyScores.find(s => s.cleaner_id === review.cleaner_id);
+          if (monthlyScore && review.points_impact) {
+            const revertedScore = Math.min(100, monthlyScore.current_score - review.points_impact);
+            await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: revertedScore });
+          }
+        }
+      }
+      await base44.entities.PerformanceReview.delete(review.id);
+      await loadData();
+      if (onScoreApplied) onScoreApplied();
+    } catch (e) {
+      console.error(e);
+      alert("Error eliminando la evaluación");
+    }
+    setDeletingId(null);
   };
 
   const participatingCleaners = limpiadores.filter(c =>
@@ -499,8 +605,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                 <CardContent>
                   <div className="space-y-2">
                     {pagedHistory.map(r => (
-                      <div key={r.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                        <div>
+                      <div key={r.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg gap-3">
+                        <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{r.cleaner_name}</p>
                           <p className="text-xs text-slate-500">
                             {format(parseISO(r.review_date), "d MMM yyyy", { locale: es })}
@@ -511,11 +617,19 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                             <p className="text-xs text-slate-400 italic mt-0.5">"{r.general_notes}"</p>
                           )}
                         </div>
-                        <div className="text-right flex flex-col items-end gap-1">
-                          <ScoreBadge score={r.overall_score || 0} />
-                          {r.points_impact !== 0 && (
-                            <span className="text-xs text-red-600 font-medium">{r.points_impact} pts ranking</span>
-                          )}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="text-right flex flex-col items-end gap-1">
+                            <ScoreBadge score={r.overall_score || 0} />
+                            {r.points_impact !== 0 && (
+                              <span className="text-xs text-red-600 font-medium">{r.points_impact} pts ranking</span>
+                            )}
+                          </div>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-400 hover:text-blue-600" onClick={() => openEditDialog(r)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-slate-400 hover:text-red-600" disabled={deletingId === r.id} onClick={() => handleDelete(r)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -547,7 +661,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardList className="w-5 h-5" />
-              Nueva Evaluación de Performance
+              {editingReview ? "Editar Evaluación de Performance" : "Nueva Evaluación de Performance"}
             </DialogTitle>
           </DialogHeader>
 
