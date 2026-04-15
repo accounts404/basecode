@@ -114,10 +114,10 @@ function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, on
                 </div>
                 <div className="flex items-center gap-2 text-xs flex-wrap">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                    <span className="font-medium">Performance:</span> {Math.round(entry.performanceScore)}
+                    <span className="font-medium">Performance:</span> {Math.round(entry.performanceAvg)}/100
                   </span>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-700">
-                    <span className="font-medium">Vehículos:</span> {Math.round(entry.vehicleScore)}
+                    <span className="font-medium">Vehículos:</span> {Math.round(entry.vehicleAvg)}/18
                   </span>
                   {(deductionTotal > 0 || bonusTotal > 0) && (
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${entry.adjustmentScore >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
@@ -187,6 +187,8 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   const [customAdjustments, setCustomAdjustments] = useState([]);
   const [customLoading, setCustomLoading] = useState(false);
   const [customPage, setCustomPage] = useState(1);
+  const [performanceReviews, setPerformanceReviews] = useState([]);
+  const [vehicleRecords, setVehicleRecords] = useState([]);
   const PAGE_SIZE = 30;
 
   useEffect(() => {
@@ -196,8 +198,14 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   const loadAdjustments = async () => {
     setLoading(true);
     try {
-      const adjs = await base44.entities.ScoreAdjustment.filter({ month_period: monthPeriod });
+      const [adjs, perfReviews, vehicleRecs] = await Promise.all([
+        base44.entities.ScoreAdjustment.filter({ month_period: monthPeriod }),
+        base44.entities.PerformanceReview.filter({ month_period: monthPeriod }),
+        base44.entities.VehicleChecklistRecord.filter({ month_period: monthPeriod })
+      ]);
       setAdjustments(adjs);
+      setPerformanceReviews(perfReviews);
+      setVehicleRecords(vehicleRecs);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -225,6 +233,43 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
     if (onScoresChanged) onScoresChanged();
   };
 
+  // Calcular promedios reales de performance y vehículos
+  const performanceAverages = useMemo(() => {
+    const map = {};
+    performanceReviews.forEach(review => {
+      if (!map[review.cleaner_id]) {
+        map[review.cleaner_id] = { totalEarned: 0, count: 0 };
+      }
+      map[review.cleaner_id].totalEarned += review.final_score || 100;
+      map[review.cleaner_id].count++;
+    });
+    // Convertir a promedio
+    return Object.entries(map).reduce((acc, [id, data]) => {
+      acc[id] = Math.round(data.totalEarned / data.count);
+      return acc;
+    }, {});
+  }, [performanceReviews]);
+
+  const vehicleAverages = useMemo(() => {
+    const TOTAL_POSSIBLE = 18;
+    const map = {};
+    vehicleRecords.forEach(record => {
+      const earned = (record.checklist_items || []).reduce((s, i) => i.passed ? s + (i.points || i.points_if_fail || 0) : s, 0);
+      const possible = (record.checklist_items || []).reduce((s, i) => s + (i.points || i.points_if_fail || 0), 0);
+      (record.team_member_ids || []).forEach(id => {
+        if (!map[id]) map[id] = { totalEarned: 0, totalPossible: 0, count: 0 };
+        map[id].totalEarned += earned;
+        map[id].totalPossible += possible || TOTAL_POSSIBLE;
+        map[id].count++;
+      });
+    });
+    // Convertir a promedio
+    return Object.entries(map).reduce((acc, [id, data]) => {
+      acc[id] = Math.round(data.totalEarned / data.count);
+      return acc;
+    }, {});
+  }, [vehicleRecords]);
+
   // Calcular score basado en Performance, Vehículos, y ajustes (Puntualidad + Feedback)
   const allEntries = useMemo(() => {
     // Primero calcular promedios de vehículos desde los ajustes
@@ -242,14 +287,18 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       let performanceScore = 100;
       let vehicleScore = 18;
       let adjustmentScore = 0;
+      let performanceAvg = 100; // Promedio real de reviews
+      let vehicleAvg = 18; // Promedio real de reviews
 
       if (ms) {
         // Performance: comienza en 100, se promedia con revisiones
-        performanceScore = ms.performance_average_score ?? 100;
+        performanceAvg = performanceAverages[cleaner.id] ?? 100;
+        performanceScore = performanceAvg;
         
         // Vehículos: 18 más el ajuste vehicular (negativo si hay deducción)
+        vehicleAvg = vehicleAverages[cleaner.id] ?? 18;
         const vehicleAdjustment = vehicleAdjustments[cleaner.id] || 0;
-        vehicleScore = 18 + vehicleAdjustment;
+        vehicleScore = vehicleAvg + vehicleAdjustment;
 
         // Ajustes: suma/resta de Puntualidad + Feedback (excluyendo ajustes vehiculares)
         const relevantAdjustments = adjustments.filter(a => 
@@ -267,7 +316,9 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
         isParticipating, 
         performanceScore, 
         vehicleScore, 
-        adjustmentScore 
+        adjustmentScore,
+        performanceAvg,
+        vehicleAvg
       };
     });
 
@@ -280,7 +331,7 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       .map(e => ({ ...e, rank: null }));
 
     return [...active, ...excluded];
-  }, [limpiadores, monthlyScores, adjustments]);
+  }, [limpiadores, monthlyScores, adjustments, performanceAverages, vehicleAverages]);
 
   const participating = allEntries.filter(e => e.isParticipating);
   const excluded = allEntries.filter(e => !e.isParticipating);
