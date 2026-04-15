@@ -13,7 +13,8 @@ import {
     Calendar,
     Users,
     Eye,
-    Edit
+    Edit,
+    Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -40,6 +41,7 @@ export default function TaskKanbanView({
     onStatusChange, 
     onViewTask, 
     onEditTask,
+    onDeleteTask,
     onCompleteWithNotes,
     currentUser 
 }) {
@@ -163,11 +165,12 @@ export default function TaskKanbanView({
                                                                     } ${snapshot.isDragging ? 'shadow-2xl rotate-2' : ''}`}
                                                                 >
                                                                     <TaskCard
-                                                                        task={task}
-                                                                        isOverdue={isOverdue(task)}
-                                                                        onViewTask={onViewTask}
-                                                                        onEditTask={onEditTask}
-                                                                        getAssigneeAvatars={getAssigneeAvatars}
+                                                                       task={task}
+                                                                       isOverdue={isOverdue(task)}
+                                                                       onViewTask={onViewTask}
+                                                                       onEditTask={onEditTask}
+                                                                       onDeleteTask={onDeleteTask}
+                                                                       getAssigneeAvatars={getAssigneeAvatars}
                                                                     />
                                                                 </div>
                                                             )}
@@ -198,7 +201,7 @@ export default function TaskKanbanView({
     );
 }
 
-function TaskCard({ task, isOverdue, onViewTask, onEditTask, getAssigneeAvatars }) {
+function TaskCard({ task, isOverdue, onViewTask, onEditTask, onDeleteTask, getAssigneeAvatars }) {
     return (
         <div className="space-y-3">
             <div className="flex items-start justify-between gap-2">
@@ -249,6 +252,19 @@ function TaskCard({ task, isOverdue, onViewTask, onEditTask, getAssigneeAvatars 
                     >
                         <Edit className="w-3 h-3" />
                     </Button>
+                    {onDeleteTask && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteTask(task);
+                            }}
+                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                            <Trash2 className="w-3 h-3" />
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>

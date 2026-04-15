@@ -1172,6 +1172,7 @@ export default function AdminTasksPanel() {
                 onStatusChange={handleToggleTaskStatus}
                 onViewTask={handleViewTaskDetail}
                 onEditTask={handleEditTask}
+                onDeleteTask={(task) => requestDeleteTask(task)}
                 onCompleteWithNotes={handleCompleteWithNotes}
                 currentUser={user}
               />
