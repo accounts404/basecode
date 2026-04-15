@@ -888,7 +888,6 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
 
     // Componente de Evento Refactorizado
     const EventBlock = ({ event, onClick, showFullInfo = false }) => {
-        if (!event) return null;
         const isCancelled = event.status === 'cancelled';
         const isUnassigned = !event.cleaner_ids || event.cleaner_ids.length === 0;
         const progress = getServiceProgress(event);
