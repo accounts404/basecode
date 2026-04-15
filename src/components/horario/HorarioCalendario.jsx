@@ -888,7 +888,7 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
 
     // Componente de Evento Refactorizado
     const EventBlock = ({ event, onClick, showFullInfo = false }) => {
-        if (!event || !event.id) return null;
+        if (!event || !event.id || !event.client_name) return null;
         
         const isCancelled = event.status === 'cancelled';
         const isUnassigned = !event.cleaner_ids || event.cleaner_ids.length === 0;
@@ -1147,7 +1147,7 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                                     const organizedEvents = (organizeOverlappingEvents(dayEvents) || []).filter(e => e);
                                     
                                     return organizedEvents.map(event => {
-                                        if (!event) return null;
+                                        if (!event || !event.id || !event.client_name) return null;
                                         const position = calculateEventPosition(event);
                                         // Si el evento no es visible (o solo una parte mínima), no lo renderizamos o ajustamos su posición.
                                         if (!position) return null;
