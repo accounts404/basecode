@@ -71,24 +71,30 @@ function ScoreBadge({ score }) {
 function computeOverallScore(areaStates) {
   const includedAreas = areaStates.filter(a => a.included);
   if (includedAreas.length === 0) return 100;
-
-  const totalMax = includedAreas.reduce((sum, a) => {
-    const area = AREAS.find(ar => ar.key === a.area_key);
-    return sum + (area?.max || 0);
-  }, 0);
-
-  const totalEarned = includedAreas.reduce((sum, a) => {
-    const items = AREA_CHECKLISTS[a.area_key] || [];
-    return sum + items.reduce((s, item) => s + (a.checklist[item.key] ? item.points : 0), 0);
-  }, 0);
-
+  const totalMax = includedAreas.reduce((sum, a) => sum + getAreaMax(a), 0);
+  const totalEarned = includedAreas.reduce((sum, a) => sum + (getAreaEarned(a) || 0), 0);
   return totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 100;
 }
 
 function getAreaEarned(areaState) {
   if (!areaState.included) return null;
   const items = AREA_CHECKLISTS[areaState.area_key] || [];
-  return items.reduce((s, item) => s + (areaState.checklist[item.key] ? item.points : 0), 0);
+  const removed = areaState.removed_items || [];
+  const defaultPts = items
+    .filter(item => !removed.includes(item.key))
+    .reduce((s, item) => s + (areaState.checklist[item.key] ? item.points : 0), 0);
+  const extraPts = (areaState.extra_items || [])
+    .reduce((s, item) => s + (item.checked ? item.points : 0), 0);
+  return defaultPts + extraPts;
+}
+
+function getAreaMax(areaState) {
+  const area = AREAS.find(a => a.key === areaState.area_key);
+  const removed = areaState.removed_items || [];
+  const items = AREA_CHECKLISTS[areaState.area_key] || [];
+  const removedPts = items.filter(i => removed.includes(i.key)).reduce((s, i) => s + i.points, 0);
+  const extraPts = (areaState.extra_items || []).reduce((s, i) => s + i.points, 0);
+  return (area?.max || 0) - removedPts + extraPts;
 }
 
 const initAreaStates = () =>
@@ -100,6 +106,10 @@ const initAreaStates = () =>
     checklist: Object.fromEntries(
       (AREA_CHECKLISTS[a.key] || []).map(item => [item.key, true])
     ),
+    removed_items: [],   // keys of default items removed for this evaluation
+    extra_items: [],     // [{ key, label, points, checked }]
+    new_item_label: "",
+    new_item_points: "",
   }));
 
 // Card resumen de un limpiador
@@ -247,6 +257,49 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     ));
   };
 
+  const removeDefaultItem = (areaKey, itemKey) => {
+    setAreaStates(prev => prev.map(a =>
+      a.area_key === areaKey ? { ...a, removed_items: [...(a.removed_items || []), itemKey] } : a
+    ));
+  };
+
+  const restoreDefaultItem = (areaKey, itemKey) => {
+    setAreaStates(prev => prev.map(a =>
+      a.area_key === areaKey ? { ...a, removed_items: (a.removed_items || []).filter(k => k !== itemKey) } : a
+    ));
+  };
+
+  const toggleExtraItem = (areaKey, itemKey) => {
+    setAreaStates(prev => prev.map(a =>
+      a.area_key === areaKey
+        ? { ...a, extra_items: a.extra_items.map(i => i.key === itemKey ? { ...i, checked: !i.checked } : i) }
+        : a
+    ));
+  };
+
+  const removeExtraItem = (areaKey, itemKey) => {
+    setAreaStates(prev => prev.map(a =>
+      a.area_key === areaKey ? { ...a, extra_items: a.extra_items.filter(i => i.key !== itemKey) } : a
+    ));
+  };
+
+  const addExtraItem = (areaKey) => {
+    setAreaStates(prev => prev.map(a => {
+      if (a.area_key !== areaKey) return a;
+      const label = a.new_item_label.trim();
+      const pts = parseInt(a.new_item_points) || 5;
+      if (!label) return a;
+      const newItem = { key: `extra_${Date.now()}`, label, points: pts, checked: true };
+      return { ...a, extra_items: [...a.extra_items, newItem], new_item_label: "", new_item_points: "" };
+    }));
+  };
+
+  const updateNewItem = (areaKey, field, value) => {
+    setAreaStates(prev => prev.map(a =>
+      a.area_key === areaKey ? { ...a, [field]: value } : a
+    ));
+  };
+
   const overallScore = computeOverallScore(areaStates);
   const includedCount = areaStates.filter(a => a.included).length;
 
@@ -295,6 +348,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           checklist: state.checklist,
           notes: state.notes,
           photos: state.photos || [],
+          extra_items: state.extra_items || [],
+          removed_items: state.removed_items || [],
         };
       });
 
@@ -508,10 +563,10 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                         {state.included && (
                           <div className="flex items-center gap-2">
                             <span className={`text-sm font-bold ${colors.text}`}>
-                              {earned} / {area.max} pts
+                              {earned} / {getAreaMax(state)} pts
                             </span>
                             <Badge className={`text-xs ${allChecked ? "bg-green-100 text-green-800" : anyChecked ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}`}>
-                              {Math.round((earned / area.max) * 100)}%
+                              {getAreaMax(state) > 0 ? Math.round((earned / getAreaMax(state)) * 100) : 0}%
                             </Badge>
                           </div>
                         )}
@@ -520,10 +575,11 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                       {/* Checklist items */}
                       {state.included && (
                         <div className="px-3 pb-3 space-y-2 border-t border-opacity-30" style={{ borderColor: "currentColor" }}>
-                          <div className="pt-2 space-y-2">
-                            {items.map(item => (
-                              <label key={item.key} className="flex items-center justify-between gap-3 cursor-pointer group">
-                                <div className="flex items-center gap-2">
+                          <div className="pt-2 space-y-1.5">
+                            {/* Default items */}
+                            {items.filter(item => !(state.removed_items || []).includes(item.key)).map(item => (
+                              <div key={item.key} className="flex items-center justify-between gap-3 group">
+                                <label className="flex items-center gap-2 cursor-pointer flex-1">
                                   <Checkbox
                                     checked={state.checklist[item.key]}
                                     onCheckedChange={() => toggleChecklistItem(area.key, item.key)}
@@ -531,12 +587,94 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                                   <span className={`text-sm ${state.checklist[item.key] ? "text-slate-700" : "text-slate-400 line-through"}`}>
                                     {item.label}
                                   </span>
+                                </label>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span className={`text-xs font-medium ${state.checklist[item.key] ? colors.text : "text-slate-300"}`}>
+                                    {state.checklist[item.key] ? `+${item.points}` : `0/${item.points}`} pts
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeDefaultItem(area.key, item.key)}
+                                    className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Quitar de esta evaluación"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
                                 </div>
-                                <span className={`text-xs font-medium flex-shrink-0 ${state.checklist[item.key] ? colors.text : "text-slate-300"}`}>
-                                  {state.checklist[item.key] ? `+${item.points}` : `0/${item.points}`} pts
-                                </span>
-                              </label>
+                              </div>
                             ))}
+                            {/* Removed items (show as restore) */}
+                            {(state.removed_items || []).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {(state.removed_items || []).map(rKey => {
+                                  const rItem = items.find(i => i.key === rKey);
+                                  return rItem ? (
+                                    <button
+                                      key={rKey}
+                                      type="button"
+                                      onClick={() => restoreDefaultItem(area.key, rKey)}
+                                      className="text-xs text-slate-400 line-through hover:no-underline hover:text-slate-600 px-1.5 py-0.5 border border-dashed border-slate-300 rounded"
+                                      title="Restaurar item"
+                                    >
+                                      + {rItem.label}
+                                    </button>
+                                  ) : null;
+                                })}
+                              </div>
+                            )}
+                            {/* Extra items */}
+                            {(state.extra_items || []).map(item => (
+                              <div key={item.key} className="flex items-center justify-between gap-3 group">
+                                <label className="flex items-center gap-2 cursor-pointer flex-1">
+                                  <Checkbox
+                                    checked={item.checked}
+                                    onCheckedChange={() => toggleExtraItem(area.key, item.key)}
+                                  />
+                                  <span className={`text-sm ${item.checked ? "text-slate-700" : "text-slate-400 line-through"}`}>
+                                    {item.label}
+                                  </span>
+                                </label>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span className={`text-xs font-medium ${item.checked ? colors.text : "text-slate-300"}`}>
+                                    {item.checked ? `+${item.points}` : `0/${item.points}`} pts
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeExtraItem(area.key, item.key)}
+                                    className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            {/* Add extra item row */}
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-dashed border-slate-200">
+                              <input
+                                type="text"
+                                value={state.new_item_label}
+                                onChange={e => updateNewItem(area.key, "new_item_label", e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && addExtraItem(area.key)}
+                                placeholder="Agregar item..."
+                                className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:border-blue-400"
+                              />
+                              <input
+                                type="number"
+                                value={state.new_item_points}
+                                onChange={e => updateNewItem(area.key, "new_item_points", e.target.value)}
+                                placeholder="pts"
+                                className="w-14 text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:border-blue-400"
+                                min="1"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => addExtraItem(area.key)}
+                                disabled={!state.new_item_label.trim()}
+                                className={`text-xs px-2 py-1 rounded border ${colors.border} ${colors.text} disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-80`}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                           <Textarea
                             value={state.notes}
