@@ -442,12 +442,12 @@ export default function PerformanceReportsTab({ limpiadores }) {
                     <CommandInput placeholder="Buscar limpiador..." className="h-8" />
                     <CommandEmpty>No encontrado.</CommandEmpty>
                     <CommandGroup className="max-h-[200px] overflow-y-auto">
-                      <CommandItem value="all" onSelect={() => { setSelectedCleanerId("all"); setPerfPage(1); setPunctPage(1); setFeedPage(1); setVehPage(1); }}>
+                      <CommandItem value="todos" onSelect={() => { setSelectedCleanerId("all"); setPerfPage(1); setPunctPage(1); setFeedPage(1); setVehPage(1); }}>
                         <Check className={cn("w-4 h-4 mr-2", selectedCleanerId === "all" ? "opacity-100" : "opacity-0")} />
                         Todos
                       </CommandItem>
                       {limpiadores.map(l => (
-                        <CommandItem key={l.id} value={l.id} onSelect={() => { setSelectedCleanerId(l.id); setPerfPage(1); setPunctPage(1); setFeedPage(1); setVehPage(1); }}>
+                        <CommandItem key={l.id} value={(l.invoice_name || l.full_name).toLowerCase()} onSelect={() => { setSelectedCleanerId(l.id); setPerfPage(1); setPunctPage(1); setFeedPage(1); setVehPage(1); }}>
                           <Check className={cn("w-4 h-4 mr-2", selectedCleanerId === l.id ? "opacity-100" : "opacity-0")} />
                           {l.invoice_name || l.full_name}
                         </CommandItem>
@@ -473,12 +473,12 @@ export default function PerformanceReportsTab({ limpiadores }) {
                     <CommandInput placeholder="Buscar cliente/casa..." className="h-8" />
                     <CommandEmpty>No encontrado.</CommandEmpty>
                     <CommandGroup className="max-h-[200px] overflow-y-auto">
-                      <CommandItem value="all" onSelect={() => { setSelectedClientId("all"); setPerfPage(1); setFeedPage(1); }}>
+                      <CommandItem value="todos" onSelect={() => { setSelectedClientId("all"); setPerfPage(1); setFeedPage(1); }}>
                         <Check className={cn("w-4 h-4 mr-2", selectedClientId === "all" ? "opacity-100" : "opacity-0")} />
                         Todos
                       </CommandItem>
                       {allClients.map(c => (
-                        <CommandItem key={c.id} value={c.id} onSelect={() => { setSelectedClientId(c.id); setPerfPage(1); setFeedPage(1); }}>
+                        <CommandItem key={c.id} value={c.name.toLowerCase()} onSelect={() => { setSelectedClientId(c.id); setPerfPage(1); setFeedPage(1); }}>
                           <Check className={cn("w-4 h-4 mr-2", selectedClientId === c.id ? "opacity-100" : "opacity-0")} />
                           {c.name}
                         </CommandItem>
