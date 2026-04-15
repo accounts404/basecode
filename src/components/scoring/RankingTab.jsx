@@ -3,6 +3,9 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Crown, Medal, Award, Trophy, User, ChevronDown, ChevronUp,
   RefreshCw, TrendingDown, TrendingUp, Minus, Eye, BarChart3,
@@ -183,6 +186,12 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   const [adjustments, setAdjustments] = useState([]);
   const [page, setPage] = useState(1);
   const [isManageMode, setIsManageMode] = useState(false);
+  const [tab, setTab] = useState("monthly");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [customAdjustments, setCustomAdjustments] = useState([]);
+  const [customLoading, setCustomLoading] = useState(false);
+  const [customPage, setCustomPage] = useState(1);
   const PAGE_SIZE = 10;
 
   useEffect(() => {
@@ -196,6 +205,24 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       setAdjustments(adjs);
     } catch (e) { console.error(e); }
     setLoading(false);
+  };
+
+  const loadCustomRanking = async () => {
+    if (!dateFrom || !dateTo) {
+      alert("Por favor selecciona ambas fechas");
+      return;
+    }
+    setCustomLoading(true);
+    try {
+      const adjs = await base44.entities.ScoreAdjustment.list();
+      const filtered = adjs.filter(a => {
+        const adjDate = a.date_applied ? a.date_applied.split('T')[0] : '';
+        return adjDate >= dateFrom && adjDate <= dateTo;
+      });
+      setCustomAdjustments(filtered);
+      setCustomPage(1);
+    } catch (e) { console.error(e); }
+    setCustomLoading(false);
   };
 
   const handleToggleParticipation = async (monthlyScore, newValue) => {
@@ -234,7 +261,150 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   const totalPages = Math.ceil(allEntries.length / PAGE_SIZE);
   const paged = allEntries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  if (loading) {
+  const renderRankingContent = (entries, isCustom = false) => {
+    const participating = entries.filter(e => e.isParticipating);
+    const excluded = entries.filter(e => !e.isParticipating);
+    const avgScore = participating.length > 0 ? Math.round(participating.reduce((s, e) => s + e.score, 0) / participating.length) : null;
+    const topScore = participating.length > 0 ? Math.round(participating[0].score) : null;
+    const currentPage = isCustom ? customPage : page;
+    const setCurrentPage = isCustom ? setCustomPage : setPage;
+    const totalPages = Math.ceil(entries.length / PAGE_SIZE);
+    const paged = entries.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+    return (
+      <div className="space-y-4">
+        {/* ── Header ── */}
+        <div className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 text-white p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-yellow-400/20 border border-yellow-400/30 flex items-center justify-center flex-shrink-0">
+                <Trophy className="w-6 h-6 text-yellow-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Ranking {isCustom ? "Personalizado" : "Mensual"}</h2>
+                <p className="text-sm text-slate-300">
+                  {participating.length} en competencia
+                  {excluded.length > 0 && ` · ${excluded.length} excluido${excluded.length !== 1 ? "s" : ""}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              {avgScore !== null && (
+                <div className="text-center">
+                  <p className="text-2xl font-black text-white tabular-nums">{avgScore}</p>
+                  <p className="text-xs text-slate-400">Promedio</p>
+                </div>
+              )}
+              {topScore !== null && (
+                <div className="text-center">
+                  <p className="text-2xl font-black text-yellow-400 tabular-nums">{topScore}</p>
+                  <p className="text-xs text-slate-400">Líder</p>
+                </div>
+              )}
+              {!isCustom && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsManageMode(!isManageMode)}
+                    className={`border-slate-500 hover:bg-slate-600 hover:text-white ${isManageMode ? "bg-slate-600 text-white" : "text-slate-300"}`}
+                  >
+                    <Settings className="w-4 h-4 mr-1" />
+                    {isManageMode ? "Listo" : "Gestionar"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadAdjustments}
+                    className="border-slate-500 text-slate-300 hover:bg-slate-600 hover:text-white"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {isManageMode && !isCustom && (
+            <div className="mt-3 pt-3 border-t border-slate-600 text-xs text-slate-300">
+              💡 Usa los botones <strong>"Excluir"</strong> para quitar limpiadores del ranking sin borrar sus datos. Los excluidos se muestran al final y no compiten por el premio.
+            </div>
+          )}
+        </div>
+
+        {/* ── Ranking List ── */}
+        {entries.length === 0 ? (
+          <Card>
+            <CardContent className="py-14 text-center">
+              <Trophy className="w-14 h-14 mx-auto mb-4 text-slate-300" />
+              <p className="text-slate-500">No hay datos para mostrar</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2.5">
+            {paged.map(entry => (
+              <CleanerRow
+                key={entry.cleaner.id}
+                entry={entry}
+                rank={entry.rank}
+                adjustments={isCustom ? customAdjustments : adjustments}
+                onViewHistory={onViewHistory}
+                monthlyScores={monthlyScores}
+                onToggleParticipation={handleToggleParticipation}
+                isManageMode={!isCustom && isManageMode}
+              />
+            ))}
+
+            <SimplePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={entries.length}
+              pageSize={PAGE_SIZE}
+            />
+          </div>
+        )}
+
+        {/* ── Legend ── */}
+        <div className="flex flex-wrap gap-3 pt-1">
+          {[
+            { range: "95–100", label: "Excelente",  cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+            { range: "85–94",  label: "Muy bueno",  cls: "bg-blue-100 text-blue-700 border-blue-200" },
+            { range: "70–84",  label: "Regular",    cls: "bg-amber-100 text-amber-700 border-amber-200" },
+            { range: "0–69",   label: "Bajo",       cls: "bg-red-100 text-red-700 border-red-200" },
+          ].map(l => (
+            <div key={l.range} className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${l.cls}`}>
+              <BarChart3 className="w-3 h-3" />
+              <span className="font-medium">{l.range}</span>
+              <span className="opacity-70">{l.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const computeCustomRanking = useMemo(() => {
+    const cleanerAdjustments = {};
+    customAdjustments.forEach(adj => {
+      if (!cleanerAdjustments[adj.cleaner_id]) {
+        cleanerAdjustments[adj.cleaner_id] = 0;
+      }
+      cleanerAdjustments[adj.cleaner_id] += adj.points_impact || 0;
+    });
+
+    const entries = limpiadores.map(cleaner => {
+      const score = 100 + (cleanerAdjustments[cleaner.id] || 0);
+      return { cleaner, score, isParticipating: true };
+    });
+
+    const sorted = entries.sort((a, b) => b.score - a.score)
+      .map((e, i) => ({ ...e, rank: i + 1 }));
+
+    return sorted;
+  }, [customAdjustments, limpiadores]);
+
+  if (loading && tab === "monthly") {
     return (
       <div className="text-center py-16">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-3" />
@@ -244,112 +414,45 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   }
 
   return (
-    <div className="space-y-4">
-      {/* ── Header ── */}
-      <div className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 text-white p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-yellow-400/20 border border-yellow-400/30 flex items-center justify-center flex-shrink-0">
-              <Trophy className="w-6 h-6 text-yellow-400" />
+    <Tabs value={tab} onValueChange={setTab} className="w-full">
+      <TabsList className="grid w-full grid-cols-2 mb-4">
+        <TabsTrigger value="monthly">Ranking Mensual</TabsTrigger>
+        <TabsTrigger value="custom">Ranking por Fechas</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="monthly" className="space-y-4">
+        {renderRankingContent(allEntries, false)}
+      </TabsContent>
+
+      <TabsContent value="custom" className="space-y-4">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs mb-1.5 block">Desde</Label>
+              <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 text-xs" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Ranking Mensual</h2>
-              <p className="text-sm text-slate-300">
-                {participating.length} en competencia
-                {excluded.length > 0 && ` · ${excluded.length} excluido${excluded.length !== 1 ? "s" : ""}`}
-              </p>
+              <Label className="text-xs mb-1.5 block">Hasta</Label>
+              <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 text-xs" />
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            {avgScore !== null && (
-              <div className="text-center">
-                <p className="text-2xl font-black text-white tabular-nums">{avgScore}</p>
-                <p className="text-xs text-slate-400">Promedio</p>
-              </div>
-            )}
-            {topScore !== null && (
-              <div className="text-center">
-                <p className="text-2xl font-black text-yellow-400 tabular-nums">{topScore}</p>
-                <p className="text-xs text-slate-400">Líder</p>
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsManageMode(!isManageMode)}
-                className={`border-slate-500 hover:bg-slate-600 hover:text-white ${isManageMode ? "bg-slate-600 text-white" : "text-slate-300"}`}
-              >
-                <Settings className="w-4 h-4 mr-1" />
-                {isManageMode ? "Listo" : "Gestionar"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadAdjustments}
-                className="border-slate-500 text-slate-300 hover:bg-slate-600 hover:text-white"
-              >
-                <RefreshCw className="w-4 h-4" />
+            <div className="flex items-end">
+              <Button onClick={loadCustomRanking} disabled={customLoading} className="w-full h-8 text-xs">
+                {customLoading ? "Cargando..." : "Generar Ranking"}
               </Button>
             </div>
           </div>
         </div>
 
-        {isManageMode && (
-          <div className="mt-3 pt-3 border-t border-slate-600 text-xs text-slate-300">
-            💡 Usa los botones <strong>"Excluir"</strong> para quitar limpiadores del ranking sin borrar sus datos. Los excluidos se muestran al final y no compiten por el premio.
-          </div>
+        {customAdjustments.length > 0 && renderRankingContent(computeCustomRanking, true)}
+        {customAdjustments.length === 0 && dateFrom && dateTo && (
+          <Card>
+            <CardContent className="py-14 text-center">
+              <Trophy className="w-14 h-14 mx-auto mb-4 text-slate-300" />
+              <p className="text-slate-500">No hay ajustes en este rango de fechas</p>
+            </CardContent>
+          </Card>
         )}
-      </div>
-
-      {/* ── Ranking List ── */}
-      {allEntries.length === 0 ? (
-        <Card>
-          <CardContent className="py-14 text-center">
-            <Trophy className="w-14 h-14 mx-auto mb-4 text-slate-300" />
-            <p className="text-slate-500">No hay limpiadores activos</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2.5">
-          {paged.map(entry => (
-            <CleanerRow
-              key={entry.cleaner.id}
-              entry={entry}
-              rank={entry.rank}
-              adjustments={adjustments}
-              onViewHistory={onViewHistory}
-              monthlyScores={monthlyScores}
-              onToggleParticipation={handleToggleParticipation}
-              isManageMode={isManageMode}
-            />
-          ))}
-
-          <SimplePagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            totalItems={allEntries.length}
-            pageSize={PAGE_SIZE}
-          />
-        </div>
-      )}
-
-      {/* ── Legend ── */}
-      <div className="flex flex-wrap gap-3 pt-1">
-        {[
-          { range: "95–100", label: "Excelente",  cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-          { range: "85–94",  label: "Muy bueno",  cls: "bg-blue-100 text-blue-700 border-blue-200" },
-          { range: "70–84",  label: "Regular",    cls: "bg-amber-100 text-amber-700 border-amber-200" },
-          { range: "0–69",   label: "Bajo",       cls: "bg-red-100 text-red-700 border-red-200" },
-        ].map(l => (
-          <div key={l.range} className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${l.cls}`}>
-            <BarChart3 className="w-3 h-3" />
-            <span className="font-medium">{l.range}</span>
-            <span className="opacity-70">{l.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+      </TabsContent>
+    </Tabs>
   );
 }
