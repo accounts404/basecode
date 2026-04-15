@@ -240,12 +240,19 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       if (!map[review.cleaner_id]) {
         map[review.cleaner_id] = { totalEarned: 0, count: 0 };
       }
-      map[review.cleaner_id].totalEarned += review.final_score || 100;
-      map[review.cleaner_id].count++;
+      // Solo sumar si final_score existe y es un número válido
+      const score = typeof review.final_score === 'number' ? review.final_score : null;
+      if (score !== null) {
+        map[review.cleaner_id].totalEarned += score;
+        map[review.cleaner_id].count++;
+      }
     });
     // Convertir a promedio SIN APROXIMAR
     return Object.entries(map).reduce((acc, [id, data]) => {
-      acc[id] = data.totalEarned / data.count;
+      // Solo incluir si hay al menos 1 evaluación
+      if (data.count > 0) {
+        acc[id] = data.totalEarned / data.count;
+      }
       return acc;
     }, {});
   }, [performanceReviews]);
@@ -291,8 +298,8 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       let vehicleAvg = 18; // Promedio real de reviews
 
       if (ms) {
-        // Performance: comienza en 100, se promedia con revisiones
-        performanceAvg = performanceAverages[cleaner.id] ?? 100;
+        // Performance: se promedia con revisiones si las hay, si no quedas en 100
+        performanceAvg = performanceAverages[cleaner.id] !== undefined ? performanceAverages[cleaner.id] : 100;
         performanceScore = performanceAvg;
         
         // Vehículos: 18 más el ajuste vehicular (negativo si hay deducción)
