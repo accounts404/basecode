@@ -1094,17 +1094,16 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                 <div className="flex flex-1 overflow-auto" ref={calendarGridRef}>
                     {/* Columna de horas (Mostrando horas UTC) */}
                     <div className="w-20 flex-shrink-0 border-r border-gray-200">
-                        {Array.from({ length: Math.max(TOTAL_VISIBLE_HOURS || 24, 1) }).map((_, i) => {
-                             const hour = Math.floor((VISIBLE_START_HOUR || 0) + i);
-                             if (hour > 23) return null;
-                             return (
-                                 <div key={`hour-${i}`} className="p-2 text-sm text-gray-500 bg-gray-50 border-b border-gray-100 flex items-center justify-center"
-                                     style={{height: `${Math.max(HOUR_HEIGHT || 60, 40)}px`}}
-                                 >
-                                     {String(hour).padStart(2, '0')}:00
-                                 </div>
-                             );
-                         })}
+                        {Array.from({ length: TOTAL_VISIBLE_HOURS || 24 }).map((_, i) => {
+                            const hour = (VISIBLE_START_HOUR || 0) + i;
+                            return (
+                                <div key={`hour-${hour}`} className="p-2 text-sm text-gray-500 bg-gray-50 border-b border-gray-100 flex items-center justify-center"
+                                    style={{height: `${HOUR_HEIGHT || 60}px`}}
+                                >
+                                    {hour.toString().padStart(2, '0')}:00
+                                </div>
+                            );
+                        })}
                     </div>
                     
                     {/* Días de la semana / Día individual */}
