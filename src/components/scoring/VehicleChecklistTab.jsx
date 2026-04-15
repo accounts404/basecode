@@ -770,7 +770,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                         );
                       }}
                     />
-                    <span className="text-sm">{l.display_name || l.full_name}</span>
+                    <span className="text-sm">{l.invoice_name || l.full_name}</span>
                   </label>
                 ))}
               </div>
