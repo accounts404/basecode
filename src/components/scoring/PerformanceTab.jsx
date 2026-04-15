@@ -303,34 +303,35 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   const applyAveragePerformanceScore = async (cleanerId, allReviewsForCleaner, monthlyScore) => {
     if (!monthlyScore) return;
 
-    // Eliminar todos los ajustes anteriores de "Evaluación de Performance" para este limpiador este mes
-    const existingAdjs = await base44.entities.ScoreAdjustment.filter({
+    // Traer TODOS los ajustes del limpiador este mes y filtrar en JS por categoría
+    const allAdjs = await base44.entities.ScoreAdjustment.filter({
       cleaner_id: cleanerId,
       month_period: monthPeriod,
-      category: "Evaluación de Performance",
     });
-    for (const adj of existingAdjs) {
+
+    const performanceAdjs = allAdjs.filter(a => a.category === "Evaluación de Performance");
+    const otherAdjs = allAdjs.filter(a => a.category !== "Evaluación de Performance");
+
+    // Eliminar todos los ajustes de performance anteriores
+    for (const adj of performanceAdjs) {
       await base44.entities.ScoreAdjustment.delete(adj.id);
     }
 
+    // Calcular el impacto de otros ajustes (puntualidad, vehículo, feedback, etc.)
+    const otherImpact = otherAdjs.reduce((sum, a) => sum + (a.points_impact || 0), 0);
+
     if (allReviewsForCleaner.length === 0) {
-      // Si no quedan evaluaciones, recalcular el score base (sin performance)
-      const otherAdjs = await base44.entities.ScoreAdjustment.filter({
-        cleaner_id: cleanerId,
-        month_period: monthPeriod,
-      });
-      const otherImpact = otherAdjs.reduce((sum, a) => sum + (a.points_impact || 0), 0);
       await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, {
         current_score: Math.max(0, Math.min(100, 100 + otherImpact)),
       });
       return;
     }
 
-    // Calcular promedio de todas las evaluaciones
+    // Calcular promedio de todas las evaluaciones y su impacto
     const avgScore = allReviewsForCleaner.reduce((s, r) => s + (r.overall_score || 0), 0) / allReviewsForCleaner.length;
     const avgImpact = calcPointsImpact(Math.round(avgScore));
 
-    // Crear nuevo ajuste con el promedio
+    // Crear UN SOLO ajuste nuevo con el promedio
     if (avgImpact !== 0) {
       await base44.entities.ScoreAdjustment.create({
         monthly_score_id: monthlyScore.id,
@@ -346,15 +347,9 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
       });
     }
 
-    // Recalcular score total
-    const allAdjs = await base44.entities.ScoreAdjustment.filter({
-      cleaner_id: cleanerId,
-      month_period: monthPeriod,
-    });
-    const totalImpact = allAdjs.reduce((sum, a) => sum + (a.points_impact || 0), 0);
-    await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, {
-      current_score: Math.max(0, Math.min(100, 100 + totalImpact)),
-    });
+    // Score final = 100 + todos los otros ajustes + el nuevo ajuste de performance
+    const newScore = Math.max(0, Math.min(100, 100 + otherImpact + avgImpact));
+    await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
   };
 
   const handleSave = async () => {
