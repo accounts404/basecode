@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { User } from "@/entities/User";
 import { Client } from "@/entities/Client";
 import { WorkEntry } from "@/entities/WorkEntry";
@@ -104,10 +104,30 @@ export default function PuntuacionLimpiadoresPage() {
         try {
             const scores = await MonthlyCleanerScore.filter({ month_period: selectedMonth });
             setMonthlyScores(scores);
+            return scores;
         } catch (error) {
             console.error('Error cargando puntuaciones:', error);
             setMonthlyScores([]);
+            return [];
         }
+    }, [selectedMonth]);
+
+    // Auto-create MonthlyCleanerScore for every active cleaner that doesn't have one yet
+    const ensureAllCleanersHaveScore = useCallback(async (cleaners, existingScores) => {
+        const existingIds = new Set(existingScores.map(s => s.cleaner_id));
+        const missing = cleaners.filter(c => !existingIds.has(c.id));
+        if (missing.length === 0) return;
+        await Promise.all(missing.map(c =>
+            MonthlyCleanerScore.create({
+                cleaner_id: c.id,
+                cleaner_name: c.invoice_name || c.full_name,
+                month_period: selectedMonth,
+                initial_score: 100,
+                current_score: 100,
+                is_participating: true,
+                status: 'active',
+            })
+        ));
     }, [selectedMonth]);
 
     const loadInitialData = useCallback(async () => {
@@ -121,18 +141,34 @@ export default function PuntuacionLimpiadoresPage() {
             const cleaners = allUsers.filter(u => u.role !== 'admin' && u.active !== false);
             setLimpiadores(cleaners);
 
-            // Cargar puntuaciones del mes seleccionado
+            // Cargar puntuaciones y auto-crear para los que no tienen
+            const scores = await loadMonthlyScores();
+            await ensureAllCleanersHaveScore(cleaners, scores || []);
+            // Reload after creation so all cleaners appear
             await loadMonthlyScores();
         } catch (error) {
             console.error('Error cargando datos:', error);
         } finally {
             setLoading(false);
         }
-    }, [loadMonthlyScores]);
+    }, [loadMonthlyScores, ensureAllCleanersHaveScore]);
 
     useEffect(() => {
         loadInitialData();
     }, [loadInitialData]);
+
+    // When month changes (after initial load), also ensure all cleaners have scores
+    const prevMonthRef = React.useRef(selectedMonth);
+    useEffect(() => {
+        if (prevMonthRef.current === selectedMonth) return; // skip on mount (handled by loadInitialData)
+        prevMonthRef.current = selectedMonth;
+        const reinit = async () => {
+            const scores = await loadMonthlyScores();
+            await ensureAllCleanersHaveScore(limpiadores, scores || []);
+            await loadMonthlyScores();
+        };
+        if (limpiadores.length > 0) reinit();
+    }, [selectedMonth]);
 
     const getCurrentRanking = () => {
         return monthlyScores
@@ -479,6 +515,7 @@ export default function PuntuacionLimpiadoresPage() {
                         limpiadores={limpiadores}
                         monthlyScores={monthlyScores}
                         onViewHistory={handleViewHistory}
+                        onScoresChanged={loadMonthlyScores}
                     />
                 </TabsContent>
 
