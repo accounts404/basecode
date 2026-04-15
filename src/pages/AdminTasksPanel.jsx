@@ -494,11 +494,31 @@ export default function AdminTasksPanel() {
   const requestDeleteTask = (taskOrId) => {
     const task = typeof taskOrId === 'string' ? tasks.find(t => t.id === taskOrId) : taskOrId;
     if (!task) return;
-    // If recurring, show dialog; otherwise delete immediately
-    if (task.task_recurrence_id) {
+    // If recurring series OR multiple tasks with same title → show dialog
+    const sameTitle = tasks.filter(t => t.title?.trim() === task.title?.trim() && t.status !== 'completed');
+    if (task.task_recurrence_id || sameTitle.length > 1) {
       setDeleteDialogTask(task);
     } else {
       handleDeleteTask(task.id, 'single');
+    }
+  };
+
+  const handleDeleteByTitle = async (title) => {
+    try {
+      // Fetch ALL tasks with this exact title from DB (not just loaded ones)
+      const allTasks = await base44.entities.Task.list();
+      const matching = allTasks.filter(t => t.title?.trim() === title?.trim() && t.status !== 'completed');
+      await Promise.all(matching.map(t => base44.entities.Task.delete(t.id)));
+      setDeleteDialogTask(null);
+      await loadInitialData();
+      toast({
+        title: "🗑️ Tareas Eliminadas",
+        description: `Se eliminaron ${matching.length} tareas con el título "${title}"`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error deleting tasks by title:', error);
+      toast({ variant: "destructive", title: "❌ Error", description: "No se pudieron eliminar las tareas", duration: 3000 });
     }
   };
 
@@ -1277,41 +1297,71 @@ export default function AdminTasksPanel() {
       </Dialog>
       </div>
 
-      {/* Delete Confirmation Dialog for Recurring Tasks */}
+      {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteDialogTask} onOpenChange={(open) => !open && setDeleteDialogTask(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <Trash2 className="w-5 h-5 text-red-600" />
-              Eliminar Tarea Recurrente
+              Eliminar Tarea
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              <strong>"{deleteDialogTask?.title}"</strong> es parte de una serie recurrente. ¿Qué deseas eliminar?
+            <AlertDialogDescription asChild>
+              <div>
+                <p><strong>"{deleteDialogTask?.title}"</strong></p>
+                {deleteDialogTask?.task_recurrence_id && (
+                  <p className="mt-1 text-sm">Esta tarea es parte de una serie recurrente.</p>
+                )}
+                {!deleteDialogTask?.task_recurrence_id && (() => {
+                  const count = tasks.filter(t => t.title?.trim() === deleteDialogTask?.title?.trim() && t.status !== 'completed').length;
+                  return count > 1 ? (
+                    <p className="mt-1 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                      ⚠️ Hay <strong>{count} tareas pendientes</strong> con este mismo título.
+                    </p>
+                  ) : null;
+                })()}
+                <p className="mt-2">¿Qué deseas eliminar?</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col gap-2">
-            <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <div className="flex flex-col gap-2 w-full">
               <Button
                 variant="outline"
-                className="border-red-300 text-red-700 hover:bg-red-50 flex-1"
+                className="border-red-300 text-red-700 hover:bg-red-50 w-full"
                 onClick={() => handleDeleteTask(deleteDialogTask.id, 'single')}
               >
                 Solo esta tarea
               </Button>
-              <Button
-                variant="outline"
-                className="border-red-400 text-red-800 hover:bg-red-50 flex-1"
-                onClick={() => handleDeleteTask(deleteDialogTask.id, 'this_and_future')}
-              >
-                Esta y todas las futuras
-              </Button>
-              <Button
-                variant="destructive"
-                className="flex-1"
-                onClick={() => handleDeleteTask(deleteDialogTask.id, 'all_series')}
-              >
-                Toda la serie
-              </Button>
+              {deleteDialogTask?.task_recurrence_id && (
+                <>
+                  <Button
+                    variant="outline"
+                    className="border-red-400 text-red-800 hover:bg-red-50 w-full"
+                    onClick={() => handleDeleteTask(deleteDialogTask.id, 'this_and_future')}
+                  >
+                    Esta y todas las futuras
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => handleDeleteTask(deleteDialogTask.id, 'all_series')}
+                  >
+                    Toda la serie recurrente
+                  </Button>
+                </>
+              )}
+              {!deleteDialogTask?.task_recurrence_id && (() => {
+                const count = tasks.filter(t => t.title?.trim() === deleteDialogTask?.title?.trim() && t.status !== 'completed').length;
+                return count > 1 ? (
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => handleDeleteByTitle(deleteDialogTask.title)}
+                  >
+                    Eliminar todas ({count}) con este título
+                  </Button>
+                ) : null;
+              })()}
             </div>
             <AlertDialogCancel className="w-full">Cancelar</AlertDialogCancel>
           </AlertDialogFooter>
