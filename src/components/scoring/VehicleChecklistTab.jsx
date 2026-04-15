@@ -407,21 +407,22 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
 
   // Auto-sync vehicle averages to ranking: removes old vehicle adjustment and re-applies fresh average
   const syncVehicleScoresToRanking = async (currentRecords) => {
+    const TOTAL_POSSIBLE_CALC = 18; // Máximo de puntos en un checklist
     const recalcMap = {};
     currentRecords.forEach(record => {
       const earned = (record.checklist_items || []).reduce((s, i) => i.passed ? s + (i.points || i.points_if_fail || 0) : s, 0);
-      const possible = (record.checklist_items || []).reduce((s, i) => s + (i.points || i.points_if_fail || 0), 0);
+      const possible = (record.checklist_items || []).reduce((s, i) => s + (i.points || i.points_if_fail || 0), 0) || TOTAL_POSSIBLE_CALC;
       (record.team_member_ids || []).forEach(id => {
         if (!recalcMap[id]) recalcMap[id] = { totalEarned: 0, totalPossible: 0, count: 0 };
         recalcMap[id].totalEarned += earned;
-        recalcMap[id].totalPossible += possible || TOTAL_POSSIBLE;
+        recalcMap[id].totalPossible += possible;
         recalcMap[id].count++;
       });
     });
 
     for (const [cleanerId, data] of Object.entries(recalcMap)) {
-      const avgEarned = data.totalEarned / data.count;
-      const avgDeduction = (data.totalPossible / data.count) - avgEarned;
+      const avgEarned = Math.round((data.totalEarned / data.count) * 100) / 100;
+      const avgDeduction = Math.round(((data.totalPossible / data.count) - avgEarned) * 100) / 100;
 
       let monthlyScore = monthlyScores.find(s => s.cleaner_id === cleanerId);
       if (!monthlyScore) {
@@ -457,7 +458,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
           adjustment_type: "deduction",
           category: "Revisión Vehicular (Promedio Mensual)",
           points_impact: vehicleImpact,
-          notes: `Promedio de ${data.count} revisión(es). Puntaje: ${Math.round(avgEarned)}/${TOTAL_POSSIBLE} pts`,
+          notes: `Promedio de ${data.count} revisión(es). Puntaje: ${Math.round(avgEarned)}/18 pts`,
           admin_id: user.id,
           admin_name: user.full_name,
           date_applied: new Date().toISOString()
