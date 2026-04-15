@@ -935,6 +935,8 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
             ? "font-bold text-sm leading-tight line-through"
             : "font-bold text-sm leading-tight";
 
+        if (!event) return null;
+        
         return (
             <Card 
                 onClick={onClick}
