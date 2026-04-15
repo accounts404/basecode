@@ -227,6 +227,14 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
 
   // Calcular score basado en Performance, Vehículos, y ajustes (Puntualidad + Feedback)
   const allEntries = useMemo(() => {
+    // Primero calcular promedios de vehículos desde los ajustes
+    const vehicleAdjustments = {};
+    adjustments.forEach(adj => {
+      if (adj.category === "Revisión Vehicular (Promedio Mensual)") {
+        vehicleAdjustments[adj.cleaner_id] = adj.points_impact || 0;
+      }
+    });
+
     const entries = limpiadores.map(cleaner => {
       const ms = monthlyScores.find(s => s.cleaner_id === cleaner.id);
       
@@ -239,11 +247,14 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
         // Performance: comienza en 100, se promedia con revisiones
         performanceScore = ms.performance_average_score ?? 100;
         
-        // Vehículos: comienza en 18, se promedia con revisiones
-        vehicleScore = ms.vehicle_average_score ?? 18;
+        // Vehículos: 18 más el ajuste vehicular (negativo si hay deducción)
+        const vehicleAdjustment = vehicleAdjustments[cleaner.id] || 0;
+        vehicleScore = 18 + vehicleAdjustment;
 
-        // Ajustes: suma/resta de Puntualidad + Feedback
-        const relevantAdjustments = adjustments.filter(a => a.cleaner_id === cleaner.id);
+        // Ajustes: suma/resta de Puntualidad + Feedback (excluyendo ajustes vehiculares)
+        const relevantAdjustments = adjustments.filter(a => 
+          a.cleaner_id === cleaner.id && a.category !== "Revisión Vehicular (Promedio Mensual)"
+        );
         adjustmentScore = relevantAdjustments.reduce((total, adj) => total + (adj.points_impact || 0), 0);
       }
 
