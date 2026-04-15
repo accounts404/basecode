@@ -1048,8 +1048,8 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                                     <Users className="w-3 h-3 flex-shrink-0" />
                                     <span className="truncate">
                                         {originalDuration < 1 ? 
-                                            getCleanersDisplay(event?.cleaner_ids || [], true) : 
-                                            getCleanersDisplay(event?.cleaner_ids || [], false) 
+                                            getCleanersDisplay(event.cleaner_ids, true) : 
+                                            getCleanersDisplay(event.cleaner_ids, false) 
                                         }
                                     </span>
                                 </div>
