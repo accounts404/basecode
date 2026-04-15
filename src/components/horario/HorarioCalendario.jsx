@@ -1109,11 +1109,11 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                     
                     {/* Días de la semana / Día individual */}
                     <div className="flex flex-1">
-                        {days.map((day) => (
-                            <div 
-                                key={day.toISOString()} 
-                                className="flex-1 relative border-r border-gray-200"
-                                style={{ height: `${TOTAL_DISPLAY_HEIGHT_PX}px` }}
+                            {days && days.map((day) => (
+                                <div 
+                                    key={day.toISOString()} 
+                                    className="flex-1 relative border-r border-gray-200"
+                                    style={{ height: `${Math.max(TOTAL_DISPLAY_HEIGHT_PX || 1024, 1)}px` }}
                                 onDragOver={(e) => handleGridDragOver(e, day)}
                                 onDrop={(e) => handleGridDrop(e, day)}
                                 onDragLeave={handleGridDragLeave}
