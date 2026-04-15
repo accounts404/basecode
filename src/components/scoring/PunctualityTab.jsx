@@ -108,7 +108,29 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
       const cleaner = selectedCleaner;
       const mins = minutesLate();
       const impact = previewPoints();
-      const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
+
+      // Buscar en el estado local primero, si no existe buscarlo en la BD
+      let monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
+      if (!monthlyScore) {
+        const existing = await base44.entities.MonthlyCleanerScore.filter({
+          cleaner_id: selectedCleaner.id,
+          month_period: monthPeriod,
+        });
+        if (existing.length > 0) {
+          monthlyScore = existing[0];
+        } else {
+          // Crear el registro si no existe
+          monthlyScore = await base44.entities.MonthlyCleanerScore.create({
+            cleaner_id: selectedCleaner.id,
+            cleaner_name: cleaner.invoice_name || cleaner.full_name,
+            month_period: monthPeriod,
+            initial_score: 100,
+            current_score: 100,
+            is_participating: true,
+            status: 'active',
+          });
+        }
+      }
 
       let adjustmentId = null;
       if (monthlyScore && impact !== 0) {

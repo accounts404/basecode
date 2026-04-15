@@ -383,8 +383,11 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
 
       setShowDialog(false);
       setEditingRecord(null);
-      await loadData();
-      if (onScoreApplied) onScoreApplied();
+      const updatedRecords = await base44.entities.VehicleChecklistRecord.filter({ month_period: monthPeriod });
+      setRecords(updatedRecords);
+
+      // Auto-sync vehicle averages to ranking immediately
+      await syncVehicleScoresToRanking(updatedRecords);
     } catch (e) {
       console.error(e);
       alert("Error guardando el checklist");
@@ -392,39 +395,77 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     setSaving(false);
   };
 
-  const applyMonthlyAverages = async () => {
-    setApplyingMonthly(true);
-    try {
-      for (const { cleanerId, avgEarned, avgDeduction, reviewCount } of cleanerMonthlyAverages) {
-        const monthlyScore = monthlyScores.find(s => s.cleaner_id === cleanerId);
-        if (!monthlyScore) continue;
+  // Auto-sync vehicle averages to ranking: removes old vehicle adjustment and re-applies fresh average
+  const syncVehicleScoresToRanking = async (currentRecords) => {
+    const recalcMap = {};
+    currentRecords.forEach(record => {
+      const earned = (record.checklist_items || []).reduce((s, i) => i.passed ? s + (i.points || i.points_if_fail || 0) : s, 0);
+      const possible = (record.checklist_items || []).reduce((s, i) => s + (i.points || i.points_if_fail || 0), 0);
+      (record.team_member_ids || []).forEach(id => {
+        if (!recalcMap[id]) recalcMap[id] = { totalEarned: 0, totalPossible: 0, count: 0 };
+        recalcMap[id].totalEarned += earned;
+        recalcMap[id].totalPossible += possible || TOTAL_POSSIBLE;
+        recalcMap[id].count++;
+      });
+    });
 
-        // Verificar si ya se aplicó este mes (evitar duplicados)
-        const existing = await base44.entities.ScoreAdjustment.filter({
-          cleaner_id: cleanerId,
-          month_period: monthPeriod,
-          category: "Revisión Vehicular (Promedio Mensual)"
-        });
-        if (existing.length > 0) continue; // ya aplicado
+    for (const [cleanerId, data] of Object.entries(recalcMap)) {
+      const avgEarned = data.totalEarned / data.count;
+      const avgDeduction = (data.totalPossible / data.count) - avgEarned;
 
-        const impact = avgDeduction > 0 ? -avgDeduction : 0;
+      let monthlyScore = monthlyScores.find(s => s.cleaner_id === cleanerId);
+      if (!monthlyScore) {
+        const found = await base44.entities.MonthlyCleanerScore.filter({ cleaner_id: cleanerId, month_period: monthPeriod });
+        monthlyScore = found[0];
+      }
+      if (!monthlyScore) continue;
+
+      // Remove previous vehicle adjustment for this month and recompute
+      const existing = await base44.entities.ScoreAdjustment.filter({
+        cleaner_id: cleanerId,
+        month_period: monthPeriod,
+        category: "Revisión Vehicular (Promedio Mensual)"
+      });
+
+      // Sum of all other adjustments (non-vehicle)
+      const allAdjs = await base44.entities.ScoreAdjustment.filter({ cleaner_id: cleanerId, month_period: monthPeriod });
+      const otherAdjsTotal = allAdjs
+        .filter(a => a.category !== "Revisión Vehicular (Promedio Mensual)")
+        .reduce((s, a) => s + (a.points_impact || 0), 0);
+
+      const vehicleImpact = avgDeduction > 0 ? -Math.round(avgDeduction) : 0;
+
+      // Delete old vehicle adjustment records
+      await Promise.all(existing.map(a => base44.entities.ScoreAdjustment.delete(a.id)));
+
+      // Create fresh vehicle adjustment (only if there's an impact)
+      if (vehicleImpact !== 0) {
         await base44.entities.ScoreAdjustment.create({
           monthly_score_id: monthlyScore.id,
           cleaner_id: cleanerId,
           month_period: monthPeriod,
-          adjustment_type: impact < 0 ? "deduction" : "bonus",
+          adjustment_type: "deduction",
           category: "Revisión Vehicular (Promedio Mensual)",
-          points_impact: impact !== 0 ? impact : avgEarned,
-          notes: `Promedio de ${reviewCount} revisión(es) en el mes. Puntaje promedio: ${avgEarned}/${TOTAL_POSSIBLE} pts`,
+          points_impact: vehicleImpact,
+          notes: `Promedio de ${data.count} revisión(es). Puntaje: ${Math.round(avgEarned)}/${TOTAL_POSSIBLE} pts`,
           admin_id: user.id,
           admin_name: user.full_name,
           date_applied: new Date().toISOString()
         });
-        const newScore = Math.max(0, monthlyScore.current_score + (impact !== 0 ? impact : 0));
-        await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
       }
-      alert("✅ Promedios mensuales aplicados al ranking.");
-      if (onScoreApplied) onScoreApplied();
+
+      // Recalculate total score from scratch: 100 + otherAdjs + vehicleImpact
+      const newScore = Math.max(0, 100 + otherAdjsTotal + vehicleImpact);
+      await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
+    }
+
+    if (onScoreApplied) onScoreApplied();
+  };
+
+  const applyMonthlyAverages = async () => {
+    setApplyingMonthly(true);
+    try {
+      await syncVehicleScoresToRanking(records);
     } catch (e) {
       console.error(e);
       alert("Error aplicando promedios");
@@ -493,13 +534,11 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
             <Card className="border-blue-200 bg-blue-50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="font-semibold text-blue-800 flex items-center gap-2">
-                    <Users className="w-4 h-4" /> Promedio del mes por limpiador
-                  </p>
-                  <Button size="sm" onClick={applyMonthlyAverages} disabled={applyingMonthly} className="bg-blue-600 hover:bg-blue-700">
-                    {applyingMonthly ? "Aplicando..." : "Aplicar al Ranking"}
-                  </Button>
-                </div>
+                   <p className="font-semibold text-blue-800 flex items-center gap-2">
+                     <Users className="w-4 h-4" /> Promedio del mes por limpiador
+                   </p>
+                   <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Se aplica automáticamente al ranking</span>
+                 </div>
                 <div className="space-y-2">
                   {cleanerMonthlyAverages.map(({ cleanerId, avgEarned, avgDeduction, reviewCount }) => {
                     const nombre = limpiadores.find(l => l.id === cleanerId)?.full_name || cleanerId;
@@ -521,7 +560,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                     );
                   })}
                 </div>
-                <p className="text-xs text-blue-600 mt-2">* El botón aplica el promedio al ranking global (solo una vez por mes).</p>
+                <p className="text-xs text-blue-600 mt-2">* El promedio se recalcula y aplica al ranking automáticamente al guardar cada revisión.</p>
               </CardContent>
             </Card>
           )}
