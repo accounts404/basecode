@@ -17,9 +17,9 @@ import { es } from "date-fns/locale";
 
 /* ─── helpers ─────────────────────────────────────────── */
 function scoreColor(s) {
-  if (s >= 95) return { text: "text-emerald-700", bg: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-800" };
-  if (s >= 85) return { text: "text-blue-700",    bg: "bg-blue-500",    badge: "bg-blue-100 text-blue-800" };
-  if (s >= 70) return { text: "text-amber-700",   bg: "bg-amber-500",   badge: "bg-amber-100 text-amber-800" };
+  if (s >= 112) return { text: "text-emerald-700", bg: "bg-emerald-500", badge: "bg-emerald-100 text-emerald-800" };
+  if (s >= 100) return { text: "text-blue-700",    bg: "bg-blue-500",    badge: "bg-blue-100 text-blue-800" };
+  if (s >= 82) return { text: "text-amber-700",   bg: "bg-amber-500",   badge: "bg-amber-100 text-amber-800" };
   return         { text: "text-red-700",           bg: "bg-red-400",     badge: "bg-red-100 text-red-800" };
 }
 
@@ -110,29 +110,24 @@ function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, on
             {isParticipating && (
               <>
                 <div className="flex items-center gap-2 mt-1.5 mb-2">
-                  <ScoreBar score={score} />
+                  <ScoreBar score={Math.min(100, score / 1.18)} />
                 </div>
-                <div className="flex items-center gap-3 text-xs flex-wrap">
-                  <span className="text-slate-400">Base 100</span>
-                  {deductionTotal > 0 && (
-                    <span className="flex items-center gap-0.5 text-red-600 font-medium">
-                      <TrendingDown className="w-3 h-3" /> -{deductionTotal} pts
-                    </span>
-                  )}
-                  {bonusTotal > 0 && (
-                    <span className="flex items-center gap-0.5 text-emerald-600 font-medium">
-                      <TrendingUp className="w-3 h-3" /> +{bonusTotal} pts
-                    </span>
-                  )}
-                  {deductionTotal === 0 && bonusTotal === 0 && (
-                    <span className="flex items-center gap-0.5 text-slate-400">
-                      <Minus className="w-3 h-3" /> Sin ajustes
+                <div className="flex items-center gap-2 text-xs flex-wrap">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                    <span className="font-medium">Performance:</span> {Math.round(entry.performanceScore)}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                    <span className="font-medium">Vehículos:</span> {Math.round(entry.vehicleScore)}
+                  </span>
+                  {(deductionTotal > 0 || bonusTotal > 0) && (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${entry.adjustmentScore >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className="font-medium">Ajustes:</span> {entry.adjustmentScore >= 0 ? '+' : ''}{Math.round(entry.adjustmentScore)}
                     </span>
                   )}
                   {myAdj.length > 0 && (
                     <button
                       onClick={() => setExpanded(!expanded)}
-                      className="flex items-center gap-1 text-blue-600 hover:underline"
+                      className="flex items-center gap-1 text-blue-600 hover:underline ml-auto"
                     >
                       {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       {myAdj.length} ajuste{myAdj.length !== 1 ? "s" : ""}
@@ -147,7 +142,7 @@ function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, on
             {isParticipating && (
               <div className="text-right">
                 <p className={`text-3xl font-black tabular-nums ${col.text}`}>{Math.round(score)}</p>
-                <p className="text-xs text-slate-400 -mt-0.5">/ 100</p>
+                <p className="text-xs text-slate-400 -mt-0.5">/ 118</p>
               </div>
             )}
             {monthlyScore && onViewHistory && isParticipating && (
@@ -230,13 +225,39 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
     if (onScoresChanged) onScoresChanged();
   };
 
-  // All limpiadores, ranked by score — participating first, excluded at bottom
+  // Calcular score basado en Performance, Vehículos, y ajustes (Puntualidad + Feedback)
   const allEntries = useMemo(() => {
     const entries = limpiadores.map(cleaner => {
       const ms = monthlyScores.find(s => s.cleaner_id === cleaner.id);
-      const score = ms ? (ms.current_score ?? 100) : 100;
+      
+      // Base: 100 (Performance) + 18 (Vehículos) = 118
+      let performanceScore = 100;
+      let vehicleScore = 18;
+      let adjustmentScore = 0;
+
+      if (ms) {
+        // Performance: comienza en 100, se promedia con revisiones
+        performanceScore = ms.performance_average_score ?? 100;
+        
+        // Vehículos: comienza en 18, se promedia con revisiones
+        vehicleScore = ms.vehicle_average_score ?? 18;
+
+        // Ajustes: suma/resta de Puntualidad + Feedback
+        const relevantAdjustments = adjustments.filter(a => a.cleaner_id === cleaner.id);
+        adjustmentScore = relevantAdjustments.reduce((total, adj) => total + (adj.points_impact || 0), 0);
+      }
+
+      const score = performanceScore + vehicleScore + adjustmentScore;
       const isParticipating = ms ? (ms.is_participating !== false) : true;
-      return { cleaner, score, isParticipating };
+      
+      return { 
+        cleaner, 
+        score, 
+        isParticipating, 
+        performanceScore, 
+        vehicleScore, 
+        adjustmentScore 
+      };
     });
 
     const active = entries.filter(e => e.isParticipating)
@@ -248,7 +269,7 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       .map(e => ({ ...e, rank: null }));
 
     return [...active, ...excluded];
-  }, [limpiadores, monthlyScores]);
+  }, [limpiadores, monthlyScores, adjustments]);
 
   const participating = allEntries.filter(e => e.isParticipating);
   const excluded = allEntries.filter(e => !e.isParticipating);
@@ -366,12 +387,12 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
         )}
 
         {/* ── Legend ── */}
-        <div className="flex flex-wrap gap-3 pt-1">
+         <div className="flex flex-wrap gap-3 pt-1">
           {[
-            { range: "95–100", label: "Excelente",  cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-            { range: "85–94",  label: "Muy bueno",  cls: "bg-blue-100 text-blue-700 border-blue-200" },
-            { range: "70–84",  label: "Regular",    cls: "bg-amber-100 text-amber-700 border-amber-200" },
-            { range: "0–69",   label: "Bajo",       cls: "bg-red-100 text-red-700 border-red-200" },
+            { range: "112–118", label: "Excelente",  cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+            { range: "100–111",  label: "Muy bueno",  cls: "bg-blue-100 text-blue-700 border-blue-200" },
+            { range: "82–99",  label: "Regular",    cls: "bg-amber-100 text-amber-700 border-amber-200" },
+            { range: "0–81",   label: "Bajo",       cls: "bg-red-100 text-red-700 border-red-200" },
           ].map(l => (
             <div key={l.range} className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${l.cls}`}>
               <BarChart3 className="w-3 h-3" />
