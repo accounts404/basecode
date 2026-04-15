@@ -114,11 +114,11 @@ function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, on
                 </div>
                 <div className="flex items-center gap-2 text-xs flex-wrap">
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                    <span className="font-medium">Performance:</span> {Math.round(entry.performanceAvg)}/100
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-700">
-                    <span className="font-medium">Vehículos:</span> {Math.round(entry.vehicleAvg)}/18
-                  </span>
+                     <span className="font-medium">Performance:</span> {entry.performanceAvg % 1 === 0 ? entry.performanceAvg : entry.performanceAvg.toFixed(2)}/100
+                   </span>
+                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                     <span className="font-medium">Vehículos:</span> {entry.vehicleAvg % 1 === 0 ? entry.vehicleAvg : entry.vehicleAvg.toFixed(2)}/18
+                   </span>
                   {(deductionTotal > 0 || bonusTotal > 0) && (
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${entry.adjustmentScore >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                       <span className="font-medium">Ajustes:</span> {entry.adjustmentScore >= 0 ? '+' : ''}{Math.round(entry.adjustmentScore)}
@@ -243,9 +243,9 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       map[review.cleaner_id].totalEarned += review.final_score || 100;
       map[review.cleaner_id].count++;
     });
-    // Convertir a promedio
+    // Convertir a promedio SIN APROXIMAR
     return Object.entries(map).reduce((acc, [id, data]) => {
-      acc[id] = Math.round(data.totalEarned / data.count);
+      acc[id] = data.totalEarned / data.count;
       return acc;
     }, {});
   }, [performanceReviews]);
@@ -263,9 +263,9 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
         map[id].count++;
       });
     });
-    // Convertir a promedio
+    // Convertir a promedio SIN APROXIMAR
     return Object.entries(map).reduce((acc, [id, data]) => {
-      acc[id] = Math.round(data.totalEarned / data.count);
+      acc[id] = data.totalEarned / data.count;
       return acc;
     }, {});
   }, [vehicleRecords]);

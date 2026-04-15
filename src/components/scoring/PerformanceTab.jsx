@@ -47,16 +47,22 @@ function ScoreBadge({ score }) {
     : score >= 75 ? "bg-blue-100 text-blue-800"
     : score >= 60 ? "bg-yellow-100 text-yellow-800"
     : "bg-red-100 text-red-800";
-  return <Badge className={cls}>{Math.round(score)} / 100</Badge>;
+  const displayScore = score % 1 === 0 ? score : score.toFixed(2);
+  return <Badge className={cls}>{displayScore} / 100</Badge>;
 }
 
-// Calcula el puntaje general normalizado a 100 basado en las áreas incluidas
+// Calcula el puntaje general normalizado a 100 basado en las áreas incluidas SIN APROXIMAR
 function computeOverallScore(areaStates) {
   const includedAreas = areaStates.filter(a => a.included);
   if (includedAreas.length === 0) return 100;
   const totalMax = includedAreas.reduce((sum, a) => sum + getAreaMax(a), 0);
-  const totalEarned = includedAreas.reduce((sum, a) => sum + (getAreaEarned(a) || 0), 0);
-  return totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 100;
+  const totalEarned = includedAreas.reduce((sum, a) => {
+    const earned = getAreaEarned(a);
+    if (earned === null) return 0;
+    // Para sumar correctamente, necesitamos los puntos exactos sin redondeo
+    return sum + earned;
+  }, 0);
+  return totalMax > 0 ? (totalEarned / totalMax) * 100 : 100;
 }
 
 // Returns the normalized weight of each item so all items in the area always sum to areaMax
@@ -328,9 +334,9 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
       return;
     }
 
-    // Calcular promedio de todas las evaluaciones y su impacto
+    // Calcular promedio de todas las evaluaciones y su impacto SIN APROXIMAR
     const avgScore = allReviewsForCleaner.reduce((s, r) => s + (r.overall_score || 0), 0) / allReviewsForCleaner.length;
-    const avgImpact = calcPointsImpact(Math.round(avgScore));
+    const avgImpact = calcPointsImpact(avgScore);
 
     // Crear UN SOLO ajuste nuevo con el promedio
     if (avgImpact !== 0) {
@@ -341,7 +347,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         adjustment_type: "deduction",
         category: "Evaluación de Performance",
         points_impact: avgImpact,
-        notes: `Promedio de ${allReviewsForCleaner.length} evaluación(es): ${Math.round(avgScore)}/100`,
+        notes: `Promedio de ${allReviewsForCleaner.length} evaluación(es): ${avgScore % 1 === 0 ? avgScore : avgScore.toFixed(2)}/100`,
         admin_id: user.id,
         admin_name: user.full_name,
         date_applied: new Date().toISOString(),
@@ -845,10 +851,10 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                     Normalizado sobre {includedCount} área{includedCount !== 1 ? "s" : ""} incluida{includedCount !== 1 ? "s" : ""}
                   </p>
                 </div>
-                <span className="text-3xl font-bold">{overallScore} <span className="text-base font-normal text-slate-500">/ 100</span></span>
+                <span className="text-3xl font-bold">{overallScore % 1 === 0 ? overallScore : overallScore.toFixed(2)} <span className="text-base font-normal text-slate-500">/ 100</span></span>
               </div>
               {calcPointsImpact(overallScore) < 0 && (
-                <p className="text-sm text-red-600 mt-1">Impacto en ranking: {calcPointsImpact(overallScore)} pts</p>
+                <p className="text-sm text-red-600 mt-1">Impacto en ranking: {calcPointsImpact(overallScore) % 1 === 0 ? Math.round(calcPointsImpact(overallScore)) : calcPointsImpact(overallScore).toFixed(2)} pts</p>
               )}
               {overallScore === 100 && (
                 <p className="text-sm text-green-600 mt-1">✅ ¡Evaluación perfecta! Sin impacto en ranking.</p>
