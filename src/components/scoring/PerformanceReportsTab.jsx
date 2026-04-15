@@ -270,8 +270,10 @@ export default function PerformanceReportsTab({ limpiadores }) {
   const [allPunctuality, setAllPunctuality] = useState([]);
   const [allFeedback, setAllFeedback] = useState([]);
   const [allVehicle, setAllVehicle] = useState([]);
+  const [allClients, setAllClients] = useState([]);
 
   const [selectedCleanerId, setSelectedCleanerId] = useState("all");
+  const [selectedClientId, setSelectedClientId] = useState("all");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
 
@@ -295,16 +297,18 @@ export default function PerformanceReportsTab({ limpiadores }) {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [perf, punct, feed, veh] = await Promise.all([
+      const [perf, punct, feed, veh, cls] = await Promise.all([
         base44.entities.PerformanceReview.list("-review_date", 2000),
         base44.entities.PunctualityRecord.list("-date", 2000),
         base44.entities.ClientFeedback.list("-feedback_date", 2000),
         base44.entities.VehicleChecklistRecord.list("-date", 2000),
+        base44.entities.Client.filter({ active: true }),
       ]);
       setAllPerformance(perf || []);
       setAllPunctuality(punct || []);
       setAllFeedback(feed || []);
       setAllVehicle(veh || []);
+      setAllClients((cls || []).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -320,6 +324,7 @@ export default function PerformanceReportsTab({ limpiadores }) {
 
   const filteredPerf = allPerformance
     .filter(r => selectedCleanerId === "all" || r.cleaner_id === selectedCleanerId)
+    .filter(r => selectedClientId === "all" || r.client_id === selectedClientId)
     .filter(filterByDate("review_date"))
     .sort((a, b) => (b.review_date || "").localeCompare(a.review_date || ""));
 
@@ -330,6 +335,7 @@ export default function PerformanceReportsTab({ limpiadores }) {
 
   const filteredFeedback = allFeedback
     .filter(r => selectedCleanerId === "all" || (r.affected_cleaner_ids || []).includes(selectedCleanerId))
+    .filter(r => selectedClientId === "all" || r.client_id === selectedClientId)
     .filter(filterByDate("feedback_date"))
     .sort((a, b) => (b.feedback_date || "").localeCompare(a.feedback_date || ""));
 
@@ -339,9 +345,10 @@ export default function PerformanceReportsTab({ limpiadores }) {
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
   const selectedCleaner = limpiadores.find(l => l.id === selectedCleanerId);
+  const selectedClient = allClients.find(c => c.id === selectedClientId);
 
-  const hasFilters = selectedCleanerId !== "all" || filterDateFrom || filterDateTo;
-  const resetFilters = () => { setSelectedCleanerId("all"); setFilterDateFrom(""); setFilterDateTo(""); };
+  const hasFilters = selectedCleanerId !== "all" || selectedClientId !== "all" || filterDateFrom || filterDateTo;
+  const resetFilters = () => { setSelectedCleanerId("all"); setSelectedClientId("all"); setFilterDateFrom(""); setFilterDateTo(""); };
 
   // ── overview stats ────────────────────────────────────────────────────────
 
@@ -390,11 +397,15 @@ export default function PerformanceReportsTab({ limpiadores }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">Reportes Completos por Limpiador</h3>
+          <h3 className="text-lg font-semibold text-slate-800">Reportes Consolidados</h3>
           <p className="text-sm text-slate-500">
-            {selectedCleaner
+            {selectedCleaner && selectedClient
+              ? `${selectedCleaner.invoice_name || selectedCleaner.full_name} en ${selectedClient.name}`
+              : selectedCleaner
               ? `Viendo registros de ${selectedCleaner.invoice_name || selectedCleaner.full_name}`
-              : "Selecciona un limpiador para ver su historial completo"}
+              : selectedClient
+              ? `Viendo registros del cliente ${selectedClient.name}`
+              : "Selecciona un limpiador y/o cliente para ver registros"}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={loadAll}>Actualizar</Button>
@@ -412,17 +423,31 @@ export default function PerformanceReportsTab({ limpiadores }) {
               </Button>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs mb-1 block">Limpiador</Label>
               <Select value={selectedCleanerId} onValueChange={v => { setSelectedCleanerId(v); setPerfPage(1); setPunctPage(1); setFeedPage(1); setVehPage(1); }}>
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Todos los limpiadores" />
+                  <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {limpiadores.map(l => (
                     <SelectItem key={l.id} value={l.id}>{l.invoice_name || l.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Cliente</Label>
+              <Select value={selectedClientId} onValueChange={v => { setSelectedClientId(v); setPerfPage(1); setFeedPage(1); }}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {allClients.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -492,8 +517,8 @@ export default function PerformanceReportsTab({ limpiadores }) {
         </Card>
       </div>
 
-      {/* Trend chart (only when cleaner selected) */}
-      {selectedCleanerId !== "all" && trendData.length >= 2 && (
+      {/* Trend chart (only when cleaner or client selected) */}
+      {(selectedCleanerId !== "all" || selectedClientId !== "all") && trendData.length >= 2 && (
         <Card className="border-0 shadow-md">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
