@@ -1095,6 +1095,7 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                     {/* Columna de horas (Mostrando horas UTC) */}
                     <div className="w-20 flex-shrink-0 border-r border-gray-200">
                         {Array.from({ length: TOTAL_VISIBLE_HOURS }).map((_, i) => {
+                            if (!_) return null;
                             const hour = VISIBLE_START_HOUR + i;
                             return (
                                 <div key={hour} className="p-2 text-sm text-gray-500 bg-gray-50 border-b border-gray-100 flex items-center justify-center"
