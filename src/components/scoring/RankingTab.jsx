@@ -33,10 +33,10 @@ function ScoreBar({ score }) {
   );
 }
 
-function RankBadge({ rank, medal }) {
-  if (medal === 'gold' || rank === 1) return <div className="flex items-center justify-center w-10 h-10 rounded-full bg-yellow-100 border-2 border-yellow-300 flex-shrink-0"><Crown className="w-5 h-5 text-yellow-500" title="Oro" /></div>;
-  if (medal === 'silver' || rank === 2) return <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-300 flex-shrink-0"><Medal className="w-5 h-5 text-slate-500" title="Plata" /></div>;
-  if (medal === 'bronze' || rank === 3) return <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-100 border-2 border-orange-300 flex-shrink-0"><Award className="w-5 h-5 text-amber-600" title="Bronce" /></div>;
+function RankBadge({ rank }) {
+  if (rank === 1) return <div className="flex items-center justify-center w-10 h-10 rounded-full bg-yellow-100 border-2 border-yellow-300 flex-shrink-0"><Crown className="w-5 h-5 text-yellow-500" /></div>;
+  if (rank === 2) return <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-300 flex-shrink-0"><Medal className="w-5 h-5 text-slate-500" /></div>;
+  if (rank === 3) return <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-100 border-2 border-orange-300 flex-shrink-0"><Award className="w-5 h-5 text-amber-600" /></div>;
   return <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-50 border border-slate-200 flex-shrink-0 text-sm font-bold text-slate-500">{rank}</div>;
 }
 
@@ -62,7 +62,7 @@ function AdjRow({ adj }) {
 function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, onToggleParticipation, isManageMode }) {
   const [expanded, setExpanded] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const { cleaner, score, performanceScore, punctualityScore, vehicleScore, feedbackScore, isParticipating, medal } = entry;
+  const { cleaner, score, isParticipating } = entry;
   const col = scoreColor(score);
 
   const myAdj = adjustments
@@ -95,7 +95,7 @@ function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, on
       <div className="p-4">
         <div className="flex items-center gap-3">
           {isParticipating
-            ? <RankBadge rank={rank} medal={medal} />
+            ? <RankBadge rank={rank} />
             : <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex-shrink-0"><UserX className="w-4 h-4 text-slate-400" /></div>
           }
 
@@ -112,23 +112,32 @@ function CleanerRow({ entry, rank, adjustments, onViewHistory, monthlyScores, on
                 <div className="flex items-center gap-2 mt-1.5 mb-2">
                   <ScoreBar score={score} />
                 </div>
-                <div className="grid grid-cols-4 gap-2 text-xs mb-2">
-                  <div className="bg-blue-50 rounded px-2 py-1 border border-blue-100">
-                    <p className="text-slate-500 text-xs">Performance</p>
-                    <p className="font-semibold text-blue-700">{performanceScore.toFixed(1)}</p>
-                  </div>
-                  <div className="bg-emerald-50 rounded px-2 py-1 border border-emerald-100">
-                    <p className="text-slate-500 text-xs">Puntualidad</p>
-                    <p className="font-semibold text-emerald-700">{punctualityScore.toFixed(1)}</p>
-                  </div>
-                  <div className="bg-amber-50 rounded px-2 py-1 border border-amber-100">
-                    <p className="text-slate-500 text-xs">Vehículos</p>
-                    <p className="font-semibold text-amber-700">{vehicleScore.toFixed(1)}</p>
-                  </div>
-                  <div className="bg-purple-50 rounded px-2 py-1 border border-purple-100">
-                    <p className="text-slate-500 text-xs">Feedback</p>
-                    <p className="font-semibold text-purple-700">{feedbackScore.toFixed(1)}</p>
-                  </div>
+                <div className="flex items-center gap-3 text-xs flex-wrap">
+                  <span className="text-slate-400">Base 100</span>
+                  {deductionTotal > 0 && (
+                    <span className="flex items-center gap-0.5 text-red-600 font-medium">
+                      <TrendingDown className="w-3 h-3" /> -{deductionTotal} pts
+                    </span>
+                  )}
+                  {bonusTotal > 0 && (
+                    <span className="flex items-center gap-0.5 text-emerald-600 font-medium">
+                      <TrendingUp className="w-3 h-3" /> +{bonusTotal} pts
+                    </span>
+                  )}
+                  {deductionTotal === 0 && bonusTotal === 0 && (
+                    <span className="flex items-center gap-0.5 text-slate-400">
+                      <Minus className="w-3 h-3" /> Sin ajustes
+                    </span>
+                  )}
+                  {myAdj.length > 0 && (
+                    <button
+                      onClick={() => setExpanded(!expanded)}
+                      className="flex items-center gap-1 text-blue-600 hover:underline"
+                    >
+                      {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      {myAdj.length} ajuste{myAdj.length !== 1 ? "s" : ""}
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -225,19 +234,14 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
   const allEntries = useMemo(() => {
     const entries = limpiadores.map(cleaner => {
       const ms = monthlyScores.find(s => s.cleaner_id === cleaner.id);
-      const score = ms ? (ms.current_score ?? 0) : 0;
-      const performanceScore = ms ? (ms.performance_score ?? 0) : 0;
-      const punctualityScore = ms ? (ms.punctuality_score ?? 0) : 0;
-      const vehicleScore = ms ? (ms.vehicle_score ?? 0) : 0;
-      const feedbackScore = ms ? (ms.feedback_score ?? 0) : 0;
+      const score = ms ? (ms.current_score ?? 100) : 100;
       const isParticipating = ms ? (ms.is_participating !== false) : true;
-      const medal = ms?.medal || 'none';
-      return { cleaner, score, performanceScore, punctualityScore, vehicleScore, feedbackScore, isParticipating, medal };
+      return { cleaner, score, isParticipating };
     });
 
     const active = entries.filter(e => e.isParticipating)
       .sort((a, b) => b.score - a.score)
-      .map((e, i) => ({ ...e, rank: i + 1, medal: i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'none' }));
+      .map((e, i) => ({ ...e, rank: i + 1 }));
 
     const excluded = entries.filter(e => !e.isParticipating)
       .sort((a, b) => (a.cleaner.invoice_name || a.cleaner.full_name).localeCompare(b.cleaner.invoice_name || b.cleaner.full_name))
