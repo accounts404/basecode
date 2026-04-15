@@ -44,6 +44,13 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
     absence: false,
     notes: ""
   });
+  const [customPoints, setCustomPoints] = useState({
+    uniform_pts: 3,
+    presentation_pts: 2,
+    absence_pts: 15,
+    late_5_pts: 2,
+    late_15_pts: 5,
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -67,14 +74,26 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
     return Math.max(0, (ah * 60 + am) - (sh * 60 + sm));
   };
 
-  const previewPoints = () => incidentType === "punctuality"
-    ? calcPunctualityPoints(minutesLate(), formData.absence)
-    : calcPresentationPoints(formData.uniform_ok, formData.presentation_ok);
+  const previewPoints = () => {
+    if (incidentType === "punctuality") {
+      if (formData.absence) return -customPoints.absence_pts;
+      const mins = minutesLate();
+      if (mins > 15) return -customPoints.late_15_pts;
+      if (mins > 5) return -customPoints.late_5_pts;
+      return 0;
+    } else {
+      let pts = 0;
+      if (!formData.uniform_ok) pts -= customPoints.uniform_pts;
+      if (!formData.presentation_ok) pts -= customPoints.presentation_pts;
+      return pts;
+    }
+  };
 
   const openDialog = (type) => {
     setIncidentType(type);
     setSelectedCleaner(null);
     setFormData({ date: format(new Date(), "yyyy-MM-dd"), scheduled_time: "", actual_clock_in: "", uniform_ok: true, presentation_ok: true, absence: false, notes: "" });
+    setCustomPoints({ uniform_pts: 3, presentation_pts: 2, absence_pts: 15, late_5_pts: 2, late_15_pts: 5 });
     setShowDialog(true);
   };
 
@@ -290,9 +309,23 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
 
             {incidentType === "punctuality" && (
               <>
-                <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-                  <Label className="text-red-800 font-semibold">Ausencia sin notificar (-15 pts)</Label>
-                  <Switch checked={formData.absence} onCheckedChange={v => setFormData(p => ({ ...p, absence: v }))} />
+                <div className={`flex items-center justify-between p-3 rounded-lg border ${formData.absence ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"}`}>
+                  <Label className="font-semibold">Ausencia sin notificar</Label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-slate-500">-</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={customPoints.absence_pts}
+                        onChange={e => setCustomPoints(p => ({ ...p, absence_pts: Math.max(1, Number(e.target.value)) }))}
+                        className="w-16 h-7 text-sm text-center"
+                      />
+                      <span className="text-xs text-slate-500">pts</span>
+                    </div>
+                    <Switch checked={formData.absence} onCheckedChange={v => setFormData(p => ({ ...p, absence: v }))} />
+                  </div>
                 </div>
 
                 {!formData.absence && (
@@ -312,6 +345,38 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
                         ⏱ Retraso: {minutesLate()} minutos
                       </div>
                     )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 mb-1">Puntos por retraso 6-15 min</p>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-slate-500">-</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={customPoints.late_5_pts}
+                            onChange={e => setCustomPoints(p => ({ ...p, late_5_pts: Math.max(1, Number(e.target.value)) }))}
+                            className="w-full h-8 text-sm text-center"
+                          />
+                          <span className="text-sm text-slate-500">pts</span>
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <p className="text-xs text-slate-500 mb-1">Puntos por retraso +15 min</p>
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm text-slate-500">-</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={customPoints.late_15_pts}
+                            onChange={e => setCustomPoints(p => ({ ...p, late_15_pts: Math.max(1, Number(e.target.value)) }))}
+                            className="w-full h-8 text-sm text-center"
+                          />
+                          <span className="text-sm text-slate-500">pts</span>
+                        </div>
+                      </div>
+                    </div>
                   </>
                 )}
               </>
@@ -322,16 +387,44 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
                 <div className={`flex items-center justify-between p-3 rounded-lg border ${formData.uniform_ok ? "bg-slate-50 border-slate-200" : "bg-red-50 border-red-200"}`}>
                   <div>
                     <Label className="font-semibold">Uniforme completo</Label>
-                    <p className="text-xs text-slate-500">-3 pts si incompleto</p>
+                    <p className="text-xs text-slate-500">Puntos si incompleto:</p>
                   </div>
-                  <Switch checked={formData.uniform_ok} onCheckedChange={v => setFormData(p => ({ ...p, uniform_ok: v }))} />
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-slate-500">-</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={customPoints.uniform_pts}
+                        onChange={e => setCustomPoints(p => ({ ...p, uniform_pts: Math.max(1, Number(e.target.value)) }))}
+                        className="w-16 h-7 text-sm text-center"
+                      />
+                      <span className="text-xs text-slate-500">pts</span>
+                    </div>
+                    <Switch checked={formData.uniform_ok} onCheckedChange={v => setFormData(p => ({ ...p, uniform_ok: v }))} />
+                  </div>
                 </div>
                 <div className={`flex items-center justify-between p-3 rounded-lg border ${formData.presentation_ok ? "bg-slate-50 border-slate-200" : "bg-red-50 border-red-200"}`}>
                   <div>
                     <Label className="font-semibold">Presentación personal adecuada</Label>
-                    <p className="text-xs text-slate-500">-2 pts si inadecuada</p>
+                    <p className="text-xs text-slate-500">Puntos si inadecuada:</p>
                   </div>
-                  <Switch checked={formData.presentation_ok} onCheckedChange={v => setFormData(p => ({ ...p, presentation_ok: v }))} />
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-slate-500">-</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={customPoints.presentation_pts}
+                        onChange={e => setCustomPoints(p => ({ ...p, presentation_pts: Math.max(1, Number(e.target.value)) }))}
+                        className="w-16 h-7 text-sm text-center"
+                      />
+                      <span className="text-xs text-slate-500">pts</span>
+                    </div>
+                    <Switch checked={formData.presentation_ok} onCheckedChange={v => setFormData(p => ({ ...p, presentation_ok: v }))} />
+                  </div>
                 </div>
               </div>
             )}
