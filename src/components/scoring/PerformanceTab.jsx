@@ -7,14 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, Camera, Trash2, CheckCircle2, AlertCircle, BarChart2 } from "lucide-react";
+import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, Camera, Trash2, CheckCircle2, AlertCircle, BarChart2, Settings } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import SimplePagination from "@/components/ui/simple-pagination";
+import ChecklistConfigModal, { loadChecklistConfig } from "@/components/scoring/ChecklistConfigModal";
 
 const AREAS = [
   { key: "bathrooms",          name: "Baños",                      max: 25, color: "blue" },
@@ -24,33 +25,13 @@ const AREAS = [
   { key: "other_areas",        name: "Otras Áreas",                max: 15, color: "slate" },
 ];
 
-// Checklists por área — puntos suman exactamente al max del área
-const AREA_CHECKLISTS = {
-  bathrooms: [
-    { key: "sink_mirrors",  label: "Lavamanos y espejos limpios",      points: 7 },
-    { key: "toilet",        label: "Inodoro desinfectado",              points: 6 },
-    { key: "shower_tub",    label: "Ducha / bañera limpia",             points: 6 },
-    { key: "floors_tiles",  label: "Pisos y azulejos",                  points: 6 },
-  ],
-  kitchen_and_pantry: [
-    { key: "countertops",   label: "Mesadas y superficies",             points: 7 },
-    { key: "appliances",    label: "Exterior de electrodomésticos",      points: 6 },
-    { key: "sink",          label: "Fregadero limpio",                   points: 6 },
-    { key: "pantry",        label: "Despensa organizada",               points: 6 },
-  ],
-  floors: [
-    { key: "vacuumed",      label: "Aspirado",                          points: 10 },
-    { key: "mopped",        label: "Trapeado / lavado",                 points: 10 },
-  ],
-  dusting_wiping: [
-    { key: "surfaces",      label: "Superficies desempolvadas",         points: 8 },
-    { key: "glass_mirrors", label: "Vidrios y espejos interiores",      points: 7 },
-  ],
-  other_areas: [
-    { key: "general_order", label: "Orden general",                     points: 8 },
-    { key: "special_areas", label: "Áreas especiales (lavandería, etc.)",points: 7 },
-  ],
-};
+// AREA_CHECKLISTS is now dynamic — loaded from ChecklistConfigModal config (localStorage)
+// Helper: get active items for an area from config
+function getActiveItemsForArea(areaKey, checklistConfig) {
+  const areaConfig = checklistConfig?.[areaKey];
+  if (!areaConfig) return [];
+  return areaConfig.items.filter(i => i.enabled !== false);
+}
 
 const AREA_COLORS = {
   blue:   { bg: "bg-blue-50",   border: "border-blue-200",   text: "text-blue-700",   bar: "bg-blue-500",   badgeBg: "bg-blue-100",   badgeText: "text-blue-800" },
@@ -81,37 +62,26 @@ function computeOverallScore(areaStates) {
 function getAreaItemWeights(areaState) {
   const area = AREAS.find(a => a.key === areaState.area_key);
   const areaMax = area?.max || 0;
-  const items = AREA_CHECKLISTS[areaState.area_key] || [];
-  const removed = areaState.removed_items || [];
-  const activeDefault = items.filter(i => !removed.includes(i.key));
-  const extras = areaState.extra_items || [];
+  // areaState.config_items holds the active items from config
+  const configItems = areaState.config_items || [];
 
-  const rawDefaultSum = activeDefault.reduce((s, i) => s + i.points, 0);
-  const rawExtraSum = extras.reduce((s, i) => s + i.points, 0);
-  const rawTotal = rawDefaultSum + rawExtraSum;
-
-  if (rawTotal === 0 || areaMax === 0) return { defaultWeights: {}, extraWeights: {} };
+  const rawTotal = configItems.reduce((s, i) => s + i.points, 0);
+  if (rawTotal === 0 || areaMax === 0) return { defaultWeights: {} };
 
   const defaultWeights = {};
-  activeDefault.forEach(i => { defaultWeights[i.key] = (i.points / rawTotal) * areaMax; });
-  const extraWeights = {};
-  extras.forEach(i => { extraWeights[i.key] = (i.points / rawTotal) * areaMax; });
+  configItems.forEach(i => { defaultWeights[i.key] = (i.points / rawTotal) * areaMax; });
 
-  return { defaultWeights, extraWeights };
+  return { defaultWeights };
 }
 
 function getAreaEarned(areaState) {
   if (!areaState.included) return null;
-  const items = AREA_CHECKLISTS[areaState.area_key] || [];
-  const removed = areaState.removed_items || [];
-  const { defaultWeights, extraWeights } = getAreaItemWeights(areaState);
+  const configItems = areaState.config_items || [];
+  const { defaultWeights } = getAreaItemWeights(areaState);
 
-  const defaultPts = items
-    .filter(item => !removed.includes(item.key))
-    .reduce((s, item) => s + (areaState.checklist[item.key] ? (defaultWeights[item.key] || 0) : 0), 0);
-  const extraPts = (areaState.extra_items || [])
-    .reduce((s, item) => s + (item.checked ? (extraWeights[item.key] || 0) : 0), 0);
-  return Math.round(defaultPts + extraPts);
+  return Math.round(
+    configItems.reduce((s, item) => s + (areaState.checklist[item.key] ? (defaultWeights[item.key] || 0) : 0), 0)
+  );
 }
 
 function getAreaMax(areaState) {
@@ -119,20 +89,22 @@ function getAreaMax(areaState) {
   return area?.max || 0;
 }
 
-const initAreaStates = () =>
-  AREAS.map(a => ({
-    area_key: a.key,
-    included: true,
-    notes: "",
-    photos: [],
-    checklist: Object.fromEntries(
-      (AREA_CHECKLISTS[a.key] || []).map(item => [item.key, true])
-    ),
-    removed_items: [],   // keys of default items removed for this evaluation
-    extra_items: [],     // [{ key, label, points, checked }]
-    new_item_label: "",
-    new_item_points: "",
-  }));
+const initAreaStates = (checklistConfig) => {
+  const cfg = checklistConfig || loadChecklistConfig();
+  return AREAS.map(a => {
+    const activeItems = getActiveItemsForArea(a.key, cfg);
+    return {
+      area_key: a.key,
+      included: true,
+      notes: "",
+      photos: [],
+      config_items: activeItems, // active items from saved config
+      checklist: Object.fromEntries(activeItems.map(item => [item.key, true])),
+      new_item_label: "",
+      new_item_points: "",
+    };
+  });
+};
 
 // Card resumen de un limpiador
 function CleanerCard({ cleaner, reviews, onNew }) {
@@ -196,12 +168,13 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedCleaner, setSelectedCleaner] = useState(null);
   const [reviewDate, setReviewDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedClientId, setSelectedClientId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
-  const [areaStates, setAreaStates] = useState(initAreaStates());
+  const [areaStates, setAreaStates] = useState(() => initAreaStates());
   const [generalNotes, setGeneralNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
@@ -228,9 +201,17 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setSelectedClientId("");
     setClientSearch("");
     setShowClientDropdown(false);
-    setAreaStates(initAreaStates());
+    setAreaStates(initAreaStates()); // always reads latest config from localStorage
     setGeneralNotes("");
     setShowDialog(true);
+  };
+
+  const handleConfigSaved = (newConfig) => {
+    setShowConfigModal(false);
+    if (newConfig) {
+      // Refresh area states with new config if dialog is open
+      setAreaStates(initAreaStates(newConfig));
+    }
   };
 
   const filteredClients = clientSearch.length > 0
@@ -279,48 +260,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     ));
   };
 
-  const removeDefaultItem = (areaKey, itemKey) => {
-    setAreaStates(prev => prev.map(a =>
-      a.area_key === areaKey ? { ...a, removed_items: [...(a.removed_items || []), itemKey] } : a
-    ));
-  };
 
-  const restoreDefaultItem = (areaKey, itemKey) => {
-    setAreaStates(prev => prev.map(a =>
-      a.area_key === areaKey ? { ...a, removed_items: (a.removed_items || []).filter(k => k !== itemKey) } : a
-    ));
-  };
-
-  const toggleExtraItem = (areaKey, itemKey) => {
-    setAreaStates(prev => prev.map(a =>
-      a.area_key === areaKey
-        ? { ...a, extra_items: a.extra_items.map(i => i.key === itemKey ? { ...i, checked: !i.checked } : i) }
-        : a
-    ));
-  };
-
-  const removeExtraItem = (areaKey, itemKey) => {
-    setAreaStates(prev => prev.map(a =>
-      a.area_key === areaKey ? { ...a, extra_items: a.extra_items.filter(i => i.key !== itemKey) } : a
-    ));
-  };
-
-  const addExtraItem = (areaKey) => {
-    setAreaStates(prev => prev.map(a => {
-      if (a.area_key !== areaKey) return a;
-      const label = a.new_item_label.trim();
-      const pts = parseInt(a.new_item_points) || 5;
-      if (!label) return a;
-      const newItem = { key: `extra_${Date.now()}`, label, points: pts, checked: true };
-      return { ...a, extra_items: [...a.extra_items, newItem], new_item_label: "", new_item_points: "" };
-    }));
-  };
-
-  const updateNewItem = (areaKey, field, value) => {
-    setAreaStates(prev => prev.map(a =>
-      a.area_key === areaKey ? { ...a, [field]: value } : a
-    ));
-  };
 
   const overallScore = computeOverallScore(areaStates);
   const includedCount = areaStates.filter(a => a.included).length;
@@ -368,10 +308,9 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           score: earned !== null ? earned : 0,
           included: state.included,
           checklist: state.checklist,
+          config_items: state.config_items || [],
           notes: state.notes,
           photos: state.photos || [],
-          extra_items: state.extra_items || [],
-          removed_items: state.removed_items || [],
         };
       });
 
@@ -428,6 +367,9 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         </div>
         <div className="flex items-center gap-3">
           <Badge className="bg-blue-100 text-blue-800">{reviews.length} evaluaciones este mes</Badge>
+          <Button variant="outline" onClick={() => setShowConfigModal(true)}>
+            <Settings className="w-4 h-4 mr-1" /> Configurar Checklist
+          </Button>
           <Button onClick={() => openDialog(null)}>
             <Plus className="w-4 h-4 mr-1" /> Nueva Evaluación
           </Button>
@@ -596,6 +538,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         </Tabs>
       )}
 
+      <ChecklistConfigModal open={showConfigModal} onClose={handleConfigSaved} />
+
       {/* Dialog nueva evaluación */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -678,11 +622,11 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                   const state = areaStates.find(a => a.area_key === area.key);
                   if (!state) return null;
                   const colors = AREA_COLORS[area.color];
-                  const items = AREA_CHECKLISTS[area.key] || [];
+                  const configItems = state.config_items || [];
                   const earned = getAreaEarned(state);
-                  const allChecked = items.every(i => state.checklist[i.key]);
-                  const anyChecked = items.some(i => state.checklist[i.key]);
-                  const { defaultWeights, extraWeights } = getAreaItemWeights(state);
+                  const allChecked = configItems.every(i => state.checklist[i.key]);
+                  const anyChecked = configItems.some(i => state.checklist[i.key]);
+                  const { defaultWeights } = getAreaItemWeights(state);
 
                   return (
                     <div key={area.key} className={`rounded-lg border transition-all ${state.included ? `${colors.bg} ${colors.border}` : "bg-slate-50 border-slate-200 opacity-60"}`}>
@@ -718,105 +662,22 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                       {state.included && (
                         <div className="px-3 pb-3 space-y-2 border-t border-opacity-30" style={{ borderColor: "currentColor" }}>
                           <div className="pt-2 space-y-1.5">
-                            {/* Default items */}
-                            {items.filter(item => !(state.removed_items || []).includes(item.key)).map(item => (
-                              <div key={item.key} className="flex items-center justify-between gap-3 group">
+                            {configItems.map(item => (
+                              <div key={item.key} className="flex items-center justify-between gap-3">
                                 <label className="flex items-center gap-2 cursor-pointer flex-1">
                                   <Checkbox
-                                    checked={state.checklist[item.key]}
+                                    checked={!!state.checklist[item.key]}
                                     onCheckedChange={() => toggleChecklistItem(area.key, item.key)}
                                   />
                                   <span className={`text-sm ${state.checklist[item.key] ? "text-slate-700" : "text-slate-400 line-through"}`}>
                                     {item.label}
                                   </span>
                                 </label>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <span className={`text-xs font-medium ${state.checklist[item.key] ? colors.text : "text-slate-300"}`}>
-                                    {state.checklist[item.key] ? `+${Math.round(defaultWeights[item.key] || 0)}` : `0/${Math.round(defaultWeights[item.key] || 0)}`} pts
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeDefaultItem(area.key, item.key)}
-                                    className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                    title="Quitar de esta evaluación"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                                <span className={`text-xs font-medium flex-shrink-0 ${state.checklist[item.key] ? colors.text : "text-slate-300"}`}>
+                                  {state.checklist[item.key] ? `+${Math.round(defaultWeights[item.key] || 0)}` : `0/${Math.round(defaultWeights[item.key] || 0)}`} pts
+                                </span>
                               </div>
                             ))}
-                            {/* Removed items (show as restore) */}
-                            {(state.removed_items || []).length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {(state.removed_items || []).map(rKey => {
-                                  const rItem = items.find(i => i.key === rKey);
-                                  return rItem ? (
-                                    <button
-                                      key={rKey}
-                                      type="button"
-                                      onClick={() => restoreDefaultItem(area.key, rKey)}
-                                      className="text-xs text-slate-400 line-through hover:no-underline hover:text-slate-600 px-1.5 py-0.5 border border-dashed border-slate-300 rounded"
-                                      title="Restaurar item"
-                                    >
-                                      + {rItem.label}
-                                    </button>
-                                  ) : null;
-                                })}
-                              </div>
-                            )}
-                            {/* Extra items */}
-                            {(state.extra_items || []).map(item => (
-                              <div key={item.key} className="flex items-center justify-between gap-3 group">
-                                <label className="flex items-center gap-2 cursor-pointer flex-1">
-                                  <Checkbox
-                                    checked={item.checked}
-                                    onCheckedChange={() => toggleExtraItem(area.key, item.key)}
-                                  />
-                                  <span className={`text-sm ${item.checked ? "text-slate-700" : "text-slate-400 line-through"}`}>
-                                    {item.label}
-                                  </span>
-                                </label>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <span className={`text-xs font-medium ${item.checked ? colors.text : "text-slate-300"}`}>
-                                    {item.checked ? `+${Math.round(extraWeights[item.key] || 0)}` : `0/${Math.round(extraWeights[item.key] || 0)}`} pts
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeExtraItem(area.key, item.key)}
-                                    className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                            {/* Add extra item row */}
-                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-dashed border-slate-200">
-                              <input
-                                type="text"
-                                value={state.new_item_label}
-                                onChange={e => updateNewItem(area.key, "new_item_label", e.target.value)}
-                                onKeyDown={e => e.key === "Enter" && addExtraItem(area.key)}
-                                placeholder="Agregar item..."
-                                className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:border-blue-400"
-                              />
-                              <input
-                                type="number"
-                                value={state.new_item_points}
-                                onChange={e => updateNewItem(area.key, "new_item_points", e.target.value)}
-                                placeholder="pts"
-                                className="w-14 text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:border-blue-400"
-                                min="1"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => addExtraItem(area.key)}
-                                disabled={!state.new_item_label.trim()}
-                                className={`text-xs px-2 py-1 rounded border ${colors.border} ${colors.text} disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-80`}
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
                           </div>
                           <Textarea
                             value={state.notes}
