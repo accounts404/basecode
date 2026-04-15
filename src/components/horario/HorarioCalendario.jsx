@@ -1146,7 +1146,7 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                                 {/* Eventos del día */}
                                 {(() => {
                                     const dayEvents = getEventsForDay(day) || [];
-                                    const organizedEvents = (organizeOverlappingEvents(dayEvents) || []).filter(e => e);
+                                    const organizedEvents = (organizeOverlappingEvents(dayEvents) || []).filter(e => e && e.id && e.client_name);
                                     
                                     return organizedEvents.map(event => {
                                         if (!event || !event.id || !event.client_name) return null;
