@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, Plus, AlertTriangle, CheckCircle, User, Shirt } from "lucide-react";
+import { Clock, Plus, AlertTriangle, CheckCircle, User, Shirt, Search, X } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -35,6 +35,8 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
   const [showDialog, setShowDialog] = useState(false);
   const [incidentType, setIncidentType] = useState("punctuality"); // "punctuality" | "presentation"
   const [selectedCleaner, setSelectedCleaner] = useState(null); // objeto completo del limpiador
+  const [cleanerSearch, setCleanerSearch] = useState("");
+  const [showCleanerDropdown, setShowCleanerDropdown] = useState(false);
   const [formData, setFormData] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
     scheduled_time: "",
@@ -92,6 +94,8 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
   const openDialog = (type) => {
     setIncidentType(type);
     setSelectedCleaner(null);
+    setCleanerSearch("");
+    setShowCleanerDropdown(false);
     setFormData({ date: format(new Date(), "yyyy-MM-dd"), scheduled_time: "", actual_clock_in: "", uniform_ok: true, presentation_ok: true, absence: false, notes: "" });
     setCustomPoints({ uniform_pts: 3, presentation_pts: 2, absence_pts: 15, late_5_pts: 2, late_15_pts: 5 });
     setShowDialog(true);
@@ -289,17 +293,31 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
               <Label className="font-semibold flex items-center gap-1 mb-1">
                 <User className="w-4 h-4" /> Limpiador *
               </Label>
-              <Select
-                value={selectedCleaner?.id || ""}
-                onValueChange={(id) => setSelectedCleaner(limpiadores.find(l => l.id === id) || null)}
-              >
-                <SelectTrigger><SelectValue placeholder="Seleccionar limpiador..." /></SelectTrigger>
-                <SelectContent>
-                  {limpiadores.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.invoice_name || c.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  value={cleanerSearch}
+                  onChange={e => { setCleanerSearch(e.target.value); setSelectedCleaner(null); setShowCleanerDropdown(true); }}
+                  onFocus={() => setShowCleanerDropdown(true)}
+                  placeholder="Buscar limpiador..."
+                  className="pl-9 pr-8"
+                />
+                {cleanerSearch && (
+                  <button onClick={() => { setCleanerSearch(""); setSelectedCleaner(null); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                {showCleanerDropdown && cleanerSearch.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {limpiadores.filter(c => (c.invoice_name || c.full_name).toLowerCase().includes(cleanerSearch.toLowerCase())).slice(0, 8).map(c => (
+                      <button key={c.id} onClick={() => { setSelectedCleaner(c); setCleanerSearch(c.invoice_name || c.full_name); setShowCleanerDropdown(false); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                        {c.invoice_name || c.full_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>

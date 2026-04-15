@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MessageSquare, Plus, ThumbsUp, ThumbsDown, AlertTriangle, Star } from "lucide-react";
+import { MessageSquare, Plus, ThumbsUp, ThumbsDown, AlertTriangle, Star, Search, X } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -43,6 +43,10 @@ export default function ClientFeedbackTab({ monthPeriod, limpiadores, monthlySco
   });
   const [selectedCleanerIds, setSelectedCleanerIds] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [cleanerSearch, setCleanerSearch] = useState("");
+  const [showCleanerDropdown, setShowCleanerDropdown] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -66,8 +70,26 @@ export default function ClientFeedbackTab({ monthPeriod, limpiadores, monthlySco
   const openDialog = () => {
     setFormData({ client_id: "", feedback_date: format(new Date(), "yyyy-MM-dd"), feedback_type: "complaint", feedback_channel: "call", severity: "medium", description: "", action_taken: "" });
     setSelectedCleanerIds([]);
+    setClientSearch("");
+    setShowClientDropdown(false);
+    setCleanerSearch("");
+    setShowCleanerDropdown(false);
     setShowDialog(true);
   };
+
+  const filteredClients = clientSearch.length > 0
+    ? clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).slice(0, 8)
+    : [];
+
+  const selectClient = (client) => {
+    setFormData(p => ({ ...p, client_id: client.id }));
+    setClientSearch(client.name);
+    setShowClientDropdown(false);
+  };
+
+  const filteredCleaners = cleanerSearch.length > 0
+    ? limpiadores.filter(c => (c.invoice_name || c.full_name).toLowerCase().includes(cleanerSearch.toLowerCase())).slice(0, 8)
+    : limpiadores;
 
   const toggleCleaner = (cleanerId) => {
     setSelectedCleanerIds(prev => prev.includes(cleanerId) ? prev.filter(id => id !== cleanerId) : [...prev, cleanerId]);
@@ -233,13 +255,31 @@ export default function ClientFeedbackTab({ monthPeriod, limpiadores, monthlySco
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label>Cliente *</Label>
-              <Select value={formData.client_id} onValueChange={v => setFormData(p => ({ ...p, client_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecciona cliente" /></SelectTrigger>
-                <SelectContent>
-                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label className="font-semibold mb-1 block">Cliente *</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  value={clientSearch}
+                  onChange={e => { setClientSearch(e.target.value); setFormData(p => ({ ...p, client_id: "" })); setShowClientDropdown(true); }}
+                  onFocus={() => setShowClientDropdown(true)}
+                  placeholder="Buscar cliente..."
+                  className="pl-9 pr-8"
+                />
+                {clientSearch && (
+                  <button onClick={() => { setClientSearch(""); setFormData(p => ({ ...p, client_id: "" })); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                {showClientDropdown && filteredClients.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {filteredClients.map(c => (
+                      <button key={c.id} onClick={() => selectClient(c)} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -296,14 +336,31 @@ export default function ClientFeedbackTab({ monthPeriod, limpiadores, monthlySco
             </div>
 
             <div>
-              <Label className="mb-2 block">Limpiadores involucrados:</Label>
+              <Label className="mb-2 block font-semibold">Limpiadores involucrados:</Label>
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  value={cleanerSearch}
+                  onChange={e => setCleanerSearch(e.target.value)}
+                  placeholder="Filtrar limpiadores..."
+                  className="pl-9 pr-8"
+                />
+                {cleanerSearch && (
+                  <button onClick={() => setCleanerSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               <div className="max-h-40 overflow-y-auto space-y-2 border rounded-lg p-3">
-                {participatingCleaners.map(c => (
+                {filteredCleaners.map(c => (
                   <div key={c.id} className="flex items-center gap-2">
                     <Checkbox checked={selectedCleanerIds.includes(c.id)} onCheckedChange={() => toggleCleaner(c.id)} />
                     <label className="text-sm cursor-pointer">{c.invoice_name || c.full_name}</label>
                   </div>
                 ))}
+                {filteredCleaners.length === 0 && (
+                  <p className="text-sm text-slate-400 text-center py-2">Sin resultados</p>
+                )}
               </div>
             </div>
 
