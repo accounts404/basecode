@@ -76,25 +76,46 @@ function computeOverallScore(areaStates) {
   return totalMax > 0 ? Math.round((totalEarned / totalMax) * 100) : 100;
 }
 
+// Returns the normalized weight of each item so all items in the area always sum to areaMax
+function getAreaItemWeights(areaState) {
+  const area = AREAS.find(a => a.key === areaState.area_key);
+  const areaMax = area?.max || 0;
+  const items = AREA_CHECKLISTS[areaState.area_key] || [];
+  const removed = areaState.removed_items || [];
+  const activeDefault = items.filter(i => !removed.includes(i.key));
+  const extras = areaState.extra_items || [];
+
+  const rawDefaultSum = activeDefault.reduce((s, i) => s + i.points, 0);
+  const rawExtraSum = extras.reduce((s, i) => s + i.points, 0);
+  const rawTotal = rawDefaultSum + rawExtraSum;
+
+  if (rawTotal === 0 || areaMax === 0) return { defaultWeights: {}, extraWeights: {} };
+
+  const defaultWeights = {};
+  activeDefault.forEach(i => { defaultWeights[i.key] = (i.points / rawTotal) * areaMax; });
+  const extraWeights = {};
+  extras.forEach(i => { extraWeights[i.key] = (i.points / rawTotal) * areaMax; });
+
+  return { defaultWeights, extraWeights };
+}
+
 function getAreaEarned(areaState) {
   if (!areaState.included) return null;
   const items = AREA_CHECKLISTS[areaState.area_key] || [];
   const removed = areaState.removed_items || [];
+  const { defaultWeights, extraWeights } = getAreaItemWeights(areaState);
+
   const defaultPts = items
     .filter(item => !removed.includes(item.key))
-    .reduce((s, item) => s + (areaState.checklist[item.key] ? item.points : 0), 0);
+    .reduce((s, item) => s + (areaState.checklist[item.key] ? (defaultWeights[item.key] || 0) : 0), 0);
   const extraPts = (areaState.extra_items || [])
-    .reduce((s, item) => s + (item.checked ? item.points : 0), 0);
-  return defaultPts + extraPts;
+    .reduce((s, item) => s + (item.checked ? (extraWeights[item.key] || 0) : 0), 0);
+  return Math.round(defaultPts + extraPts);
 }
 
 function getAreaMax(areaState) {
   const area = AREAS.find(a => a.key === areaState.area_key);
-  const removed = areaState.removed_items || [];
-  const items = AREA_CHECKLISTS[areaState.area_key] || [];
-  const removedPts = items.filter(i => removed.includes(i.key)).reduce((s, i) => s + i.points, 0);
-  const extraPts = (areaState.extra_items || []).reduce((s, i) => s + i.points, 0);
-  return (area?.max || 0) - removedPts + extraPts;
+  return area?.max || 0;
 }
 
 const initAreaStates = () =>
@@ -541,6 +562,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                   const earned = getAreaEarned(state);
                   const allChecked = items.every(i => state.checklist[i.key]);
                   const anyChecked = items.some(i => state.checklist[i.key]);
+                  const { defaultWeights, extraWeights } = getAreaItemWeights(state);
 
                   return (
                     <div key={area.key} className={`rounded-lg border transition-all ${state.included ? `${colors.bg} ${colors.border}` : "bg-slate-50 border-slate-200 opacity-60"}`}>
@@ -590,7 +612,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                                 </label>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                   <span className={`text-xs font-medium ${state.checklist[item.key] ? colors.text : "text-slate-300"}`}>
-                                    {state.checklist[item.key] ? `+${item.points}` : `0/${item.points}`} pts
+                                    {state.checklist[item.key] ? `+${Math.round(defaultWeights[item.key] || 0)}` : `0/${Math.round(defaultWeights[item.key] || 0)}`} pts
                                   </span>
                                   <button
                                     type="button"
@@ -636,7 +658,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                                 </label>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                   <span className={`text-xs font-medium ${item.checked ? colors.text : "text-slate-300"}`}>
-                                    {item.checked ? `+${item.points}` : `0/${item.points}`} pts
+                                    {item.checked ? `+${Math.round(extraWeights[item.key] || 0)}` : `0/${Math.round(extraWeights[item.key] || 0)}`} pts
                                   </span>
                                   <button
                                     type="button"
