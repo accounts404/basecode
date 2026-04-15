@@ -106,12 +106,6 @@ export default function ChecklistConfigModal({ open, onClose }) {
   };
 
   const removeItem = (areaKey, itemKey) => {
-    // Only allow removing custom items (not default ones)
-    const isDefault = DEFAULT_AREA_ITEMS[areaKey]?.some(i => i.key === itemKey);
-    if (isDefault) {
-      toggleItem(areaKey, itemKey);
-      return;
-    }
     setConfig(prev => ({
       ...prev,
       [areaKey]: {
@@ -187,32 +181,28 @@ export default function ChecklistConfigModal({ open, onClose }) {
                 </div>
 
                 <div className="space-y-2 mb-3">
-                  {areaConfig.items.map(item => {
-                    const isDefault = DEFAULT_AREA_ITEMS[area.key]?.some(i => i.key === item.key);
-                    return (
-                      <div key={item.key} className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-white/60 shadow-sm">
-                        <div className="flex items-center gap-3 flex-1">
-                          <Switch
-                            checked={item.enabled !== false}
-                            onCheckedChange={() => toggleItem(area.key, item.key)}
-                          />
-                          <span className={`text-sm flex-1 ${item.enabled === false ? "line-through text-slate-400" : "text-slate-700"}`}>
-                            {item.label}
-                          </span>
-                          <span className="text-xs text-slate-400 ml-2">{item.points} pts base</span>
-                        </div>
-                        {!isDefault && (
-                          <button
-                            type="button"
-                            onClick={() => removeItem(area.key, item.key)}
-                            className="ml-2 text-slate-300 hover:text-red-500 transition-colors"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                  {areaConfig.items.map(item => (
+                    <div key={item.key} className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-white/60 shadow-sm">
+                      <div className="flex items-center gap-3 flex-1">
+                        <Switch
+                          checked={item.enabled !== false}
+                          onCheckedChange={() => toggleItem(area.key, item.key)}
+                        />
+                        <span className={`text-sm flex-1 ${item.enabled === false ? "line-through text-slate-400" : "text-slate-700"}`}>
+                          {item.label}
+                        </span>
+                        <span className="text-xs text-slate-400 ml-2">{item.points} pts base</span>
                       </div>
-                    );
-                  })}
+                      <button
+                        type="button"
+                        onClick={() => removeItem(area.key, item.key)}
+                        className="ml-2 text-slate-300 hover:text-red-500 transition-colors"
+                        title="Eliminar ítem"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Add new item */}
