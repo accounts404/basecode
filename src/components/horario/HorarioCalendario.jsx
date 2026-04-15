@@ -1124,25 +1124,26 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                                 data-day-column="true" // Added for resize indicator to find column width
                             >
                                 {/* Grid de 15 minutos para click (ya no es zona de drop principal) */}
-                                {!isReadOnly && !isCleanerView && onCreateAtTime && timeSlots.map(({ hour, minute }) => {
-                                    const slotTimeUTC = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute));
-                                    const slotKey = `${day.toISOString().split('T')[0]}-${hour}-${minute}`;
-                                    const topPositionInPx = ((hour - VISIBLE_START_HOUR) + (minute / 60)) * HOUR_HEIGHT;
-                                    
-                                    return (
-                                        <div
-                                            key={slotKey}
-                                            className="absolute w-full border-b border-dashed border-gray-100 transition-colors hover:bg-blue-50/70 pointer-events-auto"
-                                            style={{ 
-                                                top: `${topPositionInPx}px`, 
-                                                height: `${SLOT_HEIGHT}px`,
-                                                zIndex: 0
-                                            }}
-                                            onClick={() => handleEmptySpaceClick(day, hour, minute)}
-                                            title={`Crear servicio el ${format(day, 'd MMM', { locale: es })} a las ${formatTimeUTC(slotTimeUTC)} (UTC)`}
-                                        />
-                                    );
-                                })}
+                                {!isReadOnly && !isCleanerView && onCreateAtTime && day && timeSlots && timeSlots.map(({ hour, minute }) => {
+                                     if (!day || hour === undefined || minute === undefined) return null;
+                                     const slotTimeUTC = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute));
+                                     const slotKey = `${day.toISOString().split('T')[0]}-${hour}-${minute}`;
+                                     const topPositionInPx = ((hour - VISIBLE_START_HOUR) + (minute / 60)) * HOUR_HEIGHT;
+
+                                     return (
+                                         <div
+                                             key={slotKey}
+                                             className="absolute w-full border-b border-dashed border-gray-100 transition-colors hover:bg-blue-50/70 pointer-events-auto"
+                                             style={{ 
+                                                 top: `${topPositionInPx}px`, 
+                                                 height: `${SLOT_HEIGHT}px`,
+                                                 zIndex: 0
+                                             }}
+                                             onClick={() => handleEmptySpaceClick(day, hour, minute)}
+                                             title={`Crear servicio el ${format(day, 'd MMM', { locale: es })} a las ${formatTimeUTC(slotTimeUTC)} (UTC)`}
+                                         />
+                                     );
+                                 })}
 
                                 {/* Eventos del día */}
                                 {(() => {
