@@ -254,15 +254,15 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
       });
     });
     
-    // Convertir a promedio real (puntos ganados vs puntos posibles)
+    // Convertir a promedio real (puntos ganados vs puntos posibles) SIN APROXIMAR
     return Object.entries(map).map(([cleanerId, data]) => {
-      const avgEarned = Math.round((data.totalEarned / data.count) * 100) / 100;
-      const avgPossible = Math.round((data.totalPossible / data.count) * 100) / 100;
-      const avgDeduction = Math.round((avgPossible - avgEarned) * 100) / 100;
+      const avgEarned = data.totalEarned / data.count; // Promedio exacto
+      const avgPossible = data.totalPossible / data.count;
+      const avgDeduction = avgPossible - avgEarned;
       return {
         cleanerId,
-        avgEarned: Math.round(avgEarned),
-        avgDeduction: Math.round(avgDeduction),
+        avgEarned,
+        avgDeduction,
         reviewCount: data.count,
       };
     });
@@ -421,8 +421,8 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     });
 
     for (const [cleanerId, data] of Object.entries(recalcMap)) {
-      const avgEarned = Math.round((data.totalEarned / data.count) * 100) / 100;
-      const avgDeduction = Math.round(((data.totalPossible / data.count) - avgEarned) * 100) / 100;
+      const avgEarned = data.totalEarned / data.count; // Promedio exacto sin aproximar
+      const avgDeduction = (data.totalPossible / data.count) - avgEarned;
 
       let monthlyScore = monthlyScores.find(s => s.cleaner_id === cleanerId);
       if (!monthlyScore) {
@@ -444,7 +444,7 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
         .filter(a => a.category !== "Revisión Vehicular (Promedio Mensual)")
         .reduce((s, a) => s + (a.points_impact || 0), 0);
 
-      const vehicleImpact = avgDeduction > 0 ? -Math.round(avgDeduction) : 0;
+      const vehicleImpact = avgDeduction > 0 ? -Math.round(avgDeduction * 10) / 10 : 0; // Redondea a 1 decimal para el impacto
 
       // Delete old vehicle adjustment records
       await Promise.all(existing.map(a => base44.entities.ScoreAdjustment.delete(a.id)));
@@ -562,10 +562,10 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                         </div>
                         <div className="text-right">
                           <span className={`font-bold text-base ${avgDeduction === 0 ? "text-green-700" : "text-orange-700"}`}>
-                            {avgEarned}/{TOTAL_POSSIBLE} pts
+                            {avgEarned % 1 === 0 ? avgEarned : avgEarned.toFixed(2)}/{TOTAL_POSSIBLE} pts
                           </span>
                           {avgDeduction > 0 && (
-                            <p className="text-xs text-red-600">-{avgDeduction} pts promedio</p>
+                            <p className="text-xs text-red-600">-{avgDeduction % 1 === 0 ? Math.round(avgDeduction) : avgDeduction.toFixed(2)} pts promedio</p>
                           )}
                         </div>
                       </div>
