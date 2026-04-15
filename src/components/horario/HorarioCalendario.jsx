@@ -1113,18 +1113,16 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                     
                     {/* Días de la semana / Día individual */}
                     <div className="flex flex-1">
-                        {days && days.map((day) => {
-                            if (!day || typeof day.getFullYear !== 'function') return null;
-                            return (
+                            {days && days.map((day) => (
                                 <div 
                                     key={day.toISOString()} 
                                     className="flex-1 relative border-r border-gray-200"
                                     style={{ height: `${Math.max(TOTAL_DISPLAY_HEIGHT_PX || 1024, 1)}px` }}
-                                    onDragOver={(e) => handleGridDragOver(e, day)}
-                                    onDrop={(e) => handleGridDrop(e, day)}
-                                    onDragLeave={handleGridDragLeave}
-                                    data-day-column="true" // Added for resize indicator to find column width
-                                >
+                                onDragOver={(e) => handleGridDragOver(e, day)}
+                                onDrop={(e) => handleGridDrop(e, day)}
+                                onDragLeave={handleGridDragLeave}
+                                data-day-column="true" // Added for resize indicator to find column width
+                            >
                                 {/* Grid de 15 minutos para click (ya no es zona de drop principal) */}
                                 {!isReadOnly && !isCleanerView && onCreateAtTime && day && timeSlots && timeSlots.map(({ hour, minute }) => {
                                      if (!day || hour === undefined || minute === undefined) return null;
@@ -1204,8 +1202,7 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                                     });
                                 })()}
                             </div>
-                        );
-                        })}
+                        ))}
                     </div>
                 </div>
             </div>
