@@ -299,12 +299,69 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     return deduction > 0 ? -deduction : 0;
   };
 
+  // Recalcula y aplica UN ÚNICO ajuste de performance para el limpiador basado en el promedio de todas sus evaluaciones del mes
+  const applyAveragePerformanceScore = async (cleanerId, allReviewsForCleaner, monthlyScore) => {
+    if (!monthlyScore) return;
+
+    // Eliminar todos los ajustes anteriores de "Evaluación de Performance" para este limpiador este mes
+    const existingAdjs = await base44.entities.ScoreAdjustment.filter({
+      cleaner_id: cleanerId,
+      month_period: monthPeriod,
+      category: "Evaluación de Performance",
+    });
+    for (const adj of existingAdjs) {
+      await base44.entities.ScoreAdjustment.delete(adj.id);
+    }
+
+    if (allReviewsForCleaner.length === 0) {
+      // Si no quedan evaluaciones, recalcular el score base (sin performance)
+      const otherAdjs = await base44.entities.ScoreAdjustment.filter({
+        cleaner_id: cleanerId,
+        month_period: monthPeriod,
+      });
+      const otherImpact = otherAdjs.reduce((sum, a) => sum + (a.points_impact || 0), 0);
+      await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, {
+        current_score: Math.max(0, Math.min(100, 100 + otherImpact)),
+      });
+      return;
+    }
+
+    // Calcular promedio de todas las evaluaciones
+    const avgScore = allReviewsForCleaner.reduce((s, r) => s + (r.overall_score || 0), 0) / allReviewsForCleaner.length;
+    const avgImpact = calcPointsImpact(Math.round(avgScore));
+
+    // Crear nuevo ajuste con el promedio
+    if (avgImpact !== 0) {
+      await base44.entities.ScoreAdjustment.create({
+        monthly_score_id: monthlyScore.id,
+        cleaner_id: cleanerId,
+        month_period: monthPeriod,
+        adjustment_type: "deduction",
+        category: "Evaluación de Performance",
+        points_impact: avgImpact,
+        notes: `Promedio de ${allReviewsForCleaner.length} evaluación(es): ${Math.round(avgScore)}/100`,
+        admin_id: user.id,
+        admin_name: user.full_name,
+        date_applied: new Date().toISOString(),
+      });
+    }
+
+    // Recalcular score total
+    const allAdjs = await base44.entities.ScoreAdjustment.filter({
+      cleaner_id: cleanerId,
+      month_period: monthPeriod,
+    });
+    const totalImpact = allAdjs.reduce((sum, a) => sum + (a.points_impact || 0), 0);
+    await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, {
+      current_score: Math.max(0, Math.min(100, 100 + totalImpact)),
+    });
+  };
+
   const handleSave = async () => {
     if (!selectedCleaner) { alert("Por favor selecciona un limpiador."); return; }
     setSaving(true);
     try {
       const client = clients.find(c => c.id === selectedClientId);
-      const impact = calcPointsImpact(overallScore);
 
       // Build area_scores for saving
       const areaScoresForSave = areaStates.map(state => {
@@ -324,41 +381,6 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
       });
 
       if (editingReview) {
-        // --- UPDATE existing review ---
-        // Revert old score adjustment if existed
-        if (editingReview.score_adjustment_id) {
-          const oldAdj = await base44.entities.ScoreAdjustment.filter({ id: editingReview.score_adjustment_id }).catch(() => []);
-          if (oldAdj.length > 0) {
-            await base44.entities.ScoreAdjustment.delete(oldAdj[0].id);
-            const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
-            if (monthlyScore) {
-              const revertedScore = Math.min(100, monthlyScore.current_score - editingReview.points_impact);
-              await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: revertedScore });
-            }
-          }
-        }
-
-        // Create new adjustment if needed
-        let adjustmentId = null;
-        const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
-        if (monthlyScore && impact !== 0) {
-          const adj = await base44.entities.ScoreAdjustment.create({
-            monthly_score_id: monthlyScore.id,
-            cleaner_id: selectedCleaner.id,
-            month_period: monthPeriod,
-            adjustment_type: "deduction",
-            category: "Evaluación de Performance",
-            points_impact: impact,
-            notes: `Puntaje: ${overallScore}/100 (${includedCount} áreas evaluadas)${client ? ` · Cliente: ${client.name}` : ""}${generalNotes ? ` · ${generalNotes}` : ""}`,
-            admin_id: user.id,
-            admin_name: user.full_name,
-            date_applied: new Date().toISOString()
-          });
-          adjustmentId = adj.id;
-          const newScore = Math.max(0, monthlyScore.current_score + impact);
-          await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
-        }
-
         await base44.entities.PerformanceReview.update(editingReview.id, {
           review_date: reviewDate,
           client_id: selectedClientId || null,
@@ -366,32 +388,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           area_scores: areaScoresForSave,
           overall_score: overallScore,
           general_notes: generalNotes,
-          points_impact: impact,
-          score_adjustment_id: adjustmentId
         });
-
       } else {
-        // --- CREATE new review ---
-        let adjustmentId = null;
-        const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
-        if (monthlyScore && impact !== 0) {
-          const adj = await base44.entities.ScoreAdjustment.create({
-            monthly_score_id: monthlyScore.id,
-            cleaner_id: selectedCleaner.id,
-            month_period: monthPeriod,
-            adjustment_type: "deduction",
-            category: "Evaluación de Performance",
-            points_impact: impact,
-            notes: `Puntaje: ${overallScore}/100 (${includedCount} áreas evaluadas)${client ? ` · Cliente: ${client.name}` : ""}${generalNotes ? ` · ${generalNotes}` : ""}`,
-            admin_id: user.id,
-            admin_name: user.full_name,
-            date_applied: new Date().toISOString()
-          });
-          adjustmentId = adj.id;
-          const newScore = Math.max(0, monthlyScore.current_score + impact);
-          await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
-        }
-
         await base44.entities.PerformanceReview.create({
           cleaner_id: selectedCleaner.id,
           cleaner_name: selectedCleaner.invoice_name || selectedCleaner.full_name,
@@ -404,14 +402,18 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           area_scores: areaScoresForSave,
           overall_score: overallScore,
           general_notes: generalNotes,
-          points_impact: impact,
-          score_adjustment_id: adjustmentId
         });
       }
 
+      // Reload reviews to get updated list, then recalculate average
+      const updatedReviews = await base44.entities.PerformanceReview.filter({ month_period: monthPeriod });
+      const cleanerReviews = updatedReviews.filter(r => r.cleaner_id === selectedCleaner.id);
+      const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.id);
+      await applyAveragePerformanceScore(selectedCleaner.id, cleanerReviews, monthlyScore);
+
       setShowDialog(false);
       setEditingReview(null);
-      await loadData();
+      setReviews(updatedReviews);
       if (onScoreApplied) onScoreApplied();
     } catch (e) {
       console.error(e);
@@ -424,20 +426,12 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     if (!confirm(`¿Eliminar la evaluación de ${review.cleaner_name} del ${format(parseISO(review.review_date), "d MMM yyyy", { locale: es })}?`)) return;
     setDeletingId(review.id);
     try {
-      // Revert score adjustment if existed
-      if (review.score_adjustment_id) {
-        const oldAdj = await base44.entities.ScoreAdjustment.filter({ id: review.score_adjustment_id }).catch(() => []);
-        if (oldAdj.length > 0) {
-          await base44.entities.ScoreAdjustment.delete(oldAdj[0].id);
-          const monthlyScore = monthlyScores.find(s => s.cleaner_id === review.cleaner_id);
-          if (monthlyScore && review.points_impact) {
-            const revertedScore = Math.min(100, monthlyScore.current_score - review.points_impact);
-            await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: revertedScore });
-          }
-        }
-      }
       await base44.entities.PerformanceReview.delete(review.id);
-      await loadData();
+      const updatedReviews = await base44.entities.PerformanceReview.filter({ month_period: monthPeriod });
+      const cleanerReviews = updatedReviews.filter(r => r.cleaner_id === review.cleaner_id);
+      const monthlyScore = monthlyScores.find(s => s.cleaner_id === review.cleaner_id);
+      await applyAveragePerformanceScore(review.cleaner_id, cleanerReviews, monthlyScore);
+      setReviews(updatedReviews);
       if (onScoreApplied) onScoreApplied();
     } catch (e) {
       console.error(e);
