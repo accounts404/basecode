@@ -505,14 +505,20 @@ export default function AdminTasksPanel() {
   const handleDeleteTask = async (taskId, scope = 'single') => {
     try {
       if (scope === 'this_and_future') {
-        const task = tasks.find(t => t.id === taskId);
+        const task = tasks.find(t => t.id === taskId) || deleteDialogTask;
         if (task?.task_recurrence_id) {
-          // Delete all future tasks in the series (including this one)
-          const futureTasks = tasks.filter(t =>
-            t.task_recurrence_id === task.task_recurrence_id &&
-            t.due_date >= task.due_date
-          );
+          // Buscar TODAS las instancias de la serie en la base de datos (no solo las cargadas localmente)
+          const allSeriesTasks = await base44.entities.Task.filter({ task_recurrence_id: task.task_recurrence_id });
+          const futureTasks = allSeriesTasks.filter(t => t.due_date >= task.due_date);
           await Promise.all(futureTasks.map(t => base44.entities.Task.delete(t.id)));
+        } else {
+          await base44.entities.Task.delete(taskId);
+        }
+      } else if (scope === 'all_series') {
+        const task = tasks.find(t => t.id === taskId) || deleteDialogTask;
+        if (task?.task_recurrence_id) {
+          const allSeriesTasks = await base44.entities.Task.filter({ task_recurrence_id: task.task_recurrence_id });
+          await Promise.all(allSeriesTasks.map(t => base44.entities.Task.delete(t.id)));
         } else {
           await base44.entities.Task.delete(taskId);
         }
@@ -526,9 +532,14 @@ export default function AdminTasksPanel() {
       setShowTaskDetail(false);
       setTaskForDetail(null);
 
+      const descriptions = {
+        'single': "La tarea fue eliminada correctamente",
+        'this_and_future': "Esta tarea y todas las futuras de la serie fueron eliminadas",
+        'all_series': "Toda la serie recurrente fue eliminada"
+      };
       toast({
         title: "🗑️ Tarea Eliminada",
-        description: scope === 'this_and_future' ? "Esta tarea y todas las futuras de la serie fueron eliminadas" : "La tarea fue eliminada correctamente",
+        description: descriptions[scope] || descriptions['single'],
         duration: 2000,
       });
     } catch (error) {
@@ -1278,21 +1289,31 @@ export default function AdminTasksPanel() {
               <strong>"{deleteDialogTask?.title}"</strong> es parte de una serie recurrente. ¿Qué deseas eliminar?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <Button
-              variant="outline"
-              className="border-red-300 text-red-700 hover:bg-red-50"
-              onClick={() => handleDeleteTask(deleteDialogTask.id, 'single')}
-            >
-              Solo esta tarea
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => handleDeleteTask(deleteDialogTask.id, 'this_and_future')}
-            >
-              Esta y todas las futuras
-            </Button>
+          <AlertDialogFooter className="flex-col gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full">
+              <Button
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-50 flex-1"
+                onClick={() => handleDeleteTask(deleteDialogTask.id, 'single')}
+              >
+                Solo esta tarea
+              </Button>
+              <Button
+                variant="outline"
+                className="border-red-400 text-red-800 hover:bg-red-50 flex-1"
+                onClick={() => handleDeleteTask(deleteDialogTask.id, 'this_and_future')}
+              >
+                Esta y todas las futuras
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => handleDeleteTask(deleteDialogTask.id, 'all_series')}
+              >
+                Toda la serie
+              </Button>
+            </div>
+            <AlertDialogCancel className="w-full">Cancelar</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
