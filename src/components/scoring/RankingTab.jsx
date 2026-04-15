@@ -240,7 +240,7 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
       if (!map[review.cleaner_id]) {
         map[review.cleaner_id] = { totalEarned: 0, count: 0 };
       }
-      map[review.cleaner_id].totalEarned += review.overall_score || 100;
+      map[review.cleaner_id].totalEarned += review.final_score || 100;
       map[review.cleaner_id].count++;
     });
     // Convertir a promedio SIN APROXIMAR
