@@ -1208,13 +1208,9 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
         );
     };
 
-    const renderDayView = () => {
-        if (!selectedDate) return <div className="p-4 text-gray-500">Selecciona una fecha</div>;
-        return renderDayOrWeekView([selectedDate]);
-    };
+    const renderDayView = () => renderDayOrWeekView([selectedDate]);
     
     const renderWeekView = () => {
-        if (!selectedDate) return <div className="p-4 text-gray-500">Selecciona una fecha</div>;
         const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
         const weekEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
         return renderDayOrWeekView(eachDayOfInterval({ start: weekStart, end: weekEnd }));
