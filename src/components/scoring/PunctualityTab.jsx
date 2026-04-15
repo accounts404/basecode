@@ -9,15 +9,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, Plus, AlertTriangle, CheckCircle, User } from "lucide-react";
+import { Clock, Plus, AlertTriangle, CheckCircle, User, Shirt } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-const calcPointsFromMinutesLate = (minutes, uniform, presentation, absence) => {
-  let pts = 0;
+// incidentType: "punctuality" | "presentation"
+const calcPunctualityPoints = (minutes, absence) => {
   if (absence) return -15;
-  if (minutes > 15) pts -= 5;
-  else if (minutes > 5) pts -= 2;
+  if (minutes > 15) return -5;
+  if (minutes > 5) return -2;
+  return 0;
+};
+
+const calcPresentationPoints = (uniform, presentation) => {
+  let pts = 0;
   if (!uniform) pts -= 3;
   if (!presentation) pts -= 2;
   return pts;
@@ -27,6 +32,7 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
+  const [incidentType, setIncidentType] = useState("punctuality"); // "punctuality" | "presentation"
   const [selectedCleaner, setSelectedCleaner] = useState("");
   const [formData, setFormData] = useState({
     date: format(new Date(), "yyyy-MM-dd"),
@@ -57,10 +63,19 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
     if (!formData.scheduled_time || !formData.actual_clock_in) return 0;
     const [sh, sm] = formData.scheduled_time.split(":").map(Number);
     const [ah, am] = formData.actual_clock_in.split(":").map(Number);
-    return (ah * 60 + am) - (sh * 60 + sm);
+    return Math.max(0, (ah * 60 + am) - (sh * 60 + sm));
   };
 
-  const previewPoints = () => calcPointsFromMinutesLate(minutesLate(), formData.uniform_ok, formData.presentation_ok, formData.absence);
+  const previewPoints = () => incidentType === "punctuality"
+    ? calcPunctualityPoints(minutesLate(), formData.absence)
+    : calcPresentationPoints(formData.uniform_ok, formData.presentation_ok);
+
+  const openDialog = (type) => {
+    setIncidentType(type);
+    setSelectedCleaner("");
+    setFormData({ date: format(new Date(), "yyyy-MM-dd"), scheduled_time: "", actual_clock_in: "", uniform_ok: true, presentation_ok: true, absence: false, notes: "" });
+    setShowDialog(true);
+  };
 
   const handleSave = async () => {
     if (!selectedCleaner) { alert("Selecciona un limpiador"); return; }
@@ -73,16 +88,22 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
 
       let adjustmentId = null;
       if (monthlyScore && impact !== 0) {
-        const reason = formData.absence ? "Ausencia no notificada" :
-          mins > 5 ? `Retraso de ${mins} min` :
-          !formData.uniform_ok ? "Uniforme incompleto" : "Presentación personal";
+        let reason = "";
+        if (incidentType === "punctuality") {
+          reason = formData.absence ? "Ausencia no notificada" : `Retraso de ${mins} min`;
+        } else {
+          const parts = [];
+          if (!formData.uniform_ok) parts.push("Uniforme incompleto");
+          if (!formData.presentation_ok) parts.push("Mala presentación personal");
+          reason = parts.join(" + ");
+        }
 
         const adj = await base44.entities.ScoreAdjustment.create({
           monthly_score_id: monthlyScore.id,
           cleaner_id: selectedCleaner,
           month_period: monthPeriod,
           adjustment_type: "deduction",
-          category: "Puntualidad y Presentación",
+          category: incidentType === "punctuality" ? "Puntualidad" : "Uniforme y Presentación",
           points_impact: impact,
           notes: `${reason}. ${formData.notes || ""}`.trim(),
           admin_id: user.id,
@@ -99,12 +120,13 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
         cleaner_name: cleaner.invoice_name || cleaner.full_name,
         date: formData.date,
         month_period: monthPeriod,
-        scheduled_time: formData.scheduled_time,
-        actual_clock_in: formData.actual_clock_in,
-        minutes_late: mins,
-        uniform_ok: formData.uniform_ok,
-        presentation_ok: formData.presentation_ok,
-        absence: formData.absence,
+        incident_type: incidentType,
+        scheduled_time: incidentType === "punctuality" ? formData.scheduled_time : null,
+        actual_clock_in: incidentType === "punctuality" ? formData.actual_clock_in : null,
+        minutes_late: incidentType === "punctuality" ? mins : 0,
+        uniform_ok: incidentType === "presentation" ? formData.uniform_ok : true,
+        presentation_ok: incidentType === "presentation" ? formData.presentation_ok : true,
+        absence: incidentType === "punctuality" ? formData.absence : false,
         notes: formData.notes,
         points_impact: impact,
         registered_by_admin: user.id,
@@ -139,9 +161,14 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
           <h3 className="text-lg font-semibold text-slate-800">Puntualidad y Presentación Personal</h3>
           <p className="text-sm text-slate-500">Registra retrasos, ausencias e incumplimientos de presentación</p>
         </div>
-        <Button onClick={() => { setSelectedCleaner(""); setFormData({ date: format(new Date(), "yyyy-MM-dd"), scheduled_time: "", actual_clock_in: "", uniform_ok: true, presentation_ok: true, absence: false, notes: "" }); setShowDialog(true); }}>
-          <Plus className="w-4 h-4 mr-1" /> Registrar Incidencia
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => openDialog("presentation")} className="border-purple-300 text-purple-700 hover:bg-purple-50">
+            <Shirt className="w-4 h-4 mr-1" /> Uniforme / Presentación
+          </Button>
+          <Button onClick={() => openDialog("punctuality")}>
+            <Clock className="w-4 h-4 mr-1" /> Llegada Tarde / Ausencia
+          </Button>
+        </div>
       </div>
 
       {/* Tabla de penalizaciones */}
@@ -214,7 +241,12 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Registrar Incidencia de Puntualidad/Presentación</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {incidentType === "punctuality"
+                ? <><Clock className="w-5 h-5 text-orange-500" /> Registrar Llegada Tarde / Ausencia</>
+                : <><Shirt className="w-5 h-5 text-purple-500" /> Registrar Uniforme / Presentación Personal</>
+              }
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -234,41 +266,52 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
               <Input type="date" value={formData.date} onChange={e => setFormData(p => ({ ...p, date: e.target.value }))} />
             </div>
 
-            <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
-              <Label className="text-red-800 font-semibold">Ausencia sin notificar (-15 pts)</Label>
-              <Switch checked={formData.absence} onCheckedChange={v => setFormData(p => ({ ...p, absence: v }))} />
-            </div>
-
-            {!formData.absence && (
+            {incidentType === "punctuality" && (
               <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Hora programada</Label>
-                    <Input type="time" value={formData.scheduled_time} onChange={e => setFormData(p => ({ ...p, scheduled_time: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>Hora real de llegada</Label>
-                    <Input type="time" value={formData.actual_clock_in} onChange={e => setFormData(p => ({ ...p, actual_clock_in: e.target.value }))} />
-                  </div>
+                <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                  <Label className="text-red-800 font-semibold">Ausencia sin notificar (-15 pts)</Label>
+                  <Switch checked={formData.absence} onCheckedChange={v => setFormData(p => ({ ...p, absence: v }))} />
                 </div>
 
-                {minutesLate() > 0 && (
-                  <div className="text-sm bg-orange-50 p-2 rounded border border-orange-200 text-orange-800">
-                    ⏱ Retraso: {minutesLate()} minutos
-                  </div>
+                {!formData.absence && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Hora programada</Label>
+                        <Input type="time" value={formData.scheduled_time} onChange={e => setFormData(p => ({ ...p, scheduled_time: e.target.value }))} />
+                      </div>
+                      <div>
+                        <Label>Hora real de llegada</Label>
+                        <Input type="time" value={formData.actual_clock_in} onChange={e => setFormData(p => ({ ...p, actual_clock_in: e.target.value }))} />
+                      </div>
+                    </div>
+                    {minutesLate() > 0 && (
+                      <div className="text-sm bg-orange-50 p-2 rounded border border-orange-200 text-orange-800">
+                        ⏱ Retraso: {minutesLate()} minutos
+                      </div>
+                    )}
+                  </>
                 )}
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <Label>Uniforme completo ✅</Label>
-                    <Switch checked={formData.uniform_ok} onCheckedChange={v => setFormData(p => ({ ...p, uniform_ok: v }))} />
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <Label>Presentación personal adecuada ✅</Label>
-                    <Switch checked={formData.presentation_ok} onCheckedChange={v => setFormData(p => ({ ...p, presentation_ok: v }))} />
-                  </div>
-                </div>
               </>
+            )}
+
+            {incidentType === "presentation" && (
+              <div className="space-y-3">
+                <div className={`flex items-center justify-between p-3 rounded-lg border ${formData.uniform_ok ? "bg-slate-50 border-slate-200" : "bg-red-50 border-red-200"}`}>
+                  <div>
+                    <Label className="font-semibold">Uniforme completo</Label>
+                    <p className="text-xs text-slate-500">-3 pts si incompleto</p>
+                  </div>
+                  <Switch checked={formData.uniform_ok} onCheckedChange={v => setFormData(p => ({ ...p, uniform_ok: v }))} />
+                </div>
+                <div className={`flex items-center justify-between p-3 rounded-lg border ${formData.presentation_ok ? "bg-slate-50 border-slate-200" : "bg-red-50 border-red-200"}`}>
+                  <div>
+                    <Label className="font-semibold">Presentación personal adecuada</Label>
+                    <p className="text-xs text-slate-500">-2 pts si inadecuada</p>
+                  </div>
+                  <Switch checked={formData.presentation_ok} onCheckedChange={v => setFormData(p => ({ ...p, presentation_ok: v }))} />
+                </div>
+              </div>
             )}
 
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
