@@ -238,24 +238,34 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
 
   // Calcular promedio mensual por limpiador a partir de las revisiones del mes
   const cleanerMonthlyAverages = useMemo(() => {
+    const TOTAL_POSSIBLE_CALC = 18; // Máximo de puntos en un checklist
     const map = {}; // cleanerId -> { totalEarned, count, totalPossible }
     records.forEach(record => {
       const earned = (record.checklist_items || []).reduce((s, i) => i.passed ? s + (i.points || i.points_if_fail || 0) : s, 0);
-      const possible = (record.checklist_items || []).reduce((s, i) => s + (i.points || i.points_if_fail || 0), 0);
+      const possible = (record.checklist_items || []).reduce((s, i) => s + (i.points || i.points_if_fail || 0), 0) || TOTAL_POSSIBLE_CALC;
+      
+      // Cada miembro del equipo recibe el mismo puntaje (porque el checklist es del vehículo, no individual)
+      // Pero contamos una revisión por cada miembro para calcular promedios
       (record.team_member_ids || []).forEach(id => {
         if (!map[id]) map[id] = { totalEarned: 0, totalPossible: 0, count: 0 };
         map[id].totalEarned += earned;
-        map[id].totalPossible += possible || TOTAL_POSSIBLE;
+        map[id].totalPossible += possible;
         map[id].count++;
       });
     });
-    // Convertir a puntos sobre TOTAL_POSSIBLE promediados
-    return Object.entries(map).map(([cleanerId, data]) => ({
-      cleanerId,
-      avgEarned: Math.round(data.totalEarned / data.count),
-      avgDeduction: Math.round((data.totalPossible / data.count) - (data.totalEarned / data.count)),
-      reviewCount: data.count,
-    }));
+    
+    // Convertir a promedio real (puntos ganados vs puntos posibles)
+    return Object.entries(map).map(([cleanerId, data]) => {
+      const avgEarned = Math.round((data.totalEarned / data.count) * 100) / 100;
+      const avgPossible = Math.round((data.totalPossible / data.count) * 100) / 100;
+      const avgDeduction = Math.round((avgPossible - avgEarned) * 100) / 100;
+      return {
+        cleanerId,
+        avgEarned: Math.round(avgEarned),
+        avgDeduction: Math.round(avgDeduction),
+        reviewCount: data.count,
+      };
+    });
   }, [records]);
 
   useEffect(() => { loadData(); }, [monthPeriod]);
@@ -541,7 +551,8 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
                  </div>
                 <div className="space-y-2">
                   {cleanerMonthlyAverages.map(({ cleanerId, avgEarned, avgDeduction, reviewCount }) => {
-                    const nombre = limpiadores.find(l => l.id === cleanerId)?.full_name || cleanerId;
+                    const cleaner = limpiadores.find(l => l.id === cleanerId);
+                    const nombre = cleaner?.full_name || cleaner?.invoice_name || cleanerId;
                     return (
                       <div key={cleanerId} className="flex items-center justify-between bg-white rounded-lg p-2 border border-blue-100">
                         <div>
