@@ -344,15 +344,16 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     monthlyScores.some(s => s.cleaner_id === c.id && s.is_participating)
   );
 
-  // Coverage stats
+  // Coverage stats — use ALL limpiadores (active), not just participating
+  const allActiveLimpiadores = limpiadores;
   const reviewCountByCleaner = {};
   reviews.forEach(r => {
     reviewCountByCleaner[r.cleaner_id] = (reviewCountByCleaner[r.cleaner_id] || 0) + 1;
   });
   const maxReviews = Math.max(0, ...Object.values(reviewCountByCleaner));
-  const reviewedCleaners = participatingCleaners.filter(c => reviewCountByCleaner[c.id] > 0)
+  const reviewedCleaners = allActiveLimpiadores.filter(c => reviewCountByCleaner[c.id] > 0)
     .sort((a, b) => (reviewCountByCleaner[b.id] || 0) - (reviewCountByCleaner[a.id] || 0));
-  const notReviewedCleaners = participatingCleaners.filter(c => !reviewCountByCleaner[c.id]);
+  const notReviewedCleaners = allActiveLimpiadores.filter(c => !reviewCountByCleaner[c.id]);
 
   const allReviewsSorted = [...reviews].sort((a, b) => new Date(b.review_date) - new Date(a.review_date));
   const totalHistoryPages = Math.ceil(allReviewsSorted.length / HISTORY_PAGE_SIZE);
@@ -478,10 +479,10 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
               </Card>
             )}
 
-            {participatingCleaners.length === 0 && (
+            {allActiveLimpiadores.length === 0 && (
               <div className="text-center py-10 text-slate-400">
                 <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">No hay limpiadores participando este mes.</p>
+                <p className="text-sm">No hay limpiadores activos.</p>
               </div>
             )}
           </TabsContent>
