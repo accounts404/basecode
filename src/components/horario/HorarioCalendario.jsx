@@ -1261,18 +1261,21 @@ const HorarioCalendario = React.forwardRef(function HorarioCalendario({
                                         
                                         {/* Eventos del día */}
                                         <div className="space-y-2">
-                                            {dayEvents.map(event => (
-                                                <div key={event.id}>
-                                                    <EventBlock
-                                                        event={event}
-                                                        onClick={() => onSelectEvent(event)}
-                                                        showFullInfo={true}
-                                                    />
-                                                </div>
-                                            ))}
-                                            
+                                            {(dayEvents || []).map(event => {
+                                                if (!event) return null;
+                                                return (
+                                                    <div key={event.id}>
+                                                        <EventBlock
+                                                            event={event}
+                                                            onClick={() => onSelectEvent(event)}
+                                                            showFullInfo={true}
+                                                        />
+                                                    </div>
+                                                );
+                                            })}
+
                                             {/* Espacio vacío clickeable SOLO PARA ADMIN Y CUANDO onCreateAtTime ESTÁ DISPONIBLE */}
-                                            {dayEvents.length === 0 && isCurrentMonth && !isReadOnly && !isCleanerView && onCreateAtTime && (
+                                            {(!dayEvents || dayEvents.length === 0) && isCurrentMonth && !isReadOnly && !isCleanerView && onCreateAtTime && (
                                                 <div className="empty-space h-24 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-blue-50 rounded-lg transition-all border-2 border-dashed border-gray-200 hover:border-blue-300">
                                                     <div className="text-center">
                                                         <div className="text-2xl mb-1">+</div>
