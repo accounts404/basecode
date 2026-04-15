@@ -72,7 +72,9 @@ export default function ServiceItemsManagement() {
         await base44.entities.ServiceAreaItem.update(editingItem.id, dataToSave);
         toast.success('Item actualizado con éxito');
       } else {
-        await base44.entities.ServiceAreaItem.create(dataToSave);
+        const areaItems = items.filter(i => i.area_name === formData.area_name);
+        const maxOrder = areaItems.reduce((max, i) => Math.max(max, i.sort_order ?? 0), -1);
+        await base44.entities.ServiceAreaItem.create({ ...dataToSave, sort_order: maxOrder + 1 });
         toast.success('Item creado con éxito');
       }
 
