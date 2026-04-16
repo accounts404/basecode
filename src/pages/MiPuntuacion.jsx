@@ -428,13 +428,7 @@ function MyRankingSection({ userId, monthPeriod, myTotalScore }) {
         </div>
       </div>
 
-      {/* Info */}
-      <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 text-center">
-        <Info className="w-5 h-5 text-slate-400 mx-auto mb-1.5" />
-        <p className="text-xs text-slate-500">
-          Los puntajes de tus compañeros son confidenciales. Solo puedes ver tu posición en el grupo.
-        </p>
-      </div>
+
     </div>
   );
 }
