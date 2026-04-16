@@ -114,7 +114,7 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       title: "Puntuación",
       url: createPageUrl("MiPuntuacion"),
       icon: Trophy,
-      show: false // temporalmente oculto
+      show: isScoringParticipant
     },
     {
       title: "Perfil",
