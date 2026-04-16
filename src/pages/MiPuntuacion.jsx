@@ -368,71 +368,22 @@ function AdjustmentsSection({ userId, monthPeriod }) {
   );
 }
 
-// ── Ranking del grupo ─────────────────────────────────────
-function RankingSection({ userId, monthPeriod }) {
-  const [entries, setEntries] = useState([]);
+// ── Mi Posición (solo muestra puesto, sin puntajes de otros) ──
+function MyRankingSection({ userId, monthPeriod, myTotalScore }) {
+  const [rank, setRank] = useState(null);
+  const [total, setTotal] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [myEntry, setMyEntry] = useState(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [allScores, adjs, perfReviews, vehicleRecs] = await Promise.all([
-          base44.entities.MonthlyCleanerScore.filter({ month_period: monthPeriod, is_participating: true }),
-          base44.entities.ScoreAdjustment.filter({ month_period: monthPeriod }),
-          base44.entities.PerformanceReview.filter({ month_period: monthPeriod }),
-          base44.entities.VehicleChecklistRecord.filter({ month_period: monthPeriod }),
-        ]);
-
-        // Performance averages
-        const perfMap = {};
-        perfReviews.forEach(r => {
-          if (!perfMap[r.cleaner_id]) perfMap[r.cleaner_id] = { total: 0, count: 0 };
-          perfMap[r.cleaner_id].total += r.overall_score || 100;
-          perfMap[r.cleaner_id].count++;
-        });
-
-        // Vehicle averages
-        const vehMap = {};
-        vehicleRecs.forEach(record => {
-          const earned = (record.checklist_items || []).reduce((s, i) => i.passed ? s + (i.points || i.points_if_fail || 0) : s, 0);
-          const possible = (record.checklist_items || []).reduce((s, i) => s + (i.points || i.points_if_fail || 0), 0) || 18;
-          (record.team_member_ids || []).forEach(id => {
-            if (!vehMap[id]) vehMap[id] = { earned: 0, possible: 0, count: 0 };
-            vehMap[id].earned += earned;
-            vehMap[id].possible += possible;
-            vehMap[id].count++;
-          });
-        });
-
-        // Vehicle adjustments map
-        const vehicleAdjMap = {};
-        adjs.forEach(a => {
-          if (a.category === "Revisión Vehicular (Promedio Mensual)") {
-            vehicleAdjMap[a.cleaner_id] = a.points_impact || 0;
-          }
-        });
-
-        const computed = allScores.map(ms => {
-          const perfData = perfMap[ms.cleaner_id];
-          const perfAvg = perfData ? perfData.total / perfData.count : 100;
-          const vehData = vehMap[ms.cleaner_id];
-          const vehAvg = vehData ? vehData.earned / vehData.count : 18;
-          const vehicleAdj = vehicleAdjMap[ms.cleaner_id] || 0;
-          const relevantAdjs = adjs.filter(a =>
-            a.cleaner_id === ms.cleaner_id &&
-            a.category !== "Revisión Vehicular (Promedio Mensual)" &&
-            a.category !== "Evaluación de Performance"
-          );
-          const adjScore = relevantAdjs.reduce((s, a) => s + (a.points_impact || 0), 0);
-          const score = perfAvg + vehAvg + vehicleAdj + adjScore;
-          return { ...ms, score };
-        });
-
-        const sorted = computed.sort((a, b) => b.score - a.score).map((e, i) => ({ ...e, rank: i + 1 }));
-        setEntries(sorted);
-        setMyEntry(sorted.find(e => e.cleaner_id === userId) || null);
+        const allScores = await base44.entities.MonthlyCleanerScore.filter({ month_period: monthPeriod, is_participating: true });
+        // Solo necesitamos saber cuántos hay y cuál es el puesto basado en current_score
+        const sorted = [...allScores].sort((a, b) => b.current_score - a.current_score);
+        const myRank = sorted.findIndex(s => s.cleaner_id === userId) + 1;
+        setRank(myRank > 0 ? myRank : null);
+        setTotal(allScores.length);
       } catch (e) { console.error(e); }
       setLoading(false);
     };
@@ -441,51 +392,49 @@ function RankingSection({ userId, monthPeriod }) {
 
   if (loading) return <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>;
 
-  if (entries.length === 0) {
-    return (
-      <div className="text-center py-10 text-slate-400">
-        <Trophy className="w-10 h-10 mx-auto mb-2 opacity-40" />
-        <p className="text-sm">No hay datos de ranking para este mes.</p>
-      </div>
-    );
-  }
+  const rankLabel = rank === 1 ? "¡Primer lugar! 🏆" : rank === 2 ? "¡Segundo lugar! 🥈" : rank === 3 ? "¡Tercer lugar! 🥉" : null;
 
   return (
-    <div className="space-y-3">
-      {entries.map(entry => {
-        const isMe = entry.cleaner_id === userId;
-        return (
+    <div className="space-y-4">
+      {/* Puesto */}
+      <div className={`rounded-2xl border-2 p-6 text-center ${
+        rank === 1 ? "bg-yellow-50 border-yellow-300" :
+        rank === 2 ? "bg-slate-50 border-slate-300" :
+        rank === 3 ? "bg-orange-50 border-orange-300" :
+        "bg-blue-50 border-blue-200"
+      }`}>
+        <div className="flex justify-center mb-3">
+          <RankIcon rank={rank} />
+        </div>
+        <p className="text-5xl font-black text-slate-800 mb-1">#{rank}</p>
+        <p className="text-sm text-slate-500">de {total} participantes</p>
+        {rankLabel && <p className="text-base font-bold text-slate-700 mt-2">{rankLabel}</p>}
+      </div>
+
+      {/* Puntaje propio */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 text-center">
+        <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Tu puntaje</p>
+        <p className="text-5xl font-black text-slate-800 tabular-nums">{Math.round(myTotalScore)}</p>
+        <p className="text-sm text-slate-400 mt-1">de 118 puntos posibles</p>
+        <div className="mt-3 h-3 bg-slate-100 rounded-full overflow-hidden">
           <div
-            key={entry.cleaner_id}
-            className={`rounded-xl border p-3 flex items-center gap-3 transition-all ${
-              isMe
-                ? "border-blue-400 bg-blue-50 shadow-md ring-2 ring-blue-300"
-                : entry.rank === 1 ? "border-yellow-200 bg-yellow-50"
-                : entry.rank === 2 ? "border-slate-200 bg-slate-50"
-                : entry.rank === 3 ? "border-orange-200 bg-orange-50"
-                : "border-slate-200 bg-white"
+            className={`h-full rounded-full transition-all duration-700 ${
+              myTotalScore >= 112 ? "bg-emerald-500" :
+              myTotalScore >= 100 ? "bg-blue-500" :
+              myTotalScore >= 82 ? "bg-amber-500" : "bg-red-400"
             }`}
-          >
-            <RankIcon rank={entry.rank} />
-            <div className="flex-1 min-w-0">
-              <p className={`font-semibold text-sm truncate ${isMe ? "text-blue-800" : "text-slate-700"}`}>
-                {entry.cleaner_name}
-                {isMe && <span className="ml-2 text-xs font-normal bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded-full">Tú</span>}
-              </p>
-              <div className="mt-1.5 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${entry.rank === 1 ? "bg-yellow-400" : isMe ? "bg-blue-500" : "bg-slate-400"}`}
-                  style={{ width: `${Math.max(0, Math.min(100, (entry.score / 118) * 100))}%` }}
-                />
-              </div>
-            </div>
-            <div className={`text-right shrink-0 ${isMe ? "text-blue-700" : "text-slate-600"}`}>
-              <p className="text-xl font-black tabular-nums">{Math.round(entry.score)}</p>
-              <p className="text-xs text-slate-400">/ 118</p>
-            </div>
-          </div>
-        );
-      })}
+            style={{ width: `${Math.max(0, Math.min(100, (myTotalScore / 118) * 100))}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 text-center">
+        <Info className="w-5 h-5 text-slate-400 mx-auto mb-1.5" />
+        <p className="text-xs text-slate-500">
+          Los puntajes de tus compañeros son confidenciales. Solo puedes ver tu posición en el grupo.
+        </p>
+      </div>
     </div>
   );
 }
@@ -681,9 +630,9 @@ export default function MiPuntuacionPage() {
             <div className="p-4">
               <TabsContent value="overview" className="mt-0">
                 <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-yellow-500" /> Ranking del grupo — {monthLabel}
+                  <Trophy className="w-4 h-4 text-yellow-500" /> Mi posición — {monthLabel}
                 </h3>
-                <RankingSection userId={user?.id} monthPeriod={monthPeriod} />
+                <MyRankingSection userId={user?.id} monthPeriod={monthPeriod} myTotalScore={scoreData?.totalScore ?? 0} />
               </TabsContent>
 
               <TabsContent value="performance" className="mt-0">
