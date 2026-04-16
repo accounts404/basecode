@@ -300,9 +300,11 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
         const vehicleAdjustment = vehicleAdjustments[cleaner.id] || 0;
         vehicleScore = vehicleAvg + vehicleAdjustment;
 
-        // Ajustes: suma/resta de Puntualidad + Feedback (excluyendo ajustes vehiculares)
+        // Ajustes: suma/resta de Puntualidad + Feedback (excluyendo ajustes vehiculares y de performance)
         const relevantAdjustments = adjustments.filter(a => 
-          a.cleaner_id === cleaner.id && a.category !== "Revisión Vehicular (Promedio Mensual)"
+          a.cleaner_id === cleaner.id && 
+          a.category !== "Revisión Vehicular (Promedio Mensual)" &&
+          a.category !== "Evaluación de Performance"
         );
         adjustmentScore = relevantAdjustments.reduce((total, adj) => total + (adj.points_impact || 0), 0);
       }
