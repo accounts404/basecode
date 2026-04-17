@@ -658,9 +658,9 @@ export default function MiPuntuacionPage() {
                     }
                   </div>
                   <div>
-                    <span className="text-sm font-semibold text-slate-700">Bonos y Deducciones</span>
+                    <span className="text-sm font-semibold text-slate-700">Feedbacks</span>
                     <p className={`text-xs ${scoreData.adjScore >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-                      {scoreData.adjScore === 0 ? "Sin ajustes este mes" : scoreData.adjScore > 0 ? "Tienes bonificaciones" : "Tienes deducciones"}
+                      {scoreData.adjScore === 0 ? "Sin feedbacks este mes" : scoreData.adjScore > 0 ? "Feedbacks positivos" : "Feedbacks negativos"}
                     </p>
                   </div>
                 </div>
