@@ -1,15 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { subMonths, startOfMonth, endOfMonth, format, eachMonthOfInterval, differenceInMonths } from 'date-fns';
+import { subMonths, startOfMonth, endOfMonth, format, eachMonthOfInterval, differenceInMonths, getDate, setDate } from 'date-fns';
 import { es } from 'date-fns/locale';
 import MonthRangePicker from './MonthRangePicker';
 import ComparativeKPICard from './ComparativeKPICard';
 import MonthlyTrendChart from './MonthlyTrendChart';
 import MonthlyComparisonTable from './MonthlyComparisonTable';
-import { DollarSign, Clock, Users, Briefcase, BarChart3, TrendingUp, TrendingDown, Award, AlertCircle } from 'lucide-react';
+import { DollarSign, Clock, Users, Briefcase, BarChart3, TrendingUp, TrendingDown, Award, AlertCircle, CalendarDays } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, ComposedChart } from 'recharts';
 import { Client } from '@/entities/Client';
 import { User } from '@/entities/User';
@@ -139,6 +141,7 @@ export default function ComparativeAnalysis({ workEntries }) {
         start: startOfMonth(subMonths(new Date(), 5)),
         end: endOfMonth(new Date()),
     });
+    const [adjustedComparison, setAdjustedComparison] = useState(false);
     
     const [clients, setClients] = useState([]);
     const [users, setUsers] = useState([]);
@@ -271,45 +274,107 @@ export default function ComparativeAnalysis({ workEntries }) {
         return clientSet.size;
     }, [workEntries, dateRange]);
     
-    const previousPeriodTotals = useMemo(() => {
-        if (!dateRange.start || !dateRange.end) return null;
-        
+    // Calcula el período anterior, con opción de ajustar al mismo número de días
+    const { prevStart, prevEnd, comparisonLabel } = useMemo(() => {
+        if (!dateRange.start || !dateRange.end) return { prevStart: null, prevEnd: null, comparisonLabel: '' };
+
         const monthsDiff = differenceInMonths(dateRange.end, dateRange.start) + 1;
-        const prevEnd = subMonths(dateRange.start, 1);
-        const prevStart = subMonths(prevEnd, monthsDiff - 1);
-        
+        const rawPrevEnd = subMonths(dateRange.start, 1);
+        const rawPrevStart = subMonths(rawPrevEnd, monthsDiff - 1);
+
+        if (adjustedComparison) {
+            // Ajustar el fin del período anterior al mismo día que el fin del período actual
+            const endDay = getDate(dateRange.end);
+            const adjustedPrevEnd = setDate(rawPrevEnd, Math.min(endDay, getDate(endOfMonth(rawPrevEnd))));
+            const adjustedPrevStart = startOfMonth(rawPrevStart);
+            return {
+                prevStart: adjustedPrevStart,
+                prevEnd: adjustedPrevEnd,
+                comparisonLabel: `${format(adjustedPrevStart, 'dd MMM', { locale: es })} – ${format(adjustedPrevEnd, 'dd MMM yyyy', { locale: es })}`
+            };
+        }
+
+        return {
+            prevStart: rawPrevStart,
+            prevEnd: rawPrevEnd,
+            comparisonLabel: `${format(rawPrevStart, 'dd MMM', { locale: es })} – ${format(rawPrevEnd, 'dd MMM yyyy', { locale: es })}`
+        };
+    }, [dateRange, adjustedComparison]);
+
+    const previousPeriodTotals = useMemo(() => {
+        if (!prevStart || !prevEnd) return null;
+
+        const prevStartStr = format(prevStart, 'yyyy-MM-dd');
+        const prevEndStr = format(prevEnd, 'yyyy-MM-dd');
         const prevStartMonth = format(prevStart, 'yyyy-MM');
         const prevEndMonth = format(prevEnd, 'yyyy-MM');
 
-        const prevCostData = allMonthlyCosts.filter(d => d.month >= prevStartMonth && d.month <= prevEndMonth);
-        const prevRevenueData = allMonthlyRevenue.filter(d => d.month >= prevStartMonth && d.month <= prevEndMonth);
+        // Para datos mensuales agregados, filtramos por mes y luego aplicamos corte de día si está ajustado
+        let prevCostData, prevRevenueData;
 
-        const totals = prevCostData.reduce((acc, month) => {
-            acc.totalLaborCost += month.totalLaborCost;
-            acc.totalHours += month.totalHours;
-            acc.servicesRealized += month.servicesRealized;
-            return acc;
-        }, { totalLaborCost: 0, totalHours: 0, servicesRealized: 0, totalRevenue: 0, grossMargin: 0 });
-        
-        totals.totalRevenue = prevRevenueData.reduce((sum, month) => sum + month.totalRevenue, 0);
-        totals.grossMargin = totals.totalRevenue - totals.totalLaborCost;
-        
-        totals.clientsAttended = (() => {
-            const clientSet = new Set();
-            workEntries.forEach(entry => {
-                // EXCLUIR agosto y septiembre 2025
-                if (isExcludedMonth(entry.work_date)) return;
-                
-                const entryDate = new Date(entry.work_date);
-                if(entryDate >= prevStart && entryDate <= prevEnd && entry.activity !== 'entrenamiento') {
-                    clientSet.add(entry.client_id);
-                }
+        if (adjustedComparison) {
+            // Recalcular directamente desde workEntries con corte de fecha exacta
+            const filteredPrev = workEntries.filter(entry => {
+                if (isExcludedMonth(entry.work_date)) return false;
+                const d = entry.work_date.substring(0, 10);
+                return d >= prevStartStr && d <= prevEndStr && entry.activity !== 'entrenamiento';
             });
-            return clientSet.size;
-        })();
 
-        return totals;
-    }, [allMonthlyCosts, allMonthlyRevenue, dateRange, workEntries]);
+            const totalLaborCost = filteredPrev.reduce((s, e) => s + (e.total_amount || 0), 0);
+            const totalHours = filteredPrev.reduce((s, e) => s + (e.hours || 0), 0);
+            const servicesSet = new Set(filteredPrev.map(e => `${e.client_id}|${e.work_date.substring(0, 10)}`));
+            const clientSet = new Set(filteredPrev.map(e => e.client_id));
+
+            // Ingresos por schedules en el mismo rango de fechas exacto
+            const prevScheduleRevenue = schedules
+                .filter(s => {
+                    if (!s.xero_invoiced || !s.start_time) return false;
+                    if (isExcludedMonth(s.start_time)) return false;
+                    const d = s.start_time.substring(0, 10);
+                    return d >= prevStartStr && d <= prevEndStr;
+                })
+                .reduce((sum, s) => {
+                    const client = clients.find(c => c.id === s.client_id);
+                    return sum + calculateScheduleRevenue(s, client);
+                }, 0);
+
+            return {
+                totalLaborCost,
+                totalHours,
+                servicesRealized: servicesSet.size,
+                clientsAttended: clientSet.size,
+                totalRevenue: prevScheduleRevenue,
+                grossMargin: prevScheduleRevenue - totalLaborCost,
+            };
+        } else {
+            prevCostData = allMonthlyCosts.filter(d => d.month >= prevStartMonth && d.month <= prevEndMonth);
+            prevRevenueData = allMonthlyRevenue.filter(d => d.month >= prevStartMonth && d.month <= prevEndMonth);
+
+            const totals = prevCostData.reduce((acc, month) => {
+                acc.totalLaborCost += month.totalLaborCost;
+                acc.totalHours += month.totalHours;
+                acc.servicesRealized += month.servicesRealized;
+                return acc;
+            }, { totalLaborCost: 0, totalHours: 0, servicesRealized: 0, totalRevenue: 0, grossMargin: 0 });
+
+            totals.totalRevenue = prevRevenueData.reduce((sum, month) => sum + month.totalRevenue, 0);
+            totals.grossMargin = totals.totalRevenue - totals.totalLaborCost;
+
+            totals.clientsAttended = (() => {
+                const clientSet = new Set();
+                workEntries.forEach(entry => {
+                    if (isExcludedMonth(entry.work_date)) return;
+                    const entryDate = new Date(entry.work_date);
+                    if (entryDate >= prevStart && entryDate <= prevEnd && entry.activity !== 'entrenamiento') {
+                        clientSet.add(entry.client_id);
+                    }
+                });
+                return clientSet.size;
+            })();
+
+            return totals;
+        }
+    }, [prevStart, prevEnd, allMonthlyCosts, allMonthlyRevenue, workEntries, schedules, clients, adjustedComparison]);
 
     // NUEVO: Análisis por Limpiador (usando costos de mano de obra)
     const cleanerAnalysis = useMemo(() => {
@@ -606,6 +671,29 @@ export default function ComparativeAnalysis({ workEntries }) {
     return (
         <div className="space-y-8">
             <MonthRangePicker onRangeChange={setDateRange} workEntries={workEntries}/>
+
+            {/* Toggle comparación ajustada */}
+            <div className="flex items-center gap-4 bg-white border border-slate-200 rounded-xl px-5 py-4 shadow-sm">
+                <CalendarDays className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                <div className="flex-1">
+                    <p className="text-sm font-semibold text-slate-800">Comparación ajustada al día actual</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                        {adjustedComparison
+                            ? `Comparando el período actual vs el período anterior hasta el mismo día (${comparisonLabel})`
+                            : 'Comparando meses completos vs meses completos del período anterior'}
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Label htmlFor="adjusted-comparison" className="text-sm text-slate-600 cursor-pointer">
+                        {adjustedComparison ? 'Activada' : 'Desactivada'}
+                    </Label>
+                    <Switch
+                        id="adjusted-comparison"
+                        checked={adjustedComparison}
+                        onCheckedChange={setAdjustedComparison}
+                    />
+                </div>
+            </div>
 
             <Tabs defaultValue="overview" className="w-full">
                 <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7">
