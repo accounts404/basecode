@@ -20,6 +20,7 @@ import FamilyAndPetsManager from '../components/clients/FamilyAndPetsManager';
 import ClientHistory from '../components/clients/ClientHistory';
 import StructuredServiceNotes from '../components/clients/StructuredServiceNotes';
 import { createPageUrl } from '@/utils';
+import ExportClientsCSV from '../components/clients/ExportClientsCSV';
 
 export default function ClientesPage() {
     const [clients, setClients] = useState([]);
@@ -315,9 +316,12 @@ export default function ClientesPage() {
                         </h1>
                         <p className="text-slate-500 mt-1">Administra la cartera de clientes activos e inactivos</p>
                     </div>
-                    <Button onClick={handleCreate} className="gap-2">
-                        <PlusCircle className="h-4 w-4" /> Nuevo Cliente
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <ExportClientsCSV clients={clients} />
+                        <Button onClick={handleCreate} className="gap-2">
+                            <PlusCircle className="h-4 w-4" /> Nuevo Cliente
+                        </Button>
+                    </div>
                 </div>
 
 
