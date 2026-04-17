@@ -75,26 +75,7 @@ function RankBadge({ rank, total }) {
   );
 }
 
-function MiniScoreCard({ icon: Icon, label, value, max, colorClass, bgClass }) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
-  return (
-    <div className={`${bgClass} rounded-2xl p-3 flex flex-col gap-2`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Icon className={`w-4 h-4 ${colorClass}`} />
-          <span className="text-xs font-medium text-slate-600">{label}</span>
-        </div>
-        <span className={`text-sm font-black ${colorClass}`}>
-          {value % 1 === 0 ? value : Number(value).toFixed(1)}
-          <span className="text-xs font-normal text-slate-400">/{max}</span>
-        </span>
-      </div>
-      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${colorClass.replace("text-", "bg-")} transition-all duration-700`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
+
 
 // ── Timeline de eventos unificada ───────────────────────────
 function UnifiedTimeline({ userId, monthPeriod }) {
@@ -627,37 +608,66 @@ export default function MiPuntuacionPage() {
       {/* ── 3 Mini Cards ── */}
       {!loading && scoreData && (
         <div className="px-4 -mt-4">
-          <div className="bg-white rounded-3xl shadow-lg p-4 grid grid-cols-3 gap-3">
-            <MiniScoreCard
-              icon={Star}
-              label="Calidad"
-              value={scoreData.perfAvg}
-              max={100}
-              colorClass="text-blue-500"
-              bgClass="bg-blue-50"
-            />
-            <MiniScoreCard
-              icon={Car}
-              label="Vehículo"
-              value={scoreData.vehAvg}
-              max={18}
-              colorClass="text-slate-600"
-              bgClass="bg-slate-50"
-            />
-            <div className={`rounded-2xl p-3 flex flex-col gap-2 ${scoreData.adjScore >= 0 ? "bg-emerald-50" : "bg-red-50"}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  {scoreData.adjScore >= 0
-                    ? <TrendingUp className="w-4 h-4 text-emerald-500" />
-                    : <TrendingDown className="w-4 h-4 text-red-500" />
-                  }
-                  <span className="text-xs font-medium text-slate-600">Ajustes</span>
+          <div className="bg-white rounded-3xl shadow-lg p-4 space-y-3">
+            {/* Calidad */}
+            <div className="bg-blue-50 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center">
+                    <Star className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">Calidad de Limpieza</span>
                 </div>
-                <span className={`text-sm font-black ${scoreData.adjScore >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                <span className="text-xl font-black text-blue-600">
+                  {scoreData.perfAvg % 1 === 0 ? scoreData.perfAvg : Number(scoreData.perfAvg).toFixed(1)}
+                  <span className="text-sm font-normal text-slate-400">/100</span>
+                </span>
+              </div>
+              <div className="h-2 bg-blue-200 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 rounded-full transition-all duration-700" style={{ width: `${Math.min(100, (scoreData.perfAvg / 100) * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Vehículo */}
+            <div className="bg-slate-50 rounded-2xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-slate-200 rounded-xl flex items-center justify-center">
+                    <Car className="w-4 h-4 text-slate-600" />
+                  </div>
+                  <span className="text-sm font-semibold text-slate-700">Revisión de Vehículo</span>
+                </div>
+                <span className="text-xl font-black text-slate-700">
+                  {scoreData.vehAvg % 1 === 0 ? scoreData.vehAvg : Number(scoreData.vehAvg).toFixed(1)}
+                  <span className="text-sm font-normal text-slate-400">/18</span>
+                </span>
+              </div>
+              <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-full bg-slate-500 rounded-full transition-all duration-700" style={{ width: `${Math.min(100, (scoreData.vehAvg / 18) * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Ajustes */}
+            <div className={`rounded-2xl p-4 ${scoreData.adjScore >= 0 ? "bg-emerald-50" : "bg-red-50"}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${scoreData.adjScore >= 0 ? "bg-emerald-100" : "bg-red-100"}`}>
+                    {scoreData.adjScore >= 0
+                      ? <TrendingUp className="w-4 h-4 text-emerald-600" />
+                      : <TrendingDown className="w-4 h-4 text-red-600" />
+                    }
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-slate-700">Bonos y Deducciones</span>
+                    <p className={`text-xs ${scoreData.adjScore >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                      {scoreData.adjScore === 0 ? "Sin ajustes este mes" : scoreData.adjScore > 0 ? "Tienes bonificaciones" : "Tienes deducciones"}
+                    </p>
+                  </div>
+                </div>
+                <span className={`text-2xl font-black ${scoreData.adjScore >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                   {scoreData.adjScore >= 0 ? "+" : ""}{scoreData.adjScore}
                 </span>
               </div>
-              <p className={`text-xs ${scoreData.adjScore >= 0 ? "text-emerald-500" : "text-red-400"}`}>puntos</p>
             </div>
           </div>
         </div>
