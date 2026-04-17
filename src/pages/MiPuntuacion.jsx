@@ -5,7 +5,8 @@ import {
   Trophy, Crown, Medal, Award, TrendingUp, TrendingDown,
   Car, Star, MessageSquare, ChevronDown, ChevronUp,
   Loader2, Info, CheckCircle, AlertCircle, ThumbsUp, ThumbsDown,
-  ClipboardList, Calendar, ChevronLeft, ChevronRight, Sparkles
+  ClipboardList, Calendar, ChevronLeft, ChevronRight, Sparkles,
+  Image, Phone, User, MapPin
 } from "lucide-react";
 import { format, parseISO, subMonths, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
@@ -221,34 +222,69 @@ function UnifiedTimeline({ userId, monthPeriod }) {
               </button>
 
               {isExp && (
-                <div className="mt-2 bg-slate-50 rounded-2xl border border-slate-100 p-3 space-y-2">
+                <div className="mt-2 space-y-2">
+                  {/* Áreas de evaluación */}
                   {(item.data.area_scores || []).filter(a => a.included).map(area => {
                     const pct = area.max_points > 0 ? (area.score / area.max_points) * 100 : 100;
                     const areaLevel = getScoreLevel(pct, 100);
+                    const failedItems = area.config_items?.filter(it => area.checklist?.[it.key] === false) || [];
+                    const hasContent = failedItems.length > 0 || area.notes || (area.photos?.length > 0);
                     return (
-                      <div key={area.area_key} className="bg-white rounded-xl p-3 border border-slate-100">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs font-semibold text-slate-700">{area.area_name}</span>
-                          <span className="text-xs font-bold text-slate-600">{area.score}/{area.max_points}</span>
+                      <div key={area.area_key} className="bg-white rounded-2xl border border-slate-100 p-3">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className="text-sm font-semibold text-slate-700">{area.area_name}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${areaLevel.bg} ${areaLevel.text}`}>{area.score}/{area.max_points}</span>
                         </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-1.5">
-                          <div className={`h-full rounded-full ${areaLevel.bar}`} style={{ width: `${pct}%` }} />
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-2">
+                          <div className={`h-full rounded-full ${areaLevel.bar} transition-all duration-700`} style={{ width: `${pct}%` }} />
                         </div>
-                        {area.config_items && area.checklist && (
-                          <div className="space-y-0.5">
-                            {area.config_items.filter(it => area.checklist[it.key] === false).map(it => (
-                              <p key={it.key} className="text-xs text-red-600 flex items-center gap-1">
+                        {failedItems.length > 0 && (
+                          <div className="space-y-1 mb-2">
+                            {failedItems.map(it => (
+                              <p key={it.key} className="text-xs text-red-600 flex items-center gap-1.5 bg-red-50 rounded-lg px-2 py-1">
                                 <AlertCircle className="w-3 h-3 shrink-0" /> {it.label}
                               </p>
                             ))}
                           </div>
                         )}
-                        {area.notes && <p className="text-xs text-slate-400 italic mt-1">💬 {area.notes}</p>}
+                        {area.notes && (
+                          <div className="bg-blue-50 rounded-lg px-3 py-2 mb-2">
+                            <p className="text-xs text-blue-800"><span className="font-semibold">Comentario:</span> {area.notes}</p>
+                          </div>
+                        )}
+                        {area.photos?.length > 0 && (
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {area.photos.map((ph, i) => (
+                              <a key={i} href={ph.url} target="_blank" rel="noopener noreferrer" className="block">
+                                <img src={ph.url} alt={ph.comment || "foto"} className="w-full h-16 object-cover rounded-lg border border-slate-200" />
+                                {ph.comment && <p className="text-xs text-slate-400 mt-0.5 truncate">{ph.comment}</p>}
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
+                  {/* Notas generales */}
                   {item.data.general_notes && (
-                    <p className="text-xs text-slate-500 italic bg-white rounded-xl p-2.5 border border-slate-100">📝 {item.data.general_notes}</p>
+                    <div className="bg-amber-50 rounded-2xl border border-amber-100 p-3">
+                      <p className="text-xs font-semibold text-amber-700 mb-1">📝 Notas generales del evaluador:</p>
+                      <p className="text-sm text-amber-800">{item.data.general_notes}</p>
+                    </div>
+                  )}
+                  {/* Fotos generales del servicio */}
+                  {item.data.photos?.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-slate-100 p-3">
+                      <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1"><Image className="w-3 h-3" /> Fotos de evidencia</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {item.data.photos.map((ph, i) => (
+                          <a key={i} href={ph.url} target="_blank" rel="noopener noreferrer" className="block">
+                            <img src={ph.url} alt={ph.comment || "foto"} className="w-full h-16 object-cover rounded-lg border border-slate-200" />
+                            {ph.comment && <p className="text-xs text-slate-400 mt-0.5 truncate">{ph.comment}</p>}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -279,9 +315,7 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                     </span>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-black ${allOk ? "text-green-600" : "text-amber-600"}`}>{item.score}/{item.max}</span>
-                      {item.failedItems.length > 0 && (
-                        isExp ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-                      )}
+                      {isExp ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
                     </div>
                   </div>
                   <p className="font-semibold text-slate-800 text-sm">Revisión de Vehículo</p>
@@ -289,22 +323,75 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                   {allOk ? (
                     <p className="text-xs text-green-600 flex items-center gap-1 mt-1.5"><CheckCircle className="w-3 h-3" /> Todo en orden ✓</p>
                   ) : (
-                    <p className="text-xs text-amber-600 mt-1.5">{item.failedItems.length} observación(es)</p>
+                    <p className="text-xs text-amber-600 mt-1.5">{item.failedItems.length} observación(es) — toca para ver detalles</p>
                   )}
                 </div>
               </button>
 
-              {isExp && item.failedItems.length > 0 && (
-                <div className="mt-2 bg-red-50 rounded-2xl border border-red-100 p-3 space-y-2">
-                  <p className="text-xs font-bold text-red-700 flex items-center gap-1 mb-2">
-                    <AlertCircle className="w-3 h-3" /> Observaciones:
-                  </p>
-                  {item.failedItems.map((fi, idx) => (
-                    <div key={idx} className="bg-white rounded-xl p-2.5 border border-red-100 flex items-center justify-between">
-                      <p className="text-sm text-slate-700">{fi.item}</p>
-                      <Badge className="bg-red-100 text-red-800 text-xs ml-2 shrink-0">-{fi.points || fi.points_if_fail} pts</Badge>
+              {isExp && (
+                <div className="mt-2 space-y-2">
+                  {item.failedItems.length > 0 && (
+                    <div className="bg-red-50 rounded-2xl border border-red-100 p-3 space-y-2">
+                      <p className="text-xs font-bold text-red-700 flex items-center gap-1 mb-1">
+                        <AlertCircle className="w-3 h-3" /> Observaciones con puntos descontados:
+                      </p>
+                      {item.failedItems.map((fi, idx) => (
+                        <div key={idx} className="bg-white rounded-xl p-2.5 border border-red-100">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-medium text-slate-700">{fi.item}</p>
+                            <Badge className="bg-red-100 text-red-800 text-xs ml-2 shrink-0">-{fi.points || fi.points_if_fail} pts</Badge>
+                          </div>
+                          {fi.notes && (
+                            <div className="bg-red-50 rounded-lg px-2 py-1.5 mt-1">
+                              <p className="text-xs text-red-700"><span className="font-semibold">Comentario:</span> {fi.notes}</p>
+                            </div>
+                          )}
+                          {fi.photos?.length > 0 && (
+                            <div className="grid grid-cols-3 gap-1 mt-2">
+                              {fi.photos.map((ph, pi) => (
+                                <a key={pi} href={ph.url || ph} target="_blank" rel="noopener noreferrer">
+                                  <img src={ph.url || ph} alt="evidencia" className="w-full h-14 object-cover rounded-lg border border-red-100" />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  {/* Ítems OK */}
+                  {(item.data.checklist_items || []).filter(i => i.passed).length > 0 && (
+                    <div className="bg-green-50 rounded-2xl border border-green-100 p-3">
+                      <p className="text-xs font-bold text-green-700 mb-2 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Ítems aprobados:</p>
+                      <div className="space-y-1">
+                        {(item.data.checklist_items || []).filter(i => i.passed).map((ci, idx) => (
+                          <p key={idx} className="text-xs text-green-700 flex items-center gap-1.5">
+                            <CheckCircle className="w-3 h-3 shrink-0" /> {ci.item}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Notas generales del vehículo */}
+                  {item.data.notes && (
+                    <div className="bg-amber-50 rounded-2xl border border-amber-100 p-3">
+                      <p className="text-xs font-semibold text-amber-700 mb-1">📝 Notas del inspector:</p>
+                      <p className="text-sm text-amber-800">{item.data.notes}</p>
+                    </div>
+                  )}
+                  {/* Fotos generales del registro */}
+                  {item.data.photos?.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-slate-100 p-3">
+                      <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1"><Image className="w-3 h-3" /> Fotos generales</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {item.data.photos.map((ph, i) => (
+                          <a key={i} href={ph.url || ph} target="_blank" rel="noopener noreferrer">
+                            <img src={ph.url || ph} alt="foto" className="w-full h-16 object-cover rounded-lg border border-slate-200" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -317,34 +404,94 @@ function UnifiedTimeline({ userId, monthPeriod }) {
       const isCompliment = item.feedbackType === "compliment";
       const isComplaint = item.feedbackType === "complaint";
       const pts = item.points || 0;
+      const borderColor = isCompliment ? "border-green-100" : isComplaint ? "border-red-100" : "border-slate-100";
+      const iconBg = isCompliment ? "bg-green-50 border-green-200" : isComplaint ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200";
       return (
         <div key={item.id} className="relative">
           <div className="absolute left-5 top-0 bottom-0 w-px bg-slate-100" />
           <div className="relative flex gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 z-10 ${isCompliment ? "bg-green-50 border-2 border-green-200" : isComplaint ? "bg-red-50 border-2 border-red-200" : "bg-slate-50 border-2 border-slate-200"}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 z-10 border-2 ${iconBg}`}>
               {isCompliment ? <ThumbsUp className="w-4 h-4 text-green-600" /> :
                isComplaint ? <ThumbsDown className="w-4 h-4 text-red-600" /> :
                <MessageSquare className="w-4 h-4 text-slate-500" />}
             </div>
             <div className="flex-1 pb-4">
-              <div className={`bg-white rounded-2xl border shadow-sm p-3.5 ${isCompliment ? "border-green-100" : isComplaint ? "border-red-100" : "border-slate-100"}`}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
-                    <Calendar className="w-3 h-3" /> {dateStr}
-                  </span>
-                  {pts !== 0 && (
-                    <span className={`text-sm font-black ${pts > 0 ? "text-green-600" : "text-red-600"}`}>
-                      {pts > 0 ? "+" : ""}{pts} pts
+              <button className="w-full text-left" onClick={() => setExpanded(isExp ? null : item.id)}>
+                <div className={`bg-white rounded-2xl border shadow-sm p-3.5 hover:shadow-md transition-shadow ${borderColor}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" /> {dateStr}
                     </span>
+                    <div className="flex items-center gap-2">
+                      {pts !== 0 && (
+                        <span className={`text-sm font-black ${pts > 0 ? "text-green-600" : "text-red-600"}`}>
+                          {pts > 0 ? "+" : ""}{pts} pts
+                        </span>
+                      )}
+                      {isExp ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                    </div>
+                  </div>
+                  <p className="font-semibold text-slate-800 text-sm">
+                    {isCompliment ? "💚 Elogio de cliente" : isComplaint ? "⚠️ Queja de cliente" : "💬 Feedback de cliente"}
+                  </p>
+                  {item.data.client_name && <p className="text-xs text-slate-500 mt-0.5">🏠 {item.data.client_name}</p>}
+                  {item.data.description && (
+                    <p className="text-xs text-slate-600 mt-1.5 italic line-clamp-2">"{item.data.description}"</p>
                   )}
                 </div>
-                <p className="font-semibold text-slate-800 text-sm">
-                  {isCompliment ? "💚 Elogio de cliente" : isComplaint ? "⚠️ Queja de cliente" : "💬 Feedback de cliente"}
-                </p>
-                {item.data.description && (
-                  <p className="text-xs text-slate-600 mt-1.5 italic">"{item.data.description}"</p>
-                )}
-              </div>
+              </button>
+
+              {isExp && (
+                <div className="mt-2 space-y-2">
+                  {/* Descripción completa */}
+                  {item.data.description && (
+                    <div className={`rounded-2xl border p-3 ${isCompliment ? "bg-green-50 border-green-100" : isComplaint ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100"}`}>
+                      <p className="text-xs font-semibold text-slate-600 mb-1">Comentario completo:</p>
+                      <p className="text-sm text-slate-700 italic">"{item.data.description}"</p>
+                    </div>
+                  )}
+                  {/* Detalles del feedback */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-3 space-y-2">
+                    {item.data.client_name && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span><span className="font-semibold">Cliente:</span> {item.data.client_name}</span>
+                      </div>
+                    )}
+                    {item.data.reported_by && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600">
+                        <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span><span className="font-semibold">Reportado por:</span> {item.data.reported_by}</span>
+                      </div>
+                    )}
+                    {item.data.channel && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600">
+                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span><span className="font-semibold">Canal:</span> {item.data.channel}</span>
+                      </div>
+                    )}
+                    {item.data.admin_notes && (
+                      <div className="bg-amber-50 rounded-xl p-2.5 border border-amber-100 mt-1">
+                        <p className="text-xs font-semibold text-amber-700 mb-0.5">Nota del administrador:</p>
+                        <p className="text-xs text-amber-800">{item.data.admin_notes}</p>
+                      </div>
+                    )}
+                  </div>
+                  {/* Fotos de evidencia */}
+                  {item.data.photos?.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-slate-100 p-3">
+                      <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1"><Image className="w-3 h-3" /> Fotos adjuntas</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {item.data.photos.map((ph, i) => (
+                          <a key={i} href={ph.url || ph} target="_blank" rel="noopener noreferrer">
+                            <img src={ph.url || ph} alt="evidencia" className="w-full h-16 object-cover rounded-lg border border-slate-200" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -370,8 +517,21 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                     {item.points >= 0 ? "+" : ""}{item.points} pts
                   </span>
                 </div>
-                <p className="font-semibold text-slate-800 text-sm">{item.category}</p>
-                {item.notes && <p className="text-xs text-slate-500 mt-1">{item.notes}</p>}
+                <p className="font-semibold text-slate-800 text-sm">
+                  {isBonus ? "⭐ " : "⚠️ "}{item.category}
+                </p>
+                {item.notes && (
+                  <div className={`mt-2 rounded-xl px-3 py-2 ${isBonus ? "bg-emerald-50" : "bg-red-50"}`}>
+                    <p className={`text-xs ${isBonus ? "text-emerald-700" : "text-red-700"}`}>
+                      <span className="font-semibold">Detalle:</span> {item.notes}
+                    </p>
+                  </div>
+                )}
+                {item.data.admin_name && (
+                  <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+                    <User className="w-3 h-3" /> Registrado por: {item.data.admin_name}
+                  </p>
+                )}
               </div>
             </div>
           </div>
