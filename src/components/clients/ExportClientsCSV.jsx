@@ -91,14 +91,23 @@ function generateCSV(clients) {
     'Billing Instructions',
     'Admin Notes',
     'Default Service Notes',
+    // Notas estructuradas por área
+    'Notes - Dusting / Wiping / Tidy Up',
+    'Notes - Kitchen & Pantry',
+    'Notes - Bathrooms',
+    'Notes - Laundry',
+    'Notes - Floors',
+    'Notes - Other Areas',
+    // Familia y mascotas
     'Pets',
     'Family Notes',
     'Emergency Contact',
   ];
 
   const rows = clients.map(c => {
-    const pets = (c.pets || []).map(p => `${p.name} (${p.type}${p.breed ? ', ' + p.breed : ''})`).join(' | ');
+    const pets = (c.pets || []).map(p => `${p.name} (${p.type}${p.breed ? ', ' + p.breed : ''}${p.temperament ? ', ' + p.temperament : ''}${p.special_instructions ? ' - ' + p.special_instructions : ''})`).join(' | ');
     const family = c.family_details || {};
+    const sn = c.structured_service_notes || {};
     return [
       c.name,
       c.sms_name,
@@ -127,6 +136,14 @@ function generateCSV(clients) {
       c.has_special_billing_instructions ? c.special_billing_instructions : '',
       c.admin_notes,
       c.default_service_notes,
+      // Notas estructuradas
+      sn.dusting_wiping_tidyup?.notes,
+      sn.kitchen_and_pantry?.notes,
+      sn.bathrooms?.notes,
+      sn.laundry?.notes,
+      sn.floors?.notes,
+      sn.other_areas?.notes,
+      // Familia y mascotas
       pets,
       family.family_notes,
       family.emergency_contact,
