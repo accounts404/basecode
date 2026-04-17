@@ -648,46 +648,26 @@ export default function MiPuntuacionPage() {
             </div>
 
             {/* Ajustes */}
-            <div className="rounded-2xl overflow-hidden border border-slate-100">
-              <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 border-b border-slate-100">
-                <div className="w-8 h-8 bg-slate-200 rounded-xl flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-slate-600" />
+            <div className={`rounded-2xl p-4 ${scoreData.adjScore >= 0 ? "bg-emerald-50" : "bg-red-50"}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${scoreData.adjScore >= 0 ? "bg-emerald-100" : "bg-red-100"}`}>
+                    {scoreData.adjScore >= 0
+                      ? <TrendingUp className="w-4 h-4 text-emerald-600" />
+                      : <TrendingDown className="w-4 h-4 text-red-600" />
+                    }
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-slate-700">Bonos y Deducciones</span>
+                    <p className={`text-xs ${scoreData.adjScore >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                      {scoreData.adjScore === 0 ? "Sin ajustes este mes" : scoreData.adjScore > 0 ? "Tienes bonificaciones" : "Tienes deducciones"}
+                    </p>
+                  </div>
                 </div>
-                <span className="text-sm font-semibold text-slate-700 flex-1">Bonos y Deducciones</span>
-                <span className={`text-xl font-black ${scoreData.adjScore > 0 ? "text-emerald-600" : scoreData.adjScore < 0 ? "text-red-600" : "text-slate-400"}`}>
-                  {scoreData.adjScore > 0 ? "+" : ""}{scoreData.adjScore} pts
+                <span className={`text-2xl font-black ${scoreData.adjScore >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                  {scoreData.adjScore >= 0 ? "+" : ""}{scoreData.adjScore}
                 </span>
               </div>
-              {scoreData.adjScore === 0 ? (
-                <div className="px-4 py-4 bg-white flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                  <p className="text-sm text-slate-500">Sin bonos ni deducciones este mes</p>
-                </div>
-              ) : (
-                <div className="bg-white divide-y divide-slate-50">
-                  {adjs.filter(a =>
-                    a.category !== "Revisión Vehicular (Promedio Mensual)" &&
-                    a.category !== "Evaluación de Performance" &&
-                    !a.category?.includes("Feedback de Cliente")
-                  ).map(a => (
-                    <div key={a.id} className="flex items-center gap-3 px-4 py-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${a.adjustment_type === "bonus" ? "bg-emerald-50" : "bg-red-50"}`}>
-                        {a.adjustment_type === "bonus"
-                          ? <TrendingUp className="w-4 h-4 text-emerald-600" />
-                          : <TrendingDown className="w-4 h-4 text-red-600" />
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-700 truncate">{a.category}</p>
-                        {a.notes && <p className="text-xs text-slate-400 truncate">{a.notes}</p>}
-                      </div>
-                      <span className={`text-base font-black flex-shrink-0 ${a.points_impact >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                        {a.points_impact >= 0 ? "+" : ""}{a.points_impact}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>
