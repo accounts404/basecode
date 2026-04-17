@@ -56,44 +56,124 @@ const PAGE_SIZE = 15;
 // ── PerformanceReview detail dialog ──────────────────────────────────────────
 function ReviewDetailDialog({ review, open, onClose }) {
   if (!review) return null;
+  const includedAreas = (review.area_scores || []).filter(a => a.included !== false);
+  const excludedAreas = (review.area_scores || []).filter(a => a.included === false);
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardList className="w-5 h-5 text-blue-600" />
-            Evaluación de Performance — {review.cleaner_name}
+            Evaluación — {review.cleaner_name}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          {/* Meta info */}
+          <div className="grid grid-cols-2 gap-3 text-sm bg-slate-50 rounded-xl p-3">
             <div><span className="text-slate-500">Fecha:</span> <span className="font-medium">{safeDate(review.review_date)}</span></div>
             <div><span className="text-slate-500">Cliente:</span> <span className="font-medium">{review.client_name || "—"}</span></div>
             <div><span className="text-slate-500">Revisado por:</span> <span className="font-medium">{review.reviewed_by_admin_name || "—"}</span></div>
-            <div><span className="text-slate-500">Puntaje total:</span> <ScoreBadge score={review.overall_score || 0} /></div>
+            <div className="flex items-center gap-2"><span className="text-slate-500">Puntaje:</span> <ScoreBadge score={review.overall_score || 0} /></div>
           </div>
 
-          {review.area_scores?.length > 0 && (
-            <div>
-              <h4 className="font-semibold text-slate-700 mb-2 text-sm">Puntajes por área</h4>
-              <div className="space-y-2">
-                {review.area_scores.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg text-sm">
-                    <span className="text-slate-700">{a.area_name}</span>
-                    <div className="flex items-center gap-3">
-                      {a.notes && <span className="text-xs text-slate-400 italic truncate max-w-[120px]">{a.notes}</span>}
-                      <Badge variant="outline">{a.score}/{a.max_points}</Badge>
+          {/* Áreas incluidas con detalle completo */}
+          {includedAreas.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-semibold text-slate-700 text-sm">Detalle por área</h4>
+              {includedAreas.map((a, i) => {
+                const pct = a.max_points > 0 ? (a.score / a.max_points) * 100 : 100;
+                const failedItems = (a.config_items || []).filter(it => a.checklist?.[it.key] === false);
+                const passedItems = (a.config_items || []).filter(it => a.checklist?.[it.key] !== false);
+                const barColor = pct >= 90 ? "bg-green-500" : pct >= 70 ? "bg-blue-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
+                return (
+                  <div key={i} className="border border-slate-200 rounded-xl overflow-hidden">
+                    {/* Header del área */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-slate-50">
+                      <span className="font-semibold text-slate-800 text-sm">{a.area_name}</span>
+                      <Badge variant="outline" className="font-bold">{a.score}/{a.max_points} pts ({Math.round(pct)}%)</Badge>
+                    </div>
+                    {/* Barra de progreso */}
+                    <div className="h-1.5 bg-slate-100">
+                      <div className={`h-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="p-3 space-y-2">
+                      {/* Ítems no cumplidos */}
+                      {failedItems.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-red-600 mb-1.5 flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5" /> No cumplido:
+                          </p>
+                          <div className="space-y-1">
+                            {failedItems.map((it, j) => (
+                              <div key={j} className="flex items-center gap-2 bg-red-50 rounded-lg px-2.5 py-1.5">
+                                <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                <span className="text-xs text-red-800">{it.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Ítems cumplidos */}
+                      {passedItems.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-green-600 mb-1.5 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Cumplido:
+                          </p>
+                          <div className="space-y-0.5">
+                            {passedItems.map((it, j) => (
+                              <div key={j} className="flex items-center gap-2 px-2.5 py-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
+                                <span className="text-xs text-green-800">{it.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Comentario del área */}
+                      {a.notes && (
+                        <div className="bg-blue-50 rounded-lg px-3 py-2">
+                          <p className="text-xs text-blue-800"><span className="font-semibold">💬 Comentario:</span> {a.notes}</p>
+                        </div>
+                      )}
+                      {/* Fotos del área */}
+                      {a.photos?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-slate-500 mb-1.5">📷 Fotos ({a.photos.length}):</p>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {a.photos.map((ph, pi) => (
+                              <a key={pi} href={ph.url} target="_blank" rel="noopener noreferrer">
+                                <img src={ph.url} alt={ph.comment || "foto"} className="w-full h-16 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition-opacity" />
+                                {ph.comment && <p className="text-xs text-slate-400 mt-0.5 truncate">{ph.comment}</p>}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Áreas no realizadas */}
+          {excludedAreas.length > 0 && (
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-xs font-semibold text-slate-500 mb-1.5">Áreas no realizadas en este servicio:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {excludedAreas.map((a, i) => (
+                  <span key={i} className="text-xs bg-slate-200 text-slate-500 px-2 py-1 rounded-full">{a.area_name}</span>
                 ))}
               </div>
             </div>
           )}
 
+          {/* Notas generales */}
           {review.general_notes && (
-            <div>
-              <h4 className="font-semibold text-slate-700 mb-1 text-sm">Notas generales</h4>
-              <p className="text-sm text-slate-600 bg-slate-50 rounded-lg p-3">{review.general_notes}</p>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+              <p className="text-xs font-semibold text-amber-700 mb-1">📝 Notas generales del evaluador:</p>
+              <p className="text-sm text-amber-800">{review.general_notes}</p>
             </div>
           )}
 
