@@ -223,48 +223,83 @@ function UnifiedTimeline({ userId, monthPeriod }) {
 
               {isExp && (
                 <div className="mt-2 space-y-2">
-                  {/* Áreas de evaluación */}
+                  {/* Áreas de evaluación — incluidas */}
                   {(item.data.area_scores || []).filter(a => a.included).map(area => {
                     const pct = area.max_points > 0 ? (area.score / area.max_points) * 100 : 100;
                     const areaLevel = getScoreLevel(pct, 100);
-                    const failedItems = area.config_items?.filter(it => area.checklist?.[it.key] === false) || [];
-                    const hasContent = failedItems.length > 0 || area.notes || (area.photos?.length > 0);
+                    const failedItems = (area.config_items || []).filter(it => area.checklist?.[it.key] === false);
+                    const passedItems = (area.config_items || []).filter(it => area.checklist?.[it.key] !== false);
                     return (
                       <div key={area.area_key} className="bg-white rounded-2xl border border-slate-100 p-3">
                         <div className="flex justify-between items-center mb-1.5">
                           <span className="text-sm font-semibold text-slate-700">{area.area_name}</span>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${areaLevel.bg} ${areaLevel.text}`}>{area.score}/{area.max_points}</span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${areaLevel.bg} ${areaLevel.text}`}>{area.score}/{area.max_points} pts</span>
                         </div>
                         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-2">
                           <div className={`h-full rounded-full ${areaLevel.bar} transition-all duration-700`} style={{ width: `${pct}%` }} />
                         </div>
+                        {/* Ítems que NO se cumplieron */}
                         {failedItems.length > 0 && (
-                          <div className="space-y-1 mb-2">
-                            {failedItems.map(it => (
-                              <p key={it.key} className="text-xs text-red-600 flex items-center gap-1.5 bg-red-50 rounded-lg px-2 py-1">
-                                <AlertCircle className="w-3 h-3 shrink-0" /> {it.label}
-                              </p>
-                            ))}
+                          <div className="mb-2">
+                            <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" /> No cumplido:
+                            </p>
+                            <div className="space-y-1">
+                              {failedItems.map(it => (
+                                <p key={it.key} className="text-xs text-red-700 flex items-center gap-1.5 bg-red-50 rounded-lg px-2 py-1.5">
+                                  <AlertCircle className="w-3 h-3 shrink-0 text-red-500" /> {it.label}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* Ítems cumplidos */}
+                        {passedItems.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-semibold text-green-600 mb-1 flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> Cumplido:
+                            </p>
+                            <div className="space-y-0.5">
+                              {passedItems.map(it => (
+                                <p key={it.key} className="text-xs text-green-700 flex items-center gap-1.5 px-2 py-0.5">
+                                  <CheckCircle className="w-3 h-3 shrink-0 text-green-500" /> {it.label}
+                                </p>
+                              ))}
+                            </div>
                           </div>
                         )}
                         {area.notes && (
-                          <div className="bg-blue-50 rounded-lg px-3 py-2 mb-2">
-                            <p className="text-xs text-blue-800"><span className="font-semibold">Comentario:</span> {area.notes}</p>
+                          <div className="bg-blue-50 rounded-lg px-3 py-2 mb-2 mt-1">
+                            <p className="text-xs text-blue-800"><span className="font-semibold">💬 Comentario:</span> {area.notes}</p>
                           </div>
                         )}
                         {area.photos?.length > 0 && (
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {area.photos.map((ph, i) => (
-                              <a key={i} href={ph.url} target="_blank" rel="noopener noreferrer" className="block">
-                                <img src={ph.url} alt={ph.comment || "foto"} className="w-full h-16 object-cover rounded-lg border border-slate-200" />
-                                {ph.comment && <p className="text-xs text-slate-400 mt-0.5 truncate">{ph.comment}</p>}
-                              </a>
-                            ))}
+                          <div className="mt-2">
+                            <p className="text-xs font-semibold text-slate-500 mb-1.5 flex items-center gap-1"><Image className="w-3 h-3" /> Fotos del área:</p>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {area.photos.map((ph, i) => (
+                                <a key={i} href={ph.url} target="_blank" rel="noopener noreferrer" className="block">
+                                  <img src={ph.url} alt={ph.comment || "foto"} className="w-full h-16 object-cover rounded-lg border border-slate-200" />
+                                  {ph.comment && <p className="text-xs text-slate-400 mt-0.5 truncate">{ph.comment}</p>}
+                                </a>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
                     );
                   })}
+                  {/* Áreas no realizadas */}
+                  {(item.data.area_scores || []).filter(a => !a.included).length > 0 && (
+                    <div className="bg-slate-50 rounded-2xl border border-slate-100 p-3">
+                      <p className="text-xs font-semibold text-slate-400 mb-1.5">Áreas no realizadas en este servicio:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(item.data.area_scores || []).filter(a => !a.included).map(area => (
+                          <span key={area.area_key} className="text-xs bg-slate-200 text-slate-500 px-2 py-1 rounded-full">{area.area_name}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* Notas generales */}
                   {item.data.general_notes && (
                     <div className="bg-amber-50 rounded-2xl border border-amber-100 p-3">

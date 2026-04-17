@@ -235,6 +235,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
         included: saved.included !== undefined ? saved.included : true,
         notes: saved.notes || "",
         photos: saved.photos || [],
+        // Use saved config_items if present (preserves the checklist items as they were when evaluated)
+        config_items: (saved.config_items && saved.config_items.length > 0) ? saved.config_items : state.config_items,
         checklist: saved.checklist || state.checklist,
       };
     });
