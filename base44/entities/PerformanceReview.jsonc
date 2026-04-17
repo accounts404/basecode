@@ -1,0 +1,140 @@
+{
+  "name": "PerformanceReview",
+  "type": "object",
+  "properties": {
+    "cleaner_id": {
+      "type": "string",
+      "description": "ID del limpiador evaluado"
+    },
+    "cleaner_name": {
+      "type": "string",
+      "description": "Nombre del limpiador"
+    },
+    "review_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de la evaluaci\u00f3n (fecha del servicio)"
+    },
+    "month_period": {
+      "type": "string",
+      "description": "Per\u00edodo del mes (yyyy-MM)"
+    },
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente (casa evaluada)"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente"
+    },
+    "reviewed_by_admin": {
+      "type": "string",
+      "description": "ID del admin que hizo la evaluaci\u00f3n"
+    },
+    "reviewed_by_admin_name": {
+      "type": "string",
+      "description": "Nombre del admin"
+    },
+    "area_scores": {
+      "type": "array",
+      "description": "Puntajes por \u00e1rea de limpieza",
+      "items": {
+        "type": "object",
+        "properties": {
+          "area_key": {
+            "type": "string"
+          },
+          "area_name": {
+            "type": "string"
+          },
+          "max_points": {
+            "type": "number"
+          },
+          "score": {
+            "type": "number"
+          },
+          "included": {
+            "type": "boolean"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "checklist": {
+            "type": "object",
+            "description": "Estado de cada \u00edtem del checklist (key: boolean)"
+          },
+          "config_items": {
+            "type": "array",
+            "description": "\u00cdtems del checklist configurados para esta \u00e1rea",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "points": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "photos": {
+            "type": "array",
+            "description": "Fotos de evidencia del \u00e1rea",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "comment": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "photos": {
+      "type": "array",
+      "description": "Fotos generales de la evaluaci\u00f3n",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "overall_score": {
+      "type": "number",
+      "description": "Puntaje total sobre 100"
+    },
+    "general_notes": {
+      "type": "string",
+      "description": "Notas generales del evaluador"
+    },
+    "points_impact": {
+      "type": "number",
+      "description": "Puntos aplicados al score mensual del ranking"
+    },
+    "score_adjustment_id": {
+      "type": "string",
+      "description": "ID del ScoreAdjustment creado"
+    }
+  },
+  "required": [
+    "cleaner_id",
+    "cleaner_name",
+    "review_date",
+    "month_period"
+  ]
+}
