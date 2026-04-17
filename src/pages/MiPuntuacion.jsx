@@ -389,51 +389,6 @@ function UnifiedTimeline({ userId, monthPeriod }) {
   );
 }
 
-// ── Mini historial de meses anteriores ─────────────────────
-function MonthHistory({ userId, currentMonth }) {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const allScores = await base44.entities.MonthlyCleanerScore.filter({ cleaner_id: userId });
-        const past = allScores
-          .filter(s => s.month_period < currentMonth)
-          .sort((a, b) => b.month_period.localeCompare(a.month_period))
-          .slice(0, 4);
-        setHistory(past);
-      } catch (e) { console.error(e); }
-      setLoading(false);
-    };
-    load();
-  }, [userId, currentMonth]);
-
-  if (loading) return <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-slate-300" /></div>;
-  if (history.length === 0) return null;
-
-  return (
-    <div className="mt-6">
-      <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">Meses anteriores</h3>
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {history.map(s => {
-          const score = s.current_score || 100;
-          const level = getScoreLevel(score, 118);
-          const monthDate = new Date(s.month_period + "-02");
-          const label = format(monthDate, "MMM yy", { locale: es });
-          return (
-            <div key={s.id} className={`flex-shrink-0 ${level.bg} ${level.border} border rounded-2xl p-3 text-center min-w-[70px]`}>
-              <p className="text-xs text-slate-500 capitalize mb-1">{label}</p>
-              <p className={`text-xl font-black ${level.text}`}>{Math.round(score)}</p>
-              <p className={`text-xs font-medium ${level.text} opacity-70`}>{level.label}</p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // ── Main Page ────────────────────────────────────────────────
 export default function MiPuntuacionPage() {
@@ -681,7 +636,6 @@ export default function MiPuntuacionPage() {
             Actividad de {isCurrentMonth ? "este mes" : monthLabel}
           </h3>
           <UnifiedTimeline userId={user.id} monthPeriod={selectedMonth} />
-          <MonthHistory userId={user.id} currentMonth={selectedMonth} />
         </div>
       )}
     </div>
