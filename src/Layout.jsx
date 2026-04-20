@@ -55,6 +55,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import CleanerMobileLayout from '@/components/layout/CleanerMobileLayout';
+import ScheduleAdvisorChat from '@/components/agents/ScheduleAdvisorChat';
 
 const adminMenuItems = [
     { name: 'Dashboard', path: 'Dashboard', icon: BarChart },
@@ -504,6 +505,9 @@ function LayoutContent({ children, currentPageName }) {
             {children}
           </div>
         </main>
+
+        {/* Agente asesor de horarios — solo para admins */}
+        <ScheduleAdvisorChat />
       </div>
     </SidebarProvider>
   );
