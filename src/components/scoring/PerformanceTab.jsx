@@ -564,6 +564,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     monthlyScores.some(s => s.cleaner_id === c.id && s.is_participating)
   );
 
+  const REVIEW_GOAL = 5; // Meta de revisiones por limpiador por mes
+
   // Coverage stats — use ALL limpiadores (active), not just participating
   const allActiveLimpiadores = limpiadores;
   const reviewCountByCleaner = {};
@@ -574,6 +576,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   const reviewedCleaners = allActiveLimpiadores.filter(c => reviewCountByCleaner[c.id] > 0)
     .sort((a, b) => (reviewCountByCleaner[b.id] || 0) - (reviewCountByCleaner[a.id] || 0));
   const notReviewedCleaners = allActiveLimpiadores.filter(c => !reviewCountByCleaner[c.id]);
+  const completedGoal = allActiveLimpiadores.filter(c => (reviewCountByCleaner[c.id] || 0) >= REVIEW_GOAL).length;
 
   const allReviewsSorted = [...reviews].sort((a, b) => new Date(b.review_date) - new Date(a.review_date));
   const totalHistoryPages = Math.ceil(allReviewsSorted.length / HISTORY_PAGE_SIZE);
@@ -615,92 +618,97 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
 
           {/* ─── TAB: COVERAGE ─── */}
           <TabsContent value="coverage" className="space-y-4">
-            {/* Summary pills */}
-            <div className="flex gap-3 flex-wrap">
-              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                <CheckCircle2 className="w-4 h-4 text-green-600" />
-                <span className="text-sm font-semibold text-green-700">{reviewedCleaners.length} revisados</span>
-              </div>
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                <AlertCircle className="w-4 h-4 text-red-500" />
-                <span className="text-sm font-semibold text-red-600">{notReviewedCleaners.length} sin revisar</span>
-              </div>
-              {maxReviews > 0 && (
-                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                  <BarChart2 className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-semibold text-blue-700">Máx. {maxReviews} revisión(es)</span>
+            {/* Meta de revisiones */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-blue-600" />
+                  <span className="font-semibold text-blue-800">Meta: {REVIEW_GOAL} revisiones por limpiador este mes</span>
                 </div>
-              )}
+                <Badge className={completedGoal === allActiveLimpiadores.length && allActiveLimpiadores.length > 0 ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}>
+                  {completedGoal}/{allActiveLimpiadores.length} completaron la meta
+                </Badge>
+              </div>
+              {/* Barra global de progreso */}
+              <div className="h-2 bg-blue-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all"
+                  style={{ width: allActiveLimpiadores.length > 0 ? `${Math.round((completedGoal / allActiveLimpiadores.length) * 100)}%` : '0%' }}
+                />
+              </div>
+              <p className="text-xs text-blue-600 mt-1">
+                {reviews.length} revisiones realizadas en total este mes
+              </p>
             </div>
 
-            {/* Pending */}
-            {notReviewedCleaners.length > 0 && (
-              <Card className="border-0 shadow-md">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm flex items-center gap-2 text-red-600">
-                    <AlertCircle className="w-4 h-4" /> Sin revisión este mes ({notReviewedCleaners.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {notReviewedCleaners.map(c => (
-                      <div key={c.id} className="flex items-center justify-between bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center">
-                            <User className="w-3.5 h-3.5 text-red-500" />
-                          </div>
-                          <span className="text-sm font-medium text-slate-700">{c.invoice_name || c.full_name}</span>
-                        </div>
-                        <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => openDialog(c)}>
-                          <Plus className="w-3 h-3 mr-1" /> Evaluar
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Tabla de progreso por limpiador */}
+            <Card className="border-0 shadow-md">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2 text-slate-700">
+                  <User className="w-4 h-4" /> Progreso de revisiones por limpiador
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {allActiveLimpiadores.map(c => {
+                    const count = reviewCountByCleaner[c.id] || 0;
+                    const pct = Math.min(100, Math.round((count / REVIEW_GOAL) * 100));
+                    const completed = count >= REVIEW_GOAL;
+                    const cleanerRevs = reviews.filter(r => r.cleaner_id === c.id);
+                    const avg = cleanerRevs.length > 0
+                      ? cleanerRevs.reduce((s, r) => s + (r.overall_score || 0), 0) / cleanerRevs.length
+                      : null;
 
-            {/* Reviewed */}
-            {reviewedCleaners.length > 0 && (
-              <Card className="border-0 shadow-md">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm flex items-center gap-2 text-green-600">
-                    <CheckCircle2 className="w-4 h-4" /> Revisados este mes ({reviewedCleaners.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {reviewedCleaners.map(c => {
-                      const count = reviewCountByCleaner[c.id] || 0;
-                      const cleanerReviews = reviews.filter(r => r.cleaner_id === c.id);
-                      const avg = cleanerReviews.reduce((s, r) => s + (r.overall_score || 0), 0) / cleanerReviews.length;
-                      const barWidth = maxReviews > 0 ? Math.round((count / maxReviews) * 100) : 100;
-                      return (
-                        <div key={c.id} className="bg-green-50 border border-green-100 rounded-lg px-3 py-2">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-green-100 flex items-center justify-center">
-                                <User className="w-3.5 h-3.5 text-green-600" />
-                              </div>
-                              <span className="text-sm font-medium text-slate-700">{c.invoice_name || c.full_name}</span>
+                    return (
+                      <div
+                        key={c.id}
+                        className={`rounded-xl border px-4 py-3 ${completed ? "bg-green-50 border-green-200" : count > 0 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-100"}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${completed ? "bg-green-100" : count > 0 ? "bg-amber-100" : "bg-red-100"}`}>
+                              {completed
+                                ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                                : <User className={`w-3.5 h-3.5 ${count > 0 ? "text-amber-500" : "text-red-400"}`} />
+                              }
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-slate-500">{count}x</span>
-                              <ScoreBadge score={avg} />
-                            </div>
+                            <span className="text-sm font-medium text-slate-700">{c.invoice_name || c.full_name}</span>
                           </div>
-                          {/* Mini bar showing review count relative to max */}
-                          <div className="h-1.5 bg-green-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${barWidth}%` }} />
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-bold ${completed ? "text-green-700" : count > 0 ? "text-amber-700" : "text-red-500"}`}>
+                              {count}/{REVIEW_GOAL}
+                            </span>
+                            {avg !== null && <ScoreBadge score={avg} />}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                        {/* Barra de progreso con puntos */}
+                        <div className="flex items-center gap-1.5">
+                          {Array.from({ length: REVIEW_GOAL }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={`flex-1 h-2 rounded-full transition-all ${i < count ? (completed ? "bg-green-500" : "bg-amber-400") : "bg-slate-200"}`}
+                            />
+                          ))}
+                        </div>
+                        {!completed && (
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-slate-500">
+                              {count === 0 ? "Sin revisiones aún" : `Faltan ${REVIEW_GOAL - count} revisión(es)`}
+                            </span>
+                            <Button size="sm" variant="outline" className="text-xs h-6 px-2" onClick={() => openDialog(c)}>
+                              <Plus className="w-3 h-3 mr-0.5" /> Evaluar
+                            </Button>
+                          </div>
+                        )}
+                        {completed && (
+                          <p className="text-xs text-green-600 mt-1.5 font-medium">✅ Meta completada</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
 
             {allActiveLimpiadores.length === 0 && (
               <div className="text-center py-10 text-slate-400">
