@@ -613,15 +613,16 @@ export default function MiPuntuacionPage() {
   }, []);
 
   const loadMonthData = async (userId, month) => {
-    const [scores, adjustments, perf, veh] = await Promise.all([
-      base44.entities.MonthlyCleanerScore.filter({ month_period: month, is_participating: true }),
+    const [allScoresRaw, adjustments, perf, veh] = await Promise.all([
+      base44.entities.MonthlyCleanerScore.filter({ month_period: month }),
       base44.entities.ScoreAdjustment.filter({ cleaner_id: userId, month_period: month }),
       base44.entities.PerformanceReview.filter({ cleaner_id: userId, month_period: month }),
       base44.entities.VehicleChecklistRecord.filter({ month_period: month }),
     ]);
-    const myScore = scores.find(s => s.cleaner_id === userId) || null;
+    const myScore = allScoresRaw.find(s => s.cleaner_id === userId) || null;
+    const participatingScores = allScoresRaw.filter(s => s.is_participating);
     setMonthlyScore(myScore);
-    setAllScores(scores);
+    setAllScores(participatingScores);
     setAdjs(adjustments);
     setPerfReviews(perf);
     setVehicleRecs(veh.filter(r => (r.team_member_ids || []).includes(userId)));
@@ -687,32 +688,7 @@ export default function MiPuntuacionPage() {
   const monthLabel = format(new Date(selectedMonth + "-02"), "MMMM yyyy", { locale: es });
   const isCurrentMonth = selectedMonth === currentMonth;
 
-  // No participa este mes
-  if (!loading && !monthlyScore) {
-    return (
-      <div className="min-h-screen bg-slate-50 p-4 flex items-center justify-center">
-        <div className="max-w-sm w-full text-center">
-          <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Info className="w-10 h-10 text-slate-400" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-700 mb-2 capitalize">No participas en {monthLabel}</h2>
-          <p className="text-slate-500 text-sm">No estás incluido en el ranking de puntuación de este mes.</p>
-          <p className="text-slate-400 text-xs mt-3">Contacta al administrador para más información.</p>
-          <div className="flex items-center justify-center gap-4 mt-6">
-            <button onClick={() => navigateMonth("prev")} className="flex items-center gap-1 text-sm text-blue-600 font-medium">
-              <ChevronLeft className="w-4 h-4" /> Mes anterior
-            </button>
-            {!isCurrentMonth && (
-              <button onClick={() => navigateMonth("next")} className="flex items-center gap-1 text-sm text-blue-600 font-medium">
-                Mes siguiente <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  const isParticipating = monthlyScore?.is_participating === true;
   const totalScore = scoreData?.totalScore ?? 0;
   const level = getScoreLevel(totalScore, 118);
 
@@ -742,21 +718,45 @@ export default function MiPuntuacionPage() {
           <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-white/60" /></div>
         ) : (
           <>
-            {/* Anillo de puntuación */}
-            <ScoreRing score={totalScore} max={118} />
-
-            {/* Rank badge */}
-            {scoreData?.rank && (
-              <div className="flex justify-center mt-4">
-                <RankBadge rank={scoreData.rank} total={scoreData.total} />
+            {/* Anillo de puntuación — solo si participa */}
+            {isParticipating ? (
+              <>
+                <ScoreRing score={totalScore} max={118} />
+                {scoreData?.rank && (
+                  <div className="flex justify-center mt-4">
+                    <RankBadge rank={scoreData.rank} total={scoreData.total} />
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center py-6">
+                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-3">
+                  <Info className="w-10 h-10 text-white/70" />
+                </div>
+                <p className="text-white font-bold text-lg capitalize">{monthLabel}</p>
               </div>
             )}
           </>
         )}
       </div>
 
+      {/* ── Banner no participante ── */}
+      {!loading && !isParticipating && (
+        <div className="px-4 mt-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+            <div className="w-9 h-9 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Info className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-amber-800 text-sm">No participas en el ranking este mes</p>
+              <p className="text-xs text-amber-600 mt-0.5">Podés ver tus evaluaciones y actividad, pero tu puntuación no cuenta para el ranking mensual. Contactá al administrador para más información.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 3 Mini Cards ── */}
-      {!loading && scoreData && (
+      {!loading && scoreData && isParticipating && (
         <div className="px-4 -mt-4">
           <div className="bg-white rounded-3xl shadow-lg p-4 space-y-3">
             {/* Calidad */}
