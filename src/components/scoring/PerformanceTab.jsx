@@ -566,8 +566,10 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
 
   const REVIEW_GOAL = 5; // Meta de revisiones por limpiador por mes
 
-  // Coverage stats — use ALL limpiadores (active), not just participating
-  const allActiveLimpiadores = limpiadores;
+  // Coverage stats — only participating cleaners
+  const allActiveLimpiadores = limpiadores.filter(c =>
+    monthlyScores.some(s => s.cleaner_id === c.id && s.is_participating)
+  );
   const reviewCountByCleaner = {};
   reviews.forEach(r => {
     reviewCountByCleaner[r.cleaner_id] = (reviewCountByCleaner[r.cleaner_id] || 0) + 1;
