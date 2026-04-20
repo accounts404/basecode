@@ -91,14 +91,7 @@ Deno.serve(async (req) => {
         .map(u => ({ id: u.id, full_name: u.full_name }));
     }
 
-    // Fecha actual en Melbourne para referencia del agente
-    const nowUTC = new Date();
-    const melbOffset = 10; // AEST abril-octubre
-    const melbNow = new Date(nowUTC.getTime() + melbOffset * 60 * 60 * 1000);
-    const todayMelbourne = melbNow.toISOString().slice(0, 10);
-
     return Response.json({
-      today_melbourne: todayMelbourne,
       date,
       total_services: simplified.length,
       schedules: simplified,
