@@ -56,13 +56,11 @@ export default function ScheduleAdvisorChat() {
         setMessages(data.messages || []);
       });
 
-      // Mensaje de bienvenida local (no enviado al agente, solo visual)
-      setMessages([{
-        id: "welcome",
-        role: "assistant",
-        content: "¡Hola! Soy tu asesor de horarios 📅\n\nPodés preguntarme cosas como:\n- *¿Cómo está el horario del martes 21?*\n- *¿Qué servicios hay esta semana?*\n- *¿Hay limpiadores sin asignación el lunes?*\n\n¿Qué querés consultar?",
-      }]);
-
+      // Mensaje inicial automático
+      await base44.agents.addMessage(conv, {
+        role: "user",
+        content: "Hola! Soy el administrador de RedOak. Dame un resumen rápido del estado del horario de esta semana: servicios sin equipo asignado, cobertura general y cualquier problema que detectes.",
+      });
     } catch (err) {
       console.error("[ScheduleAdvisor] Error iniciando conversación:", err);
     } finally {
