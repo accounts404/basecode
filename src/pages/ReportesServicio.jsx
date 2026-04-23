@@ -52,6 +52,10 @@ export default function ReportesServicioPage() {
     const [resolutionAction, setResolutionAction] = useState('');
     const [updating, setUpdating] = useState(false);
 
+    // Visor de fotos
+    const [photoViewer, setPhotoViewer] = useState(null); // { photos, index }
+
+
     useEffect(() => {
         loadInitialData();
     }, []);
@@ -270,20 +274,23 @@ export default function ReportesServicioPage() {
                                                 <Image className="w-4 h-4 text-slate-500" />
                                                 <span className="text-sm text-slate-600">{report.report_photos.length} foto(s) adjunta(s)</span>
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-2 flex-wrap">
                                                 {report.report_photos.slice(0, 3).map((photo, index) => (
-                                                    <a key={index} href={photo.url} target="_blank" rel="noopener noreferrer">
+                                                    <button key={index} onClick={() => setPhotoViewer({ photos: report.report_photos, index })}>
                                                         <img 
                                                             src={photo.url} 
                                                             alt={`Foto ${index + 1}`}
-                                                            className="w-16 h-16 object-cover rounded-lg border hover:opacity-75 transition-opacity"
+                                                            className="w-16 h-16 object-cover rounded-lg border hover:opacity-75 transition-opacity cursor-pointer"
                                                         />
-                                                    </a>
+                                                    </button>
                                                 ))}
                                                 {report.report_photos.length > 3 && (
-                                                    <div className="w-16 h-16 bg-slate-200 rounded-lg border flex items-center justify-center text-slate-600 text-sm">
+                                                    <button
+                                                        onClick={() => setPhotoViewer({ photos: report.report_photos, index: 3 })}
+                                                        className="w-16 h-16 bg-slate-200 hover:bg-slate-300 rounded-lg border flex items-center justify-center text-slate-600 text-sm font-semibold transition-colors cursor-pointer"
+                                                    >
                                                         +{report.report_photos.length - 3}
-                                                    </div>
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -510,6 +517,62 @@ export default function ReportesServicioPage() {
                         {renderReportsForStatus('dismissed')}
                     </TabsContent>
                 </Tabs>
+
+                {/* Visor de fotos */}
+                {photoViewer && (
+                    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4" onClick={() => setPhotoViewer(null)}>
+                        <div className="relative w-full max-w-4xl" onClick={e => e.stopPropagation()}>
+                            {/* Botón cerrar */}
+                            <button
+                                className="absolute -top-10 right-0 text-white hover:text-slate-300 transition-colors"
+                                onClick={() => setPhotoViewer(null)}
+                            >
+                                <X className="w-8 h-8" />
+                            </button>
+
+                            {/* Imagen principal */}
+                            <div className="flex items-center justify-center mb-4">
+                                <img
+                                    src={photoViewer.photos[photoViewer.index]?.url}
+                                    alt={`Foto ${photoViewer.index + 1}`}
+                                    className="max-h-[65vh] max-w-full object-contain rounded-xl"
+                                />
+                            </div>
+
+                            {/* Contador */}
+                            <p className="text-center text-white/70 text-sm mb-3">
+                                {photoViewer.index + 1} / {photoViewer.photos.length}
+                            </p>
+
+                            {/* Miniaturas */}
+                            <div className="flex gap-2 justify-center flex-wrap">
+                                {photoViewer.photos.map((photo, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setPhotoViewer(prev => ({ ...prev, index: idx }))}
+                                        className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${idx === photoViewer.index ? 'border-white scale-105' : 'border-transparent opacity-60 hover:opacity-90'}`}
+                                    >
+                                        <img src={photo.url} alt={`Miniatura ${idx + 1}`} className="w-full h-full object-cover" />
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Navegación anterior/siguiente */}
+                            {photoViewer.photos.length > 1 && (
+                                <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between pointer-events-none px-2">
+                                    <button
+                                        className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                                        onClick={() => setPhotoViewer(prev => ({ ...prev, index: (prev.index - 1 + prev.photos.length) % prev.photos.length }))}
+                                    >‹</button>
+                                    <button
+                                        className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+                                        onClick={() => setPhotoViewer(prev => ({ ...prev, index: (prev.index + 1) % prev.photos.length }))}
+                                    >›</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Modal de gestión de reporte */}
                 {selectedReport && (
