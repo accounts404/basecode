@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Activity, Users, AlertCircle, Search, Phone, MessageSquare,
-  CheckCircle, X, XCircle, Mail, Eye, Plus, ChevronDown, ChevronRight,
+  CheckCircle, X, XCircle, Mail, Eye, Plus,
 } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -207,75 +207,46 @@ export default function SeguimientoClientesPage() {
     );
   };
 
-  // ── HistoryTimelineItem ── (una entrada individual dentro del acordeón)
-  const HistoryTimelineItem = ({ log }) => {
+  // ── LogRow (historial global) ──
+  const LogRow = ({ log }) => {
     const config = interactionLabels[log.interaction_type] || interactionLabels.other;
     const Icon = config.icon;
     const pendingReply = (log.interaction_type === 'message' || log.interaction_type === 'email') && !log.replied;
+    const client = clients.find(c => c.id === log.client_id);
 
     return (
-      <div className="flex gap-3">
-        <div className="flex flex-col items-center">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
-            <Icon className="w-4 h-4" />
-          </div>
-          <div className="w-0.5 bg-slate-200 flex-1 mt-1 min-h-[12px]" />
+      <div
+        className="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:shadow-sm transition-shadow"
+        onClick={() => client && setDetailClient(client)}
+      >
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
+          <Icon className="w-4 h-4" />
         </div>
-        <div className="flex-1 pb-4">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <Badge className={`text-xs ${config.color}`}>{config.label}</Badge>
-            <span className="text-xs text-slate-400">
-              {format(parseISO(log.interaction_date), "d 'de' MMMM yyyy", { locale: es })}
-            </span>
-            {log.logged_by && <span className="text-xs text-slate-400">· {log.logged_by}</span>}
-            {log.assigned_to && <span className="text-xs text-blue-500">· {log.assigned_to}</span>}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="font-semibold text-slate-800 text-sm">{log.client_name}</p>
+            <div className="flex items-center gap-2">
+              <Badge className={`text-xs ${config.color}`}>{config.label}</Badge>
+              <span className="text-xs text-slate-400">{format(parseISO(log.interaction_date), "d MMM yyyy", { locale: es })}</span>
+            </div>
           </div>
-
-          {log.comments && (
-            <div className="bg-slate-50 rounded-lg p-2.5 text-sm text-slate-700 mb-2 border border-slate-100">
-              {log.comments}
-            </div>
-          )}
-
+          {log.comments && <p className="text-xs text-slate-600 mt-1 truncate">{log.comments}</p>}
           {log.conversation_text && (
-            <div className="mb-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Conversación</p>
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-slate-700 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                {log.conversation_text}
-              </div>
-            </div>
+            <p className="text-xs text-blue-600 mt-0.5">💬 Conversación adjunta · <span className="underline">Ver detalle</span></p>
           )}
-
           {log.visit_photos?.length > 0 && (
-            <div className="mb-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Fotos</p>
-              <div className="flex gap-2 flex-wrap">
-                {log.visit_photos.map((photo, i) => (
-                  <a key={i} href={photo.url} target="_blank" rel="noopener noreferrer">
-                    <img src={photo.url} alt={photo.comment || `Foto ${i+1}`}
-                      className="w-16 h-16 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition-opacity" />
-                    {photo.comment && <p className="text-xs text-slate-500 mt-0.5 w-16 truncate">{photo.comment}</p>}
-                  </a>
-                ))}
-              </div>
-            </div>
+            <p className="text-xs text-blue-600 mt-0.5">📷 {log.visit_photos.length} foto(s) · <span className="underline">Ver detalle</span></p>
           )}
-
           {log.replied && log.reply_comments && (
-            <div className="bg-green-50 border border-green-100 rounded-lg p-2.5 mb-1">
-              <p className="text-xs font-semibold text-green-700 mb-0.5">↩ Respuesta del cliente</p>
-              <p className="text-sm text-green-800 whitespace-pre-wrap">{log.reply_comments}</p>
-              {log.reply_date && (
-                <p className="text-xs text-green-500 mt-1">{format(parseISO(log.reply_date), "d 'de' MMMM yyyy", { locale: es })}</p>
-              )}
+            <div className="mt-1 bg-green-50 border border-green-100 rounded px-2 py-1">
+              <p className="text-xs text-green-700 truncate"><span className="font-semibold">Respuesta:</span> {log.reply_comments}</p>
             </div>
           )}
           {log.replied && !log.reply_comments && (
-            <p className="text-xs text-slate-400 italic">✓ Cerrado sin respuesta</p>
+            <p className="text-xs text-slate-400 mt-1">✓ Cerrado sin respuesta</p>
           )}
-
           {pendingReply && (
-            <div className="flex gap-2 mt-1">
+            <div className="mt-2 flex gap-2" onClick={e => e.stopPropagation()}>
               <Button size="sm" variant="outline" className="h-6 text-xs text-green-700 border-green-300 hover:bg-green-50"
                 onClick={() => openReply(log)}>
                 <CheckCircle className="w-3 h-3 mr-1" /> Respondió
@@ -287,69 +258,6 @@ export default function SeguimientoClientesPage() {
             </div>
           )}
         </div>
-      </div>
-    );
-  };
-
-  // ── ClientHistoryCard ── agrupado con acordeón
-  const [expandedHistoryClients, setExpandedHistoryClients] = useState({});
-  const toggleHistoryClient = (clientId) =>
-    setExpandedHistoryClients(prev => ({ ...prev, [clientId]: !prev[clientId] }));
-
-  const ClientHistoryCard = ({ clientId, clientName, clientLogs }) => {
-    const isOpen = !!expandedHistoryClients[clientId];
-    const client = clients.find(c => c.id === clientId);
-    const lastLog = clientLogs[0];
-    const pendingCount = clientLogs.filter(l => !l.replied && (l.interaction_type === 'message' || l.interaction_type === 'email')).length;
-
-    return (
-      <div className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
-        {/* Header del cliente */}
-        <button
-          className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left"
-          onClick={() => toggleHistoryClient(clientId)}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-              {clientName?.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-slate-900 text-sm">{clientName}</p>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <span className="text-xs text-slate-400">{clientLogs.length} contacto{clientLogs.length !== 1 ? 's' : ''}</span>
-                {lastLog && (
-                  <span className="text-xs text-slate-400">
-                    · Último: {format(parseISO(lastLog.interaction_date), "d MMM yyyy", { locale: es })}
-                  </span>
-                )}
-                {pendingCount > 0 && (
-                  <Badge className="text-xs bg-purple-100 text-purple-700 px-1.5">{pendingCount} esperando respuesta</Badge>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-            {client && (
-              <Button size="sm" variant="outline" className="h-7 text-xs"
-                onClick={(e) => { e.stopPropagation(); setLogModalClient(client); }}>
-                <Plus className="w-3 h-3 mr-1" /> Contacto
-              </Button>
-            )}
-            {isOpen
-              ? <ChevronDown className="w-4 h-4 text-slate-400" />
-              : <ChevronRight className="w-4 h-4 text-slate-400" />
-            }
-          </div>
-        </button>
-
-        {/* Timeline expandida */}
-        {isOpen && (
-          <div className="border-t border-slate-100 px-4 pt-4 pb-1">
-            {clientLogs.map(log => (
-              <HistoryTimelineItem key={log.id} log={log} />
-            ))}
-          </div>
-        )}
       </div>
     );
   };
@@ -501,20 +409,9 @@ export default function SeguimientoClientesPage() {
                 <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-500">No hay contactos registrados todavía.</p>
               </CardContent></Card>
-            ) : (() => {
-                // Agrupar logs por cliente, manteniendo orden por último contacto
-                const grouped = {};
-                logs.forEach(log => {
-                  if (!grouped[log.client_id]) {
-                    grouped[log.client_id] = { clientId: log.client_id, clientName: log.client_name, clientLogs: [] };
-                  }
-                  grouped[log.client_id].clientLogs.push(log);
-                });
-                return Object.values(grouped).map(({ clientId, clientName, clientLogs }) => (
-                  <ClientHistoryCard key={clientId} clientId={clientId} clientName={clientName} clientLogs={clientLogs} />
-                ));
-              })()
-            }
+            ) : (
+              logs.map(log => <LogRow key={log.id} log={log} />)
+            )}
           </TabsContent>
         </Tabs>
       </div>
