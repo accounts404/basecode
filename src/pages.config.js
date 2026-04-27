@@ -51,6 +51,7 @@ import AdminTasksPanel from './pages/AdminTasksPanel';
 import AuditoriaWorkEntries from './pages/AuditoriaWorkEntries';
 import AumentoClientes from './pages/AumentoClientes';
 import Clientes from './pages/Clientes';
+import SeguimientoClientes from './pages/SeguimientoClientes';
 import ConciliacionFacturas from './pages/ConciliacionFacturas';
 import ConciliacionHoras from './pages/ConciliacionHoras';
 import Configuracion from './pages/Configuracion';
@@ -92,6 +93,7 @@ export const PAGES = {
     "AuditoriaWorkEntries": AuditoriaWorkEntries,
     "AumentoClientes": AumentoClientes,
     "Clientes": Clientes,
+    "SeguimientoClientes": SeguimientoClientes,
     "ConciliacionFacturas": ConciliacionFacturas,
     "ConciliacionHoras": ConciliacionHoras,
     "Configuracion": Configuracion,

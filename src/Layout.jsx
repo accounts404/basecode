@@ -65,6 +65,7 @@ const adminMenuItems = [
   { name: 'Gestión Avanzada', path: 'GestionServiciosAdmin', icon: Search },
   { name: 'Reportes de Servicio', path: 'ReportesServicio', icon: AlertTriangle },
   { name: 'Clientes', path: 'Clientes', icon: Users },
+  { name: 'Seguimiento Clientes', path: 'SeguimientoClientes', icon: Activity },
   { name: 'Limpiadores', path: 'Limpiadores', icon: UserCheck },
   { name: 'Inducciones', path: 'Inducciones', icon: BookOpen },
   { name: 'Gestión de Flota', path: 'GestionFlota', icon: Car },

@@ -1,0 +1,58 @@
+{
+  "name": "FollowUpLog",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente para referencia r\u00e1pida"
+    },
+    "interaction_type": {
+      "type": "string",
+      "enum": [
+        "visit",
+        "call",
+        "message",
+        "email",
+        "other"
+      ],
+      "description": "Tipo de interacci\u00f3n registrada"
+    },
+    "interaction_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de la interacci\u00f3n"
+    },
+    "comments": {
+      "type": "string",
+      "description": "Notas o comentarios sobre la interacci\u00f3n"
+    },
+    "logged_by": {
+      "type": "string",
+      "description": "Email del admin que registr\u00f3 la interacci\u00f3n"
+    },
+    "replied": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si el cliente respondi\u00f3 (para mensajes)"
+    },
+    "reply_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha en que el cliente respondi\u00f3"
+    },
+    "reply_comments": {
+      "type": "string",
+      "description": "Comentarios de la respuesta del cliente"
+    }
+  },
+  "required": [
+    "client_id",
+    "client_name",
+    "interaction_type",
+    "interaction_date"
+  ]
+}
