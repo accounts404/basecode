@@ -102,15 +102,21 @@ export default function GestionLlaves() {
     }
   };
 
-  const handleSave = async (data) => {
+  const handleSave = async (data, keepOpen = false) => {
     try {
+      let savedRecord;
       if (selectedModal.record?.id) {
-        await base44.entities.KeyRecord.update(selectedModal.record.id, data);
+        savedRecord = await base44.entities.KeyRecord.update(selectedModal.record.id, data);
       } else {
-        await base44.entities.KeyRecord.create(data);
+        savedRecord = await base44.entities.KeyRecord.create(data);
       }
       await loadData();
-      setSelectedModal(null);
+      if (keepOpen) {
+        // Actualizar el record en el modal sin cerrarlo
+        setSelectedModal(prev => ({ ...prev, record: savedRecord || { ...data, id: prev.record?.id } }));
+      } else {
+        setSelectedModal(null);
+      }
     } catch (err) {
       setError('Error al guardar.');
     }

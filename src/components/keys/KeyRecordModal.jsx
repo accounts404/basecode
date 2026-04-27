@@ -37,14 +37,14 @@ export default function KeyRecordModal({ record, client, onSave, onClose }) {
   const [newCopy, setNewCopy] = useState({ label: '', notes: '', photos: [], created_date: format(new Date(), 'yyyy-MM-dd') });
   const [showNewCopy, setShowNewCopy] = useState(false);
 
-  const addLogEvent = (action, notes = '') => {
+  const buildLogEvent = (action, currentLogs, notes = '') => {
     const event = {
       date: new Date().toISOString(),
       action,
       notes,
       user_name: 'Admin',
     };
-    return [...(form.log_events || []), event];
+    return [...(currentLogs || []), event];
   };
 
   const handleSave = async () => {
@@ -52,9 +52,9 @@ export default function KeyRecordModal({ record, client, onSave, onClose }) {
     try {
       let logs = form.log_events;
       if (isNew) {
-        logs = addLogEvent('Llave registrada en el sistema');
+        logs = buildLogEvent('Llave registrada en el sistema', logs);
       } else if (form.status !== record.status) {
-        logs = addLogEvent(`Estado cambiado a: ${STATUS_LABELS[form.status]?.label}`);
+        logs = buildLogEvent(`Estado cambiado a: ${STATUS_LABELS[form.status]?.label}`, logs);
       }
 
       const data = {
@@ -70,20 +70,61 @@ export default function KeyRecordModal({ record, client, onSave, onClose }) {
     }
   };
 
-  const handleAddCopy = () => {
+  const handleAddCopy = async () => {
     if (!newCopy.label.trim()) return;
-    const updated = [...form.copies, { ...newCopy }];
-    const logs = addLogEvent(`Copia agregada: ${newCopy.label}`);
-    setForm(prev => ({ ...prev, copies: updated, log_events: logs }));
+    const copyToAdd = { ...newCopy };
+    let updatedForm;
+    setForm(prev => {
+      const updatedCopies = [...prev.copies, copyToAdd];
+      const updatedLogs = buildLogEvent(`Copia agregada: ${copyToAdd.label}`, prev.log_events);
+      updatedForm = { ...prev, copies: updatedCopies, log_events: updatedLogs };
+      return updatedForm;
+    });
     setNewCopy({ label: '', notes: '', photos: [], created_date: format(new Date(), 'yyyy-MM-dd') });
     setShowNewCopy(false);
+
+    // Si ya existe el registro, persistir inmediatamente sin cerrar el modal
+    if (!isNew && record?.id) {
+      setSaving(true);
+      try {
+        const updatedCopies = [...form.copies, copyToAdd];
+        const updatedLogs = buildLogEvent(`Copia agregada: ${copyToAdd.label}`, form.log_events);
+        await onSave({
+          client_id: client.id,
+          client_name: client.name,
+          client_address: client.address || '',
+          ...form,
+          copies: updatedCopies,
+          log_events: updatedLogs,
+        }, true);
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
-  const handleRemoveCopy = (idx) => {
+  const handleRemoveCopy = async (idx) => {
     const copy = form.copies[idx];
-    const updated = form.copies.filter((_, i) => i !== idx);
-    const logs = addLogEvent(`Copia eliminada: ${copy.label}`);
-    setForm(prev => ({ ...prev, copies: updated, log_events: logs }));
+    const updatedCopies = form.copies.filter((_, i) => i !== idx);
+    const updatedLogs = buildLogEvent(`Copia eliminada: ${copy.label}`, form.log_events);
+    setForm(prev => ({ ...prev, copies: updatedCopies, log_events: updatedLogs }));
+
+    // Si ya existe el registro, persistir inmediatamente sin cerrar el modal
+    if (!isNew && record?.id) {
+      setSaving(true);
+      try {
+        await onSave({
+          client_id: client.id,
+          client_name: client.name,
+          client_address: client.address || '',
+          ...form,
+          copies: updatedCopies,
+          log_events: updatedLogs,
+        }, true);
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
   return (
