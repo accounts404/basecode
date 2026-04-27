@@ -207,46 +207,71 @@ export default function SeguimientoClientesPage() {
     );
   };
 
-  // ── LogRow (historial global) ──
-  const LogRow = ({ log }) => {
+  // ── TimelineItem (igual que ContactDetailModal) ──
+  const TimelineItem = ({ log }) => {
     const config = interactionLabels[log.interaction_type] || interactionLabels.other;
     const Icon = config.icon;
     const pendingReply = (log.interaction_type === 'message' || log.interaction_type === 'email') && !log.replied;
-    const client = clients.find(c => c.id === log.client_id);
 
     return (
-      <div
-        className="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:shadow-sm transition-shadow"
-        onClick={() => client && setDetailClient(client)}
-      >
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
-          <Icon className="w-4 h-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <p className="font-semibold text-slate-800 text-sm">{log.client_name}</p>
-            <div className="flex items-center gap-2">
-              <Badge className={`text-xs ${config.color}`}>{config.label}</Badge>
-              <span className="text-xs text-slate-400">{format(parseISO(log.interaction_date), "d MMM yyyy", { locale: es })}</span>
-            </div>
+      <div className="flex gap-3">
+        <div className="flex flex-col items-center">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
+            <Icon className="w-4 h-4" />
           </div>
-          {log.comments && <p className="text-xs text-slate-600 mt-1 truncate">{log.comments}</p>}
+          <div className="w-0.5 bg-slate-200 flex-1 mt-1 min-h-[16px]" />
+        </div>
+        <div className="flex-1 pb-4">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <Badge className={`text-xs ${config.color}`}>{config.label}</Badge>
+            <span className="text-xs text-slate-400">
+              {format(parseISO(log.interaction_date), "d 'de' MMMM yyyy", { locale: es })}
+            </span>
+            {log.logged_by && <span className="text-xs text-slate-400">· por {log.logged_by}</span>}
+          </div>
+          {log.comments && (
+            <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700 mb-2 border border-slate-100">
+              {log.comments}
+            </div>
+          )}
           {log.conversation_text && (
-            <p className="text-xs text-blue-600 mt-0.5">💬 Conversación adjunta · <span className="underline">Ver detalle</span></p>
+            <div className="mb-2 space-y-1">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Conversación</p>
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-slate-700 whitespace-pre-wrap">
+                {log.conversation_text}
+              </div>
+            </div>
           )}
           {log.visit_photos?.length > 0 && (
-            <p className="text-xs text-blue-600 mt-0.5">📷 {log.visit_photos.length} foto(s) · <span className="underline">Ver detalle</span></p>
+            <div className="mb-2">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Fotos</p>
+              <div className="flex gap-2 flex-wrap">
+                {log.visit_photos.map((photo, i) => (
+                  <a key={i} href={photo.url} target="_blank" rel="noopener noreferrer">
+                    <img src={photo.url} alt={photo.comment || `Foto ${i + 1}`}
+                      className="w-20 h-20 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition-opacity" />
+                    {photo.comment && <p className="text-xs text-slate-500 mt-0.5 w-20 truncate">{photo.comment}</p>}
+                  </a>
+                ))}
+              </div>
+            </div>
           )}
           {log.replied && log.reply_comments && (
-            <div className="mt-1 bg-green-50 border border-green-100 rounded px-2 py-1">
-              <p className="text-xs text-green-700 truncate"><span className="font-semibold">Respuesta:</span> {log.reply_comments}</p>
+            <div className="bg-green-50 border border-green-100 rounded-lg p-3 mb-2">
+              <p className="text-xs font-semibold text-green-700 mb-1">↩ Respuesta del cliente</p>
+              <p className="text-sm text-green-800 whitespace-pre-wrap">{log.reply_comments}</p>
+              {log.reply_date && (
+                <p className="text-xs text-green-500 mt-1">
+                  {format(parseISO(log.reply_date), "d 'de' MMMM yyyy", { locale: es })}
+                </p>
+              )}
             </div>
           )}
           {log.replied && !log.reply_comments && (
-            <p className="text-xs text-slate-400 mt-1">✓ Cerrado sin respuesta</p>
+            <p className="text-xs text-slate-400 italic">✓ Cerrado sin respuesta</p>
           )}
           {pendingReply && (
-            <div className="mt-2 flex gap-2" onClick={e => e.stopPropagation()}>
+            <div className="flex gap-2 mt-1">
               <Button size="sm" variant="outline" className="h-6 text-xs text-green-700 border-green-300 hover:bg-green-50"
                 onClick={() => openReply(log)}>
                 <CheckCircle className="w-3 h-3 mr-1" /> Respondió
@@ -258,6 +283,70 @@ export default function SeguimientoClientesPage() {
             </div>
           )}
         </div>
+      </div>
+    );
+  };
+
+  // ── ClientHistoryRow: agrupado por cliente con acordeón ──
+  const [expandedClients, setExpandedClients] = useState({});
+  const toggleExpand = (clientId) => setExpandedClients(prev => ({ ...prev, [clientId]: !prev[clientId] }));
+
+  const clientsWithLogs = useMemo(() => {
+    const grouped = {};
+    logs.forEach(log => {
+      if (!grouped[log.client_id]) grouped[log.client_id] = [];
+      grouped[log.client_id].push(log);
+    });
+    return Object.entries(grouped).map(([clientId, clientLogs]) => {
+      const client = clients.find(c => c.id === clientId);
+      return { clientId, clientName: clientLogs[0].client_name, client, logs: clientLogs };
+    }).sort((a, b) => (a.clientName || '').localeCompare(b.clientName || ''));
+  }, [logs, clients]);
+
+  const ClientHistoryRow = ({ clientId, clientName, client, logs: clientLogs }) => {
+    const isOpen = !!expandedClients[clientId];
+    const lastLog = clientLogs[0];
+    const config = interactionLabels[lastLog?.interaction_type] || interactionLabels.other;
+    const pendingCount = clientLogs.filter(l => !l.replied && (l.interaction_type === 'message' || l.interaction_type === 'email')).length;
+
+    return (
+      <div className="bg-white border border-slate-100 rounded-xl overflow-hidden">
+        {/* Header del cliente */}
+        <button
+          className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left"
+          onClick={() => toggleExpand(clientId)}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+              {clientName?.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-900 text-sm">{clientName}</p>
+              <p className="text-xs text-slate-400">
+                {clientLogs.length} contacto{clientLogs.length !== 1 ? 's' : ''} · último: {format(parseISO(lastLog.interaction_date), "d MMM yyyy", { locale: es })} · {config.label}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+            {pendingCount > 0 && (
+              <Badge className="bg-purple-100 text-purple-700 text-xs">{pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}</Badge>
+            )}
+            <Button size="sm" variant="outline" className="h-7 text-xs"
+              onClick={(e) => { e.stopPropagation(); client && setLogModalClient(client); }}>
+              <Plus className="w-3 h-3 mr-1" /> Contacto
+            </Button>
+            <span className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+          </div>
+        </button>
+
+        {/* Timeline expandible */}
+        {isOpen && (
+          <div className="px-6 pt-2 pb-4 border-t border-slate-100 bg-slate-50/40">
+            <div className="mt-3">
+              {clientLogs.map(log => <TimelineItem key={log.id} log={log} />)}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -404,13 +493,15 @@ export default function SeguimientoClientesPage() {
           </TabsContent>
 
           <TabsContent value="history" className="space-y-3 mt-4">
-            {logs.length === 0 ? (
+            {clientsWithLogs.length === 0 ? (
               <Card><CardContent className="py-12 text-center">
                 <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-500">No hay contactos registrados todavía.</p>
               </CardContent></Card>
             ) : (
-              logs.map(log => <LogRow key={log.id} log={log} />)
+              clientsWithLogs.map(({ clientId, clientName, client, logs: clientLogs }) => (
+                <ClientHistoryRow key={clientId} clientId={clientId} clientName={clientName} client={client} logs={clientLogs} />
+              ))
             )}
           </TabsContent>
         </Tabs>
