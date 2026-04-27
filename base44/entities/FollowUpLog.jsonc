@@ -30,9 +30,32 @@
       "type": "string",
       "description": "Notas o comentarios sobre la interacci\u00f3n"
     },
+    "conversation_text": {
+      "type": "string",
+      "description": "Texto completo de la conversaci\u00f3n (para mensajes y emails)"
+    },
+    "visit_photos": {
+      "type": "array",
+      "description": "Fotos adjuntas a la visita",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "logged_by": {
       "type": "string",
       "description": "Email del admin que registr\u00f3 la interacci\u00f3n"
+    },
+    "assigned_to": {
+      "type": "string",
+      "description": "Nombre del admin responsable de este cliente"
     },
     "replied": {
       "type": "boolean",

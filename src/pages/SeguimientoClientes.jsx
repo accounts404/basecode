@@ -1,36 +1,33 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Activity, Users, AlertCircle, Search, Phone, MessageSquare,
-  CheckCircle, Clock, Calendar, Plus, X, ChevronRight, XCircle, Mail, Eye
+  CheckCircle, X, XCircle, Mail, Eye, Plus,
 } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import ExportCSV from '@/components/seguimiento/ExportCSV';
+import LogContactModal from '@/components/seguimiento/LogContactModal';
+import ContactDetailModal from '@/components/seguimiento/ContactDetailModal';
 
-// Umbral fijo: sin contacto en los últimos 90 días (3 meses)
 const FOLLOWUP_THRESHOLD_DAYS = 90;
 
 const CLIENT_TYPE_LABELS = {
-  domestic: 'Doméstico',
-  commercial: 'Comercial',
-  training: 'Entrenamiento',
-  ndis_client: 'NDIS',
-  dva_client: 'DVA',
-  age_care_client: 'Age Care',
-  work_cover_client: 'Work Cover',
+  domestic: 'Doméstico', commercial: 'Comercial', training: 'Entrenamiento',
+  ndis_client: 'NDIS', dva_client: 'DVA', age_care_client: 'Age Care', work_cover_client: 'Work Cover',
 };
 
 const interactionLabels = {
@@ -42,59 +39,67 @@ const interactionLabels = {
 };
 
 const frequencyLabels = {
-  weekly: 'Semanal',
-  fortnightly: 'Quincenal',
-  every_3_weeks: 'Cada 3 sem.',
-  monthly: 'Mensual',
-  one_off: 'Único',
+  weekly: 'Semanal', fortnightly: 'Quincenal', every_3_weeks: 'Cada 3 sem.',
+  monthly: 'Mensual', one_off: 'Único',
 };
+
+const DAY_FILTER_OPTIONS = [
+  { label: 'Todos', value: 'all' },
+  { label: '+30 días', value: '30' },
+  { label: '+60 días', value: '60' },
+  { label: '+90 días', value: '90' },
+  { label: 'Sin contacto', value: 'never' },
+];
 
 export default function SeguimientoClientesPage() {
   const [clients, setClients] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
+  const [filterDays, setFilterDays] = useState('all');
 
-  // Modal registrar interacción
-  const [logModal, setLogModal] = useState(null); // { client }
-  const [logForm, setLogForm] = useState({ interaction_type: 'call', interaction_date: format(new Date(), 'yyyy-MM-dd'), comments: '' });
-  const [savingLog, setSavingLog] = useState(false);
-
-  // Modal detalle de cliente
+  // Modals
+  const [logModalClient, setLogModalClient] = useState(null);
   const [detailClient, setDetailClient] = useState(null);
-
-  // Modal registrar respuesta
-  const [replyModal, setReplyModal] = useState(null); // { log }
+  const [noReplyConfirm, setNoReplyConfirm] = useState(null);
+  const [replyModal, setReplyModal] = useState(null);
   const [replyForm, setReplyForm] = useState({ reply_date: format(new Date(), 'yyyy-MM-dd'), reply_comments: '' });
+  const [savingReply, setSavingReply] = useState(false);
 
-  // Confirmación "sin respuesta"
-  const [noReplyConfirm, setNoReplyConfirm] = useState(null); // log
-
-  // Tab activo
   const [activeTab, setActiveTab] = useState('needs-followup');
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
-    try {
-      const [clientsData, logsData] = await Promise.all([
-        base44.entities.Client.list('-created_date', 5000),
-        base44.entities.FollowUpLog.list('-interaction_date', 5000),
-      ]);
-      setClients(Array.isArray(clientsData) ? clientsData : []);
-      setLogs(Array.isArray(logsData) ? logsData : []);
-    } catch (err) {
-      console.error('Error cargando datos:', err);
-    }
+    const [clientsData, logsData, usersData] = await Promise.all([
+      base44.entities.Client.list('-created_date', 5000),
+      base44.entities.FollowUpLog.list('-interaction_date', 5000),
+      base44.entities.User.list(),
+    ]);
+    setClients(Array.isArray(clientsData) ? clientsData : []);
+    setLogs(Array.isArray(logsData) ? logsData : []);
+    setAdminUsers(Array.isArray(usersData) ? usersData.filter(u => u.role === 'admin') : []);
     setLoading(false);
   };
 
-  // Solo clientes activos
   const activeClients = useMemo(() => clients.filter(c => c.active !== false), [clients]);
 
-  // Filtrar por búsqueda y tipo de cliente
+  const getLastContactDays = (client) => {
+    const clientLogs = logs.filter(l => l.client_id === client.id);
+    const lastLog = clientLogs[0];
+    if (!lastLog?.interaction_date) return null;
+    return differenceInDays(new Date(), parseISO(lastLog.interaction_date));
+  };
+
+  const needsFollowUp = (client) => {
+    const days = getLastContactDays(client);
+    if (days === null) return true;
+    return days > FOLLOWUP_THRESHOLD_DAYS;
+  };
+
   const filteredClients = useMemo(() => {
     return activeClients.filter(c => {
       const matchesSearch = !searchTerm.trim() || (
@@ -103,100 +108,58 @@ export default function SeguimientoClientesPage() {
         c.mobile_number?.includes(searchTerm)
       );
       const matchesType = filterType === 'all' || c.client_type === filterType;
-      return matchesSearch && matchesType;
+      let matchesDays = true;
+      if (filterDays !== 'all') {
+        const days = getLastContactDays(c);
+        if (filterDays === 'never') matchesDays = days === null;
+        else matchesDays = days === null || days > parseInt(filterDays);
+      }
+      return matchesSearch && matchesType && matchesDays;
     });
-  }, [activeClients, searchTerm, filterType]);
-
-  // Calcular días desde el último contacto registrado
-  const getLastContactDays = (client) => {
-    const clientLogs = logs.filter(l => l.client_id === client.id);
-    const lastLog = clientLogs[0]; // ordenados por -interaction_date
-    if (!lastLog?.interaction_date) return null;
-    return differenceInDays(new Date(), parseISO(lastLog.interaction_date));
-  };
-
-  // Necesita contacto = sin contacto en los últimos 90 días (o nunca contactado)
-  const needsFollowUp = (client) => {
-    const days = getLastContactDays(client);
-    if (days === null) return true;
-    return days > FOLLOWUP_THRESHOLD_DAYS;
-  };
+  }, [activeClients, searchTerm, filterType, filterDays, logs]);
 
   const clientsNeedingFollowUp = useMemo(() => filteredClients.filter(needsFollowUp), [filteredClients, logs]);
   const clientsOk = useMemo(() => filteredClients.filter(c => !needsFollowUp(c)), [filteredClients, logs]);
-
-  // ── Registrar interacción ──
-  const handleSaveLog = async () => {
-    if (!logModal?.client) return;
-    setSavingLog(true);
-    try {
-      const user = await base44.auth.me();
-      await base44.entities.FollowUpLog.create({
-        client_id: logModal.client.id,
-        client_name: logModal.client.name,
-        interaction_type: logForm.interaction_type,
-        interaction_date: logForm.interaction_date,
-        comments: logForm.comments,
-        logged_by: user?.email || 'admin',
-        replied: false,
-      });
-      setLogModal(null);
-      setLogForm({ interaction_type: 'call', interaction_date: format(new Date(), 'yyyy-MM-dd'), comments: '' });
-      await loadData();
-    } catch (err) {
-      console.error(err);
-    }
-    setSavingLog(false);
-  };
-
-  // ── Registrar respuesta ──
-  const handleSaveReply = async () => {
-    if (!replyModal?.log) return;
-    setSavingLog(true);
-    try {
-      await base44.entities.FollowUpLog.update(replyModal.log.id, {
-        replied: true,
-        reply_date: replyForm.reply_date,
-        reply_comments: replyForm.reply_comments,
-      });
-      setReplyModal(null);
-      setReplyForm({ reply_date: format(new Date(), 'yyyy-MM-dd'), reply_comments: '' });
-      await loadData();
-    } catch (err) {
-      console.error(err);
-    }
-    setSavingLog(false);
-  };
-
-  // ── Cerrar sin respuesta ──
-  const handleNoReply = async () => {
-    if (!noReplyConfirm) return;
-    try {
-      await base44.entities.FollowUpLog.update(noReplyConfirm.id, {
-        replied: true,
-        reply_date: format(new Date(), 'yyyy-MM-dd'),
-        reply_comments: 'Cerrado por admin – sin respuesta.',
-      });
-      setNoReplyConfirm(null);
-      await loadData();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const openLogModal = (client) => {
-    setLogModal({ client });
-    setLogForm({ interaction_type: 'call', interaction_date: format(new Date(), 'yyyy-MM-dd'), comments: '' });
-  };
+  const pendingReplies = useMemo(() => logs.filter(l => !l.replied && (l.interaction_type === 'message' || l.interaction_type === 'email')), [logs]);
 
   const getClientLogs = (clientId) => logs.filter(l => l.client_id === clientId);
 
-  // ── Renderizar fila de cliente ──
+  // Reply
+  const handleSaveReply = async () => {
+    if (!replyModal) return;
+    setSavingReply(true);
+    await base44.entities.FollowUpLog.update(replyModal.id, {
+      replied: true,
+      reply_date: replyForm.reply_date,
+      reply_comments: replyForm.reply_comments,
+    });
+    setReplyModal(null);
+    setReplyForm({ reply_date: format(new Date(), 'yyyy-MM-dd'), reply_comments: '' });
+    setSavingReply(false);
+    await loadData();
+  };
+
+  const handleNoReply = async () => {
+    if (!noReplyConfirm) return;
+    await base44.entities.FollowUpLog.update(noReplyConfirm.id, {
+      replied: true,
+      reply_date: format(new Date(), 'yyyy-MM-dd'),
+      reply_comments: 'Cerrado por admin – sin respuesta.',
+    });
+    setNoReplyConfirm(null);
+    await loadData();
+  };
+
+  const openReply = (log) => {
+    setReplyModal(log);
+    setReplyForm({ reply_date: format(new Date(), 'yyyy-MM-dd'), reply_comments: '' });
+  };
+
+  // ── ClientRow ──
   const ClientRow = ({ client }) => {
     const days = getLastContactDays(client);
     const urgent = days === null || days > FOLLOWUP_THRESHOLD_DAYS;
-    const clientLogs = getClientLogs(client.id);
-    const lastLog = clientLogs[0];
+    const lastLog = getClientLogs(client.id)[0];
 
     return (
       <div className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
@@ -220,6 +183,7 @@ export default function SeguimientoClientesPage() {
             {lastLog && (
               <p className="text-xs text-slate-400 mt-0.5">
                 Último contacto: {format(parseISO(lastLog.interaction_date), "d MMM yyyy", { locale: es })} · {interactionLabels[lastLog.interaction_type]?.label}
+                {lastLog.assigned_to && ` · ${lastLog.assigned_to}`}
               </p>
             )}
           </div>
@@ -233,9 +197,9 @@ export default function SeguimientoClientesPage() {
             <Badge className="text-xs bg-slate-200 text-slate-600">Sin contacto</Badge>
           )}
           <Button size="sm" variant="outline" onClick={() => setDetailClient(client)} className="h-7 text-xs">
-            <Eye className="w-3 h-3 mr-1" /> Detalle
+            <Eye className="w-3 h-3 mr-1" /> Ver
           </Button>
-          <Button size="sm" onClick={() => openLogModal(client)} className="h-7 text-xs bg-blue-600 hover:bg-blue-700">
+          <Button size="sm" onClick={() => setLogModalClient(client)} className="h-7 text-xs bg-blue-600 hover:bg-blue-700">
             <Plus className="w-3 h-3 mr-1" /> Contacto
           </Button>
         </div>
@@ -243,14 +207,18 @@ export default function SeguimientoClientesPage() {
     );
   };
 
-  // ── Renderizar log ──
+  // ── LogRow (historial global) ──
   const LogRow = ({ log }) => {
     const config = interactionLabels[log.interaction_type] || interactionLabels.other;
     const Icon = config.icon;
     const pendingReply = (log.interaction_type === 'message' || log.interaction_type === 'email') && !log.replied;
+    const client = clients.find(c => c.id === log.client_id);
 
     return (
-      <div className="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-xl">
+      <div
+        className="flex items-start gap-3 p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:shadow-sm transition-shadow"
+        onClick={() => client && setDetailClient(client)}
+      >
         <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${config.color}`}>
           <Icon className="w-4 h-4" />
         </div>
@@ -262,17 +230,25 @@ export default function SeguimientoClientesPage() {
               <span className="text-xs text-slate-400">{format(parseISO(log.interaction_date), "d MMM yyyy", { locale: es })}</span>
             </div>
           </div>
-          {log.comments && <p className="text-xs text-slate-600 mt-1">{log.comments}</p>}
+          {log.comments && <p className="text-xs text-slate-600 mt-1 truncate">{log.comments}</p>}
+          {log.conversation_text && (
+            <p className="text-xs text-blue-600 mt-0.5">💬 Conversación adjunta · <span className="underline">Ver detalle</span></p>
+          )}
+          {log.visit_photos?.length > 0 && (
+            <p className="text-xs text-blue-600 mt-0.5">📷 {log.visit_photos.length} foto(s) · <span className="underline">Ver detalle</span></p>
+          )}
           {log.replied && log.reply_comments && (
-            <div className="mt-1.5 bg-green-50 border border-green-100 rounded-lg px-2 py-1.5">
-              <p className="text-xs text-green-700"><span className="font-semibold">Respuesta:</span> {log.reply_comments}</p>
-              {log.reply_date && <p className="text-xs text-green-500 mt-0.5">{format(parseISO(log.reply_date), "d MMM yyyy", { locale: es })}</p>}
+            <div className="mt-1 bg-green-50 border border-green-100 rounded px-2 py-1">
+              <p className="text-xs text-green-700 truncate"><span className="font-semibold">Respuesta:</span> {log.reply_comments}</p>
             </div>
           )}
+          {log.replied && !log.reply_comments && (
+            <p className="text-xs text-slate-400 mt-1">✓ Cerrado sin respuesta</p>
+          )}
           {pendingReply && (
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex gap-2" onClick={e => e.stopPropagation()}>
               <Button size="sm" variant="outline" className="h-6 text-xs text-green-700 border-green-300 hover:bg-green-50"
-                onClick={() => { setReplyModal({ log }); setReplyForm({ reply_date: format(new Date(), 'yyyy-MM-dd'), reply_comments: '' }); }}>
+                onClick={() => openReply(log)}>
                 <CheckCircle className="w-3 h-3 mr-1" /> Respondió
               </Button>
               <Button size="sm" variant="outline" className="h-6 text-xs text-red-600 border-red-200 hover:bg-red-50"
@@ -280,9 +256,6 @@ export default function SeguimientoClientesPage() {
                 <XCircle className="w-3 h-3 mr-1" /> Sin respuesta
               </Button>
             </div>
-          )}
-          {log.replied && !log.reply_comments && (
-            <p className="text-xs text-slate-400 mt-1">✓ Cerrado sin respuesta</p>
           )}
         </div>
       </div>
@@ -303,13 +276,17 @@ export default function SeguimientoClientesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
+
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <Activity className="w-8 h-8 text-blue-600" />
-            Seguimiento de Clientes
-          </h1>
-          <p className="text-slate-500 mt-1">Registra y monitorea el contacto con clientes activos</p>
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+              <Activity className="w-8 h-8 text-blue-600" />
+              Seguimiento de Clientes
+            </h1>
+            <p className="text-slate-500 mt-1">Registra y monitorea el contacto con clientes activos</p>
+          </div>
+          <ExportCSV clients={filteredClients} logs={logs} />
         </div>
 
         {/* KPIs */}
@@ -329,23 +306,23 @@ export default function SeguimientoClientesPage() {
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center"><CheckCircle className="w-5 h-5 text-green-600" /></div>
-              <div><p className="text-2xl font-bold text-green-700">{clientsOk.length}</p><p className="text-xs text-slate-500">Al día</p></div>
+              <div><p className="text-2xl font-bold text-green-700">{clientsOk.length}</p><p className="text-xs text-slate-500">Al día (90 días)</p></div>
             </CardContent>
           </Card>
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center"><MessageSquare className="w-5 h-5 text-purple-600" /></div>
-              <div><p className="text-2xl font-bold text-slate-900">{logs.filter(l => !l.replied && (l.interaction_type === 'message' || l.interaction_type === 'email')).length}</p><p className="text-xs text-slate-500">Esperando respuesta</p></div>
+              <div><p className="text-2xl font-bold text-slate-900">{pendingReplies.length}</p><p className="text-xs text-slate-500">Esperando respuesta</p></div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Buscador + Filtro tipo */}
-        <div className="flex gap-3 flex-col sm:flex-row">
-          <div className="relative flex-1">
+        {/* Filtros */}
+        <div className="flex gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
             <Input
-              placeholder="Buscar cliente por nombre, dirección o teléfono..."
+              placeholder="Buscar cliente..."
               className="pl-10 h-11 bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -357,7 +334,7 @@ export default function SeguimientoClientesPage() {
             )}
           </div>
           <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="h-11 bg-white w-full sm:w-[200px]">
+            <SelectTrigger className="h-11 bg-white w-[180px]">
               <SelectValue placeholder="Tipo de cliente" />
             </SelectTrigger>
             <SelectContent>
@@ -371,208 +348,140 @@ export default function SeguimientoClientesPage() {
               <SelectItem value="work_cover_client">Work Cover Client</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterDays} onValueChange={setFilterDays}>
+            <SelectTrigger className="h-11 bg-white w-[160px]">
+              <SelectValue placeholder="Días sin contacto" />
+            </SelectTrigger>
+            <SelectContent>
+              {DAY_FILTER_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="needs-followup" className="relative">
+            <TabsTrigger value="needs-followup">
               ⚠️ Necesitan Contacto
               {clientsNeedingFollowUp.length > 0 && (
                 <Badge className="ml-2 bg-red-500 text-white text-xs px-1.5">{clientsNeedingFollowUp.length}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="all-clients">👥 Todos los Clientes</TabsTrigger>
-            <TabsTrigger value="history">📋 Historial de Contactos</TabsTrigger>
+            <TabsTrigger value="history">
+              📋 Historial
+              {pendingReplies.length > 0 && (
+                <Badge className="ml-2 bg-purple-500 text-white text-xs px-1.5">{pendingReplies.length}</Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
-          {/* Tab: Necesitan contacto */}
           <TabsContent value="needs-followup" className="space-y-3 mt-4">
             <p className="text-xs text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              ⚠️ Clientes sin contacto registrado en los últimos <strong>90 días</strong> (3 meses) o que nunca han sido contactados.
+              ⚠️ Clientes sin contacto registrado en los últimos <strong>90 días</strong> o nunca contactados.
             </p>
             {clientsNeedingFollowUp.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
-                  <p className="text-slate-600 font-medium">¡Todo al día! Todos los clientes han sido contactados en los últimos 3 meses.</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="py-12 text-center">
+                <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
+                <p className="text-slate-600 font-medium">¡Todo al día! Todos contactados en los últimos 3 meses.</p>
+              </CardContent></Card>
             ) : (
               clientsNeedingFollowUp.map(client => <ClientRow key={client.id} client={client} />)
             )}
           </TabsContent>
 
-          {/* Tab: Todos los clientes */}
           <TabsContent value="all-clients" className="space-y-3 mt-4">
             {filteredClients.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500">No se encontraron clientes.</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="py-12 text-center">
+                <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500">No se encontraron clientes.</p>
+              </CardContent></Card>
             ) : (
               filteredClients.map(client => <ClientRow key={client.id} client={client} />)
             )}
           </TabsContent>
 
-          {/* Tab: Historial */}
           <TabsContent value="history" className="space-y-3 mt-4">
             {logs.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <p className="text-slate-500">No hay contactos registrados todavía.</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="py-12 text-center">
+                <MessageSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500">No hay contactos registrados todavía.</p>
+              </CardContent></Card>
             ) : (
               logs.map(log => <LogRow key={log.id} log={log} />)
             )}
           </TabsContent>
         </Tabs>
-
-        {/* Modal: Registrar contacto */}
-        <Dialog open={!!logModal} onOpenChange={(o) => !o && setLogModal(null)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Registrar Contacto</DialogTitle>
-              <DialogDescription>
-                {logModal?.client?.name} · {logModal?.client?.mobile_number}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label>Tipo de interacción</Label>
-                <Select value={logForm.interaction_type} onValueChange={(v) => setLogForm(f => ({ ...f, interaction_type: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="call">📞 Llamada</SelectItem>
-                    <SelectItem value="message">💬 Mensaje (SMS/WhatsApp)</SelectItem>
-                    <SelectItem value="email">✉️ Email</SelectItem>
-                    <SelectItem value="visit">👁️ Visita</SelectItem>
-                    <SelectItem value="other">• Otro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Fecha</Label>
-                <Input type="date" value={logForm.interaction_date} onChange={(e) => setLogForm(f => ({ ...f, interaction_date: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Comentarios (opcional)</Label>
-                <Textarea
-                  placeholder="¿De qué hablaron? ¿Hubo algún problema o novedad?"
-                  value={logForm.comments}
-                  onChange={(e) => setLogForm(f => ({ ...f, comments: e.target.value }))}
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setLogModal(null)}>Cancelar</Button>
-              <Button onClick={handleSaveLog} disabled={savingLog} className="bg-blue-600 hover:bg-blue-700">
-                {savingLog ? 'Guardando...' : 'Guardar'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Modal: Detalle de cliente */}
-        <Dialog open={!!detailClient} onOpenChange={(o) => !o && setDetailClient(null)}>
-          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                  {detailClient?.name?.charAt(0).toUpperCase()}
-                </div>
-                {detailClient?.name}
-              </DialogTitle>
-              <DialogDescription>
-                {detailClient?.address} · {frequencyLabels[detailClient?.service_frequency] || detailClient?.service_frequency}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                {detailClient?.mobile_number && (
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Phone className="w-4 h-4 text-slate-400" /> {detailClient.mobile_number}
-                  </div>
-                )}
-                {detailClient?.email && (
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Mail className="w-4 h-4 text-slate-400" /> {detailClient.email}
-                  </div>
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-700 mb-2">Historial de contactos</p>
-                {getClientLogs(detailClient?.id).length === 0 ? (
-                  <p className="text-sm text-slate-400 italic">Sin contactos registrados.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {getClientLogs(detailClient?.id).map(log => <LogRow key={log.id} log={log} />)}
-                  </div>
-                )}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => { setDetailClient(null); openLogModal(detailClient); }} className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="w-4 h-4 mr-1" /> Registrar contacto
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Modal: Registrar respuesta */}
-        <Dialog open={!!replyModal} onOpenChange={(o) => !o && setReplyModal(null)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Registrar Respuesta</DialogTitle>
-              <DialogDescription>{replyModal?.log?.client_name}</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label>Fecha de respuesta</Label>
-                <Input type="date" value={replyForm.reply_date} onChange={(e) => setReplyForm(f => ({ ...f, reply_date: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>¿Qué respondió el cliente?</Label>
-                <Textarea
-                  placeholder="Describe la respuesta del cliente..."
-                  value={replyForm.reply_comments}
-                  onChange={(e) => setReplyForm(f => ({ ...f, reply_comments: e.target.value }))}
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setReplyModal(null)}>Cancelar</Button>
-              <Button onClick={handleSaveReply} disabled={savingLog} className="bg-green-600 hover:bg-green-700">
-                {savingLog ? 'Guardando...' : 'Guardar Respuesta'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Confirmación sin respuesta */}
-        <AlertDialog open={!!noReplyConfirm} onOpenChange={(o) => !o && setNoReplyConfirm(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2">
-                <XCircle className="w-5 h-5 text-red-600" /> ¿Sin respuesta?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                Esto cerrará el seguimiento de <strong>{noReplyConfirm?.client_name}</strong> como "sin respuesta".
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleNoReply} className="bg-red-600 hover:bg-red-700">Confirmar</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
+
+      {/* Modal: Registrar contacto */}
+      <LogContactModal
+        client={logModalClient}
+        adminUsers={adminUsers}
+        onClose={() => setLogModalClient(null)}
+        onSaved={async () => { setLogModalClient(null); await loadData(); }}
+      />
+
+      {/* Modal: Detalle / Timeline */}
+      <ContactDetailModal
+        client={detailClient}
+        logs={logs}
+        onClose={() => setDetailClient(null)}
+        onNewContact={(client) => setLogModalClient(client)}
+        onReply={openReply}
+        onNoReply={setNoReplyConfirm}
+      />
+
+      {/* Modal: Registrar respuesta */}
+      <Dialog open={!!replyModal} onOpenChange={(o) => !o && setReplyModal(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Registrar Respuesta</DialogTitle>
+            <DialogDescription>{replyModal?.client_name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Fecha de respuesta</Label>
+              <Input type="date" value={replyForm.reply_date} onChange={(e) => setReplyForm(f => ({ ...f, reply_date: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>¿Qué respondió el cliente?</Label>
+              <Textarea
+                placeholder="Describe la respuesta del cliente..."
+                value={replyForm.reply_comments}
+                onChange={(e) => setReplyForm(f => ({ ...f, reply_comments: e.target.value }))}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReplyModal(null)}>Cancelar</Button>
+            <Button onClick={handleSaveReply} disabled={savingReply} className="bg-green-600 hover:bg-green-700">
+              {savingReply ? 'Guardando...' : 'Guardar Respuesta'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmación sin respuesta */}
+      <AlertDialog open={!!noReplyConfirm} onOpenChange={(o) => !o && setNoReplyConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <XCircle className="w-5 h-5 text-red-600" /> ¿Sin respuesta?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Esto cerrará el seguimiento de <strong>{noReplyConfirm?.client_name}</strong> como "sin respuesta".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleNoReply} className="bg-red-600 hover:bg-red-700">Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
