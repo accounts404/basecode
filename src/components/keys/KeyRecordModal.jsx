@@ -73,33 +73,26 @@ export default function KeyRecordModal({ record, client, onSave, onClose }) {
   const handleAddCopy = async () => {
     if (!newCopy.label.trim()) return;
     const copyToAdd = { ...newCopy };
-    let updatedForm;
-    setForm(prev => {
-      const updatedCopies = [...prev.copies, copyToAdd];
-      const updatedLogs = buildLogEvent(`Copia agregada: ${copyToAdd.label}`, prev.log_events);
-      updatedForm = { ...prev, copies: updatedCopies, log_events: updatedLogs };
-      return updatedForm;
-    });
+    const updatedCopies = [...form.copies, copyToAdd];
+    const updatedLogs = buildLogEvent(`Copia agregada: ${copyToAdd.label}`, form.log_events);
+
+    setForm(prev => ({ ...prev, copies: updatedCopies, log_events: updatedLogs }));
     setNewCopy({ label: '', notes: '', photos: [], created_date: format(new Date(), 'yyyy-MM-dd') });
     setShowNewCopy(false);
 
-    // Si ya existe el registro, persistir inmediatamente sin cerrar el modal
-    if (!isNew && record?.id) {
-      setSaving(true);
-      try {
-        const updatedCopies = [...form.copies, copyToAdd];
-        const updatedLogs = buildLogEvent(`Copia agregada: ${copyToAdd.label}`, form.log_events);
-        await onSave({
-          client_id: client.id,
-          client_name: client.name,
-          client_address: client.address || '',
-          ...form,
-          copies: updatedCopies,
-          log_events: updatedLogs,
-        }, true);
-      } finally {
-        setSaving(false);
-      }
+    // Persistir inmediatamente en BD sin cerrar el modal
+    setSaving(true);
+    try {
+      await onSave({
+        client_id: client.id,
+        client_name: client.name,
+        client_address: client.address || '',
+        ...form,
+        copies: updatedCopies,
+        log_events: updatedLogs,
+      }, true);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -109,21 +102,19 @@ export default function KeyRecordModal({ record, client, onSave, onClose }) {
     const updatedLogs = buildLogEvent(`Copia eliminada: ${copy.label}`, form.log_events);
     setForm(prev => ({ ...prev, copies: updatedCopies, log_events: updatedLogs }));
 
-    // Si ya existe el registro, persistir inmediatamente sin cerrar el modal
-    if (!isNew && record?.id) {
-      setSaving(true);
-      try {
-        await onSave({
-          client_id: client.id,
-          client_name: client.name,
-          client_address: client.address || '',
-          ...form,
-          copies: updatedCopies,
-          log_events: updatedLogs,
-        }, true);
-      } finally {
-        setSaving(false);
-      }
+    // Persistir inmediatamente en BD sin cerrar el modal
+    setSaving(true);
+    try {
+      await onSave({
+        client_id: client.id,
+        client_name: client.name,
+        client_address: client.address || '',
+        ...form,
+        copies: updatedCopies,
+        log_events: updatedLogs,
+      }, true);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -237,7 +228,15 @@ export default function KeyRecordModal({ record, client, onSave, onClose }) {
 
           {/* TAB: COPIAS */}
           <TabsContent value="copies" className="space-y-4 mt-4">
-            {form.copies.length === 0 && !showNewCopy && (
+            {isNew && (
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <AlertDescription className="text-amber-700">
+                  Primero guarda la llave principal antes de agregar copias.
+                </AlertDescription>
+              </Alert>
+            )}
+            {!isNew && form.copies.length === 0 && !showNewCopy && (
               <div className="text-center py-8 text-slate-500">
                 <Copy className="w-8 h-8 mx-auto mb-2 opacity-40" />
                 <p>No hay copias registradas</p>
@@ -324,7 +323,7 @@ export default function KeyRecordModal({ record, client, onSave, onClose }) {
               </Card>
             )}
 
-            {!showNewCopy && (
+            {!showNewCopy && !isNew && (
               <Button variant="outline" onClick={() => setShowNewCopy(true)} className="w-full border-dashed">
                 <Plus className="w-4 h-4 mr-2" /> Agregar Copia
               </Button>

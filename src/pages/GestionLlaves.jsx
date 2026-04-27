@@ -104,17 +104,13 @@ export default function GestionLlaves() {
 
   const handleSave = async (data, keepOpen = false) => {
     try {
-      let savedRecord;
       if (selectedModal.record?.id) {
-        savedRecord = await base44.entities.KeyRecord.update(selectedModal.record.id, data);
+        await base44.entities.KeyRecord.update(selectedModal.record.id, data);
       } else {
-        savedRecord = await base44.entities.KeyRecord.create(data);
+        await base44.entities.KeyRecord.create(data);
       }
       await loadData();
-      if (keepOpen) {
-        // Actualizar el record en el modal sin cerrarlo
-        setSelectedModal(prev => ({ ...prev, record: savedRecord || { ...data, id: prev.record?.id } }));
-      } else {
+      if (!keepOpen) {
         setSelectedModal(null);
       }
     } catch (err) {
