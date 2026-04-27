@@ -20,13 +20,17 @@ import {
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-// Umbrales de días sin contacto según frecuencia del servicio
-const followUpThresholds = {
-  weekly: 14,
-  fortnightly: 21,
-  every_3_weeks: 28,
-  monthly: 45,
-  one_off: 30,
+// Umbral fijo: sin contacto en los últimos 90 días (3 meses)
+const FOLLOWUP_THRESHOLD_DAYS = 90;
+
+const CLIENT_TYPE_LABELS = {
+  domestic: 'Doméstico',
+  commercial: 'Comercial',
+  training: 'Entrenamiento',
+  ndis_client: 'NDIS',
+  dva_client: 'DVA',
+  age_care_client: 'Age Care',
+  work_cover_client: 'Work Cover',
 };
 
 const interactionLabels = {
@@ -50,6 +54,7 @@ export default function SeguimientoClientesPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
 
   // Modal registrar interacción
   const [logModal, setLogModal] = useState(null); // { client }
@@ -89,31 +94,32 @@ export default function SeguimientoClientesPage() {
   // Solo clientes activos
   const activeClients = useMemo(() => clients.filter(c => c.active !== false), [clients]);
 
-  // Filtrar por búsqueda
+  // Filtrar por búsqueda y tipo de cliente
   const filteredClients = useMemo(() => {
-    if (!searchTerm.trim()) return activeClients;
-    const lower = searchTerm.toLowerCase();
-    return activeClients.filter(c =>
-      c.name?.toLowerCase().includes(lower) ||
-      c.address?.toLowerCase().includes(lower) ||
-      c.mobile_number?.includes(lower)
-    );
-  }, [activeClients, searchTerm]);
+    return activeClients.filter(c => {
+      const matchesSearch = !searchTerm.trim() || (
+        c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.mobile_number?.includes(searchTerm)
+      );
+      const matchesType = filterType === 'all' || c.client_type === filterType;
+      return matchesSearch && matchesType;
+    });
+  }, [activeClients, searchTerm, filterType]);
 
-  // Calcular días desde el último contacto (último log o última visita de servicio)
+  // Calcular días desde el último contacto registrado
   const getLastContactDays = (client) => {
     const clientLogs = logs.filter(l => l.client_id === client.id);
-    const lastLog = clientLogs[0]; // ya vienen ordenados por -interaction_date
-    const lastDate = lastLog?.interaction_date;
-    if (!lastDate) return null;
-    return differenceInDays(new Date(), parseISO(lastDate));
+    const lastLog = clientLogs[0]; // ordenados por -interaction_date
+    if (!lastLog?.interaction_date) return null;
+    return differenceInDays(new Date(), parseISO(lastLog.interaction_date));
   };
 
+  // Necesita contacto = sin contacto en los últimos 90 días (o nunca contactado)
   const needsFollowUp = (client) => {
     const days = getLastContactDays(client);
-    const threshold = followUpThresholds[client.service_frequency] || 45;
-    if (days === null) return true; // nunca contactado
-    return days > threshold;
+    if (days === null) return true;
+    return days > FOLLOWUP_THRESHOLD_DAYS;
   };
 
   const clientsNeedingFollowUp = useMemo(() => filteredClients.filter(needsFollowUp), [filteredClients, logs]);
@@ -188,8 +194,7 @@ export default function SeguimientoClientesPage() {
   // ── Renderizar fila de cliente ──
   const ClientRow = ({ client }) => {
     const days = getLastContactDays(client);
-    const threshold = followUpThresholds[client.service_frequency] || 45;
-    const urgent = days === null || days > threshold * 1.5;
+    const urgent = days === null || days > FOLLOWUP_THRESHOLD_DAYS;
     const clientLogs = getClientLogs(client.id);
     const lastLog = clientLogs[0];
 
@@ -202,6 +207,9 @@ export default function SeguimientoClientesPage() {
           <div className="min-w-0">
             <p className="font-semibold text-slate-900 text-sm truncate">{client.name}</p>
             <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
+              {client.client_type && CLIENT_TYPE_LABELS[client.client_type] && (
+                <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">{CLIENT_TYPE_LABELS[client.client_type]}</span>
+              )}
               {client.service_frequency && (
                 <span className="bg-slate-100 px-1.5 py-0.5 rounded">{frequencyLabels[client.service_frequency] || client.service_frequency}</span>
               )}
@@ -332,20 +340,37 @@ export default function SeguimientoClientesPage() {
           </Card>
         </div>
 
-        {/* Buscador */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <Input
-            placeholder="Buscar cliente por nombre, dirección o teléfono..."
-            className="pl-10 h-11 bg-white"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {searchTerm && (
-            <Button variant="ghost" size="sm" onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0">
-              <X className="w-4 h-4" />
-            </Button>
-          )}
+        {/* Buscador + Filtro tipo */}
+        <div className="flex gap-3 flex-col sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <Input
+              placeholder="Buscar cliente por nombre, dirección o teléfono..."
+              className="pl-10 h-11 bg-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <Button variant="ghost" size="sm" onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="h-11 bg-white w-full sm:w-[200px]">
+              <SelectValue placeholder="Tipo de cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los tipos</SelectItem>
+              <SelectItem value="domestic">Doméstico</SelectItem>
+              <SelectItem value="commercial">Comercial</SelectItem>
+              <SelectItem value="training">Entrenamiento</SelectItem>
+              <SelectItem value="ndis_client">NDIS Client</SelectItem>
+              <SelectItem value="dva_client">DVA Client</SelectItem>
+              <SelectItem value="age_care_client">Age Care Client</SelectItem>
+              <SelectItem value="work_cover_client">Work Cover Client</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Tabs */}
@@ -363,11 +388,14 @@ export default function SeguimientoClientesPage() {
 
           {/* Tab: Necesitan contacto */}
           <TabsContent value="needs-followup" className="space-y-3 mt-4">
+            <p className="text-xs text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              ⚠️ Clientes sin contacto registrado en los últimos <strong>90 días</strong> (3 meses) o que nunca han sido contactados.
+            </p>
             {clientsNeedingFollowUp.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
-                  <p className="text-slate-600 font-medium">¡Todo al día! Ningún cliente requiere seguimiento urgente.</p>
+                  <p className="text-slate-600 font-medium">¡Todo al día! Todos los clientes han sido contactados en los últimos 3 meses.</p>
                 </CardContent>
               </Card>
             ) : (
