@@ -27,12 +27,15 @@ import {
     Search,
     X,
     Eye,
-    EyeOff
+    EyeOff,
+    Activity
 } from 'lucide-react';
 import { format, parseISO, isFuture, isPast } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createPageUrl } from '@/utils';
 import { getPriceForSchedule, calculateGST } from '@/components/utils/priceCalculations';
+import ClientFollowUpFeedbackTab from '@/components/clients/ClientFollowUpFeedbackTab';
+import LogContactModal from '@/components/seguimiento/LogContactModal';
 
 // Helper para interpretar fechas ISO en hora local (sin forzar UTC)
 const parseISOAsLocal = (isoString) => {
@@ -52,6 +55,7 @@ export default function HistorialClientes() {
     const [expandedServices, setExpandedServices] = useState(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [showPrices, setShowPrices] = useState(false);
+    const [logContactClient, setLogContactClient] = useState(null);
 
     useEffect(() => {
         loadData();
@@ -615,7 +619,7 @@ export default function HistorialClientes() {
 
                         {/* Tabs de Servicios */}
                         <Tabs defaultValue="past" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
+                            <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="past" className="flex items-center gap-2">
                                     <CheckCircle className="w-4 h-4" />
                                     Servicios Pasados ({pastServices.length})
@@ -624,7 +628,19 @@ export default function HistorialClientes() {
                                     <Calendar className="w-4 h-4" />
                                     Servicios Futuros ({futureServices.length})
                                 </TabsTrigger>
+                                <TabsTrigger value="followup" className="flex items-center gap-2">
+                                    <Activity className="w-4 h-4" />
+                                    Seguimiento & Feedback
+                                </TabsTrigger>
                             </TabsList>
+
+                            <TabsContent value="followup">
+                                <ClientFollowUpFeedbackTab
+                                    clientId={selectedClient.id}
+                                    clientName={selectedClient.name}
+                                    onNewContact={() => setLogContactClient(selectedClient)}
+                                />
+                            </TabsContent>
 
                             <TabsContent value="past" className="mt-6">
                                 <Card>
@@ -730,6 +746,14 @@ export default function HistorialClientes() {
                     </Card>
                 )}
             </div>
+
+            {/* Modal registrar contacto desde historial */}
+            <LogContactModal
+                client={logContactClient}
+                adminUsers={[]}
+                onClose={() => setLogContactClient(null)}
+                onSaved={() => { setLogContactClient(null); }}
+            />
         </div>
     );
 }
