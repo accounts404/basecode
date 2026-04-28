@@ -113,12 +113,7 @@ const cleanerNavigationItems = [
     icon: FileText,
     requiresActive: true,
   },
-  {
-    title: "Mi Puntuación",
-    url: createPageUrl("MiPuntuacion"),
-    icon: Trophy,
-    isScoringItem: true,
-  },
+
   {
     title: "Mi Perfil",
     url: createPageUrl("MiPerfil"),
