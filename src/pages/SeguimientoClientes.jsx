@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Activity, Users, AlertCircle, Search, Phone, MessageSquare,
-  CheckCircle, X, XCircle, Mail, Eye, Plus,
+  CheckCircle, X, XCircle, Mail, Eye, Plus, EyeOff,
 } from 'lucide-react';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -69,6 +69,17 @@ export default function SeguimientoClientesPage() {
   const [savingReply, setSavingReply] = useState(false);
 
   const [activeTab, setActiveTab] = useState('needs-followup');
+  const [hiddenClients, setHiddenClients] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('seguimiento_hidden_clients') || '[]'); } catch { return []; }
+  });
+
+  const toggleHideClient = (clientId) => {
+    setHiddenClients(prev => {
+      const next = prev.includes(clientId) ? prev.filter(id => id !== clientId) : [...prev, clientId];
+      localStorage.setItem('seguimiento_hidden_clients', JSON.stringify(next));
+      return next;
+    });
+  };
 
   useEffect(() => { loadData(); }, []);
 
@@ -85,7 +96,10 @@ export default function SeguimientoClientesPage() {
     setLoading(false);
   };
 
-  const activeClients = useMemo(() => clients.filter(c => c.active !== false), [clients]);
+  const activeClients = useMemo(() => {
+    if (filterType === 'disabled') return clients.filter(c => c.active === false);
+    return clients.filter(c => c.active !== false);
+  }, [clients, filterType]);
 
   const getLastContactDays = (client) => {
     const clientLogs = logs.filter(l => l.client_id === client.id);
@@ -107,7 +121,7 @@ export default function SeguimientoClientesPage() {
         c.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.mobile_number?.includes(searchTerm)
       );
-      const matchesType = filterType === 'all' || c.client_type === filterType;
+      const matchesType = filterType === 'all' || filterType === 'disabled' || c.client_type === filterType;
       let matchesDays = true;
       if (filterDays !== 'all') {
         const days = getLastContactDays(c);
@@ -118,7 +132,7 @@ export default function SeguimientoClientesPage() {
     });
   }, [activeClients, searchTerm, filterType, filterDays, logs]);
 
-  const clientsNeedingFollowUp = useMemo(() => filteredClients.filter(needsFollowUp), [filteredClients, logs]);
+  const clientsNeedingFollowUp = useMemo(() => filteredClients.filter(c => needsFollowUp(c) && !hiddenClients.includes(c.id)), [filteredClients, logs, hiddenClients]);
   const clientsOk = useMemo(() => filteredClients.filter(c => !needsFollowUp(c)), [filteredClients, logs]);
   const pendingReplies = useMemo(() => logs.filter(l => !l.replied && (l.interaction_type === 'message' || l.interaction_type === 'email')), [logs]);
 
@@ -156,10 +170,11 @@ export default function SeguimientoClientesPage() {
   };
 
   // ── ClientRow ──
-  const ClientRow = ({ client }) => {
+  const ClientRow = ({ client, showHideButton = false }) => {
     const days = getLastContactDays(client);
     const urgent = days === null || days > FOLLOWUP_THRESHOLD_DAYS;
     const lastLog = getClientLogs(client.id)[0];
+    const isHidden = hiddenClients.includes(client.id);
 
     return (
       <div className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
@@ -199,6 +214,13 @@ export default function SeguimientoClientesPage() {
           <Button size="sm" variant="outline" onClick={() => setDetailClient(client)} className="h-7 text-xs">
             <Eye className="w-3 h-3 mr-1" /> Ver
           </Button>
+          {showHideButton && (
+            <Button size="sm" variant="outline" onClick={() => toggleHideClient(client.id)}
+              className={`h-7 text-xs ${isHidden ? 'border-green-300 text-green-700 hover:bg-green-50' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+              title={isHidden ? 'Mostrar en lista' : 'Ocultar de lista'}>
+              {isHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+            </Button>
+          )}
           <Button size="sm" onClick={() => setLogModalClient(client)} className="h-7 text-xs bg-blue-600 hover:bg-blue-700">
             <Plus className="w-3 h-3 mr-1" /> Contacto
           </Button>
@@ -435,6 +457,7 @@ export default function SeguimientoClientesPage() {
               <SelectItem value="dva_client">DVA Client</SelectItem>
               <SelectItem value="age_care_client">Age Care Client</SelectItem>
               <SelectItem value="work_cover_client">Work Cover Client</SelectItem>
+              <SelectItem value="disabled">🚫 Deshabilitados</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterDays} onValueChange={setFilterDays}>
@@ -468,16 +491,24 @@ export default function SeguimientoClientesPage() {
           </TabsList>
 
           <TabsContent value="needs-followup" className="space-y-3 mt-4">
-            <p className="text-xs text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              ⚠️ Clientes sin contacto registrado en los últimos <strong>90 días</strong> o nunca contactados.
-            </p>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-xs text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 flex-1">
+                ⚠️ Clientes sin contacto en los últimos <strong>90 días</strong> o nunca contactados. Usa <EyeOff className="w-3 h-3 inline mx-0.5" /> para ocultar clientes que no necesitan seguimiento.
+              </p>
+              {hiddenClients.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => { setHiddenClients([]); localStorage.removeItem('seguimiento_hidden_clients'); }}
+                  className="text-xs text-slate-500 h-8">
+                  <Eye className="w-3 h-3 mr-1" /> Mostrar {hiddenClients.length} oculto{hiddenClients.length !== 1 ? 's' : ''}
+                </Button>
+              )}
+            </div>
             {clientsNeedingFollowUp.length === 0 ? (
               <Card><CardContent className="py-12 text-center">
                 <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
                 <p className="text-slate-600 font-medium">¡Todo al día! Todos contactados en los últimos 3 meses.</p>
               </CardContent></Card>
             ) : (
-              clientsNeedingFollowUp.map(client => <ClientRow key={client.id} client={client} />)
+              clientsNeedingFollowUp.map(client => <ClientRow key={client.id} client={client} showHideButton={true} />)
             )}
           </TabsContent>
 
