@@ -47,56 +47,86 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import AdminTasksPanel from './pages/AdminTasksPanel';
+import AuditoriaWorkEntries from './pages/AuditoriaWorkEntries';
+import AumentoClientes from './pages/AumentoClientes';
+import Clientes from './pages/Clientes';
+import SeguimientoClientes from './pages/SeguimientoClientes';
+import ConciliacionFacturas from './pages/ConciliacionFacturas';
+import ConciliacionHoras from './pages/ConciliacionHoras';
+import Configuracion from './pages/Configuracion';
+import Cotizaciones from './pages/Cotizaciones';
+import Dashboard from './pages/Dashboard';
+import Facturas from './pages/Facturas';
+import GestionCamisas from './pages/GestionCamisas';
+import GestionLlaves from './pages/GestionLlaves';
+import GestionFlota from './pages/GestionFlota';
+import GestionServiciosAdmin from './pages/GestionServiciosAdmin';
+import HistorialClientes from './pages/HistorialClientes';
+import Home from './pages/Home';
 import Horario from './pages/Horario';
+import Inducciones from './pages/Inducciones';
+import Limpiadores from './pages/Limpiadores';
 import MiPerfil from './pages/MiPerfil';
 import MiPuntuacion from './pages/MiPuntuacion';
 import MisFacturas from './pages/MisFacturas';
 import MisHoras from './pages/MisHoras';
+import PuntuacionLimpiadores from './pages/PuntuacionLimpiadores';
+import QuoteDetail from './pages/QuoteDetail';
+import QuoteItemization from './pages/QuoteItemization';
+import QuoteSettings from './pages/QuoteSettings';
 import RegistrarTrabajo from './pages/RegistrarTrabajo';
+import Rentabilidad from './pages/Rentabilidad';
+import Reportes from './pages/Reportes';
+import ReportesServicio from './pages/ReportesServicio';
+import RevisionPrecios from './pages/RevisionPrecios';
+import ServiceItemsManagement from './pages/ServiceItemsManagement';
 import ServicioActivo from './pages/ServicioActivo';
-import BlankPage from './components/BlankPage';
+import TVDashboard from './pages/TVDashboard';
+import TrabajoEntradas from './pages/TrabajoEntradas';
+import Vehiculos from './pages/Vehiculos';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "AdminTasksPanel": BlankPage,
-    "AuditoriaWorkEntries": BlankPage,
-    "AumentoClientes": BlankPage,
-    "Clientes": BlankPage,
-    "SeguimientoClientes": BlankPage,
-    "ConciliacionFacturas": BlankPage,
-    "ConciliacionHoras": BlankPage,
-    "Configuracion": BlankPage,
-    "Cotizaciones": BlankPage,
-    "Dashboard": BlankPage,
-    "Facturas": BlankPage,
-    "GestionCamisas": BlankPage,
-    "GestionLlaves": BlankPage,
-    "GestionFlota": BlankPage,
-    "GestionServiciosAdmin": BlankPage,
-    "HistorialClientes": BlankPage,
-    "Home": BlankPage,
+    "AdminTasksPanel": AdminTasksPanel,
+    "AuditoriaWorkEntries": AuditoriaWorkEntries,
+    "AumentoClientes": AumentoClientes,
+    "Clientes": Clientes,
+    "SeguimientoClientes": SeguimientoClientes,
+    "ConciliacionFacturas": ConciliacionFacturas,
+    "ConciliacionHoras": ConciliacionHoras,
+    "Configuracion": Configuracion,
+    "Cotizaciones": Cotizaciones,
+    "Dashboard": Dashboard,
+    "Facturas": Facturas,
+    "GestionCamisas": GestionCamisas,
+    "GestionLlaves": GestionLlaves,
+    "GestionFlota": GestionFlota,
+    "GestionServiciosAdmin": GestionServiciosAdmin,
+    "HistorialClientes": HistorialClientes,
+    "Home": Home,
     "Horario": Horario,
-    "Inducciones": BlankPage,
-    "Limpiadores": BlankPage,
+    "Inducciones": Inducciones,
+    "Limpiadores": Limpiadores,
     "MiPerfil": MiPerfil,
     "MiPuntuacion": MiPuntuacion,
     "MisFacturas": MisFacturas,
     "MisHoras": MisHoras,
-    "PuntuacionLimpiadores": BlankPage,
-    "QuoteDetail": BlankPage,
-    "QuoteItemization": BlankPage,
-    "QuoteSettings": BlankPage,
+    "PuntuacionLimpiadores": PuntuacionLimpiadores,
+    "QuoteDetail": QuoteDetail,
+    "QuoteItemization": QuoteItemization,
+    "QuoteSettings": QuoteSettings,
     "RegistrarTrabajo": RegistrarTrabajo,
-    "Rentabilidad": BlankPage,
-    "Reportes": BlankPage,
-    "ReportesServicio": BlankPage,
-    "RevisionPrecios": BlankPage,
-    "ServiceItemsManagement": BlankPage,
+    "Rentabilidad": Rentabilidad,
+    "Reportes": Reportes,
+    "ReportesServicio": ReportesServicio,
+    "RevisionPrecios": RevisionPrecios,
+    "ServiceItemsManagement": ServiceItemsManagement,
     "ServicioActivo": ServicioActivo,
-    "TVDashboard": BlankPage,
-    "TrabajoEntradas": BlankPage,
-    "Vehiculos": BlankPage,
+    "TVDashboard": TVDashboard,
+    "TrabajoEntradas": TrabajoEntradas,
+    "Vehiculos": Vehiculos,
 }
 
 export const pagesConfig = {
