@@ -1,7 +1,4 @@
 import './App.css'
-import MaintenancePage from '@/components/MaintenancePage'
-
-const MAINTENANCE_MODE = true;
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -60,10 +57,6 @@ const AuthenticatedApp = () => {
 
 
 function App() {
-
-  if (MAINTENANCE_MODE) {
-    return <MaintenancePage />;
-  }
 
   return (
     <AuthProvider>
