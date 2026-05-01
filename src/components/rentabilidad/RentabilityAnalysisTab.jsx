@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { FixedCost } from '@/entities/FixedCost';
+import { base44 } from '@/api/base44Client';
 import { format, startOfMonth, endOfMonth, endOfDay, startOfDay, subMonths, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Activity, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, GraduationCap, Search, Send, X, History, Eye, EyeOff, FileText, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Users, Briefcase, Calendar, PiggyBank, BarChart, Target, Save, CheckCircle, Clock, GraduationCap, Search, Send, X, History, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -17,10 +17,12 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from '@/components/ui/textarea';
-import { Client } from '@/entities/Client';
-import { User } from '@/entities/User';
 import { calculateTotalIncomeFromBreakdown, mergeRevenueBreakdowns } from '@/components/utils/priceCalculations';
 import { getPriceForSchedule, calculateGST, isDateInRange, extractDateOnly } from '@/components/utils/priceCalculations';
+
+// FIX #4: usar base44 SDK en lugar de imports legacy
+const FixedCost = base44.entities.FixedCost;
+const Client = base44.entities.Client;
 
 const generateMonthOptions = () => {
     const months = [];
@@ -41,54 +43,7 @@ const generateMonthOptions = () => {
     return months;
 };
 
-const ProfitabilityRow = ({ data }) => {
-    const isGrossProfitable = data.margin > 0;
-    const grossProfitabilityClass = isGrossProfitable ? "text-blue-700" : "text-orange-700";
 
-    const isRealProfitable = data.realMargin > 0;
-    const realProfitabilityClass = isRealProfitable ? "text-emerald-700" : "text-rose-700";
-    const realProfitabilityIcon = isRealProfitable ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />;
-    
-    return (
-        <TableRow className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
-            <TableCell className="font-semibold text-slate-900 py-4">{data.clientName}</TableCell>
-            <TableCell className="text-center text-slate-700">{data.serviceCount}</TableCell>
-            <TableCell className="text-center font-medium text-slate-800">{data.totalHours.toFixed(2)}h</TableCell>
-            
-            <TableCell className="text-right">
-                <p className="font-semibold text-emerald-700">${data.totalIncome.toFixed(2)}</p>
-                <p className="text-xs text-slate-500 font-medium">(${data.incomePerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className="text-right">
-                <p className="font-semibold text-rose-700">${data.totalLaborCost.toFixed(2)}</p>
-                <p className="text-xs text-slate-500 font-medium">(${data.laborCostPerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className={`text-right font-semibold ${grossProfitabilityClass}`}>
-                <p className="text-base">${data.margin.toFixed(2)}</p>
-                <p className="text-xs font-normal text-slate-500">(${data.marginPerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className="text-right text-slate-600">
-                <p className="font-medium">(${data.distributedFixedCost.toFixed(2)})</p>
-                <p className="text-xs text-slate-500">(${data.fixedCostPerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className={`text-right font-bold text-lg ${realProfitabilityClass}`}>
-                <p>${data.realMargin.toFixed(2)}</p>
-                <p className="text-xs font-normal text-slate-500">(${data.realMarginPerHour.toFixed(2)}/h)</p>
-            </TableCell>
-            
-            <TableCell className={`text-right font-bold ${realProfitabilityClass}`}>
-                <div className="flex items-center justify-end gap-2">
-                    {realProfitabilityIcon}
-                    <span className="text-base">{data.realProfitPercentage.toFixed(1)}%</span>
-                </div>
-            </TableCell>
-        </TableRow>
-    );
-};
 
 export default function RentabilityAnalysisTab({ 
     clients, 
@@ -323,17 +278,6 @@ export default function RentabilityAnalysisTab({
                 const clientHourShare = totalPeriodHours > 0 ? data.totalHours / totalPeriodHours : 0;
                 const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
                 
-                // Debug: log para verificar el cálculo
-                if (data.clientName && data.clientName.toLowerCase().includes('lola')) {
-                    console.log('DEBUG - Lola Nicolouleas:', {
-                        clientName: data.clientName,
-                        totalHours: data.totalHours,
-                        totalPeriodHours,
-                        clientHourShare,
-                        totalFixedCostsWithTraining,
-                        distributedFixedCost
-                    });
-                }
                 const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
                 const realMargin = margin - distributedFixedCost;
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
@@ -410,26 +354,25 @@ export default function RentabilityAnalysisTab({
         return Object.values(costsByClient);
     }, [allWorkEntries, clients, selectedPeriod]);
 
-    // Calcular número de meses en el rango (excluyendo Aug/Sep 2025)
+    // FIX #9: calcular meses exactos basado en días reales, no diferencia de mes/año
     const monthsInRange = useMemo(() => {
         if (!selectedPeriod || filterMode !== 'range') return 1;
         
         const start = new Date(selectedPeriod.start);
         const end = new Date(selectedPeriod.end);
-        
-        const yearsDiff = end.getFullYear() - start.getFullYear();
-        const monthsDiff = end.getMonth() - start.getMonth();
-        let totalMonths = yearsDiff * 12 + monthsDiff + 1;
+        const totalDays = (end - start) / (1000 * 60 * 60 * 24);
+        const months = totalDays / 30.44; // promedio de días por mes
         
         // Descontar meses excluidos que caigan dentro del rango
         const EXCLUDED = ['2025-08', '2025-09'];
         const startStr = format(start, 'yyyy-MM');
         const endStr = format(end, 'yyyy-MM');
+        let excludedMonths = 0;
         EXCLUDED.forEach(m => {
-            if (m >= startStr && m <= endStr) totalMonths--;
+            if (m >= startStr && m <= endStr) excludedMonths++;
         });
         
-        return Math.max(totalMonths, 1);
+        return Math.max(months - excludedMonths, 1);
     }, [selectedPeriod, filterMode]);
 
     const profitabilityData = useMemo(() => {
@@ -618,7 +561,7 @@ export default function RentabilityAnalysisTab({
         try {
             const client = selectedClientForSend.fullClient;
             const currentHistory = client.price_increase_notifications || [];
-            const currentUser = await User.me();
+            const currentUser = await base44.auth.me();
             
             await Client.update(client.id, {
                 current_price_increase_sent_date: sendDate.toISOString(),
@@ -1066,8 +1009,15 @@ export default function RentabilityAnalysisTab({
                                         Ocultar clientes con aumento enviado
                                     </Label>
                                 </div>
-                                <div className="text-xs text-slate-500 bg-slate-100 px-3 py-2 rounded-lg">
-                                    Los envíos se resetean automáticamente después de 9 meses
+                                {/* FIX #11: contador de clientes visibles */}
+                                <div className="flex items-center gap-3">
+                                    <div className="text-xs text-slate-500 bg-slate-100 px-3 py-2 rounded-lg">
+                                        {profitabilityData.clientAnalysis.length} cliente(s)
+                                        {(hideSentClients || searchTerm) && ` de ${monthlyProcessedClientAnalysis.length} total`}
+                                    </div>
+                                    <div className="text-xs text-slate-500 bg-slate-100 px-3 py-2 rounded-lg">
+                                        Los envíos se resetean automáticamente después de 9 meses
+                                    </div>
                                 </div>
                             </div>
                             <div className="relative">
@@ -1259,15 +1209,17 @@ export default function RentabilityAnalysisTab({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {profitabilityData.clientAnalysis
-                                    .filter(data => {
+                                {(() => {
+                                    // FIX #5: precalcular Map para evitar clients.find en cada fila
+                                    const clientMap = new Map(clients.map(c => [c.id, c]));
+                                    const filtered = profitabilityData.clientAnalysis.filter(data => {
                                         if (!hideSentClients) return true;
-                                        const client = clients.find(c => c.id === data.clientId);
+                                        const client = clientMap.get(data.clientId);
                                         const status = getClientSendStatus(client);
                                         return !status.sent || status.expired;
-                                    })
-                                    .map(data => {
-                                        const client = clients.find(c => c.id === data.clientId);
+                                    });
+                                    return filtered.map(data => {
+                                        const client = clientMap.get(data.clientId);
                                         const sendStatus = getClientSendStatus(client);
                                         const isExpanded = expandedClients.has(data.clientId);
 
@@ -1278,6 +1230,8 @@ export default function RentabilityAnalysisTab({
                                             isDateInRange(we.work_date, selectedPeriod.start, selectedPeriod.end)
                                         );
 
+                                        // FIX #10: calcular colSpan dinámico según filterMode
+                                        const colSpanCount = filterMode === 'range' ? 14 : 13;
                                         return (
                                             <React.Fragment key={data.clientId}>
                                                 <TableRow className={`hover:bg-slate-50/50 transition-colors border-b border-slate-100 ${sendStatus.sent && !sendStatus.expired ? 'bg-green-50/30' : ''}`}>
@@ -1400,7 +1354,7 @@ export default function RentabilityAnalysisTab({
                                             {/* Fila expandida con detalles */}
                                             {isExpanded && (
                                                 <TableRow>
-                                                    <TableCell colSpan={12} className="bg-slate-50 p-6">
+                                                    <TableCell colSpan={colSpanCount} className="bg-slate-50 p-6">
                                                         <div className="space-y-6">
                                                             {/* Servicios Facturados */}
                                                             <div>
@@ -1542,7 +1496,8 @@ export default function RentabilityAnalysisTab({
                                             )}
                                         </React.Fragment>
                                         );
-                                    })}
+                                    });
+                                })()}
                             </TableBody>
                             <tfoot>
                                 <TableRow className="bg-gradient-to-r from-slate-100 to-slate-50 font-bold text-slate-900 sticky bottom-0 border-t-2 border-slate-300">
@@ -1709,111 +1664,6 @@ export default function RentabilityAnalysisTab({
                 </>
             )}
 
-            {/* Modal para marcar como enviado */}
-            <Dialog open={sendModalOpen} onOpenChange={setSendModalOpen}>
-                <DialogContent className="sm:max-w-[500px]">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                            <Send className="w-5 h-5 text-blue-600" />
-                            Marcar Aumento como Enviado
-                        </DialogTitle>
-                        <DialogDescription>
-                            Cliente: <span className="font-semibold">{selectedClientForSend?.clientName}</span>
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Fecha de Envío</Label>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start text-left">
-                                        <Calendar className="mr-2 h-4 w-4" />
-                                        {format(sendDate, 'd MMMM yyyy', { locale: es })}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <CalendarComponent
-                                        mode="single"
-                                        selected={sendDate}
-                                        onSelect={(date) => date && setSendDate(date)}
-                                        disabled={(date) => date > new Date()}
-                                        initialFocus
-                                        locale={es}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Notas (Opcional)</Label>
-                            <Textarea
-                                placeholder="Ej: Enviado por email, Conversación telefónica, etc."
-                                value={sendNotes}
-                                onChange={(e) => setSendNotes(e.target.value)}
-                                rows={3}
-                            />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setSendModalOpen(false)}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleMarkAsSent} className="bg-blue-600 hover:bg-blue-700">
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Confirmar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Modal de historial */}
-            <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
-                <DialogContent className="sm:max-w-[600px]">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                            <History className="w-5 h-5 text-blue-600" />
-                            Historial de Envíos
-                        </DialogTitle>
-                        <DialogDescription>
-                            Cliente: <span className="font-semibold">{selectedClientForHistory?.clientName}</span>
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 max-h-[400px] overflow-y-auto">
-                        {selectedClientForHistory?.fullClient?.price_increase_notifications?.length > 0 ? (
-                            <div className="space-y-3">
-                                {[...selectedClientForHistory.fullClient.price_increase_notifications]
-                                    .sort((a, b) => new Date(b.sent_date) - new Date(a.sent_date))
-                                    .map((notification, index) => (
-                                        <Card key={index} className="p-4 border border-slate-200">
-                                            <div className="flex items-start justify-between">
-                                                <div className="space-y-1">
-                                                    <p className="font-semibold text-slate-900">
-                                                        {format(new Date(notification.sent_date), 'd MMMM yyyy', { locale: es })}
-                                                    </p>
-                                                    <p className="text-sm text-slate-600">
-                                                        {notification.notes || 'Sin notas'}
-                                                    </p>
-                                                </div>
-                                                <div className="text-xs text-slate-500">
-                                                    {Math.floor((new Date() - new Date(notification.sent_date)) / (1000 * 60 * 60 * 24 * 30))} meses
-                                                </div>
-                                            </div>
-                                        </Card>
-                                    ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-8 text-slate-500">
-                                <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                <p>No hay historial de envíos</p>
-                            </div>
-                        )}
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setHistoryModalOpen(false)}>
-                            Cerrar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }
