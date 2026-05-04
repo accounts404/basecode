@@ -18,34 +18,17 @@ function getMelbourneNow() {
 // Genera rango para filtrar: usamos strings sin Z para capturar tanto
 // fechas guardadas como hora local como fechas en UTC
 function dateRangeToUTC(dateFrom, dateTo) {
-    // Inicio: día anterior a las 12:00 UTC para capturar registros UTC del día Melbourne
-    const prevDay = new Date(dateFrom + 'T12:00:00Z');
-    prevDay.setUTCDate(prevDay.getUTCDate() - 1);
-    const startUTC = prevDay.toISOString().slice(0, 19);
-    // Fin: 23:59:59 del día siguiente para cubrir registros en UTC
-    // Melbourne es UTC+11 (verano) o UTC+10 (invierno)
-    // Un servicio a las 23:59 Melbourne en UTC sería 12:59 o 13:59 del mismo día
-    // Para cubrir todo: extendemos hasta el inicio del día siguiente + 14 horas
-    const nextDay = new Date(dateTo + 'T00:00:00Z');
-    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-    nextDay.setUTCHours(14, 0, 0, 0); // cubre hasta el máx offset posible
-    const endUTC = nextDay.toISOString().slice(0, 19);
+    // Usamos los primeros 10 chars del string como la app — sin conversión UTC.
+    // El filtro server-side busca por start_time >= dateFrom y <= dateTo+"T23:59:59"
+    const startUTC = dateFrom + 'T00:00:00.000';
+    const endUTC = dateTo + 'T23:59:59.999';
     return { startUTC, endUTC };
 }
 
-// Extrae fecha local de un ISO string (puede ser con o sin Z)
+// Extrae fecha del start_time usando siempre los primeros 10 chars del string,
+// igual que hace la app en el calendario (sin conversión UTC).
 function getLocalDate(isoString) {
     if (!isoString) return null;
-    // Si tiene Z o +offset, convertir a Melbourne
-    if (isoString.endsWith('Z') || isoString.includes('+') || (isoString.length > 19 && isoString[19] !== '.')) {
-        return new Intl.DateTimeFormat('en-CA', {
-            timeZone: TIMEZONE,
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-        }).format(new Date(isoString));
-    }
-    // Sin timezone info: tomar directamente los primeros 10 chars
     return isoString.slice(0, 10);
 }
 
@@ -109,12 +92,11 @@ Deno.serve(async (req) => {
             if (u.email) userMap.set(u.email, u);
         });
 
-        // Filtrar adicionalmente por fecha local Melbourne (doble seguridad)
+        // Filtrar por los primeros 10 chars del start_time (igual que la app en calendario)
         const filtered = (schedules || []).filter(s => {
             if (!s.start_time) return false;
-            const localDate = getLocalDate(s.start_time);
-            if (!localDate) return false;
-            return localDate >= date_from && localDate <= date_to;
+            const calendarDate = s.start_time.slice(0, 10);
+            return calendarDate >= date_from && calendarDate <= date_to;
         });
 
         // Transformar
