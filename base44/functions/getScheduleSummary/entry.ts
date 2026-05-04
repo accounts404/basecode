@@ -15,17 +15,24 @@ function getMelbourneNow() {
     return new Date().toLocaleString('en-AU', { timeZone: TIMEZONE });
 }
 
+// Genera rango para filtrar: usamos strings sin Z para capturar tanto
+// fechas guardadas como hora local como fechas en UTC
 function dateRangeToUTC(dateFrom, dateTo) {
+    // Usamos los primeros 10 chars del string como la app — sin conversión UTC.
+    // El filtro server-side busca por start_time >= dateFrom y <= dateTo+"T23:59:59"
     const startUTC = dateFrom + 'T00:00:00.000';
     const endUTC = dateTo + 'T23:59:59.999';
     return { startUTC, endUTC };
 }
 
+// Extrae fecha del start_time usando siempre los primeros 10 chars del string,
+// igual que hace la app en el calendario (sin conversión UTC).
 function getLocalDate(isoString) {
     if (!isoString) return null;
     return isoString.slice(0, 10);
 }
 
+// Extrae hora local de un ISO string
 function getLocalTime(isoString) {
     if (!isoString) return null;
     if (isoString.endsWith('Z') || isoString.includes('+') || (isoString.length > 19 && isoString[19] !== '.')) {
@@ -39,6 +46,7 @@ function getLocalTime(isoString) {
     return isoString.slice(11, 16);
 }
 
+// Calcula duración en horas entre dos ISO strings
 function calcHours(startIso, endIso) {
     if (!startIso || !endIso) return 0;
     try {
@@ -50,90 +58,6 @@ function calcHours(startIso, endIso) {
     }
 }
 
-// Convierte HH:MM a minutos desde medianoche
-function timeToMinutes(timeStr) {
-    if (!timeStr) return null;
-    const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
-}
-
-// Convierte minutos desde medianoche a HH:MM
-function minutesToTime(mins) {
-    const h = Math.floor(mins / 60).toString().padStart(2, '0');
-    const m = (mins % 60).toString().padStart(2, '0');
-    return `${h}:${m}`;
-}
-
-// Calcula disponibilidad de cada limpiador en un día dado
-// workdayStart y workdayEnd en minutos (ej: 8*60=480, 16*60=960)
-function calculateCleanerAvailability(cleanerName, cleanerId, servicesForDay, workdayStart, workdayEnd) {
-    // Obtener todos los bloques ocupados por este limpiador
-    const busyBlocks = [];
-    
-    for (const svc of servicesForDay) {
-        if (svc.status === 'cancelled') continue;
-        
-        // Buscar en cleaner_schedules individuales primero
-        const cs = svc.cleaner_schedules.find(c => c.cleaner === cleanerName);
-        if (cs) {
-            const start = timeToMinutes(cs.start);
-            const end = timeToMinutes(cs.end);
-            if (start !== null && end !== null) {
-                busyBlocks.push({ start, end, client: svc.client_name });
-            }
-        } else if (svc.cleaners.includes(cleanerName)) {
-            // Usar horario general del servicio
-            const start = timeToMinutes(svc.start);
-            const end = timeToMinutes(svc.end);
-            if (start !== null && end !== null) {
-                busyBlocks.push({ start, end, client: svc.client_name });
-            }
-        }
-    }
-
-    // Ordenar bloques ocupados
-    busyBlocks.sort((a, b) => a.start - b.start);
-
-    // Calcular huecos libres dentro de la jornada laboral
-    const freeSlots = [];
-    let cursor = workdayStart;
-
-    for (const block of busyBlocks) {
-        const blockStart = Math.max(block.start, workdayStart);
-        const blockEnd = Math.min(block.end, workdayEnd);
-        if (blockStart > cursor) {
-            freeSlots.push({
-                from: minutesToTime(cursor),
-                to: minutesToTime(blockStart),
-                duration_hours: parseFloat(((blockStart - cursor) / 60).toFixed(2)),
-            });
-        }
-        if (blockEnd > cursor) cursor = blockEnd;
-    }
-
-    if (cursor < workdayEnd) {
-        freeSlots.push({
-            from: minutesToTime(cursor),
-            to: minutesToTime(workdayEnd),
-            duration_hours: parseFloat(((workdayEnd - cursor) / 60).toFixed(2)),
-        });
-    }
-
-    const totalBusyHours = busyBlocks.reduce((sum, b) => {
-        const s = Math.max(b.start, workdayStart);
-        const e = Math.min(b.end, workdayEnd);
-        return sum + Math.max(0, (e - s) / 60);
-    }, 0);
-
-    return {
-        cleaner: cleanerName,
-        busy_services: busyBlocks.length,
-        busy_hours: parseFloat(totalBusyHours.toFixed(2)),
-        free_slots: freeSlots,
-        is_free_all_day: busyBlocks.length === 0,
-    };
-}
-
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
@@ -141,12 +65,14 @@ Deno.serve(async (req) => {
         if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
         const body = await req.json();
-        let { date_from, date_to, workday_start = '08:00', workday_end = '16:00' } = body;
+        let { date_from, date_to } = body;
 
         const todayMelbourne = getMelbourneDateToday();
         if (!date_from) date_from = todayMelbourne;
         if (!date_to) date_to = todayMelbourne;
 
+        // Cargar TODOS los datos en paralelo usando filter server-side
+        // Filtramos por start_time >= inicio del día y <= fin del día
         const { startUTC, endUTC } = dateRangeToUTC(date_from, date_to);
 
         const [schedules, clients, users] = await Promise.all([
@@ -166,17 +92,14 @@ Deno.serve(async (req) => {
             if (u.email) userMap.set(u.email, u);
         });
 
-        // Lista de limpiadores activos (role != admin)
-        const activecleaners = (users || []).filter(u => u.role !== 'admin' && u.full_name);
-
-        // Filtrar por los primeros 10 chars del start_time
+        // Filtrar por los primeros 10 chars del start_time (igual que la app en calendario)
         const filtered = (schedules || []).filter(s => {
             if (!s.start_time) return false;
             const calendarDate = s.start_time.slice(0, 10);
             return calendarDate >= date_from && calendarDate <= date_to;
         });
 
-        // Transformar servicios
+        // Transformar
         const result = filtered.map(s => {
             const client = clientMap.get(s.client_id);
             const dateMelbourne = getLocalDate(s.start_time);
@@ -218,6 +141,7 @@ Deno.serve(async (req) => {
             };
         });
 
+        // Ordenar por hora
         result.sort((a, b) => (a.start || '').localeCompare(b.start || ''));
 
         // Agrupar por fecha
@@ -227,43 +151,13 @@ Deno.serve(async (req) => {
             byDate[s.date].push(s);
         });
 
-        // Calcular disponibilidad de limpiadores por fecha
-        const workdayStartMins = timeToMinutes(workday_start) || 480;
-        const workdayEndMins = timeToMinutes(workday_end) || 960;
-
-        const cleanerAvailabilityByDate = {};
-        const allDates = Object.keys(byDate);
-
-        // También incluir fechas del rango aunque no tengan servicios
-        const start = new Date(date_from);
-        const end = new Date(date_to);
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().slice(0, 10);
-            if (!allDates.includes(dateStr)) allDates.push(dateStr);
-        }
-
-        for (const dateStr of allDates) {
-            const servicesForDay = byDate[dateStr] || [];
-            cleanerAvailabilityByDate[dateStr] = activecleaners.map(cleaner =>
-                calculateCleanerAvailability(
-                    cleaner.full_name,
-                    cleaner.id,
-                    servicesForDay,
-                    workdayStartMins,
-                    workdayEndMins
-                )
-            );
-        }
-
         const summary = {
             timezone: TIMEZONE,
             now_melbourne: getMelbourneNow(),
             today_melbourne: todayMelbourne,
             date_range: { from: date_from, to: date_to },
-            workday: { start: workday_start, end: workday_end },
             total_services: result.length,
             by_date: byDate,
-            cleaner_availability: cleanerAvailabilityByDate,
             stats: {
                 total_hours: result.reduce((sum, s) => sum + s.duration_hours, 0).toFixed(2),
                 by_status: result.reduce((acc, s) => {
