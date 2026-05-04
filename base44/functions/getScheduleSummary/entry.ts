@@ -2,25 +2,6 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const TIMEZONE = 'Australia/Melbourne';
 
-// Los start_time se guardan como "2026-05-05T08:00:00.000" (sin Z, hora local Melbourne)
-// Por eso los tratamos directamente como fecha local sin conversión de timezone
-
-function extractDateFromISO(isoString) {
-    // Extrae YYYY-MM-DD directamente del string sin conversión de timezone
-    if (!isoString) return null;
-    return isoString.slice(0, 10);
-}
-
-function extractTimeFromISO(isoString) {
-    // Extrae HH:MM directamente del string sin conversión de timezone
-    if (!isoString) return null;
-    return isoString.slice(11, 16);
-}
-
-function getMelbourneNow() {
-    return new Date().toLocaleString('en-AU', { timeZone: TIMEZONE });
-}
-
 function getMelbourneDateToday() {
     return new Intl.DateTimeFormat('en-CA', {
         timeZone: TIMEZONE,
@@ -28,6 +9,70 @@ function getMelbourneDateToday() {
         month: '2-digit',
         day: '2-digit',
     }).format(new Date());
+}
+
+function getMelbourneNow() {
+    return new Date().toLocaleString('en-AU', { timeZone: TIMEZONE });
+}
+
+// Genera rango para filtrar: usamos strings sin Z para capturar tanto
+// fechas guardadas como hora local como fechas en UTC
+function dateRangeToUTC(dateFrom, dateTo) {
+    // Inicio: día anterior a las 12:00 UTC para capturar registros UTC del día Melbourne
+    const prevDay = new Date(dateFrom + 'T12:00:00Z');
+    prevDay.setUTCDate(prevDay.getUTCDate() - 1);
+    const startUTC = prevDay.toISOString().slice(0, 19);
+    // Fin: 23:59:59 del día siguiente para cubrir registros en UTC
+    // Melbourne es UTC+11 (verano) o UTC+10 (invierno)
+    // Un servicio a las 23:59 Melbourne en UTC sería 12:59 o 13:59 del mismo día
+    // Para cubrir todo: extendemos hasta el inicio del día siguiente + 14 horas
+    const nextDay = new Date(dateTo + 'T00:00:00Z');
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    nextDay.setUTCHours(14, 0, 0, 0); // cubre hasta el máx offset posible
+    const endUTC = nextDay.toISOString().slice(0, 19);
+    return { startUTC, endUTC };
+}
+
+// Extrae fecha local de un ISO string (puede ser con o sin Z)
+function getLocalDate(isoString) {
+    if (!isoString) return null;
+    // Si tiene Z o +offset, convertir a Melbourne
+    if (isoString.endsWith('Z') || isoString.includes('+') || (isoString.length > 19 && isoString[19] !== '.')) {
+        return new Intl.DateTimeFormat('en-CA', {
+            timeZone: TIMEZONE,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        }).format(new Date(isoString));
+    }
+    // Sin timezone info: tomar directamente los primeros 10 chars
+    return isoString.slice(0, 10);
+}
+
+// Extrae hora local de un ISO string
+function getLocalTime(isoString) {
+    if (!isoString) return null;
+    if (isoString.endsWith('Z') || isoString.includes('+') || (isoString.length > 19 && isoString[19] !== '.')) {
+        return new Intl.DateTimeFormat('en-AU', {
+            timeZone: TIMEZONE,
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+        }).format(new Date(isoString));
+    }
+    return isoString.slice(11, 16);
+}
+
+// Calcula duración en horas entre dos ISO strings
+function calcHours(startIso, endIso) {
+    if (!startIso || !endIso) return 0;
+    try {
+        const startMs = new Date(startIso.endsWith('Z') || startIso.includes('+') ? startIso : startIso + 'Z').getTime();
+        const endMs = new Date(endIso.endsWith('Z') || endIso.includes('+') ? endIso : endIso + 'Z').getTime();
+        return Math.max(0, (endMs - startMs) / 3600000);
+    } catch {
+        return 0;
+    }
 }
 
 Deno.serve(async (req) => {
@@ -39,81 +84,59 @@ Deno.serve(async (req) => {
         const body = await req.json();
         let { date_from, date_to } = body;
 
-        // Si no se dan fechas, usar hoy en Melbourne
         const todayMelbourne = getMelbourneDateToday();
         if (!date_from) date_from = todayMelbourne;
         if (!date_to) date_to = todayMelbourne;
 
-        // Cargar datos en paralelo
+        // Cargar TODOS los datos en paralelo usando filter server-side
+        // Filtramos por start_time >= inicio del día y <= fin del día
+        const { startUTC, endUTC } = dateRangeToUTC(date_from, date_to);
+
         const [schedules, clients, users] = await Promise.all([
-            base44.asServiceRole.entities.Schedule.list('-start_time', 3000),
-            base44.asServiceRole.entities.Client.list('-created_date', 2000),
+            base44.asServiceRole.entities.Schedule.filter(
+                { start_time: { $gte: startUTC, $lte: endUTC } },
+                'start_time',
+                5000
+            ),
+            base44.asServiceRole.entities.Client.list('-created_date', 3000),
             base44.asServiceRole.entities.User.list('-created_date', 500),
         ]);
 
         const clientMap = new Map((clients || []).map(c => [c.id, c]));
-        // Mapear por id Y por email (algunos cleaner_ids pueden ser emails)
         const userMap = new Map();
         (users || []).forEach(u => {
             if (u.id) userMap.set(u.id, u);
             if (u.email) userMap.set(u.email, u);
         });
 
-        // Filtrar por rango de fechas extrayendo la fecha directamente del ISO string
-        // (los start_time se guardan como hora local Melbourne sin Z)
+        // Filtrar adicionalmente por fecha local Melbourne (doble seguridad)
         const filtered = (schedules || []).filter(s => {
             if (!s.start_time) return false;
-            const schedDate = extractDateFromISO(s.start_time);
-            if (!schedDate) return false;
-            if (date_from && schedDate < date_from) return false;
-            if (date_to && schedDate > date_to) return false;
-            return true;
+            const localDate = getLocalDate(s.start_time);
+            if (!localDate) return false;
+            return localDate >= date_from && localDate <= date_to;
         });
 
-        // Transformar con datos legibles
+        // Transformar
         const result = filtered.map(s => {
             const client = clientMap.get(s.client_id);
+            const dateMelbourne = getLocalDate(s.start_time);
+            const startTime = getLocalTime(s.start_time);
+            const endTime = getLocalTime(s.end_time);
+            const durationHours = calcHours(s.start_time, s.end_time);
 
-            // Extraer hora directamente del ISO (hora local Melbourne)
-            const startTime = extractTimeFromISO(s.start_time);
-            const endTime = extractTimeFromISO(s.end_time);
-            const dateMelbourne = extractDateFromISO(s.start_time);
-
-            // Calcular duración en horas
-            let durationHours = 0;
-            if (s.start_time && s.end_time) {
-                const startH = parseInt(s.start_time.slice(11, 13));
-                const startM = parseInt(s.start_time.slice(14, 16));
-                const endH = parseInt(s.end_time.slice(11, 13));
-                const endM = parseInt(s.end_time.slice(14, 16));
-                durationHours = ((endH * 60 + endM) - (startH * 60 + startM)) / 60;
-                if (durationHours < 0) durationHours += 24;
-            }
-
-            // Cleaners asignados con nombre
             const cleanerNames = (s.cleaner_ids || []).map(id => {
                 const u = userMap.get(id);
                 return u ? u.full_name : id;
             });
 
-            // Horas por cleaner
             const cleanerSchedules = (s.cleaner_schedules || []).map(cs => {
                 const u = userMap.get(cs.cleaner_id);
-                const csStart = extractTimeFromISO(cs.start_time);
-                const csEnd = extractTimeFromISO(cs.end_time);
-                let csHours = 0;
-                if (cs.start_time && cs.end_time) {
-                    const sH = parseInt(cs.start_time.slice(11, 13));
-                    const sM = parseInt(cs.start_time.slice(14, 16));
-                    const eH = parseInt(cs.end_time.slice(11, 13));
-                    const eM = parseInt(cs.end_time.slice(14, 16));
-                    csHours = ((eH * 60 + eM) - (sH * 60 + sM)) / 60;
-                    if (csHours < 0) csHours += 24;
-                }
+                const csHours = calcHours(cs.start_time, cs.end_time);
                 return {
                     cleaner: u ? u.full_name : cs.cleaner_id,
-                    start: csStart,
-                    end: csEnd,
+                    start: getLocalTime(cs.start_time),
+                    end: getLocalTime(cs.end_time),
                     hours: parseFloat(csHours.toFixed(2)),
                 };
             });
@@ -121,8 +144,8 @@ Deno.serve(async (req) => {
             return {
                 id: s.id,
                 date: dateMelbourne,
-                start: startTime ? `${startTime} hs` : null,
-                end: endTime ? `${endTime} hs` : null,
+                start: startTime,
+                end: endTime,
                 duration_hours: parseFloat(durationHours.toFixed(2)),
                 client_name: client?.name || s.client_name || 'Unknown',
                 client_address: client?.address || s.client_address || '',
@@ -136,16 +159,14 @@ Deno.serve(async (req) => {
             };
         });
 
+        // Ordenar por hora
+        result.sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+
         // Agrupar por fecha
         const byDate = {};
         result.forEach(s => {
             if (!byDate[s.date]) byDate[s.date] = [];
             byDate[s.date].push(s);
-        });
-
-        // Ordenar servicios dentro de cada fecha por hora
-        Object.keys(byDate).forEach(date => {
-            byDate[date].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
         });
 
         const summary = {
