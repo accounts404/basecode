@@ -64,7 +64,6 @@ import { Vehicle } from "@/entities/Vehicle";
 import { Task } from "@/entities/Task";
 
 import HorarioCalendario from "../components/horario/HorarioCalendario";
-import HorarioChatPanel from "../components/horario/HorarioChatPanel";
 // Lazy load de componentes pesados
 const HorarioEquiposView = lazy(() => import("../components/horario/HorarioEquiposView"));
 const HorarioColorView = lazy(() => import("../components/horario/HorarioColorView"));
@@ -1653,8 +1652,6 @@ export default function HorarioPage() {
                     </Suspense>
                 </DialogContent>
             </Dialog>
-
-            {user?.role === 'admin' && <HorarioChatPanel />}
 
             {user?.role === 'admin' && (
                 <Dialog open={showTaskForm} onOpenChange={() => {
