@@ -846,12 +846,20 @@ export default function ServicePriceManager({ client, onUpdate }) {
                     <Label htmlFor="service_hours">Horas por Servicio</Label>
                     <Input
                       id="service_hours"
-                      type="number"
-                      step="0.25"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
                       value={client.service_hours || ""}
-                      onChange={(e) => onUpdate({ service_hours: parseFloat(e.target.value) || null })}
-                      placeholder="Ej: 8"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                          onUpdate({ service_hours: val });
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const parsed = parseFloat(e.target.value);
+                        onUpdate({ service_hours: isNaN(parsed) ? null : parsed });
+                      }}
+                      placeholder="Ej: 5.11"
                     />
                   </div>
                 </div>
