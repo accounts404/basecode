@@ -239,10 +239,15 @@ export default function ClientForm({ client, onSave, onCancel }) {
                             <Label htmlFor="service_hours">Horas del Servicio</Label>
                             <Input 
                                 id="service_hours" 
-                                type="number" 
-                                step="any"
+                                type="text"
+                                inputMode="decimal"
                                 value={formData.service_hours} 
-                                onChange={(e) => setFormData({...formData, service_hours: parseFloat(e.target.value) || 0})} 
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                        setFormData({...formData, service_hours: val});
+                                    }
+                                }} 
                             />
                         </div>
                     </div>
