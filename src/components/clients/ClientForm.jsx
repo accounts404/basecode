@@ -240,7 +240,7 @@ export default function ClientForm({ client, onSave, onCancel }) {
                             <Input 
                                 id="service_hours" 
                                 type="number" 
-                                step="any"
+                                step="0.01"
                                 value={formData.service_hours} 
                                 onChange={(e) => setFormData({...formData, service_hours: parseFloat(e.target.value) || 0})} 
                             />
