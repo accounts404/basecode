@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -240,7 +241,7 @@ export default function ClientForm({ client, onSave, onCancel }) {
                             <Input 
                                 id="service_hours" 
                                 type="number" 
-                                step="0.01"
+                                step="0.25"
                                 value={formData.service_hours} 
                                 onChange={(e) => setFormData({...formData, service_hours: parseFloat(e.target.value) || 0})} 
                             />
