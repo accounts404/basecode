@@ -861,6 +861,15 @@ export default function ServicePriceManager({ client, onUpdate }) {
                       }}
                       placeholder="Ej: 5.11"
                     />
+                    {(() => {
+                      const h = parseFloat(client.service_hours);
+                      if (!h || isNaN(h)) return null;
+                      const totalMin = Math.round(h * 60);
+                      const hrs = Math.floor(totalMin / 60);
+                      const mins = totalMin % 60;
+                      const label = hrs > 0 && mins > 0 ? `${hrs}h ${mins}min` : hrs > 0 ? `${hrs}h` : `${mins}min`;
+                      return <p className="text-xs text-slate-500">⏱ {label}</p>;
+                    })()}
                   </div>
                 </div>
                 <PriceConfigurationSection
