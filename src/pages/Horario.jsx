@@ -600,14 +600,26 @@ export default function HorarioPage() {
         }, 1000);
     }, [schedules, user]);
 
+    // Timer solo activo si hay un servicio en progreso (evita interval innecesario en Android)
     useEffect(() => {
-        if (isCleanerView && user) {
-            startServiceTimer();
-            return () => {
-                if (intervalRef.current) clearInterval(intervalRef.current);
-            };
+        if (!isCleanerView || !user) return;
+        
+        const hasActiveService = schedules.some(s => {
+            if (!s.cleaner_ids?.includes(user.id)) return false;
+            const cd = s.clock_in_data?.find(c => c.cleaner_id === user.id);
+            return cd?.clock_in_time && !cd?.clock_out_time;
+        });
+        
+        if (!hasActiveService) {
+            setCurrentServiceElapsedTime(0);
+            return;
         }
-    }, [isCleanerView, user, startServiceTimer]);
+        
+        startServiceTimer();
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, [isCleanerView, user, schedules, startServiceTimer]);
 
     const handleRefresh = async () => {
           if (!user) return;
@@ -1328,9 +1340,6 @@ export default function HorarioPage() {
                                 </h1>
                                 <p className="text-xs text-slate-400 capitalize">{format(date, "EEEE, d 'de' MMMM", { locale: es })}</p>
                             </div>
-                            {!loading && (
-                                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
-                            )}
                         </div>
                         <Button
                             variant="ghost"
