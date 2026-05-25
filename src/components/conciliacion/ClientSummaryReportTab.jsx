@@ -9,10 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { base44 } from '@/api/base44Client';
 import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
-import XeroReconciliationPanel from './XeroReconciliationPanel';
 
 export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap, allWorkEntries, onRefresh }) {
     // Persistir fechas en localStorage
@@ -275,17 +273,6 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
 
     return (
         <div className="space-y-6">
-            <Tabs defaultValue="resumen">
-                <TabsList className="grid w-full max-w-sm grid-cols-2">
-                    <TabsTrigger value="resumen">Resumen por Cliente</TabsTrigger>
-                    <TabsTrigger value="xero">Conciliación Xero</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="xero" className="mt-4">
-                    <XeroReconciliationPanel clientReport={filteredClientReport} startDate={startDate} endDate={endDate} />
-                </TabsContent>
-
-                <TabsContent value="resumen">
             {/* Date Range Selector and Search */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -567,8 +554,6 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                         </Table>
                         </div>
                         </div>
-                        </TabsContent>
-            </Tabs>
-        </div>
-        );
-}
+                        </div>
+                        );
+                        }
