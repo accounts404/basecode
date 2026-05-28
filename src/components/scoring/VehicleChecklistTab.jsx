@@ -439,38 +439,43 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
     const cleanerIds = Object.keys(recalcMap);
     if (cleanerIds.length === 0) { if (onScoreApplied) onScoreApplied(); return; }
 
-    // Process cleaners sequentially to avoid rate limiting
-    for (const cleanerId of cleanerIds) {
+    // Fetch all needed data in parallel for ALL cleaners at once
+    const [allExistingVehicleAdjs, allOtherAdjs, resolvedScores] = await Promise.all([
+      Promise.all(cleanerIds.map(id => base44.entities.ScoreAdjustment.filter({ cleaner_id: id, month_period: monthPeriod, category: "Revisión Vehicular (Promedio Mensual)" }))),
+      Promise.all(cleanerIds.map(id => base44.entities.ScoreAdjustment.filter({ cleaner_id: id, month_period: monthPeriod }))),
+      Promise.all(cleanerIds.map(async id => {
+        let score = monthlyScores.find(s => s.cleaner_id === id);
+        if (!score) {
+          const found = await base44.entities.MonthlyCleanerScore.filter({ cleaner_id: id, month_period: monthPeriod });
+          score = found[0];
+        }
+        return score;
+      }))
+    ]);
+
+    // Process all cleaners in parallel
+    await Promise.all(cleanerIds.map(async (cleanerId, idx) => {
+      const monthlyScore = resolvedScores[idx];
+      if (!monthlyScore) return;
+
       const data = recalcMap[cleanerId];
       const avgEarned = data.totalEarned / data.count;
       const avgDeduction = (data.totalPossible / data.count) - avgEarned;
       const vehicleImpact = avgDeduction > 0 ? -Math.round(avgDeduction * 10) / 10 : 0;
 
-      // Fetch data for this cleaner sequentially
-      const [existingVehicleAdjs, allAdjs] = await Promise.all([
-        base44.entities.ScoreAdjustment.filter({ cleaner_id: cleanerId, month_period: monthPeriod, category: "Revisión Vehicular (Promedio Mensual)" }),
-        base44.entities.ScoreAdjustment.filter({ cleaner_id: cleanerId, month_period: monthPeriod }),
-      ]);
-
-      let monthlyScore = monthlyScores.find(s => s.cleaner_id === cleanerId);
-      if (!monthlyScore) {
-        const found = await base44.entities.MonthlyCleanerScore.filter({ cleaner_id: cleanerId, month_period: monthPeriod });
-        monthlyScore = found[0];
-      }
-      if (!monthlyScore) continue;
-
-      const otherAdjsTotal = allAdjs
+      const existingVehicleAdjs = allExistingVehicleAdjs[idx];
+      const otherAdjsTotal = allOtherAdjs[idx]
         .filter(a => a.category !== "Revisión Vehicular (Promedio Mensual)")
         .reduce((s, a) => s + (a.points_impact || 0), 0);
 
-      // Delete old vehicle adjustments
-      for (const adj of existingVehicleAdjs) {
-        await base44.entities.ScoreAdjustment.delete(adj.id);
-      }
+      // Delete old + create new + update score — all operations for this cleaner in parallel
+      await Promise.all([
+        ...existingVehicleAdjs.map(a => base44.entities.ScoreAdjustment.delete(a.id)),
+      ]);
 
-      // Create new adjustment if needed
+      const createAndUpdate = [];
       if (vehicleImpact !== 0) {
-        await base44.entities.ScoreAdjustment.create({
+        createAndUpdate.push(base44.entities.ScoreAdjustment.create({
           monthly_score_id: monthlyScore.id,
           cleaner_id: cleanerId,
           month_period: monthPeriod,
@@ -481,12 +486,13 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
           admin_id: user.id,
           admin_name: user.full_name,
           date_applied: new Date().toISOString()
-        });
+        }));
       }
-
       const newScore = Math.max(0, 100 + otherAdjsTotal + vehicleImpact);
-      await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
-    }
+      createAndUpdate.push(base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore }));
+
+      await Promise.all(createAndUpdate);
+    }));
 
     if (onScoreApplied) onScoreApplied();
   };
