@@ -1,0 +1,114 @@
+{
+  "name": "ClientPriceReviewList",
+  "type": "object",
+  "properties": {
+    "list_name": {
+      "type": "string",
+      "description": "Nombre de la lista de revisi\u00f3n"
+    },
+    "review_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de creaci\u00f3n de la lista"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "in_progress",
+        "completed",
+        "archived"
+      ],
+      "default": "draft",
+      "description": "Estado de la lista: draft=borrador, in_progress=en progreso, completed=completada, archived=archivada"
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "description": "ID del usuario que cre\u00f3 la lista"
+    },
+    "created_by_user_name": {
+      "type": "string",
+      "description": "Nombre del usuario que cre\u00f3 la lista"
+    },
+    "target_profit_percentage": {
+      "type": "number",
+      "description": "Porcentaje de rentabilidad objetivo usado para calcular los aumentos"
+    },
+    "period_start": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de inicio del per\u00edodo analizado"
+    },
+    "period_end": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de fin del per\u00edodo analizado"
+    },
+    "clients_to_review": {
+      "type": "array",
+      "description": "Lista de clientes incluidos en esta revisi\u00f3n",
+      "items": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "service_count": {
+            "type": "number"
+          },
+          "total_hours": {
+            "type": "number"
+          },
+          "current_real_profit_percentage": {
+            "type": "number"
+          },
+          "current_price_base": {
+            "type": "number"
+          },
+          "suggested_new_price": {
+            "type": "number"
+          },
+          "adjustment_per_service": {
+            "type": "number"
+          },
+          "adjustment_percentage": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "excluded": {
+            "type": "boolean",
+            "default": false
+          },
+          "gst_type": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive",
+              "no_tax"
+            ]
+          }
+        },
+        "required": [
+          "client_id",
+          "client_name",
+          "current_price_base",
+          "suggested_new_price"
+        ]
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas generales sobre esta lista de revisi\u00f3n"
+    }
+  },
+  "required": [
+    "list_name",
+    "review_date",
+    "target_profit_percentage"
+  ]
+}

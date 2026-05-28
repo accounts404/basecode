@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const idempotencyCache = new Map();
 const IDEMPOTENCY_TTL = 24 * 60 * 60 * 1000;

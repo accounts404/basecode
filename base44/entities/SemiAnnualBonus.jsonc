@@ -1,0 +1,96 @@
+{
+  "name": "SemiAnnualBonus",
+  "type": "object",
+  "properties": {
+    "period_label": {
+      "type": "string",
+      "description": "Etiqueta del per\u00edodo semestral (ej: 'Primer Semestre 2024', 'Segundo Semestre 2024')"
+    },
+    "period_start": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de inicio del semestre"
+    },
+    "period_end": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de fin del semestre"
+    },
+    "winner_cleaner_id": {
+      "type": "string",
+      "description": "ID del limpiador ganador"
+    },
+    "winner_cleaner_name": {
+      "type": "string",
+      "description": "Nombre del limpiador ganador"
+    },
+    "winner_average_score": {
+      "type": "number",
+      "description": "Promedio de puntuaciones mensuales del ganador"
+    },
+    "winner_rank": {
+      "type": "number",
+      "default": 1,
+      "description": "Puesto en el ranking semestral (siempre 1 para el ganador)"
+    },
+    "bonus_amount": {
+      "type": "number",
+      "description": "Monto de la bonificaci\u00f3n semestral en AUD"
+    },
+    "bonus_description": {
+      "type": "string",
+      "description": "Descripci\u00f3n de la bonificaci\u00f3n semestral"
+    },
+    "bonus_work_entry_id": {
+      "type": "string",
+      "description": "ID de la WorkEntry creada para la bonificaci\u00f3n"
+    },
+    "date_awarded": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha cuando se otorg\u00f3 la bonificaci\u00f3n"
+    },
+    "awarded_by_admin": {
+      "type": "string",
+      "description": "ID del administrador que otorg\u00f3 la bonificaci\u00f3n"
+    },
+    "participating_cleaners": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "cleaner_id": {
+            "type": "string"
+          },
+          "cleaner_name": {
+            "type": "string"
+          },
+          "average_score": {
+            "type": "number"
+          },
+          "rank": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "cleaner_id",
+          "cleaner_name",
+          "average_score",
+          "rank"
+        ]
+      },
+      "description": "Lista completa de limpiadores participantes y sus promedios"
+    }
+  },
+  "required": [
+    "period_label",
+    "period_start",
+    "period_end",
+    "winner_cleaner_id",
+    "winner_cleaner_name",
+    "winner_average_score",
+    "bonus_amount",
+    "bonus_description",
+    "awarded_by_admin"
+  ]
+}

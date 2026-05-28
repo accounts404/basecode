@@ -1,0 +1,112 @@
+{
+  "name": "WorkEntry",
+  "type": "object",
+  "properties": {
+    "cleaner_id": {
+      "type": "string",
+      "description": "ID del limpiador que realiz\u00f3 el trabajo"
+    },
+    "cleaner_name": {
+      "type": "string",
+      "description": "Nombre para facturas del limpiador"
+    },
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente"
+    },
+    "work_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha del trabajo realizado"
+    },
+    "hours": {
+      "type": "number",
+      "description": "N\u00famero de horas trabajadas"
+    },
+    "activity": {
+      "type": "string",
+      "enum": [
+        "domestic",
+        "commercial",
+        "training",
+        "windows",
+        "steam_vacuum",
+        "entrenamiento",
+        "gasolina",
+        "inspecciones",
+        "otros"
+      ],
+      "description": "Tipo de actividad"
+    },
+    "other_activity": {
+      "type": "string",
+      "description": "Descripci\u00f3n cuando la actividad es 'otros'"
+    },
+    "hourly_rate": {
+      "type": "number",
+      "description": "Tarifa por hora en AUD"
+    },
+    "total_amount": {
+      "type": "number",
+      "description": "Monto total (horas * tarifa)"
+    },
+    "period": {
+      "type": "string",
+      "description": "Per\u00edodo de facturaci\u00f3n (ej: 2024-01-1st, 2024-01-2nd)"
+    },
+    "invoiced": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si ya fue incluido en una factura"
+    },
+    "schedule_id": {
+      "type": "string",
+      "description": "ID del Schedule (horario) del cual se origin\u00f3 esta entrada, si aplica."
+    },
+    "modified_by_cleaner": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica si esta entrada fue modificada por el limpiador despu\u00e9s de su creaci\u00f3n inicial"
+    },
+    "last_modified_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora de la \u00faltima modificaci\u00f3n realizada por el limpiador"
+    },
+    "original_values": {
+      "type": "object",
+      "description": "Valores originales antes de la modificaci\u00f3n para comparaci\u00f3n",
+      "properties": {
+        "hours": {
+          "type": "number"
+        },
+        "hourly_rate": {
+          "type": "number"
+        },
+        "total_amount": {
+          "type": "number"
+        },
+        "activity": {
+          "type": "string"
+        },
+        "other_activity": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "required": [
+    "cleaner_id",
+    "cleaner_name",
+    "client_id",
+    "client_name",
+    "work_date",
+    "hours",
+    "activity",
+    "hourly_rate"
+  ]
+}

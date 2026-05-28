@@ -1,0 +1,101 @@
+{
+  "name": "InductionModule",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo del m\u00f3dulo de inducci\u00f3n"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "cleaning_standards",
+        "uniform_presentation",
+        "punctuality_clockin",
+        "property_access",
+        "pets_protocol",
+        "safety_health",
+        "app_usage",
+        "hours_payments",
+        "general_policies",
+        "vehicles"
+      ],
+      "description": "Categor\u00eda del m\u00f3dulo"
+    },
+    "cleaning_area": {
+      "type": "string",
+      "enum": [
+        "bathrooms",
+        "floors",
+        "kitchen_pantry",
+        "dusting_wiping",
+        "laundry",
+        "other_areas",
+        "general"
+      ],
+      "description": "\u00c1rea espec\u00edfica (solo para m\u00f3dulos de est\u00e1ndares de limpieza)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripci\u00f3n o texto principal del m\u00f3dulo"
+    },
+    "content_text": {
+      "type": "string",
+      "description": "Contenido de texto enriquecido del m\u00f3dulo"
+    },
+    "video_links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "description": "Lista de links de videos (YouTube, Vimeo, etc.)"
+    },
+    "pdf_urls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "description": "Lista de PDFs adjuntos"
+    },
+    "order": {
+      "type": "number",
+      "description": "Orden de presentaci\u00f3n dentro de la categor\u00eda"
+    },
+    "is_mandatory": {
+      "type": "boolean",
+      "default": true,
+      "description": "Si el m\u00f3dulo es obligatorio para completar la inducci\u00f3n"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Si el m\u00f3dulo est\u00e1 activo"
+    }
+  },
+  "required": [
+    "title",
+    "category"
+  ]
+}

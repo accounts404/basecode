@@ -1,0 +1,446 @@
+{
+  "name": "Quote",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente potencial"
+    },
+    "client_email": {
+      "type": "string",
+      "description": "Email del cliente"
+    },
+    "client_phone": {
+      "type": "string",
+      "description": "Tel\u00e9fono del cliente"
+    },
+    "service_address": {
+      "type": "string",
+      "description": "Direcci\u00f3n donde se realizar\u00e1 el servicio"
+    },
+    "property_type": {
+      "type": "string",
+      "enum": [
+        "house",
+        "townhouse",
+        "unit",
+        "apartment"
+      ],
+      "description": "Tipo de propiedad"
+    },
+    "property_stories": {
+      "type": "string",
+      "enum": [
+        "single_storey",
+        "double_storey",
+        "triple_storey",
+        "other"
+      ],
+      "description": "N\u00famero de plantas"
+    },
+    "num_bedrooms": {
+      "type": "number",
+      "description": "N\u00famero de habitaciones"
+    },
+    "num_bathrooms": {
+      "type": "number",
+      "description": "N\u00famero de ba\u00f1os"
+    },
+    "service_frequency": {
+      "type": "string",
+      "enum": [
+        "weekly",
+        "fortnightly",
+        "every_3_weeks",
+        "monthly",
+        "one_off"
+      ],
+      "description": "Frecuencia del servicio solicitado"
+    },
+    "quote_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de creaci\u00f3n de la cotizaci\u00f3n"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "borrador",
+        "itemizando",
+        "enviada",
+        "aprobado",
+        "rechazado"
+      ],
+      "default": "borrador",
+      "description": "Estado actual de la cotizaci\u00f3n"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas adicionales sobre la cotizaci\u00f3n"
+    },
+    "hours_dusting_initial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de dusting para servicios iniciales"
+    },
+    "hours_kitchen_initial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de cocina para servicios iniciales"
+    },
+    "hours_bathrooms_initial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de ba\u00f1os para servicios iniciales"
+    },
+    "hours_vacuum_mopping_initial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de aspirado y trapeado para servicios iniciales"
+    },
+    "hours_dusting_regular": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de dusting para servicios regulares"
+    },
+    "hours_kitchen_regular": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de cocina para servicios regulares"
+    },
+    "hours_bathrooms_regular": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de ba\u00f1os para servicios regulares"
+    },
+    "hours_vacuum_mopping_regular": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de aspirado y trapeado para servicios regulares"
+    },
+    "hours_dusting_commercial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de dusting para servicios comerciales"
+    },
+    "hours_kitchen_commercial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de cocina para servicios comerciales"
+    },
+    "hours_bathrooms_commercial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de ba\u00f1os para servicios comerciales"
+    },
+    "hours_vacuum_mopping_commercial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de aspirado y trapeado para servicios comerciales"
+    },
+    "hours_warehouse_commercial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas de bodega/almac\u00e9n para servicios comerciales"
+    },
+    "additional_hours_initial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas adicionales para servicios iniciales (rango m\u00e1ximo)"
+    },
+    "additional_hours_regular": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas adicionales para servicios regulares (rango m\u00e1ximo)"
+    },
+    "additional_hours_commercial": {
+      "type": "number",
+      "default": 0,
+      "description": "Horas adicionales para servicios comerciales (rango m\u00e1ximo)"
+    },
+    "total_hours_initial": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de horas para servicios iniciales"
+    },
+    "total_hours_regular": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de horas para servicios regulares"
+    },
+    "total_hours_commercial": {
+      "type": "number",
+      "default": 0,
+      "description": "Total de horas para servicios comerciales"
+    },
+    "cost_steam_vacuum": {
+      "type": "number",
+      "default": 0,
+      "description": "Costo del servicio de steam vacuum"
+    },
+    "rooms_for_steam_vacuum": {
+      "type": "number",
+      "default": 0,
+      "description": "N\u00famero de habitaciones para steam vacuum"
+    },
+    "price_per_room_steam_vacuum": {
+      "type": "number",
+      "default": 0,
+      "description": "Precio por habitaci\u00f3n de steam vacuum"
+    },
+    "cost_oven": {
+      "type": "number",
+      "default": 0,
+      "description": "Costo de limpieza de horno"
+    },
+    "cost_windows_cleaning": {
+      "type": "number",
+      "default": 0,
+      "description": "Costo de limpieza de ventanas"
+    },
+    "selected_services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "service_name": {
+            "type": "string",
+            "description": "Nombre del servicio seleccionado"
+          },
+          "service_type": {
+            "type": "string",
+            "description": "Tipo de servicio (initial, regular, commercial)"
+          },
+          "price_min": {
+            "type": "number",
+            "description": "Precio m\u00ednimo del servicio"
+          },
+          "price_max": {
+            "type": "number",
+            "description": "Precio m\u00e1ximo del servicio"
+          }
+        },
+        "required": [
+          "service_name",
+          "service_type",
+          "price_min",
+          "price_max"
+        ]
+      },
+      "description": "Servicios espec\u00edficos seleccionados por el cliente"
+    },
+    "service_options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "description": "ID \u00fanico de la opci\u00f3n"
+          },
+          "option_name": {
+            "type": "string",
+            "description": "Nombre de la opci\u00f3n (ej: Full Home Cleaning, Essential Cleaning)"
+          },
+          "service_type": {
+            "type": "string",
+            "enum": [
+              "initial",
+              "regular",
+              "commercial"
+            ],
+            "description": "Tipo de servicio de esta opci\u00f3n"
+          },
+          "pricing": {
+            "type": "object",
+            "description": "Precios por frecuencia para esta opci\u00f3n",
+            "properties": {
+              "one_off": {
+                "type": "object",
+                "properties": {
+                  "price_min": {
+                    "type": "number"
+                  },
+                  "price_max": {
+                    "type": "number"
+                  }
+                }
+              },
+              "weekly": {
+                "type": "object",
+                "properties": {
+                  "price_min": {
+                    "type": "number"
+                  },
+                  "price_max": {
+                    "type": "number"
+                  }
+                }
+              },
+              "fortnightly": {
+                "type": "object",
+                "properties": {
+                  "price_min": {
+                    "type": "number"
+                  },
+                  "price_max": {
+                    "type": "number"
+                  }
+                }
+              },
+              "every_3_weeks": {
+                "type": "object",
+                "properties": {
+                  "price_min": {
+                    "type": "number"
+                  },
+                  "price_max": {
+                    "type": "number"
+                  }
+                }
+              },
+              "monthly": {
+                "type": "object",
+                "properties": {
+                  "price_min": {
+                    "type": "number"
+                  },
+                  "price_max": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          },
+          "selected_areas_items": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "\u00c1reas e items incluidos en esta opci\u00f3n"
+          }
+        },
+        "required": [
+          "option_id",
+          "option_name",
+          "service_type",
+          "pricing",
+          "selected_areas_items"
+        ]
+      },
+      "description": "Opciones de servicio que se ofrecen al cliente (m\u00faltiples paquetes con diferentes items y precios)"
+    },
+    "accepted_service_options": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de las opciones que el cliente acept\u00f3"
+    },
+    "accepted_services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "service_name": {
+            "type": "string",
+            "description": "Nombre del servicio aceptado"
+          },
+          "service_type": {
+            "type": "string",
+            "description": "Tipo de servicio (initial, regular, commercial)"
+          },
+          "price_min": {
+            "type": "number",
+            "description": "Precio m\u00ednimo del servicio"
+          },
+          "price_max": {
+            "type": "number",
+            "description": "Precio m\u00e1ximo del servicio"
+          }
+        },
+        "required": [
+          "service_name",
+          "service_type",
+          "price_min",
+          "price_max"
+        ]
+      },
+      "description": "Servicios que el cliente realmente acept\u00f3 de la cotizaci\u00f3n"
+    },
+    "total_price_min": {
+      "type": "number",
+      "description": "Precio m\u00ednimo estimado total"
+    },
+    "total_price_max": {
+      "type": "number",
+      "description": "Precio m\u00e1ximo estimado total"
+    },
+    "estimated_hours": {
+      "type": "number",
+      "description": "Horas estimadas para el servicio"
+    },
+    "quote_pdf_url": {
+      "type": "string",
+      "description": "URL del PDF de la cotizaci\u00f3n generada"
+    },
+    "sent_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha cuando se envi\u00f3 la cotizaci\u00f3n al cliente"
+    },
+    "rejection_type": {
+      "type": "string",
+      "enum": [
+        "precio_alto",
+        "contrat\u00f3_competencia",
+        "no_interesado",
+        "otro"
+      ],
+      "description": "Tipo de rechazo"
+    },
+    "rejection_reason": {
+      "type": "string",
+      "description": "Raz\u00f3n detallada del rechazo"
+    },
+    "assigned_to_user_id": {
+      "type": "string",
+      "description": "ID del usuario admin asignado para dar seguimiento"
+    },
+    "selected_areas_items_initial": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "\u00c1reas e items seleccionados para servicios iniciales"
+    },
+    "selected_areas_items_regular": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "\u00c1reas e items seleccionados para servicios regulares"
+    },
+    "selected_areas_items_commercial": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "\u00c1reas e items seleccionados para servicios comerciales"
+    },
+    "itemization_completed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si la itemizaci\u00f3n est\u00e1 completa"
+    }
+  },
+  "required": [
+    "client_id",
+    "service_address",
+    "quote_date"
+  ]
+}

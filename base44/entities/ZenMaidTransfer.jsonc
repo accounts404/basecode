@@ -1,0 +1,74 @@
+{
+  "name": "ZenMaidTransfer",
+  "type": "object",
+  "properties": {
+    "quote_id": {
+      "type": "string",
+      "description": "ID de la cotizaci\u00f3n aprobada"
+    },
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente si ya existe"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente"
+    },
+    "service_address": {
+      "type": "string",
+      "description": "Direcci\u00f3n del servicio"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "transferred",
+        "completed",
+        "error"
+      ],
+      "default": "pending",
+      "description": "Estado de la transferencia a ZenMaid"
+    },
+    "selected_services": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Servicios aprobados para transferir"
+    },
+    "total_price_min": {
+      "type": "number",
+      "description": "Precio m\u00ednimo"
+    },
+    "total_price_max": {
+      "type": "number",
+      "description": "Precio m\u00e1ximo"
+    },
+    "zenmaid_client_id": {
+      "type": "string",
+      "description": "ID del cliente en ZenMaid despu\u00e9s de la transferencia"
+    },
+    "transfer_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha cuando se transfiri\u00f3 a ZenMaid"
+    },
+    "transfer_notes": {
+      "type": "string",
+      "description": "Notas sobre la transferencia"
+    },
+    "scheduling_notes": {
+      "type": "string",
+      "description": "Notas del admin para la persona que agendar\u00e1 el servicio"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Mensaje de error si la transferencia fall\u00f3"
+    }
+  },
+  "required": [
+    "quote_id",
+    "client_name",
+    "service_address"
+  ]
+}

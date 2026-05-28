@@ -1,0 +1,222 @@
+{
+  "name": "Task",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Nombre de la tarea"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripci\u00f3n detallada o notas de la tarea"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha en que la tarea debe aparecer/completarse"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "urgent"
+      ],
+      "default": "medium",
+      "description": "Nivel de prioridad de la tarea"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "cancelled"
+      ],
+      "default": "pending",
+      "description": "Estado actual de la tarea"
+    },
+    "project_id": {
+      "type": "string",
+      "description": "ID del proyecto al que pertenece esta tarea (opcional)"
+    },
+    "recurrence_type": {
+      "type": "string",
+      "enum": [
+        "none",
+        "daily",
+        "weekly",
+        "biweekly",
+        "monthly",
+        "linked_to_service"
+      ],
+      "default": "none",
+      "description": "Tipo de recurrencia de la tarea"
+    },
+    "recurring_day_of_week": {
+      "type": "number",
+      "description": "Para tareas semanales, especifica el d\u00eda de la semana (0=Dom, 1=Lun, 2=Mar, 3=Mi\u00e9, 4=Jue, 5=Vie, 6=S\u00e1b)"
+    },
+    "recurring_day_of_month": {
+      "type": "number",
+      "description": "Para tareas mensuales, especifica el d\u00eda del mes (1-31)"
+    },
+    "original_task_id": {
+      "type": "string",
+      "description": "ID de la tarea original si esta es una instancia recurrente"
+    },
+    "task_recurrence_id": {
+      "type": "string",
+      "description": "Un ID \u00fanico para agrupar todas las instancias de una misma serie recurrente de tareas"
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "description": "ID del usuario administrador que cre\u00f3 la tarea"
+    },
+    "created_by_user_name": {
+      "type": "string",
+      "description": "Nombre del usuario que cre\u00f3 la tarea (para referencia r\u00e1pida)"
+    },
+    "assignee_user_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de los usuarios administradores a los que se asigna la tarea"
+    },
+    "related_client_id": {
+      "type": "string",
+      "description": "ID del cliente asociado a esta tarea (opcional)"
+    },
+    "related_client_name": {
+      "type": "string",
+      "description": "Nombre del cliente para referencia r\u00e1pida"
+    },
+    "related_schedule_id": {
+      "type": "string",
+      "description": "ID del servicio/horario asociado a esta tarea (opcional)"
+    },
+    "task_category": {
+      "type": "string",
+      "enum": [
+        "operational",
+        "client_care",
+        "cleaner_support",
+        "fleet_logistics",
+        "financial_admin",
+        "general_admin"
+      ],
+      "description": "Categor\u00eda de la tarea para una mejor organizaci\u00f3n"
+    },
+    "checklist_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean",
+            "default": false
+          },
+          "completed_by": {
+            "type": "string"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "description"
+        ]
+      },
+      "description": "Elementos de una checklist para tareas m\u00e1s complejas"
+    },
+    "comments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "timestamp",
+          "text"
+        ]
+      },
+      "description": "Comentarios en la tarea para comunicaci\u00f3n entre administradores"
+    },
+    "activity_log": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "action": {
+            "type": "string"
+          },
+          "details": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "timestamp",
+          "action"
+        ]
+      },
+      "description": "Historial de cambios y acciones realizadas en la tarea"
+    },
+    "reminder_sent_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora cuando se envi\u00f3 el \u00faltimo recordatorio autom\u00e1tico"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora cuando se complet\u00f3 la tarea"
+    },
+    "completed_by_user_id": {
+      "type": "string",
+      "description": "ID del usuario que complet\u00f3 la tarea"
+    },
+    "completed_by_user_name": {
+      "type": "string",
+      "description": "Nombre del usuario que complet\u00f3 la tarea"
+    },
+    "completion_notes": {
+      "type": "string",
+      "description": "Notas sobre c\u00f3mo se complet\u00f3 la tarea"
+    }
+  },
+  "required": [
+    "title",
+    "due_date"
+  ]
+}

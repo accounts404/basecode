@@ -1,0 +1,98 @@
+{
+  "name": "ClientFeedback",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "description": "ID del cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "description": "Nombre del cliente"
+    },
+    "schedule_id": {
+      "type": "string",
+      "description": "ID del servicio relacionado (opcional)"
+    },
+    "feedback_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha del feedback"
+    },
+    "month_period": {
+      "type": "string",
+      "description": "Per\u00edodo del mes (yyyy-MM)"
+    },
+    "feedback_type": {
+      "type": "string",
+      "enum": [
+        "complaint",
+        "compliment",
+        "neutral"
+      ],
+      "description": "Tipo de feedback"
+    },
+    "feedback_channel": {
+      "type": "string",
+      "enum": [
+        "sms",
+        "call",
+        "email",
+        "in_person",
+        "other"
+      ],
+      "description": "Canal por donde lleg\u00f3 el feedback"
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "description": "Severidad (para quejas)"
+    },
+    "affected_cleaner_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de limpiadores afectados"
+    },
+    "affected_cleaner_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Nombres de limpiadores afectados"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripci\u00f3n del feedback"
+    },
+    "action_taken": {
+      "type": "string",
+      "description": "Acci\u00f3n tomada por el admin"
+    },
+    "points_impact": {
+      "type": "number",
+      "description": "Puntos por limpiador (negativo = deducci\u00f3n)"
+    },
+    "registered_by_admin": {
+      "type": "string",
+      "description": "ID del admin que registr\u00f3"
+    },
+    "registered_by_admin_name": {
+      "type": "string",
+      "description": "Nombre del admin"
+    }
+  },
+  "required": [
+    "client_id",
+    "client_name",
+    "feedback_date",
+    "month_period",
+    "feedback_type",
+    "description"
+  ]
+}

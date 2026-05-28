@@ -1,0 +1,63 @@
+{
+  "name": "ThemeSettings",
+  "type": "object",
+  "properties": {
+    "active_theme": {
+      "type": "string",
+      "enum": [
+        "default",
+        "halloween",
+        "christmas",
+        "custom"
+      ],
+      "default": "default",
+      "description": "Tema actualmente activo en la aplicaci\u00f3n"
+    },
+    "seasonal_themes_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Habilitar o deshabilitar la activaci\u00f3n autom\u00e1tica de temas estacionales"
+    },
+    "halloween_start_date": {
+      "type": "string",
+      "default": "10-20",
+      "description": "Fecha de inicio de Halloween (formato MM-DD)"
+    },
+    "halloween_end_date": {
+      "type": "string",
+      "default": "11-02",
+      "description": "Fecha de fin de Halloween (formato MM-DD)"
+    },
+    "christmas_start_date": {
+      "type": "string",
+      "default": "12-01",
+      "description": "Fecha de inicio de Navidad (formato MM-DD)"
+    },
+    "christmas_end_date": {
+      "type": "string",
+      "default": "01-06",
+      "description": "Fecha de fin de Navidad (formato MM-DD)"
+    },
+    "custom_colors": {
+      "type": "object",
+      "description": "Colores personalizados para tema custom",
+      "properties": {
+        "primary": {
+          "type": "string",
+          "description": "Color primario (hex)"
+        },
+        "secondary": {
+          "type": "string",
+          "description": "Color secundario (hex)"
+        },
+        "accent": {
+          "type": "string",
+          "description": "Color de acento (hex)"
+        }
+      }
+    }
+  },
+  "required": [
+    "active_theme"
+  ]
+}

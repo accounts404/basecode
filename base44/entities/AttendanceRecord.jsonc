@@ -1,0 +1,28 @@
+{
+  "name": "AttendanceRecord",
+  "type": "object",
+  "properties": {
+    "cleaner_id": {
+      "type": "string",
+      "description": "ID del limpiador casual"
+    },
+    "period_key": {
+      "type": "string",
+      "description": "Clave del per\u00edodo (ej: 2024-09-1 para 1ra quincena de Sep 2024)"
+    },
+    "worked": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica si el limpiador trabaj\u00f3 en este per\u00edodo"
+    },
+    "marked_date": {
+      "type": "string",
+      "format": "datetime",
+      "description": "Fecha y hora cuando el admin marc\u00f3 'S\u00ed trabaj\u00f3'"
+    }
+  },
+  "required": [
+    "cleaner_id",
+    "period_key"
+  ]
+}

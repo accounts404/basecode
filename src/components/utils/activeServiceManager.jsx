@@ -209,9 +209,13 @@ export const syncActiveService = async (userId) => {
         // Importar dinámicamente para evitar problemas de circular dependency
         const { base44 } = await import('@/api/base44Client');
         
-        // Consultar la base de datos con reintentos - solo schedules relevantes
+        // FIX: Filtrar también por cleaner_ids para reducir datos transferidos
+        // Traer solo los servicios activos/programados relevantes
         const schedules = await retryWithBackoff(
-            () => base44.entities.Schedule.filter({ status: { $in: ['scheduled', 'in_progress'] } }),
+            () => base44.entities.Schedule.filter({ 
+                status: { $in: ['scheduled', 'in_progress'] },
+                cleaner_ids: { $contains: userId }
+            }),
             3,
             1000
         );
@@ -242,6 +246,8 @@ export const syncActiveService = async (userId) => {
         console.log(`[ActiveServiceManager] ${hasActive ? '✅ Servicio activo encontrado' : '❌ Sin servicio activo'}`);
         
         // Actualizar localStorage
+        // FIX: NO guardar fullSchedule completo (puede pesar varios MB con fotos/notas)
+        // Solo guardar los campos mínimos necesarios para el UI
         if (hasActive) {
             const activeServiceData = {
                 scheduleId: activeSchedule.id,
@@ -249,7 +255,6 @@ export const syncActiveService = async (userId) => {
                 clientAddress: activeSchedule.client_address,
                 startTime: activeSchedule.start_time,
                 timestamp: Date.now(),
-                fullSchedule: activeSchedule // Guardar el schedule completo
             };
             localStorage.setItem(ACTIVE_SERVICE_KEY, JSON.stringify(activeServiceData));
         } else {
