@@ -165,40 +165,67 @@ function LayoutContent({ children, currentPageName }) {
 
   useEffect(() => {
     if (location.state?.clockOutSuccess && location.state?.message) {
+      console.log('[Layout] 🎉 Mostrando mensaje de Clock Out exitoso');
+      
+      // Limpiar el state inmediatamente
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname]);
 
   useEffect(() => {
     if (location.state?.selectedService && location.state?.openModal) {
+      console.log('[Layout] 🎯 Abriendo modal para servicio desde dashboard:', location.state.selectedService);
+      
+      // Este caso es manejado por la página Horario, no aquí
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname]);
 
   // OPTIMIZADO: Verificación inteligente de servicio activo para limpiadores
   const checkForActiveService = React.useCallback(async (userId, forceCheck = false) => {
+    // Evitar verificaciones duplicadas muy cercanas
     const now = Date.now();
     const timeSinceLastCheck = now - lastCheckRef.current;
     
-    if (!forceCheck && timeSinceLastCheck < 5000) return;
+    if (!forceCheck && timeSinceLastCheck < 2000) {
+      console.log('[Layout] ⏭️ Saltando verificación (muy reciente)');
+      return;
+    }
+    
+    // CRÍTICO: Respetar flags de Clock Out reciente
     if (shouldSkipActiveCheck(userId) || hasRecentClockOut()) {
+      console.log('[Layout] 🚫 Saltando verificación por Clock Out reciente');
       setHasActiveService(false);
       return;
     }
-    if (isCheckingService) return;
+    
+    if (isCheckingService) {
+      console.log('[Layout] ⏳ Ya hay una verificación en progreso');
+      return;
+    }
     
     setIsCheckingService(true);
     lastCheckRef.current = now;
     
     try {
       const result = await syncActiveService(userId);
+      
       const hasActive = result.hasActive;
+      console.log(`[Layout] ${hasActive ? '✅' : '❌'} Servicio activo:`, hasActive);
+      
       setHasActiveService(hasActive);
       
-      if (hasActive && location.pathname === createPageUrl("Horario") && !hasRecentClockOut()) {
+      // OPTIMIZADO: Solo redirigir si estamos en Horario y encontramos un servicio activo
+      // Y NO si acabamos de hacer Clock Out
+      if (hasActive && 
+          location.pathname === createPageUrl("Horario") && 
+          !hasRecentClockOut()) {
+        console.log('[Layout] 🚀 Servicio activo detectado, redirigiendo...');
         navigate(createPageUrl("ServicioActivo"), { replace: true });
       }
+      
     } catch (error) {
+      console.error('[Layout] ❌ Error verificando servicio activo:', error);
       setHasActiveService(false);
     } finally {
       setIsCheckingService(false);
@@ -226,20 +253,16 @@ function LayoutContent({ children, currentPageName }) {
 
       if (freshUser.role !== 'admin') {
         setIsCleanerView(true);
-        // Solo verificar scoring si el usuario es nuevo (no estaba en caché)
-        if (!cachedUser || cachedUser.id !== freshUser.id) {
-          const currentMonth = format(new Date(), 'yyyy-MM');
-          const scores = await base44.entities.MonthlyCleanerScore.filter({
-            cleaner_id: freshUser.id,
-            month_period: currentMonth,
-            is_participating: true,
-          });
-          setIsScoringParticipant(scores.length > 0);
-        }
-        // Solo re-verificar si el usuario cambió o no había caché
-        if (!cachedUser) {
-          await checkForActiveService(freshUser.id, true);
-        }
+        const currentMonth = format(new Date(), 'yyyy-MM');
+        const scores = await base44.entities.MonthlyCleanerScore.filter({
+          cleaner_id: freshUser.id,
+          month_period: currentMonth,
+          is_participating: true,
+        });
+        setIsScoringParticipant(scores.length > 0);
+
+        // Verificar servicio activo
+        await checkForActiveService(freshUser.id, true);
       }
     } catch (error) {
       console.error("Error loading user:", error);
@@ -250,13 +273,17 @@ function LayoutContent({ children, currentPageName }) {
     }
   };
 
-  // OPTIMIZADO: Polling para limpiadores — 30s para no saturar en Android
+  // OPTIMIZADO: Polling más inteligente para limpiadores
   useEffect(() => {
     if (!user || user.role === 'admin' || !initialLoadComplete) return;
     
-    const pollingInterval = 30000; // 30 segundos
+    // Polling cada 15 segundos (reducido de 20s para mejor respuesta)
+    const pollingInterval = 15000;
+    
+    console.log(`[Layout] 🔄 Iniciando polling cada ${pollingInterval/1000}s`);
     
     pollingRef.current = setInterval(() => {
+      console.log('[Layout] 🔄 Polling: Verificando servicio activo...');
       checkForActiveService(user.id);
     }, pollingInterval);
     
