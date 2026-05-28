@@ -9,8 +9,6 @@ const RECENT_CLOCKOUT_KEY = 'redoak_recent_clockout';
  * Registra un Clock In exitoso
  */
 export const registerClockIn = (scheduleId, scheduleData) => {
-    console.log('[ActiveServiceManager] 🟢 Registrando Clock In:', scheduleId);
-    
     const activeServiceData = {
         scheduleId: scheduleId,
         clientName: scheduleData.client_name,
@@ -23,8 +21,6 @@ export const registerClockIn = (scheduleId, scheduleData) => {
     // Limpiar cualquier flag de Clock Out reciente
     localStorage.removeItem(RECENT_CLOCKOUT_KEY);
     localStorage.removeItem(SKIP_CHECK_KEY);
-    
-    console.log('[ActiveServiceManager] ✅ Clock In registrado en localStorage');
 };
 
 /**
@@ -32,8 +28,6 @@ export const registerClockIn = (scheduleId, scheduleData) => {
  * CRÍTICO: Establece flags para evitar redirecciones inmediatas
  */
 export const registerClockOut = (scheduleId) => {
-    console.log('[ActiveServiceManager] 🔴 Registrando Clock Out:', scheduleId || 'actual');
-    
     const clockOutData = {
         scheduleId: scheduleId || localStorage.getItem(ACTIVE_SERVICE_KEY)?.scheduleId,
         timestamp: Date.now(),
@@ -52,8 +46,6 @@ export const registerClockOut = (scheduleId) => {
     
     // Limpiar el servicio activo
     localStorage.removeItem(ACTIVE_SERVICE_KEY);
-    
-    console.log('[ActiveServiceManager] ✅ Clock Out registrado, flags establecidos por 20s');
 };
 
 /**
@@ -78,7 +70,6 @@ export const hasRecentClockOut = (scheduleId = null) => {
             return false;
         }
         
-        console.log('[ActiveServiceManager] ⚠️ Clock Out reciente detectado, ignorando servicio activo');
         return true;
     } catch (error) {
         console.error('[ActiveServiceManager] Error verificando Clock Out reciente:', error);
@@ -103,7 +94,6 @@ export const shouldSkipActiveCheck = (userId) => {
             return false;
         }
         
-        console.log('[ActiveServiceManager] 🚫 Skip check activo, ignorando verificación');
         return true;
     } catch (error) {
         console.error('[ActiveServiceManager] Error verificando skip check:', error);
@@ -115,7 +105,6 @@ export const shouldSkipActiveCheck = (userId) => {
  * Limpia todos los flags relacionados con servicio activo
  */
 export const clearAllFlags = () => {
-    console.log('[ActiveServiceManager] 🧹 Limpiando todos los flags');
     localStorage.removeItem(ACTIVE_SERVICE_KEY);
     localStorage.removeItem(RECENT_CLOCKOUT_KEY);
     localStorage.removeItem(SKIP_CHECK_KEY);
@@ -125,50 +114,35 @@ export const clearAllFlags = () => {
  * Limpia flags obsoletos (más de 5 minutos)
  */
 export const cleanupStaleFlags = () => {
-    console.log('[ActiveServiceManager] 🧹 Limpiando flags obsoletos');
-    
     try {
-        // Limpiar Clock Out reciente obsoleto
         const recentClockOut = localStorage.getItem(RECENT_CLOCKOUT_KEY);
         if (recentClockOut) {
             const data = JSON.parse(recentClockOut);
-            const elapsed = Date.now() - data.timestamp;
-            if (elapsed > 5 * 60 * 1000) { // 5 minutos
+            if (Date.now() - data.timestamp > 5 * 60 * 1000) {
                 localStorage.removeItem(RECENT_CLOCKOUT_KEY);
-                console.log('[ActiveServiceManager] 🧹 Clock Out reciente limpiado (obsoleto)');
             }
         }
-        
-        // Limpiar skip check obsoleto
         const skipCheck = localStorage.getItem(SKIP_CHECK_KEY);
         if (skipCheck) {
             const data = JSON.parse(skipCheck);
-            const elapsed = Date.now() - data.timestamp;
-            if (elapsed > 5 * 60 * 1000) { // 5 minutos
+            if (Date.now() - data.timestamp > 5 * 60 * 1000) {
                 localStorage.removeItem(SKIP_CHECK_KEY);
-                console.log('[ActiveServiceManager] 🧹 Skip check limpiado (obsoleto)');
             }
         }
-        
-        // Limpiar servicio activo obsoleto (más de 24 horas)
         const activeService = localStorage.getItem(ACTIVE_SERVICE_KEY);
         if (activeService) {
             const data = JSON.parse(activeService);
-            const elapsed = Date.now() - data.timestamp;
-            if (elapsed > 24 * 60 * 60 * 1000) { // 24 horas
+            if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) {
                 localStorage.removeItem(ACTIVE_SERVICE_KEY);
-                console.log('[ActiveServiceManager] 🧹 Servicio activo limpiado (obsoleto)');
             }
         }
-    } catch (error) {
-        console.error('[ActiveServiceManager] Error limpiando flags obsoletos:', error);
-    }
+    } catch (error) { /* silent */ }
 };
 
 /**
  * Función auxiliar para reintentos con backoff exponencial
  */
-const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000) => {
+const retryWithBackoff = async (fn, maxRetries = 2, initialDelay = 1500) => {
     let lastError;
     
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -176,11 +150,8 @@ const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000) => {
             return await fn();
         } catch (error) {
             lastError = error;
-            console.warn(`[ActiveServiceManager] ⚠️ Intento ${attempt + 1}/${maxRetries} falló:`, error.message);
-            
             if (attempt < maxRetries - 1) {
                 const delay = initialDelay * Math.pow(2, attempt);
-                console.log(`[ActiveServiceManager] ⏳ Reintentando en ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
@@ -195,14 +166,9 @@ const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000) => {
  */
 export const syncActiveService = async (userId) => {
     try {
-        console.log('[ActiveServiceManager] 🔄 Sincronizando servicio activo para:', userId);
-        
-        // Limpiar flags obsoletos primero
         cleanupStaleFlags();
         
-        // CRÍTICO: Verificar si hay un Clock Out reciente
         if (hasRecentClockOut() || shouldSkipActiveCheck(userId)) {
-            console.log('[ActiveServiceManager] ⏭️ Saltando sincronización por Clock Out reciente');
             return { hasActive: false, activeSchedule: null };
         }
         
@@ -234,7 +200,6 @@ export const syncActiveService = async (userId) => {
             
             // CRÍTICO: Verificar si este servicio tiene Clock Out reciente
             if (isActive && hasRecentClockOut(schedule.id)) {
-                console.log('[ActiveServiceManager] 🚫 Ignorando servicio', schedule.id, 'por Clock Out reciente');
                 return false;
             }
             
@@ -242,8 +207,6 @@ export const syncActiveService = async (userId) => {
         });
         
         const hasActive = !!activeSchedule;
-        
-        console.log(`[ActiveServiceManager] ${hasActive ? '✅ Servicio activo encontrado' : '❌ Sin servicio activo'}`);
         
         // Actualizar localStorage
         // FIX: NO guardar fullSchedule completo (puede pesar varios MB con fotos/notas)
