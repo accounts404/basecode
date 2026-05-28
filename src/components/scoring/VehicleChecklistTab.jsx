@@ -357,6 +357,10 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
 
   const handleSave = async () => {
     setSaving(true);
+    let saveOk = false;
+    let updatedRecords = records;
+
+    // PASO 1: Guardar el registro — bloque aislado
     try {
       const vehicle = selectedVehicleId ? vehicles.find(v => v.id === selectedVehicleId) : null;
       const teamIds = selectedMemberIds;
@@ -391,17 +395,29 @@ export default function VehicleChecklistTab({ monthPeriod, limpiadores, monthlyS
         });
       }
 
+      // Recargar registros del mes
+      updatedRecords = await base44.entities.VehicleChecklistRecord.filter({ month_period: monthPeriod });
+      setRecords(updatedRecords);
       setShowDialog(false);
       setEditingRecord(null);
-      const updatedRecords = await base44.entities.VehicleChecklistRecord.filter({ month_period: monthPeriod });
-      setRecords(updatedRecords);
-
-      // Auto-sync vehicle averages to ranking immediately
-      await syncVehicleScoresToRanking(updatedRecords);
+      saveOk = true;
     } catch (e) {
-      console.error(e);
-      alert("Error guardando el checklist");
+      console.error('[VehicleChecklist] Error guardando registro:', e);
+      alert("Error al guardar la revisión. Por favor intenta de nuevo.");
+      setSaving(false);
+      return;
     }
+
+    // PASO 2: Sincronizar ranking — bloque separado, no afecta al guardado
+    if (saveOk) {
+      try {
+        await syncVehicleScoresToRanking(updatedRecords);
+      } catch (e) {
+        console.error('[VehicleChecklist] Error sincronizando ranking (la revisión ya fue guardada):', e);
+        // No mostrar error al usuario — la revisión ya está guardada correctamente
+      }
+    }
+
     setSaving(false);
   };
 
