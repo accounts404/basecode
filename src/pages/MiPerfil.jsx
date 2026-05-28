@@ -81,13 +81,7 @@ export default function MiPerfilPage() {
         emergency_contact_phone: userData.emergency_contact_phone || ""
       });
 
-      if (!userData.start_date && userData.created_date) {
-        try {
-          await User.updateMyUserData({ start_date: userData.created_date });
-        } catch (error) {
-          console.log("Could not auto-set start_date:", error);
-        }
-      }
+      // Note: auto-setting start_date removed to avoid extra API calls
     } catch (error) {
       setError("Error cargando datos del usuario");
     }
@@ -102,8 +96,9 @@ export default function MiPerfilPage() {
       await base44.auth.updateMe({ [documentType]: fileUrl });
       const docName = documentType.replace('_url', '').replace(/_/g, ' ');
       setSuccess(`¡${docName} actualizado correctamente!`);
+      // Update local state directly instead of reloading all data
       setFormData(prev => ({ ...prev, [documentType]: fileUrl }));
-      loadUserData();
+      setUser(prev => ({ ...prev, [documentType]: fileUrl }));
     } catch (error) {
       setError("Error al actualizar el documento: " + error.message);
     } finally {
@@ -135,9 +130,9 @@ export default function MiPerfilPage() {
 
       await User.updateMyUserData(updateData);
       setSuccess("¡Perfil actualizado exitosamente!");
-
+      // Update local state directly instead of reloading
+      setUser(prev => ({ ...prev, ...updateData }));
       setTimeout(() => {
-        loadUserData();
         setSuccess("");
         setIsEditing(false);
       }, 3000);
