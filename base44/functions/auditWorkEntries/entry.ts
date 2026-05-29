@@ -1,29 +1,10 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-
-const BATCH_SIZE = 500;
-
-async function loadAllPaginated(entity, filters = null) {
-    const all = [];
-    let skip = 0;
-    while (true) {
-        let batch;
-        if (filters) {
-            batch = await entity.filter(filters, '-work_date', BATCH_SIZE, skip);
-        } else {
-            batch = await entity.list('-work_date', BATCH_SIZE, skip);
-        }
-        if (!Array.isArray(batch) || batch.length === 0) break;
-        all.push(...batch);
-        if (batch.length < BATCH_SIZE) break;
-        skip += BATCH_SIZE;
-    }
-    return all;
-}
+import { createClientFromRequest } from 'npm:@base44/sdk@0.7.1';
 
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         
+        // Verificar autenticación
         const user = await base44.auth.me();
         if (!user || user.role !== 'admin') {
             return Response.json({ error: 'No autorizado' }, { status: 401 });
@@ -32,14 +13,17 @@ Deno.serve(async (req) => {
         const body = await req.json();
         const { period_start, period_end } = body;
 
-        // FIX: Paginar para no cargar todo en memoria de golpe
+        // Obtener todas las work entries del período (o todas si no se especifica)
         let workEntries;
         if (period_start && period_end) {
-            workEntries = await loadAllPaginated(base44.asServiceRole.entities.WorkEntry, {
-                work_date: { $gte: period_start, $lte: period_end }
+            workEntries = await base44.asServiceRole.entities.WorkEntry.filter({
+                work_date: {
+                    $gte: period_start,
+                    $lte: period_end
+                }
             });
         } else {
-            workEntries = await loadAllPaginated(base44.asServiceRole.entities.WorkEntry);
+            workEntries = await base44.asServiceRole.entities.WorkEntry.list();
         }
 
         console.log(`[AuditWorkEntries] Analizando ${workEntries.length} entradas de trabajo`);
@@ -49,14 +33,19 @@ Deno.serve(async (req) => {
         const entryMap = new Map();
 
         workEntries.forEach(entry => {
+            // Crear una clave única basada en los campos críticos
             const key = `${entry.cleaner_id}|${entry.client_id}|${entry.work_date}|${entry.activity}|${entry.hours}|${entry.total_amount}`;
+            
             if (entryMap.has(key)) {
-                entryMap.get(key).push(entry);
+                // Ya existe una entrada con estos mismos datos
+                const existingGroup = entryMap.get(key);
+                existingGroup.push(entry);
             } else {
                 entryMap.set(key, [entry]);
             }
         });
 
+        // Filtrar solo los grupos que tienen más de una entrada (duplicados)
         entryMap.forEach((group, key) => {
             if (group.length > 1) {
                 duplicates.push({
@@ -77,9 +66,9 @@ Deno.serve(async (req) => {
             }
         });
 
-        console.log(`[AuditWorkEntries] Duplicados: ${duplicates.length} grupos`);
+        console.log(`[AuditWorkEntries] Encontrados ${duplicates.length} grupos de duplicados`);
 
-        // 2. ENTRADAS MODIFICADAS POR LIMPIADORES
+        // 2. IDENTIFICAR ENTRADAS MODIFICADAS POR LIMPIADORES
         const modifiedEntries = workEntries
             .filter(entry => entry.modified_by_cleaner === true)
             .map(entry => ({
@@ -102,30 +91,37 @@ Deno.serve(async (req) => {
                 invoiced: entry.invoiced
             }));
 
-        console.log(`[AuditWorkEntries] Modificadas por limpiadores: ${modifiedEntries.length}`);
+        console.log(`[AuditWorkEntries] Encontradas ${modifiedEntries.length} entradas modificadas por limpiadores`);
 
-        // 3. IRREGULARIDADES
+        // 3. IDENTIFICAR OTRAS IRREGULARIDADES
         const irregularities = [];
 
         workEntries.forEach(entry => {
             const issues = [];
 
+            // Verificar horas sospechosamente altas
             if (entry.hours > 12) {
                 issues.push(`Horas inusualmente altas: ${entry.hours}h`);
             }
+
+            // Verificar horas muy bajas
             if (entry.hours < 0.5 && entry.activity !== 'gasolina' && entry.activity !== 'otros') {
                 issues.push(`Horas inusualmente bajas: ${entry.hours}h`);
             }
+
+            // Verificar si la tarifa es cero o muy baja
             if (entry.hourly_rate < 10 && entry.activity !== 'gasolina' && entry.activity !== 'otros') {
                 issues.push(`Tarifa sospechosamente baja: $${entry.hourly_rate}/h`);
             }
 
-            const expectedTotal = parseFloat((entry.hours * entry.hourly_rate).toFixed(2));
+            // Verificar discrepancia en el cálculo del total
+            const expectedTotal = entry.hours * entry.hourly_rate;
             const actualTotal = entry.total_amount;
             if (Math.abs(expectedTotal - actualTotal) > 0.5) {
-                issues.push(`Discrepancia en total: esperado $${expectedTotal}, actual $${actualTotal}`);
+                issues.push(`Discrepancia en total: esperado $${expectedTotal.toFixed(2)}, actual $${actualTotal.toFixed(2)}`);
             }
 
+            // Verificar actividad "otros" sin descripción
             if (entry.activity === 'otros' && (!entry.other_activity || entry.other_activity.trim() === '')) {
                 issues.push(`Actividad "otros" sin descripción`);
             }
@@ -139,13 +135,13 @@ Deno.serve(async (req) => {
                     hours: entry.hours,
                     activity: entry.activity,
                     total_amount: entry.total_amount,
-                    issues,
+                    issues: issues,
                     invoiced: entry.invoiced
                 });
             }
         });
 
-        console.log(`[AuditWorkEntries] Irregularidades: ${irregularities.length}`);
+        console.log(`[AuditWorkEntries] Encontradas ${irregularities.length} entradas con irregularidades`);
 
         return Response.json({
             success: true,
@@ -162,6 +158,9 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('[AuditWorkEntries] Error:', error);
-        return Response.json({ success: false, error: error.message }, { status: 500 });
+        return Response.json({ 
+            success: false,
+            error: error.message 
+        }, { status: 500 });
     }
 });

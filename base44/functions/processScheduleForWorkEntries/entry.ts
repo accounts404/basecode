@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req).asServiceRole;
@@ -21,54 +21,59 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Schedule not found' }, { status: 404 });
         }
 
-        // Obtener tipo de actividad del cliente y todos los limpiadores EN PARALELO
-        const cleanerIds = schedule.cleaner_ids || [];
-
-        const [clientResult, ...cleanerResults] = await Promise.all([
-            base44.entities.Client.get(schedule.client_id).catch(() => null),
-            ...cleanerIds.map(id => base44.entities.User.get(id).catch(() => null))
-        ]);
-
-        const clientActivity = clientResult?.client_type || 'domestic';
+        // Obtener tipo de actividad del cliente
+        let clientActivity = 'domestic';
+        try {
+            const client = await base44.entities.Client.get(schedule.client_id);
+            if (client?.client_type) {
+                clientActivity = client.client_type;
+            }
+        } catch {
+            console.log('No se pudo obtener cliente, usando "domestic"');
+        }
 
         console.log('=== processScheduleForWorkEntries ===');
-        console.log('Schedule ID:', scheduleId, '| Mode:', mode);
-        console.log('Client:', schedule.client_name, '| Activity:', clientActivity);
-        console.log('Cleaners:', cleanerIds.length);
+        console.log('Schedule ID:', scheduleId);
+        console.log('Mode:', mode);
+        console.log('Client:', schedule.client_name);
+        console.log('Client activity:', clientActivity);
+        console.log('Cleaners:', schedule.cleaner_ids?.length || 0);
 
         const workDateStr = schedule.start_time.slice(0, 10);
-        const [, , wday] = workDateStr.split('-').map(Number);
+        const [wyear, wmonth, wday] = workDateStr.split('-').map(Number);
 
         const isoToMinutes = (iso) => {
             if (!iso) return 0;
             return parseInt(iso.slice(11, 13)) * 60 + parseInt(iso.slice(14, 16));
         };
 
-        // FIX: calcular entries usando los usuarios ya cargados en paralelo
-        const calculateWorkEntries = () => {
+        const calculateWorkEntries = async () => {
             const entries = [];
 
-            cleanerIds.forEach((cleanerId, idx) => {
-                const cleanerUser = cleanerResults[idx];
-
-                if (!cleanerUser) {
-                    console.log(`- SALTANDO ${cleanerId}: usuario no encontrado`);
-                    return;
-                }
+            for (const cleanerId of (schedule.cleaner_ids || [])) {
+                console.log(`\n>>> Limpiador: ${cleanerId}`);
 
                 const individualSchedule = schedule.cleaner_schedules?.find(cs => cs.cleaner_id === cleanerId);
 
                 if (!individualSchedule) {
-                    console.log(`- SALTANDO ${cleanerId}: sin horario individual`);
-                    return;
+                    console.log('- SALTANDO: sin horario individual');
+                    continue;
                 }
 
                 const totalMinutes = isoToMinutes(individualSchedule.end_time) - isoToMinutes(individualSchedule.start_time);
                 const cleanerHours = totalMinutes / 60;
 
+                console.log('- Horas:', cleanerHours);
+
                 if (cleanerHours <= 0) {
-                    console.log(`- SALTANDO ${cleanerId}: horas <= 0`);
-                    return;
+                    console.log('- SALTANDO: horas <= 0');
+                    continue;
+                }
+
+                const cleanerUser = await base44.entities.User.get(cleanerId);
+                if (!cleanerUser) {
+                    console.log('- SALTANDO: usuario no encontrado');
+                    continue;
                 }
 
                 let cleanerRate = 0;
@@ -78,15 +83,14 @@ Deno.serve(async (req) => {
                         .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
                     if (effectiveRate) {
                         cleanerRate = effectiveRate.rate;
+                        console.log('- Tarifa:', cleanerRate);
                     }
                 }
 
                 if (cleanerRate === 0) {
-                    console.log(`- SALTANDO ${cleanerId}: tarifa = 0`);
-                    return;
+                    console.log('- SALTANDO: tarifa = 0');
+                    continue;
                 }
-
-                console.log(`- ${cleanerUser.full_name}: ${cleanerHours}h @ $${cleanerRate}/h`);
 
                 entries.push({
                     cleaner_id: cleanerId,
@@ -102,13 +106,13 @@ Deno.serve(async (req) => {
                     invoiced: false,
                     schedule_id: scheduleId,
                 });
-            });
+            }
 
             return entries;
         };
 
         if (mode === 'preview') {
-            const previewEntries = calculateWorkEntries();
+            const previewEntries = await calculateWorkEntries();
             return Response.json({
                 success: true,
                 preview_entries: previewEntries,
@@ -123,25 +127,15 @@ Deno.serve(async (req) => {
 
         } else if (mode === 'create') {
             console.log('\n=== MODO CREATE ===');
-            const entriesToCreate = calculateWorkEntries();
-
-            // FIX: verificar duplicados en paralelo
-            const existingChecks = await Promise.all(
-                entriesToCreate.map(entryData =>
-                    base44.entities.WorkEntry.filter({
-                        schedule_id: scheduleId,
-                        cleaner_id: entryData.cleaner_id
-                    }).catch(() => [])
-                )
-            );
-
+            const entriesToCreate = await calculateWorkEntries();
             const createdEntries = [];
             const skippedEntries = [];
 
-            // Crear solo las que no existen (secuencial para evitar duplicados por race condition)
-            for (let i = 0; i < entriesToCreate.length; i++) {
-                const entryData = entriesToCreate[i];
-                const existing = existingChecks[i];
+            for (const entryData of entriesToCreate) {
+                const existing = await base44.entities.WorkEntry.filter({
+                    schedule_id: scheduleId,
+                    cleaner_id: entryData.cleaner_id
+                });
 
                 if (existing.length > 0) {
                     console.log(`- Ya existe WorkEntry para ${entryData.cleaner_name}`);
@@ -175,6 +169,7 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('❌ Error:', error.message);
+        console.error('Stack:', error.stack);
         return Response.json({ error: error.message || 'Internal server error' }, { status: 500 });
     }
 });
