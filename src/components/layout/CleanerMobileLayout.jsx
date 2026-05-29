@@ -229,7 +229,9 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
               <Link
                 key={item.title}
                 to={item.url}
-                className="flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg"
+                className={`flex flex-col items-center justify-center min-w-[60px] py-2 px-3 rounded-lg transition-colors ${
+                  isActiveService ? 'animate-pulse' : ''
+                }`}
                 style={
                   isCurrent 
                     ? { 

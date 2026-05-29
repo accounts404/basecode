@@ -449,7 +449,7 @@ export default function ServicioActivoPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
                 <div className="text-center space-y-4">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="text-slate-600">Cargando servicio activo...</p>
@@ -460,7 +460,7 @@ export default function ServicioActivoPage() {
 
     if (!activeService) {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-4">
                 <Card className="max-w-md w-full">
                     <CardContent className="pt-6">
                         <div className="text-center space-y-4">
@@ -492,7 +492,7 @@ export default function ServicioActivoPage() {
     const defaultClientPhotos = getDefaultClientPhotos();
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 pb-20">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 pb-20">
             <div className="max-w-2xl mx-auto space-y-4">
                 {error && (
                     <Alert variant="destructive" className="border-2">
@@ -502,7 +502,7 @@ export default function ServicioActivoPage() {
                 )}
 
                 {clockingOut && (
-                    <Alert className="bg-blue-50 border-2 border-blue-500">
+                    <Alert className="bg-blue-50 border-2 border-blue-500 animate-pulse">
                         <Clock className="h-4 w-4 text-blue-700 animate-spin" />
                         <AlertDescription className="text-blue-900 font-semibold">
                             ⏳ Finalizando servicio... Por favor, espera sin salir de esta página.

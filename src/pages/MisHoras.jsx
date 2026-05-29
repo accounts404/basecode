@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { User } from "@/entities/User";
 import { WorkEntry } from "@/entities/WorkEntry";
@@ -391,7 +392,7 @@ export default function MisHorasPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 pb-24">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6">
