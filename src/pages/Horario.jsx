@@ -768,11 +768,14 @@ export default function HorarioPage() {
 
         } catch (error) {
             console.error(`[Horario] ❌ Error en ${action}:`, error);
+            const isNetworkError = error.message?.includes('500') || error.message?.includes('network') || error.message?.includes('Network') || error.message?.includes('fetch');
             toast({
                 variant: 'destructive',
-                title: '❌ Error',
-                description: error.message || 'Sin conexión. Por favor intenta de nuevo cuando tengas señal.',
-                duration: 8000,
+                title: '❌ Error al ' + (action === 'clock_in' ? 'iniciar' : 'finalizar') + ' servicio',
+                description: isNetworkError
+                    ? 'Hubo un problema de conexión. Por favor verifica tu señal e intenta de nuevo en unos segundos.'
+                    : (error.message || 'Error desconocido. Intenta de nuevo.'),
+                duration: 10000,
             });
             clockInProcessingRef.current = false;
             navigationInProgressRef.current = false;
