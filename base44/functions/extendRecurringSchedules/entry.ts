@@ -105,7 +105,18 @@ Deno.serve(async (req) => {
         const activeClientIds = new Set(allClients.filter(c => c.active !== false).map(c => c.id));
         log(`👥 Clientes activos: ${activeClientIds.size} de ${allClients.length} total`);
 
-        const allSchedules = await base44.asServiceRole.entities.Schedule.list('-start_time', 2000);
+        // Cargar TODOS los schedules con paginación para no perder series con registros antiguos
+        let allSchedules = [];
+        let skip = 0;
+        const BATCH = 5000;
+        while (true) {
+            const batch = await base44.asServiceRole.entities.Schedule.list('-start_time', BATCH, skip);
+            if (!batch || batch.length === 0) break;
+            allSchedules = allSchedules.concat(batch);
+            if (batch.length < BATCH) break;
+            skip += BATCH;
+        }
+        log(`📋 Total schedules cargados: ${allSchedules.length}`);
         const recurringSchedules = allSchedules.filter(s =>
             s.recurrence_id &&
             s.recurrence_rule &&

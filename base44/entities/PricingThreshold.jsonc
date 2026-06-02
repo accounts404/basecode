@@ -1,0 +1,29 @@
+{
+  "name": "PricingThreshold",
+  "type": "object",
+  "properties": {
+    "frequency": {
+      "type": "string",
+      "enum": [
+        "weekly",
+        "fortnightly",
+        "every_3_weeks",
+        "monthly",
+        "one_off"
+      ],
+      "description": "Frecuencia de servicio a la que se aplica el umbral"
+    },
+    "min_price": {
+      "type": "number",
+      "description": "Precio base m\u00ednimo requerido (sin GST) para esta frecuencia"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripci\u00f3n opcional o notas sobre este umbral"
+    }
+  },
+  "required": [
+    "frequency",
+    "min_price"
+  ]
+}

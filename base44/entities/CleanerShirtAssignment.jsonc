@@ -1,0 +1,92 @@
+{
+  "name": "CleanerShirtAssignment",
+  "type": "object",
+  "properties": {
+    "cleaner_id": {
+      "type": "string",
+      "description": "ID del limpiador (User.id)"
+    },
+    "cleaner_name": {
+      "type": "string",
+      "description": "Nombre completo del limpiador para referencia r\u00e1pida"
+    },
+    "shirt_model": {
+      "type": "string",
+      "description": "Modelo de la camisa entregada"
+    },
+    "shirt_gender": {
+      "type": "string",
+      "enum": [
+        "male",
+        "female"
+      ],
+      "description": "G\u00e9nero de la camisa entregada"
+    },
+    "shirt_size": {
+      "type": "string",
+      "description": "Talla de la camisa entregada (para hombre: XS, S, M, L, XL, XXL, XXXL; para mujer: 6, 8, 10, 12, 14, 16, 18, 20, 22, 24)"
+    },
+    "shirt_color": {
+      "type": "string",
+      "description": "Color de la camisa entregada"
+    },
+    "issued_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha en que se entreg\u00f3 la camisa al limpiador"
+    },
+    "is_new_shirt": {
+      "type": "boolean",
+      "default": true,
+      "description": "true si la camisa entregada era nueva, false si era reutilizada"
+    },
+    "returned_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha en que el limpiador devolvi\u00f3 la camisa"
+    },
+    "return_condition": {
+      "type": "string",
+      "enum": [
+        "excellent",
+        "good",
+        "fair",
+        "damaged",
+        "lost"
+      ],
+      "description": "Condici\u00f3n de la camisa al devolverla"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "issued",
+        "returned_reusable",
+        "returned_damaged",
+        "lost"
+      ],
+      "default": "issued",
+      "description": "Estado actual: issued=asignada, returned_reusable=devuelta reutilizable, returned_damaged=devuelta da\u00f1ada, lost=perdida"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas sobre la entrega o devoluci\u00f3n"
+    },
+    "issued_by_admin": {
+      "type": "string",
+      "description": "ID del administrador que entreg\u00f3 la camisa"
+    },
+    "returned_by_admin": {
+      "type": "string",
+      "description": "ID del administrador que registr\u00f3 la devoluci\u00f3n"
+    }
+  },
+  "required": [
+    "cleaner_id",
+    "cleaner_name",
+    "shirt_model",
+    "shirt_gender",
+    "shirt_size",
+    "shirt_color",
+    "issued_date"
+  ]
+}

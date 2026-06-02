@@ -1,0 +1,40 @@
+{
+  "name": "ScoreCategory",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nombre de la categor\u00eda (ej: 'Uniforme Incompleto')"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "deduction",
+        "bonus",
+        "both"
+      ],
+      "default": "both",
+      "description": "Si la categor\u00eda es solo para deducciones, bonificaciones, o ambas"
+    },
+    "suggested_points": {
+      "type": "number",
+      "description": "Puntos sugeridos para esta categor\u00eda (opcional)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripci\u00f3n detallada de la categor\u00eda"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "ID del administrador que cre\u00f3 la categor\u00eda"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Si la categor\u00eda est\u00e1 activa"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

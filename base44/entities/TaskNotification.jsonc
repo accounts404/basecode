@@ -1,0 +1,53 @@
+{
+  "name": "TaskNotification",
+  "type": "object",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "ID del usuario que recibir\u00e1 la notificaci\u00f3n"
+    },
+    "task_id": {
+      "type": "string",
+      "description": "ID de la tarea relacionada"
+    },
+    "task_title": {
+      "type": "string",
+      "description": "T\u00edtulo de la tarea para referencia r\u00e1pida"
+    },
+    "notification_type": {
+      "type": "string",
+      "enum": [
+        "assignment",
+        "status_change",
+        "comment_added",
+        "due_reminder",
+        "overdue_alert"
+      ],
+      "description": "Tipo de notificaci\u00f3n"
+    },
+    "message": {
+      "type": "string",
+      "description": "Mensaje de la notificaci\u00f3n"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si la notificaci\u00f3n ha sido le\u00edda"
+    },
+    "read_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora cuando se marc\u00f3 como le\u00edda"
+    },
+    "action_url": {
+      "type": "string",
+      "description": "URL a la que redirigir cuando se hace click en la notificaci\u00f3n"
+    }
+  },
+  "required": [
+    "user_id",
+    "task_id",
+    "notification_type",
+    "message"
+  ]
+}

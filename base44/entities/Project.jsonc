@@ -1,0 +1,38 @@
+{
+  "name": "Project",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nombre del proyecto"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripci\u00f3n opcional del proyecto"
+    },
+    "color": {
+      "type": "string",
+      "description": "Color hexadecimal para identificaci\u00f3n visual (ej: #3b82f6)"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Nombre del icono (opcional)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active",
+      "description": "Estado del proyecto: activo o archivado"
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "description": "ID del usuario que cre\u00f3 el proyecto"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

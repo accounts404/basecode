@@ -1,0 +1,22 @@
+{
+  "name": "FixedCost",
+  "type": "object",
+  "properties": {
+    "period": {
+      "type": "string",
+      "description": "Per\u00edodo en formato YYYY-MM (ej: 2024-01)"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Monto de gastos fijos para este per\u00edodo en AUD"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripci\u00f3n opcional de los gastos fijos"
+    }
+  },
+  "required": [
+    "period",
+    "amount"
+  ]
+}

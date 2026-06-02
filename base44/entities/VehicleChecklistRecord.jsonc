@@ -1,0 +1,101 @@
+{
+  "name": "VehicleChecklistRecord",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de la revisi\u00f3n"
+    },
+    "month_period": {
+      "type": "string",
+      "description": "Per\u00edodo del mes (yyyy-MM)"
+    },
+    "team_assignment_id": {
+      "type": "string",
+      "description": "ID del DailyTeamAssignment"
+    },
+    "vehicle_id": {
+      "type": "string",
+      "description": "ID del veh\u00edculo"
+    },
+    "vehicle_info": {
+      "type": "string",
+      "description": "Descripci\u00f3n del veh\u00edculo"
+    },
+    "team_member_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs de los miembros del equipo"
+    },
+    "team_member_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Nombres de los miembros"
+    },
+    "checklist_items": {
+      "type": "array",
+      "description": "Items del checklist de revisi\u00f3n",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "points_if_fail": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "total_deduction": {
+      "type": "number",
+      "description": "Total de puntos a deducir"
+    },
+    "points_per_member": {
+      "type": "number",
+      "description": "Puntos deducidos por cada miembro"
+    },
+    "general_notes": {
+      "type": "string",
+      "description": "Notas generales de la revisi\u00f3n"
+    },
+    "photos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "reviewed_by_admin": {
+      "type": "string",
+      "description": "ID del admin que revis\u00f3"
+    },
+    "reviewed_by_admin_name": {
+      "type": "string",
+      "description": "Nombre del admin"
+    }
+  },
+  "required": [
+    "date",
+    "month_period",
+    "vehicle_id"
+  ]
+}

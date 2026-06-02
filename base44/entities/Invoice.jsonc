@@ -1,0 +1,78 @@
+{
+  "name": "Invoice",
+  "type": "object",
+  "properties": {
+    "cleaner_id": {
+      "type": "string",
+      "description": "ID del limpiador"
+    },
+    "cleaner_name": {
+      "type": "string",
+      "description": "Nombre completo del limpiador"
+    },
+    "invoice_number": {
+      "type": "string",
+      "description": "N\u00famero consecutivo de factura"
+    },
+    "period": {
+      "type": "string",
+      "description": "Per\u00edodo de facturaci\u00f3n"
+    },
+    "period_start": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de inicio del per\u00edodo"
+    },
+    "period_end": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha de fin del per\u00edodo"
+    },
+    "total_amount": {
+      "type": "number",
+      "description": "Monto total de la factura"
+    },
+    "work_entries": {
+      "type": "array",
+      "description": "Entradas de trabajo incluidas en la factura",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pdf_url": {
+      "type": "string",
+      "description": "URL del PDF generado"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "submitted",
+        "reviewed",
+        "paid"
+      ],
+      "default": "draft",
+      "description": "Estado de la factura: draft=borrador, submitted=enviada al admin, reviewed=revisada por admin, paid=pagada"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas adicionales de la factura"
+    },
+    "admin_notes": {
+      "type": "string",
+      "description": "Notas del administrador"
+    },
+    "payment_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha cuando se marc\u00f3 como pagada"
+    }
+  },
+  "required": [
+    "cleaner_id",
+    "cleaner_name",
+    "period",
+    "period_start",
+    "period_end"
+  ]
+}

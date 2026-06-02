@@ -1,0 +1,22 @@
+{
+  "name": "SystemSetting",
+  "type": "object",
+  "properties": {
+    "setting_name": {
+      "type": "string",
+      "description": "Nombre identificador de la configuraci\u00f3n"
+    },
+    "price_per_room_steam_vacuum": {
+      "type": "number",
+      "default": 0,
+      "description": "Precio por habitaci\u00f3n para servicio de steam vacuum"
+    },
+    "terms_and_conditions": {
+      "type": "string",
+      "description": "T\u00e9rminos y condiciones que aparecen en el PDF de cotizaci\u00f3n"
+    }
+  },
+  "required": [
+    "setting_name"
+  ]
+}
