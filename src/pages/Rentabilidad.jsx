@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Activity } from 'lucide-react';
 import RentabilityAnalysisTab from '../components/rentabilidad/RentabilityAnalysisTab';
 import PricingFrequencyTab from '../components/rentabilidad/PricingFrequencyTab';
+import SuperannuationTab from '../components/rentabilidad/SuperannuationTab';
 import { extractDateOnly } from '@/components/utils/priceCalculations';
 
 const isExcludedMonth = (dateString) => {
@@ -122,9 +123,10 @@ export default function RentabilidadPage() {
                 </div>
 
                 <Tabs defaultValue="monthly" className="space-y-6">
-                    <TabsList className="grid w-full max-w-2xl grid-cols-2">
+                    <TabsList className="grid w-full max-w-3xl grid-cols-3">
                         <TabsTrigger value="monthly">Análisis Mensual</TabsTrigger>
                         <TabsTrigger value="pricing">Precios por Frecuencia</TabsTrigger>
+                        <TabsTrigger value="superannuation">Superannuation</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="monthly" className="space-y-6">
@@ -146,6 +148,10 @@ export default function RentabilidadPage() {
                             pricingThresholds={pricingThresholds}
                             onThresholdsSaved={handleThresholdsSaved}
                         />
+                    </TabsContent>
+
+                    <TabsContent value="superannuation" className="space-y-6">
+                        <SuperannuationTab allWorkEntries={allWorkEntries} />
                     </TabsContent>
                 </Tabs>
             </div>
