@@ -151,7 +151,7 @@ export default function RentabilidadPage() {
                     </TabsContent>
 
                     <TabsContent value="superannuation" className="space-y-6">
-                        <SuperannuationTab allWorkEntries={allWorkEntries} />
+                        <SuperannuationTab allWorkEntries={allWorkEntries} allSchedules={allSchedules} />
                     </TabsContent>
                 </Tabs>
             </div>
