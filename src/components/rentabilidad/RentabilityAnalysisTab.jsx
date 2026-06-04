@@ -427,9 +427,19 @@ export default function RentabilityAnalysisTab({
             );
         }
 
+        // Usar effectiveSortColumn para ordenar por el campo con/sin super correcto
+        const superMap = {
+            'realMargin': 'realMarginWithSuper',
+            'realMarginPerMonth': 'realMarginPerMonthWithSuper',
+            'realMarginPerService': 'realMarginPerServiceWithSuper',
+            'realProfitPercentage': 'realProfitPercentageWithSuper',
+            'totalCostPerHour': 'totalCostPerHourWithSuper',
+        };
+        const activeSortColumn = includeSuper ? (superMap[sortColumn] || sortColumn) : sortColumn;
+
         const sortedClientAnalysis = [...filteredClientAnalysis].sort((a, b) => {
-            let aValue = a[sortColumn];
-            let bValue = b[sortColumn];
+            let aValue = a[activeSortColumn];
+            let bValue = b[activeSortColumn];
 
             if (sortColumn === 'clientName') {
                 aValue = aValue?.toLowerCase() || '';
@@ -534,7 +544,7 @@ export default function RentabilityAnalysisTab({
 
         return { clientAnalysis: sortedClientAnalysis, summary, overallTotalFixedCosts: parseFloat(fixedCostInput || 0) };
 
-    }, [selectedPeriod, monthlyProcessedClientAnalysis, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts, searchTerm, clients, periodSchedules]);
+    }, [selectedPeriod, monthlyProcessedClientAnalysis, sortColumn, sortDirection, fixedCostInput, monthlyTrainingCost, monthlyOperationalCosts, searchTerm, clients, periodSchedules, includeSuper]);
 
     const handleSaveFixedCosts = async () => {
         if (filterMode !== 'month' || !selectedMonth) return;
@@ -668,8 +678,30 @@ export default function RentabilityAnalysisTab({
         });
     };
 
+    // Cuando super está activo, redirigir el sort a los campos WithSuper equivalentes
+    const effectiveSortColumn = useMemo(() => {
+        if (!includeSuper) return sortColumn;
+        const superMap = {
+            'realMargin': 'realMarginWithSuper',
+            'realMarginPerMonth': 'realMarginPerMonthWithSuper',
+            'realMarginPerService': 'realMarginPerServiceWithSuper',
+            'realProfitPercentage': 'realProfitPercentageWithSuper',
+            'totalCostPerHour': 'totalCostPerHourWithSuper',
+        };
+        return superMap[sortColumn] || sortColumn;
+    }, [sortColumn, includeSuper]);
+
     const getSortIcon = (column) => {
-        if (sortColumn !== column) {
+        // Mapear también la columna recibida para comparar correctamente
+        const superMap = {
+            'realMargin': 'realMarginWithSuper',
+            'realMarginPerMonth': 'realMarginPerMonthWithSuper',
+            'realMarginPerService': 'realMarginPerServiceWithSuper',
+            'realProfitPercentage': 'realProfitPercentageWithSuper',
+            'totalCostPerHour': 'totalCostPerHourWithSuper',
+        };
+        const effectiveColumn = includeSuper ? (superMap[column] || column) : column;
+        if (sortColumn !== column && effectiveSortColumn !== effectiveColumn) {
             return <TrendingUp className="w-4 h-4 text-slate-400 opacity-50" />;
         }
         return sortDirection === 'asc' ? 
