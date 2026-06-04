@@ -124,8 +124,18 @@ export default function RentabilityAnalysisTab({
             setFixedCostInput(totalRangeFixedCosts);
             setSavedFixedCosts(totalRangeFixedCosts);
 
+            // Calcular meses en rango aquí para pasarlo directamente (evitar desincronización con useMemo)
+            const totalDays = (endOfDay(endDate) - startDate) / (1000 * 60 * 60 * 24);
+            const rawMonths = totalDays / 30.44;
+            const EXCLUDED = ['2025-08', '2025-09'];
+            const startStr = format(startDate, 'yyyy-MM');
+            const endStr = format(endDate, 'yyyy-MM');
+            let excludedCount = 0;
+            EXCLUDED.forEach(m => { if (m >= startStr && m <= endStr) excludedCount++; });
+            const computedMonthsInRange = Math.max(rawMonths - excludedCount, 1);
+
             // CRITICO: Pasar el valor calculado directamente para evitar condicion de carrera
-            processData(periodStart, periodEnd, totalRangeFixedCosts);
+            processData(periodStart, periodEnd, totalRangeFixedCosts, computedMonthsInRange);
         } catch (err) {
             console.error("Error loading range data:", err);
             setError("Error al cargar los datos del rango.");
@@ -147,15 +157,15 @@ export default function RentabilityAnalysisTab({
             setFixedCostInput(currentFixedCostAmount);
             setSavedFixedCosts(currentFixedCostAmount);
 
-            // CRÍTICO: Pasar el valor calculado directamente para evitar condición de carrera
-            processData(monthStart, monthEnd, currentFixedCostAmount);
+            // CRÍTICO: Pasar el valor calculado directamente para evitar condición de carrera (mes = 1 mes)
+            processData(monthStart, monthEnd, currentFixedCostAmount, 1);
         } catch (err) {
             console.error("Error loading month data:", err);
             setError("Error al cargar los datos del mes.");
         }
     };
 
-    const processData = (periodStart, periodEnd, fixedCostsValue = null) => {
+    const processData = (periodStart, periodEnd, fixedCostsValue = null, monthsCount = 1) => {
         try {
             // Usar el valor pasado si existe, sino usar el del estado
             const currentFixedCosts = fixedCostsValue !== null ? fixedCostsValue : (filterMode === 'month' ? savedFixedCosts : fixedCostInput);
@@ -268,8 +278,9 @@ export default function RentabilityAnalysisTab({
                 .reduce((sum, c) => sum + c.totalHours, 0);
 
             // Super por hora: base = TODAS las work entries del período (sin exclusiones)
+            // CRÍTICO: usar e.total_amount solamente (igual que periodSuperData useMemo)
             const allPeriodEntries = allWorkEntries.filter(e => isDateInRange(e.work_date, periodStart, periodEnd));
-            const allPeriodBase = allPeriodEntries.reduce((s, e) => s + (e.total_amount || (e.hours * e.hourly_rate) || 0), 0);
+            const allPeriodBase = allPeriodEntries.reduce((s, e) => s + (e.total_amount || 0), 0);
             const allPeriodHours = allPeriodEntries.reduce((s, e) => s + (e.hours || 0), 0);
             const totalPeriodSuper = allPeriodBase * 0.12;
             const superPerHour = allPeriodHours > 0 ? totalPeriodSuper / allPeriodHours : 0;
@@ -294,8 +305,8 @@ export default function RentabilityAnalysisTab({
                 const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
                 const realProfitPercentageWithSuper = data.totalIncome > 0 ? (realMarginWithSuper / data.totalIncome) * 100 : (realMarginWithSuper < 0 ? -100 : 0);
                 const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
-                const realMarginPerMonth = filterMode === 'range' ? realMargin / monthsInRange : realMargin;
-                const realMarginPerMonthWithSuper = filterMode === 'range' ? realMarginWithSuper / monthsInRange : realMarginWithSuper;
+                const realMarginPerMonth = monthsCount > 1 ? realMargin / monthsCount : realMargin;
+                const realMarginPerMonthWithSuper = monthsCount > 1 ? realMarginWithSuper / monthsCount : realMarginWithSuper;
                 const realMarginPerService = data.serviceCount > 0 ? realMargin / data.serviceCount : 0;
                 const realMarginPerServiceWithSuper = data.serviceCount > 0 ? realMarginWithSuper / data.serviceCount : 0;
 
@@ -442,6 +453,8 @@ export default function RentabilityAnalysisTab({
             acc.totalMargin += client.margin;
             acc.totalHours += client.totalHours;
             acc.totalRealMargin += client.realMargin;
+            // Acumular margen con super (suma de los valores individuales ya calculados en processData)
+            acc.totalRealMarginWithSuper += client.realMarginWithSuper;
             
             // Calcular cash vs non-cash por servicio individual, no por cliente
             const clientSchedules = periodSchedules.filter(s => s.client_id === client.clientId);
@@ -489,7 +502,8 @@ export default function RentabilityAnalysisTab({
             totalLaborCost: 0, 
             totalMargin: 0, 
             totalHours: 0, 
-            totalRealMargin: 0, 
+            totalRealMargin: 0,
+            totalRealMarginWithSuper: 0,
             cashIncome: 0, 
             nonCashIncome: 0,
             cashLaborCost: 0,
@@ -500,7 +514,10 @@ export default function RentabilityAnalysisTab({
 
         const totalRealProfitPercentage = summary.totalIncome > 0 ? (summary.totalRealMargin / summary.totalIncome) * 100 : 0;
         summary.totalRealProfitPercentage = totalRealProfitPercentage;
-        
+        summary.totalRealProfitPercentageWithSuper = summary.totalIncome > 0 ? (summary.totalRealMarginWithSuper / summary.totalIncome) * 100 : 0;
+        summary.totalRealMarginPerMonth = filterMode === 'range' ? summary.totalRealMargin / monthsInRange : summary.totalRealMargin;
+        summary.totalRealMarginPerMonthWithSuper = filterMode === 'range' ? summary.totalRealMarginWithSuper / monthsInRange : summary.totalRealMarginWithSuper;
+
         const totalFixedCosts = parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts;
         const cashRatio = summary.totalIncome > 0 ? summary.cashIncome / summary.totalIncome : 0;
         const invoiceRatio = summary.totalIncome > 0 ? summary.nonCashIncome / summary.totalIncome : 0;
@@ -511,10 +528,9 @@ export default function RentabilityAnalysisTab({
         summary.invoiceNetMargin = summary.invoiceMargin - summary.invoiceFixedCosts;
         summary.cashProfitability = summary.cashIncome > 0 ? (summary.cashNetMargin / summary.cashIncome) * 100 : 0;
         summary.invoiceProfitability = summary.nonCashIncome > 0 ? (summary.invoiceNetMargin / summary.nonCashIncome) * 100 : 0;
-        summary.totalRealMarginPerMonth = filterMode === 'range' ? summary.totalRealMargin / monthsInRange : summary.totalRealMargin;
-        
         const totalServices = sortedClientAnalysis.reduce((sum, client) => sum + (client.serviceCount || 0), 0);
         summary.totalRealMarginPerService = totalServices > 0 ? summary.totalRealMargin / totalServices : 0;
+        summary.totalRealMarginPerServiceWithSuper = totalServices > 0 ? summary.totalRealMarginWithSuper / totalServices : 0;
 
         return { clientAnalysis: sortedClientAnalysis, summary, overallTotalFixedCosts: parseFloat(fixedCostInput || 0) };
 
@@ -629,11 +645,11 @@ export default function RentabilityAnalysisTab({
         try { localStorage.setItem('rentabilidad_includeSuper', val ? 'true' : 'false'); } catch {}
     };
 
-    // Calcular super total del período basado en TODAS las WorkEntries
+    // periodSuperData: misma base de cálculo que processData (TODAS las work entries del período)
     const periodSuperData = useMemo(() => {
-        if (!selectedPeriod) return { totalSuper: 0, superPerHour: 0 };
+        if (!selectedPeriod) return { totalSuper: 0, superPerHour: 0, totalBase: 0 };
         const periodEntries = allWorkEntries.filter(e => isDateInRange(e.work_date, selectedPeriod.start, selectedPeriod.end));
-        const totalBase = periodEntries.reduce((s, e) => s + (e.total_amount || (e.hours * e.hourly_rate) || 0), 0);
+        const totalBase = periodEntries.reduce((s, e) => s + (e.total_amount || 0), 0);
         const totalHours = periodEntries.reduce((s, e) => s + (e.hours || 0), 0);
         const totalSuper = totalBase * 0.12;
         const superPerHour = totalHours > 0 ? totalSuper / totalHours : 0;
@@ -1575,29 +1591,31 @@ export default function RentabilityAnalysisTab({
                                         ${(profitabilityData.summary.totalHours > 0 ? profitabilityData.summary.totalIncome / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
                                     </TableCell>
                                     <TableCell className="text-right text-xl text-orange-800 bg-orange-50">
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <div className="cursor-help">
-                                                        ${(profitabilityData.summary.totalHours > 0 ? (profitabilityData.summary.totalLaborCost + (profitabilityData.overallTotalFixedCosts + monthlyTrainingCost.amount + monthlyOperationalCosts)) / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                    </div>
-                                                </TooltipTrigger>
-                                                <TooltipContent className="bg-slate-900 text-white p-3">
-                                                    <div className="space-y-1">
-                                                        <p className="text-sm font-semibold">Desglose promedio por hora:</p>
-                                                        <p className="text-xs">
-                                                            Mano de obra: ${(profitabilityData.summary.totalHours > 0 ? profitabilityData.summary.totalLaborCost / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                        </p>
-                                                        <p className="text-xs">
-                                                            Gastos fijos: ${(profitabilityData.summary.totalHours > 0 ? (profitabilityData.overallTotalFixedCosts + monthlyTrainingCost.amount + monthlyOperationalCosts) / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                        </p>
-                                                        <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
-                                                            Total: ${(profitabilityData.summary.totalHours > 0 ? (profitabilityData.summary.totalLaborCost + (profitabilityData.overallTotalFixedCosts + monthlyTrainingCost.amount + monthlyOperationalCosts)) / profitabilityData.summary.totalHours : 0).toFixed(2)}/h
-                                                        </p>
-                                                    </div>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
+                                        {(() => {
+                                            const th = profitabilityData.summary.totalHours;
+                                            const laborPh = th > 0 ? profitabilityData.summary.totalLaborCost / th : 0;
+                                            const fixedPh = th > 0 ? (profitabilityData.overallTotalFixedCosts + monthlyTrainingCost.amount + monthlyOperationalCosts) / th : 0;
+                                            const superPh = includeSuper && th > 0 ? periodSuperData.totalSuper / th : 0;
+                                            const totalPh = laborPh + fixedPh + superPh;
+                                            return (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="cursor-help">${totalPh.toFixed(2)}/h</div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent className="bg-slate-900 text-white p-3">
+                                                            <div className="space-y-1">
+                                                                <p className="text-sm font-semibold">Desglose promedio por hora:</p>
+                                                                <p className="text-xs">Mano de obra: ${laborPh.toFixed(2)}/h</p>
+                                                                <p className="text-xs">Gastos fijos: ${fixedPh.toFixed(2)}/h</p>
+                                                                {includeSuper && <p className="text-xs text-orange-300">Super (12%): ${superPh.toFixed(2)}/h</p>}
+                                                                <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">Total: ${totalPh.toFixed(2)}/h</p>
+                                                            </div>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            );
+                                        })()}
                                     </TableCell>
                                     <TableCell className="text-right text-xl text-emerald-800">${profitabilityData.summary.totalIncome.toFixed(2)}</TableCell>
                                     <TableCell className="text-right text-xl text-rose-800">${profitabilityData.summary.totalLaborCost.toFixed(2)}</TableCell>
@@ -1609,29 +1627,29 @@ export default function RentabilityAnalysisTab({
                                         }
                                     </TableCell>
                                     {(() => {
-                                        const totalSuper = includeSuper ? periodSuperData.totalSuper : 0;
-                                        const trm = profitabilityData.summary.totalRealMargin - totalSuper;
-                                        const trmpm = filterMode === 'range' ? trm / monthsInRange : trm;
-                                        const totalServices = profitabilityData.clientAnalysis.reduce((s, c) => s + (c.serviceCount || 0), 0);
-                                        const trmps = totalServices > 0 ? trm / totalServices : 0;
-                                        const trpp = profitabilityData.summary.totalIncome > 0 ? (trm / profitabilityData.summary.totalIncome) * 100 : 0;
-                                        return (<>
-                                            <TableCell className={`text-right text-xl ${trm > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${trm.toFixed(2)}</TableCell>
-                                            {filterMode === 'range' && (
-                                                <TableCell className={`text-right text-xl bg-purple-50 ${trmpm > 0 ? 'text-purple-800' : 'text-rose-800'}`}>
-                                                    ${trmpm.toFixed(2)}
-                                                </TableCell>
-                                            )}
-                                            <TableCell className={`text-right text-xl bg-blue-50 ${trmps > 0 ? 'text-blue-800' : 'text-rose-800'}`}>
-                                                ${trmps.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className={`text-right text-xl ${trpp > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {trpp > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                                                    {trpp.toFixed(1)}%
-                                                </div>
-                                            </TableCell>
-                                        </>);
+                                       // Usar los valores pre-calculados del summary (suma de valores individuales por cliente)
+                                       // Esto garantiza consistencia: footer = suma de filas visibles
+                                       const trm = includeSuper ? profitabilityData.summary.totalRealMarginWithSuper : profitabilityData.summary.totalRealMargin;
+                                       const trmpm = includeSuper ? profitabilityData.summary.totalRealMarginPerMonthWithSuper : profitabilityData.summary.totalRealMarginPerMonth;
+                                       const trmps = includeSuper ? profitabilityData.summary.totalRealMarginPerServiceWithSuper : profitabilityData.summary.totalRealMarginPerService;
+                                       const trpp = includeSuper ? profitabilityData.summary.totalRealProfitPercentageWithSuper : profitabilityData.summary.totalRealProfitPercentage;
+                                       return (<>
+                                           <TableCell className={`text-right text-xl ${trm > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${trm.toFixed(2)}</TableCell>
+                                           {filterMode === 'range' && (
+                                               <TableCell className={`text-right text-xl bg-purple-50 ${trmpm > 0 ? 'text-purple-800' : 'text-rose-800'}`}>
+                                                   ${trmpm.toFixed(2)}
+                                               </TableCell>
+                                           )}
+                                           <TableCell className={`text-right text-xl bg-blue-50 ${trmps > 0 ? 'text-blue-800' : 'text-rose-800'}`}>
+                                               ${trmps.toFixed(2)}
+                                           </TableCell>
+                                           <TableCell className={`text-right text-xl ${trpp > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                                               <div className="flex items-center justify-end gap-2">
+                                                   {trpp > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                                                   {trpp.toFixed(1)}%
+                                               </div>
+                                           </TableCell>
+                                       </>);
                                     })()}
                                     <TableCell className="text-center bg-yellow-50"></TableCell>
                                 </TableRow>
