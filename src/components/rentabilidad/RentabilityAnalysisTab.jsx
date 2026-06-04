@@ -79,6 +79,9 @@ export default function RentabilityAnalysisTab({
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [selectedClientForHistory, setSelectedClientForHistory] = useState(null);
     const [expandedClients, setExpandedClients] = useState(new Set());
+    const [includeSuper, setIncludeSuper] = useState(() => {
+        try { return localStorage.getItem('rentabilidad_includeSuper') === 'true'; } catch { return false; }
+    });
 
     useEffect(() => {
         if (clients.length > 0) {
@@ -264,11 +267,16 @@ export default function RentabilityAnalysisTab({
                 })
                 .reduce((sum, c) => sum + c.totalHours, 0);
 
+            // Super por hora: base = TODAS las work entries del período (sin exclusiones)
+            const allPeriodEntries = allWorkEntries.filter(e => isDateInRange(e.work_date, periodStart, periodEnd));
+            const allPeriodBase = allPeriodEntries.reduce((s, e) => s + (e.total_amount || (e.hours * e.hourly_rate) || 0), 0);
+            const allPeriodHours = allPeriodEntries.reduce((s, e) => s + (e.hours || 0), 0);
+            const totalPeriodSuper = allPeriodBase * 0.12;
+            const superPerHour = allPeriodHours > 0 ? totalPeriodSuper / allPeriodHours : 0;
+
             const profitData = Object.values(clientData).map(data => {
                 const client = clientMap.get(data.clientId);
-                // CRÍTICO: Necesitamos calcular isCash basado en los snapshots de cada servicio del cliente
-                // No podemos usar solo client.payment_method porque es el actual, no el histórico
-                const isCash = false; // Se calculará en el summary basado en snapshots
+                const isCash = false;
                 
                 const incomePerHour = data.totalHours > 0 ? data.totalIncome / data.totalHours : 0;
                 const laborCostPerHour = data.totalHours > 0 ? data.totalLaborCost / data.totalHours : 0;
@@ -277,14 +285,19 @@ export default function RentabilityAnalysisTab({
 
                 const clientHourShare = totalPeriodHours > 0 ? data.totalHours / totalPeriodHours : 0;
                 const distributedFixedCost = totalFixedCostsWithTraining * clientHourShare;
+                const distributedSuper = superPerHour * data.totalHours;
                 
                 const fixedCostPerHour = data.totalHours > 0 ? distributedFixedCost / data.totalHours : 0;
                 const realMargin = margin - distributedFixedCost;
+                const realMarginWithSuper = realMargin - distributedSuper;
                 const realMarginPerHour = data.totalHours > 0 ? realMargin / data.totalHours : 0;
                 const realProfitPercentage = data.totalIncome > 0 ? (realMargin / data.totalIncome) * 100 : (realMargin < 0 ? -100 : 0);
+                const realProfitPercentageWithSuper = data.totalIncome > 0 ? (realMarginWithSuper / data.totalIncome) * 100 : (realMarginWithSuper < 0 ? -100 : 0);
                 const totalCostPerHour = laborCostPerHour + fixedCostPerHour;
                 const realMarginPerMonth = filterMode === 'range' ? realMargin / monthsInRange : realMargin;
+                const realMarginPerMonthWithSuper = filterMode === 'range' ? realMarginWithSuper / monthsInRange : realMarginWithSuper;
                 const realMarginPerService = data.serviceCount > 0 ? realMargin / data.serviceCount : 0;
+                const realMarginPerServiceWithSuper = data.serviceCount > 0 ? realMarginWithSuper / data.serviceCount : 0;
 
                 return {
                     ...data,
@@ -292,16 +305,23 @@ export default function RentabilityAnalysisTab({
                     margin,
                     profitPercentage: data.totalIncome > 0 ? (margin / data.totalIncome) * 100 : 0,
                     distributedFixedCost,
+                    distributedSuper,
                     realMargin,
+                    realMarginWithSuper,
                     realMarginPerMonth,
+                    realMarginPerMonthWithSuper,
                     realMarginPerService,
+                    realMarginPerServiceWithSuper,
                     realProfitPercentage,
+                    realProfitPercentageWithSuper,
                     incomePerHour,
                     laborCostPerHour,
                     marginPerHour,
                     fixedCostPerHour,
+                    superCostPerHour: superPerHour,
                     realMarginPerHour,
-                    totalCostPerHour
+                    totalCostPerHour,
+                    totalCostPerHourWithSuper: totalCostPerHour + superPerHour,
                 };
             }).filter(data => {
                 const client = clientMap.get(data.clientId);
@@ -603,6 +623,22 @@ export default function RentabilityAnalysisTab({
         setSelectedClientForHistory({ ...clientData, fullClient: client });
         setHistoryModalOpen(true);
     };
+
+    const handleToggleSuper = (val) => {
+        setIncludeSuper(val);
+        try { localStorage.setItem('rentabilidad_includeSuper', val ? 'true' : 'false'); } catch {}
+    };
+
+    // Calcular super total del período basado en TODAS las WorkEntries
+    const periodSuperData = useMemo(() => {
+        if (!selectedPeriod) return { totalSuper: 0, superPerHour: 0 };
+        const periodEntries = allWorkEntries.filter(e => isDateInRange(e.work_date, selectedPeriod.start, selectedPeriod.end));
+        const totalBase = periodEntries.reduce((s, e) => s + (e.total_amount || (e.hours * e.hourly_rate) || 0), 0);
+        const totalHours = periodEntries.reduce((s, e) => s + (e.hours || 0), 0);
+        const totalSuper = totalBase * 0.12;
+        const superPerHour = totalHours > 0 ? totalSuper / totalHours : 0;
+        return { totalSuper, superPerHour, totalBase };
+    }, [selectedPeriod, allWorkEntries]);
 
     const toggleClientExpand = (clientId) => {
         setExpandedClients(prev => {
@@ -998,16 +1034,34 @@ export default function RentabilityAnalysisTab({
                     <Card className="shadow-md border border-slate-200/60 bg-white/80 backdrop-blur-sm">
                         <CardContent className="p-6 space-y-4">
                             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
-                                <div className="flex items-center gap-3">
-                                    <Switch
-                                        id="hide-sent"
-                                        checked={hideSentClients}
-                                        onCheckedChange={setHideSentClients}
-                                    />
-                                    <Label htmlFor="hide-sent" className="text-sm font-semibold text-slate-700 cursor-pointer flex items-center gap-2">
-                                        {hideSentClients ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        Ocultar clientes con aumento enviado
-                                    </Label>
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <Switch
+                                            id="hide-sent"
+                                            checked={hideSentClients}
+                                            onCheckedChange={setHideSentClients}
+                                        />
+                                        <Label htmlFor="hide-sent" className="text-sm font-semibold text-slate-700 cursor-pointer flex items-center gap-2">
+                                            {hideSentClients ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            Ocultar clientes con aumento enviado
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-center gap-3 border-l border-slate-200 pl-4">
+                                        <Switch
+                                            id="include-super"
+                                            checked={includeSuper}
+                                            onCheckedChange={handleToggleSuper}
+                                        />
+                                        <Label htmlFor="include-super" className={`text-sm font-semibold cursor-pointer flex items-center gap-2 ${includeSuper ? 'text-orange-700' : 'text-slate-500'}`}>
+                                            <TrendingUp className="w-4 h-4" />
+                                            Incluir Superannuation (12%)
+                                            {includeSuper && periodSuperData.totalSuper > 0 && (
+                                                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">
+                                                    ${periodSuperData.totalSuper.toFixed(0)} total
+                                                </span>
+                                            )}
+                                        </Label>
+                                    </div>
                                 </div>
                                 {/* FIX #11: contador de clientes visibles */}
                                 <div className="flex items-center gap-3">
@@ -1260,7 +1314,7 @@ export default function RentabilityAnalysisTab({
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <div className="cursor-help">
-                                                                    ${data.totalCostPerHour.toFixed(2)}/h
+                                                                    ${(includeSuper ? data.totalCostPerHourWithSuper : data.totalCostPerHour).toFixed(2)}/h
                                                                 </div>
                                                             </TooltipTrigger>
                                                             <TooltipContent className="bg-slate-900 text-white p-3">
@@ -1268,8 +1322,9 @@ export default function RentabilityAnalysisTab({
                                                                     <p className="text-sm font-semibold">Desglose por hora:</p>
                                                                     <p className="text-xs">Mano de obra: ${data.laborCostPerHour.toFixed(2)}/h</p>
                                                                     <p className="text-xs">Gastos fijos: ${data.fixedCostPerHour.toFixed(2)}/h</p>
+                                                                    {includeSuper && <p className="text-xs text-orange-300">Super (12%): ${data.superCostPerHour.toFixed(2)}/h</p>}
                                                                     <p className="text-xs border-t border-slate-600 pt-1 mt-1 font-semibold">
-                                                                        Total: ${data.totalCostPerHour.toFixed(2)}/h
+                                                                        Total: ${(includeSuper ? data.totalCostPerHourWithSuper : data.totalCostPerHour).toFixed(2)}/h
                                                                     </p>
                                                                 </div>
                                                             </TooltipContent>
@@ -1279,22 +1334,35 @@ export default function RentabilityAnalysisTab({
                                                 <TableCell className="text-right font-semibold text-emerald-700">${data.totalIncome.toFixed(2)}</TableCell>
                                                 <TableCell className="text-right font-semibold text-rose-700">${data.totalLaborCost.toFixed(2)}</TableCell>
                                                 <TableCell className={`text-right font-semibold ${data.margin > 0 ? 'text-blue-700' : 'text-orange-700'}`}>${data.margin.toFixed(2)}</TableCell>
-                                                <TableCell className="text-right text-slate-600 font-medium">(${data.distributedFixedCost.toFixed(2)})</TableCell>
-                                                <TableCell className={`text-right font-bold text-lg ${data.realMargin > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${data.realMargin.toFixed(2)}</TableCell>
-                                                {filterMode === 'range' && (
-                                                    <TableCell className={`text-right font-bold bg-purple-50 ${data.realMarginPerMonth > 0 ? 'text-purple-700' : 'text-rose-700'}`}>
-                                                        ${data.realMarginPerMonth.toFixed(2)}
-                                                    </TableCell>
-                                                )}
-                                                <TableCell className={`text-right font-bold bg-blue-50 ${data.realMarginPerService > 0 ? 'text-blue-700' : 'text-rose-700'}`}>
-                                                    ${data.realMarginPerService.toFixed(2)}
+                                                <TableCell className="text-right text-slate-600 font-medium">
+                                                    {includeSuper
+                                                        ? <span>(${data.distributedFixedCost.toFixed(2)}) <span className="text-orange-500 text-xs">+${data.distributedSuper.toFixed(2)}S</span></span>
+                                                        : `($${data.distributedFixedCost.toFixed(2)})`
+                                                    }
                                                 </TableCell>
-                                                <TableCell className={`text-right font-bold ${data.realProfitPercentage > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        {data.realProfitPercentage > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                                                        <span className="text-base">{data.realProfitPercentage.toFixed(1)}%</span>
-                                                    </div>
-                                                </TableCell>
+                                                {(() => {
+                                                    const rm = includeSuper ? data.realMarginWithSuper : data.realMargin;
+                                                    const rmpm = includeSuper ? data.realMarginPerMonthWithSuper : data.realMarginPerMonth;
+                                                    const rmps = includeSuper ? data.realMarginPerServiceWithSuper : data.realMarginPerService;
+                                                    const rpp = includeSuper ? data.realProfitPercentageWithSuper : data.realProfitPercentage;
+                                                    return (<>
+                                                        <TableCell className={`text-right font-bold text-lg ${rm > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>${rm.toFixed(2)}</TableCell>
+                                                        {filterMode === 'range' && (
+                                                            <TableCell className={`text-right font-bold bg-purple-50 ${rmpm > 0 ? 'text-purple-700' : 'text-rose-700'}`}>
+                                                                ${rmpm.toFixed(2)}
+                                                            </TableCell>
+                                                        )}
+                                                        <TableCell className={`text-right font-bold bg-blue-50 ${rmps > 0 ? 'text-blue-700' : 'text-rose-700'}`}>
+                                                            ${rmps.toFixed(2)}
+                                                        </TableCell>
+                                                        <TableCell className={`text-right font-bold ${rpp > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                {rpp > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                                                                <span className="text-base">{rpp.toFixed(1)}%</span>
+                                                            </div>
+                                                        </TableCell>
+                                                    </>);
+                                                })()}
                                                 <TableCell className="text-center bg-yellow-50">
                                                     <div className="flex items-center justify-center gap-2">
                                                         {sendStatus.sent && !sendStatus.expired ? (
@@ -1534,22 +1602,37 @@ export default function RentabilityAnalysisTab({
                                     <TableCell className="text-right text-xl text-emerald-800">${profitabilityData.summary.totalIncome.toFixed(2)}</TableCell>
                                     <TableCell className="text-right text-xl text-rose-800">${profitabilityData.summary.totalLaborCost.toFixed(2)}</TableCell>
                                     <TableCell className={`text-right text-xl ${profitabilityData.summary.totalMargin > 0 ? 'text-blue-800' : 'text-orange-800'}`}>${profitabilityData.summary.totalMargin.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right text-xl text-slate-700">(${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts).toFixed(2)})</TableCell>
-                                    <TableCell className={`text-right text-xl ${profitabilityData.summary.totalRealMargin > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${profitabilityData.summary.totalRealMargin.toFixed(2)}</TableCell>
-                                    {filterMode === 'range' && (
-                                        <TableCell className={`text-right text-xl bg-purple-50 ${profitabilityData.summary.totalRealMarginPerMonth > 0 ? 'text-purple-800' : 'text-rose-800'}`}>
-                                            ${profitabilityData.summary.totalRealMarginPerMonth.toFixed(2)}
-                                        </TableCell>
-                                    )}
-                                    <TableCell className={`text-right text-xl bg-blue-50 ${profitabilityData.summary.totalRealMarginPerService > 0 ? 'text-blue-800' : 'text-rose-800'}`}>
-                                        ${profitabilityData.summary.totalRealMarginPerService.toFixed(2)}
+                                    <TableCell className="text-right text-xl text-slate-700">
+                                        {includeSuper
+                                            ? <span>(${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts).toFixed(2)}) <span className="text-orange-500 text-sm">+${periodSuperData.totalSuper.toFixed(0)}S</span></span>
+                                            : `($${(parseFloat(fixedCostInput || 0) + monthlyTrainingCost.amount + monthlyOperationalCosts).toFixed(2)})`
+                                        }
                                     </TableCell>
-                                    <TableCell className={`text-right text-xl ${profitabilityData.summary.totalRealProfitPercentage > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
-                                        <div className="flex items-center justify-end gap-2">
-                                            {profitabilityData.summary.totalRealProfitPercentage > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                                            {profitabilityData.summary.totalRealProfitPercentage.toFixed(1)}%
-                                        </div>
-                                    </TableCell>
+                                    {(() => {
+                                        const totalSuper = includeSuper ? periodSuperData.totalSuper : 0;
+                                        const trm = profitabilityData.summary.totalRealMargin - totalSuper;
+                                        const trmpm = filterMode === 'range' ? trm / monthsInRange : trm;
+                                        const totalServices = profitabilityData.clientAnalysis.reduce((s, c) => s + (c.serviceCount || 0), 0);
+                                        const trmps = totalServices > 0 ? trm / totalServices : 0;
+                                        const trpp = profitabilityData.summary.totalIncome > 0 ? (trm / profitabilityData.summary.totalIncome) * 100 : 0;
+                                        return (<>
+                                            <TableCell className={`text-right text-xl ${trm > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>${trm.toFixed(2)}</TableCell>
+                                            {filterMode === 'range' && (
+                                                <TableCell className={`text-right text-xl bg-purple-50 ${trmpm > 0 ? 'text-purple-800' : 'text-rose-800'}`}>
+                                                    ${trmpm.toFixed(2)}
+                                                </TableCell>
+                                            )}
+                                            <TableCell className={`text-right text-xl bg-blue-50 ${trmps > 0 ? 'text-blue-800' : 'text-rose-800'}`}>
+                                                ${trmps.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className={`text-right text-xl ${trpp > 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {trpp > 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                                                    {trpp.toFixed(1)}%
+                                                </div>
+                                            </TableCell>
+                                        </>);
+                                    })()}
                                     <TableCell className="text-center bg-yellow-50"></TableCell>
                                 </TableRow>
                             </tfoot>
