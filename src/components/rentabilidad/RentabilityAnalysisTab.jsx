@@ -445,9 +445,9 @@ export default function RentabilityAnalysisTab({
             return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
         });
         
-        // CRÍTICO: Recalcular cash vs non-cash basado en snapshots reales de cada servicio
-        // IMPORTANTE: El summary incluye TODOS los clientes (activos e inactivos) para cálculos precisos
-        const summary = monthlyProcessedClientAnalysis.reduce((acc, client) => {
+        // CRÍTICO: El summary debe usar SOLO los clientes filtrados (activos) para que
+        // los totales del cuadro resumen y el footer de la tabla sean consistentes.
+        const summary = filteredClientAnalysis.reduce((acc, client) => {
             acc.totalIncome += client.totalIncome;
             acc.totalLaborCost += client.totalLaborCost;
             acc.totalMargin += client.margin;
