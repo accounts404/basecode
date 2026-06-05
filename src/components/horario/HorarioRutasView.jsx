@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { format, isSameDay } from 'date-fns';
+import React, { useState, useEffect, useRef } from 'react';
+import { format, isSameDay, addDays, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,34 +8,24 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { calculateRoutes } from '@/functions/calculateRoutes';
 import {
     MapPin, Car, Clock, Route, RefreshCw, Navigation,
-    Building2, Home, AlertCircle, ChevronDown, ChevronUp, Users
+    Building2, AlertCircle, ChevronDown, ChevronUp, Users,
+    ChevronLeft, ChevronRight, CalendarDays
 } from 'lucide-react';
 
 const OFFICE_ADDRESS = '167 Millers Rd, Altona North VIC 3025';
-const OFFICE_LABEL = '🏢 Oficina (167 Millers Rd, Altona North)';
+const OFFICE_LABEL = '🏢 Oficina — 167 Millers Rd, Altona North';
 
-// Parse ISO without timezone shift
 const parseISOLocal = (iso) => {
     if (!iso) return null;
     const clean = iso.endsWith('Z') ? iso.slice(0, -1) : iso;
     return new Date(clean);
 };
 
-const formatDuration = (seconds) => {
-    if (!seconds) return '—';
-    const mins = Math.round(seconds / 60);
-    if (mins < 60) return `${mins} min`;
-    return `${Math.floor(mins / 60)}h ${mins % 60}min`;
-};
-
-function TravelSegment({ from, to, segment, index, isLast }) {
+function TravelSegment({ from, segment, index, isLast }) {
     return (
         <div className="flex flex-col items-stretch">
-            {/* Stop point */}
             <div className={`flex items-start gap-3 px-4 py-3 rounded-xl ${
-                index === 0 || isLast
-                    ? 'bg-slate-100 border border-slate-200'
-                    : 'bg-white border border-slate-200'
+                index === 0 || isLast ? 'bg-slate-100 border border-slate-200' : 'bg-white border border-slate-200'
             }`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
                     index === 0 || isLast ? 'bg-slate-700' : 'bg-blue-600'
@@ -47,7 +36,7 @@ function TravelSegment({ from, to, segment, index, isLast }) {
                     }
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-slate-900 text-sm truncate">{from.label}</p>
+                    <p className="font-semibold text-slate-900 text-sm">{from.label}</p>
                     {from.address && from.address !== OFFICE_ADDRESS && (
                         <p className="text-xs text-slate-500 truncate">{from.address}</p>
                     )}
@@ -60,8 +49,7 @@ function TravelSegment({ from, to, segment, index, isLast }) {
                 </div>
             </div>
 
-            {/* Travel arrow */}
-            {segment && (
+            {!isLast && segment && (
                 <div className="flex items-center gap-2 py-1.5 pl-8">
                     <div className="flex flex-col items-center">
                         <div className="w-0.5 h-3 bg-slate-300" />
@@ -75,12 +63,12 @@ function TravelSegment({ from, to, segment, index, isLast }) {
                     }`}>
                         <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {segment.duration_text || formatDuration(segment.duration_seconds)}
+                            {segment.duration_text || '—'}
                         </span>
                         <span className="text-amber-400">·</span>
                         <span className="flex items-center gap-1">
                             <Route className="w-3 h-3" />
-                            {segment.distance_text}
+                            {segment.distance_text || '—'}
                         </span>
                     </div>
                 </div>
@@ -94,38 +82,40 @@ function TeamRouteCard({ team, schedules, users, date }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [expanded, setExpanded] = useState(true);
+    // Use a ref to track which schedule-set we already fetched, to avoid infinite loops
+    const fetchedKeyRef = useRef(null);
 
-    // Get schedules for this team on this date, sorted by start time
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
     const teamSchedules = schedules
         .filter(s => {
             if (!s.start_time) return false;
-            const sDate = parseISOLocal(s.start_time);
-            if (!isSameDay(sDate, date)) return false;
+            if (s.start_time.slice(0, 10) !== dateStr) return false;
             if (s.status === 'cancelled') return false;
-            // Check if any team member is assigned
             return s.cleaner_ids?.some(id => team.team_member_ids?.includes(id));
         })
         .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 
-    const teamMemberNames = team.team_member_ids
-        ?.map(id => users.find(u => u.id === id)?.full_name)
-        .filter(Boolean) || [];
+    const teamMemberNames = (team.team_member_ids || [])
+        .map(id => users.find(u => u.id === id)?.full_name)
+        .filter(Boolean);
 
-    const calculateRoute = useCallback(async () => {
-        if (teamSchedules.length === 0) return;
+    // Build a stable key from schedule ids + date
+    const scheduleKey = dateStr + ':' + teamSchedules.map(s => s.id).join(',');
+
+    const doFetch = async () => {
+        if (teamSchedules.length === 0) {
+            setRouteData(null);
+            return;
+        }
+        const addresses = teamSchedules.map(s => s.client_address).filter(Boolean);
+        if (addresses.length === 0) {
+            setError('No hay direcciones de clientes para calcular la ruta.');
+            return;
+        }
         setLoading(true);
         setError('');
         try {
-            const addresses = teamSchedules
-                .map(s => s.client_address)
-                .filter(Boolean);
-
-            if (addresses.length === 0) {
-                setError('No hay direcciones disponibles para calcular la ruta.');
-                setLoading(false);
-                return;
-            }
-
             const res = await calculateRoutes({ addresses });
             if (res.data?.success) {
                 setRouteData(res.data);
@@ -136,13 +126,17 @@ function TeamRouteCard({ team, schedules, users, date }) {
             setError(err.message || 'Error al calcular la ruta');
         }
         setLoading(false);
-    }, [teamSchedules]);
+    };
 
+    // Only fetch when the scheduleKey actually changes (prevents infinite loop)
     useEffect(() => {
-        calculateRoute();
-    }, [calculateRoute]);
+        if (fetchedKeyRef.current === scheduleKey) return;
+        fetchedKeyRef.current = scheduleKey;
+        setRouteData(null);
+        doFetch();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scheduleKey]);
 
-    // Build stop list for display
     const stops = [
         { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null },
         ...teamSchedules.map(s => ({
@@ -151,7 +145,6 @@ function TeamRouteCard({ team, schedules, users, date }) {
             timeRange: s.start_time
                 ? `${format(parseISOLocal(s.start_time), 'HH:mm')} – ${format(parseISOLocal(s.end_time), 'HH:mm')}`
                 : null,
-            scheduleId: s.id
         })),
         { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null }
     ];
@@ -169,14 +162,12 @@ function TeamRouteCard({ team, schedules, users, date }) {
                         </div>
                         <div>
                             <CardTitle className="text-white text-base">
-                                {team.team_name || `Equipo ${team.main_driver_id?.slice(-4)}`}
+                                {team.team_name || `Equipo — ${teamMemberNames[0] || team.id?.slice(-4)}`}
                             </CardTitle>
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center gap-1.5 mt-0.5">
                                 <Users className="w-3 h-3 text-slate-300" />
                                 <p className="text-slate-300 text-xs">
-                                    {teamMemberNames.length > 0
-                                        ? teamMemberNames.join(' · ')
-                                        : 'Sin miembros asignados'}
+                                    {teamMemberNames.length > 0 ? teamMemberNames.join(' · ') : 'Sin miembros'}
                                 </p>
                             </div>
                         </div>
@@ -199,10 +190,7 @@ function TeamRouteCard({ team, schedules, users, date }) {
                                 </p>
                             </div>
                         )}
-                        {expanded
-                            ? <ChevronUp className="w-4 h-4 text-slate-300" />
-                            : <ChevronDown className="w-4 h-4 text-slate-300" />
-                        }
+                        {expanded ? <ChevronUp className="w-4 h-4 text-slate-300" /> : <ChevronDown className="w-4 h-4 text-slate-300" />}
                     </div>
                 </div>
             </CardHeader>
@@ -212,7 +200,7 @@ function TeamRouteCard({ team, schedules, users, date }) {
                     {teamSchedules.length === 0 ? (
                         <div className="text-center py-8 text-slate-400">
                             <MapPin className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                            <p className="text-sm">No hay servicios para este equipo en la fecha seleccionada</p>
+                            <p className="text-sm">Sin servicios para este equipo en este día</p>
                         </div>
                     ) : (
                         <>
@@ -222,7 +210,6 @@ function TeamRouteCard({ team, schedules, users, date }) {
                                     <AlertDescription className="text-red-700 text-sm">{error}</AlertDescription>
                                 </Alert>
                             )}
-
                             {loading ? (
                                 <div className="flex items-center justify-center py-10 gap-3 text-slate-500">
                                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
@@ -230,28 +217,22 @@ function TeamRouteCard({ team, schedules, users, date }) {
                                 </div>
                             ) : (
                                 <div className="space-y-0">
-                                    {stops.map((stop, idx) => {
-                                        const isLast = idx === stops.length - 1;
-                                        const segment = routeData?.segments?.[idx] || null;
-                                        return (
-                                            <TravelSegment
-                                                key={idx}
-                                                from={stop}
-                                                to={stops[idx + 1]}
-                                                segment={!isLast ? segment : null}
-                                                index={idx}
-                                                isLast={isLast}
-                                            />
-                                        );
-                                    })}
+                                    {stops.map((stop, idx) => (
+                                        <TravelSegment
+                                            key={idx}
+                                            from={stop}
+                                            segment={routeData?.segments?.[idx] || null}
+                                            index={idx}
+                                            isLast={idx === stops.length - 1}
+                                        />
+                                    ))}
                                 </div>
                             )}
-
                             <div className="mt-4 flex justify-end">
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={calculateRoute}
+                                    onClick={() => { fetchedKeyRef.current = null; doFetch(); }}
                                     disabled={loading}
                                     className="text-xs gap-1.5"
                                 >
@@ -267,38 +248,68 @@ function TeamRouteCard({ team, schedules, users, date }) {
     );
 }
 
-export default function HorarioRutasView({ schedules, date, users, dailyTeamAssignments }) {
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+export default function HorarioRutasView({ schedules, users, dailyTeamAssignments }) {
+    const [selectedDate, setSelectedDate] = useState(new Date());
+
+    const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
 
     const teamsForDay = (dailyTeamAssignments || []).filter(a => {
         if (!a.date) return false;
         return a.date.slice(0, 10) === dateStr;
     });
 
-    // Also find schedules without a team assignment (assigned directly)
-    const assignedCleanerIds = new Set(teamsForDay.flatMap(t => t.team_member_ids || []));
-    const schedulesForDay = schedules.filter(s => {
-        if (!s.start_time) return false;
-        const sDate = parseISOLocal(s.start_time);
-        return isSameDay(sDate, date) && s.status !== 'cancelled';
-    });
+    const schedulesForDay = (schedules || []).filter(s =>
+        s.start_time?.slice(0, 10) === dateStr && s.status !== 'cancelled'
+    );
+
+    const isToday = isSameDay(selectedDate, new Date());
 
     return (
         <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+            {/* Header with date navigation */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                         <Route className="w-5 h-5 text-blue-600" />
                         Rutas del Día
                     </h2>
-                    <p className="text-sm text-slate-500 mt-0.5 capitalize">
-                        {format(date, "EEEE, d 'de' MMMM yyyy", { locale: es })}
+                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5" />
+                        Salida desde: 167 Millers Rd, Altona North
                     </p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-lg text-sm text-slate-600">
-                    <Building2 className="w-4 h-4 text-slate-500" />
-                    <span className="font-medium">Salida: 167 Millers Rd, Altona North</span>
+
+                {/* Date navigation */}
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedDate(d => subDays(d, 1))} className="h-8 w-8 p-0">
+                        <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg min-w-[160px] justify-center">
+                        <CalendarDays className="w-4 h-4 text-blue-600" />
+                        <span className="font-semibold text-slate-800 text-sm capitalize">
+                            {format(selectedDate, "EEE d MMM yyyy", { locale: es })}
+                        </span>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setSelectedDate(d => addDays(d, 1))} className="h-8 w-8 p-0">
+                        <ChevronRight className="w-4 h-4" />
+                    </Button>
+                    {!isToday && (
+                        <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date())} className="h-8 px-3 text-xs">
+                            Hoy
+                        </Button>
+                    )}
+                </div>
+            </div>
+
+            {/* Stats */}
+            <div className="flex gap-3 flex-wrap">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 font-medium">
+                    <Car className="w-3.5 h-3.5" />
+                    {teamsForDay.length} equipo{teamsForDay.length !== 1 ? 's' : ''}
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700 font-medium">
+                    <MapPin className="w-3.5 h-3.5" />
+                    {schedulesForDay.length} servicio{schedulesForDay.length !== 1 ? 's' : ''}
                 </div>
             </div>
 
@@ -318,19 +329,10 @@ export default function HorarioRutasView({ schedules, date, users, dailyTeamAssi
                             team={team}
                             schedules={schedules}
                             users={users}
-                            date={date}
+                            date={selectedDate}
                         />
                     ))}
                 </div>
-            )}
-
-            {teamsForDay.length > 0 && schedulesForDay.length === 0 && (
-                <Alert className="border-amber-200 bg-amber-50">
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
-                    <AlertDescription className="text-amber-700">
-                        Hay equipos asignados pero no hay servicios agendados para este día.
-                    </AlertDescription>
-                </Alert>
             )}
         </div>
     );
