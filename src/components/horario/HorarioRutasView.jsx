@@ -77,17 +77,11 @@ function TravelSegment({ from, segment, index, isLast }) {
     );
 }
 
-function TeamRouteCard({ team, schedules, users, date }) {
-    const [routeData, setRouteData] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+function TeamRouteCard({ team, teamRouteData, loading, users, schedules, date }) {
     const [expanded, setExpanded] = useState(true);
-    // Use a ref to track which schedule-set we already fetched, to avoid infinite loops
-    const fetchedKeyRef = useRef(null);
-
     const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-    const teamSchedules = schedules
+    const teamSchedules = (schedules || [])
         .filter(s => {
             if (!s.start_time) return false;
             if (s.start_time.slice(0, 10) !== dateStr) return false;
@@ -100,43 +94,7 @@ function TeamRouteCard({ team, schedules, users, date }) {
         .map(id => users.find(u => u.id === id)?.full_name)
         .filter(Boolean);
 
-    // Build a stable key from schedule ids + date
-    const scheduleKey = dateStr + ':' + teamSchedules.map(s => s.id).join(',');
-
-    const doFetch = async () => {
-        if (teamSchedules.length === 0) {
-            setRouteData(null);
-            return;
-        }
-        const addresses = teamSchedules.map(s => s.client_address).filter(Boolean);
-        if (addresses.length === 0) {
-            setError('No hay direcciones de clientes para calcular la ruta.');
-            return;
-        }
-        setLoading(true);
-        setError('');
-        try {
-            const res = await calculateRoutes({ addresses });
-            if (res.data?.success) {
-                setRouteData(res.data);
-            } else {
-                setError(res.data?.error || 'Error al calcular la ruta');
-            }
-        } catch (err) {
-            setError(err.message || 'Error al calcular la ruta');
-        }
-        setLoading(false);
-    };
-
-    // Only fetch when the scheduleKey actually changes (prevents infinite loop)
-    useEffect(() => {
-        if (fetchedKeyRef.current === scheduleKey) return;
-        fetchedKeyRef.current = scheduleKey;
-        setRouteData(null);
-        doFetch();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [scheduleKey]);
-
+    const routeData = teamRouteData;
     const stops = [
         { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null },
         ...teamSchedules.map(s => ({
@@ -173,7 +131,7 @@ function TeamRouteCard({ team, schedules, users, date }) {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        {routeData && (
+                        {routeData && !routeData.error && (
                             <div className="text-right">
                                 <div className="flex items-center gap-3 text-sm">
                                     <span className="flex items-center gap-1 text-amber-300 font-semibold">
@@ -190,6 +148,7 @@ function TeamRouteCard({ team, schedules, users, date }) {
                                 </p>
                             </div>
                         )}
+                        {loading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />}
                         {expanded ? <ChevronUp className="w-4 h-4 text-slate-300" /> : <ChevronDown className="w-4 h-4 text-slate-300" />}
                     </div>
                 </div>
@@ -204,10 +163,10 @@ function TeamRouteCard({ team, schedules, users, date }) {
                         </div>
                     ) : (
                         <>
-                            {error && (
+                            {routeData?.error && (
                                 <Alert className="mb-4 border-red-200 bg-red-50">
                                     <AlertCircle className="w-4 h-4 text-red-600" />
-                                    <AlertDescription className="text-red-700 text-sm">{error}</AlertDescription>
+                                    <AlertDescription className="text-red-700 text-sm">{routeData.error}</AlertDescription>
                                 </Alert>
                             )}
                             {loading ? (
@@ -228,18 +187,6 @@ function TeamRouteCard({ team, schedules, users, date }) {
                                     ))}
                                 </div>
                             )}
-                            <div className="mt-4 flex justify-end">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => { fetchedKeyRef.current = null; doFetch(); }}
-                                    disabled={loading}
-                                    className="text-xs gap-1.5"
-                                >
-                                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                                    Recalcular
-                                </Button>
-                            </div>
                         </>
                     )}
                 </CardContent>
@@ -250,23 +197,70 @@ function TeamRouteCard({ team, schedules, users, date }) {
 
 export default function HorarioRutasView({ schedules, users, dailyTeamAssignments }) {
     const [selectedDate, setSelectedDate] = useState(new Date());
+    const [routesData, setRoutesData] = useState({});
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const fetchedKeyRef = useRef(null);
 
     const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
 
-    const teamsForDay = (dailyTeamAssignments || []).filter(a => {
-        if (!a.date) return false;
-        return a.date.slice(0, 10) === dateStr;
-    });
+    const teamsForDay = (dailyTeamAssignments || []).filter(a => a.date?.slice(0, 10) === dateStr);
 
     const schedulesForDay = (schedules || []).filter(s =>
         s.start_time?.slice(0, 10) === dateStr && s.status !== 'cancelled'
     );
 
+    const fetchAllRoutes = async () => {
+        if (teamsForDay.length === 0) return;
+
+        // Build teams payload: one entry per team
+        const teamsPayload = teamsForDay.map(team => {
+            const teamSchedules = (schedules || [])
+                .filter(s => {
+                    if (!s.start_time || s.start_time.slice(0, 10) !== dateStr) return false;
+                    if (s.status === 'cancelled') return false;
+                    return s.cleaner_ids?.some(id => team.team_member_ids?.includes(id));
+                })
+                .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+            return {
+                teamId: team.id,
+                addresses: teamSchedules.map(s => s.client_address).filter(Boolean)
+            };
+        }).filter(t => t.addresses.length > 0);
+
+        if (teamsPayload.length === 0) return;
+
+        setLoading(true);
+        setError('');
+        try {
+            const res = await calculateRoutes({ teams: teamsPayload });
+            if (res.data?.success) {
+                setRoutesData(res.data.teams || {});
+            } else {
+                setError(res.data?.error || 'Error al calcular rutas');
+            }
+        } catch (err) {
+            setError(err.message || 'Error al calcular rutas');
+        }
+        setLoading(false);
+    };
+
+    // Build a cache key from team ids + schedule ids for this day
+    const cacheKey = dateStr + ':' + teamsForDay.map(t => t.id).join(',') + ':' + schedulesForDay.map(s => s.id).sort().join(',');
+
+    useEffect(() => {
+        if (fetchedKeyRef.current === cacheKey) return;
+        fetchedKeyRef.current = cacheKey;
+        setRoutesData({});
+        fetchAllRoutes();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cacheKey]);
+
     const isToday = isSameDay(selectedDate, new Date());
 
     return (
         <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto">
-            {/* Header with date navigation */}
+            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -284,8 +278,8 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
                     <Button variant="outline" size="sm" onClick={() => setSelectedDate(d => subDays(d, 1))} className="h-8 w-8 p-0">
                         <ChevronLeft className="w-4 h-4" />
                     </Button>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg min-w-[160px] justify-center">
-                        <CalendarDays className="w-4 h-4 text-blue-600" />
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg min-w-[170px] justify-center">
+                        <CalendarDays className="w-4 h-4 text-blue-600 flex-shrink-0" />
                         <span className="font-semibold text-slate-800 text-sm capitalize">
                             {format(selectedDate, "EEE d MMM yyyy", { locale: es })}
                         </span>
@@ -298,6 +292,16 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
                             Hoy
                         </Button>
                     )}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { fetchedKeyRef.current = null; fetchAllRoutes(); }}
+                        disabled={loading}
+                        className="h-8 w-8 p-0"
+                        title="Recalcular rutas"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    </Button>
                 </div>
             </div>
 
@@ -313,6 +317,13 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
                 </div>
             </div>
 
+            {error && (
+                <Alert className="border-red-200 bg-red-50">
+                    <AlertCircle className="w-4 h-4 text-red-600" />
+                    <AlertDescription className="text-red-700 text-sm">{error}</AlertDescription>
+                </Alert>
+            )}
+
             {teamsForDay.length === 0 ? (
                 <Card className="border border-slate-200">
                     <CardContent className="py-16 text-center text-slate-400">
@@ -327,8 +338,10 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
                         <TeamRouteCard
                             key={team.id}
                             team={team}
-                            schedules={schedules}
+                            teamRouteData={routesData[team.id] || null}
+                            loading={loading}
                             users={users}
+                            schedules={schedules}
                             date={selectedDate}
                         />
                     ))}
