@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { format, isSameDay, addDays, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -204,11 +204,51 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
 
     const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
 
-    const teamsForDay = (dailyTeamAssignments || []).filter(a => a.date?.slice(0, 10) === dateStr);
-
     const schedulesForDay = (schedules || []).filter(s =>
         s.start_time?.slice(0, 10) === dateStr && s.status !== 'cancelled'
     );
+
+    // Build teams: first from DailyTeamAssignment, then group remaining services by cleaner combo
+    const teamsForDay = React.useMemo(() => {
+        const assignments = (dailyTeamAssignments || []).filter(a => a.date?.slice(0, 10) === dateStr);
+        const dynamicTeams = assignments.map(a => ({
+            id: a.id,
+            team_name: a.team_name || `Equipo — ${a.vehicle_info || a.driver_name || a.id?.slice(-4)}`,
+            team_member_ids: a.team_member_ids || [],
+            vehicle_info: a.vehicle_info || null,
+        }));
+
+        // Find services not matched to any assignment → group by cleaner combo
+        schedulesForDay.forEach(s => {
+            const cleanerIds = s.cleaner_ids || [];
+            if (cleanerIds.length === 0) return;
+            const alreadyInTeam = dynamicTeams.some(t =>
+                cleanerIds.some(id => t.team_member_ids.includes(id))
+            );
+            if (alreadyInTeam) return;
+
+            const teamKey = `dynamic_${[...cleanerIds].sort().join('_')}`;
+            const existing = dynamicTeams.find(t => t.id === teamKey);
+            if (!existing) {
+                const names = cleanerIds
+                    .map(id => (users || []).find(u => u.id === id)?.full_name)
+                    .filter(Boolean);
+                dynamicTeams.push({
+                    id: teamKey,
+                    team_name: names.length > 0 ? `Equipo: ${names.join(' + ')}` : 'Equipo Sin Nombre',
+                    team_member_ids: cleanerIds,
+                    vehicle_info: null,
+                });
+            }
+        });
+
+        // Only return teams that have at least one service
+        return dynamicTeams.filter(team =>
+            schedulesForDay.some(s =>
+                (s.cleaner_ids || []).some(id => team.team_member_ids.includes(id))
+            )
+        );
+    }, [dailyTeamAssignments, schedulesForDay, dateStr, users]);
 
     const fetchAllRoutes = async () => {
         if (teamsForDay.length === 0) return;
@@ -328,8 +368,8 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
                 <Card className="border border-slate-200">
                     <CardContent className="py-16 text-center text-slate-400">
                         <Car className="w-14 h-14 mx-auto mb-3 opacity-25" />
-                        <p className="font-semibold text-slate-600">No hay equipos asignados para este día</p>
-                        <p className="text-sm mt-1">Asigná equipos en la pestaña "Equipos" para ver las rutas</p>
+                        <p className="font-semibold text-slate-600">No hay servicios programados para este día</p>
+                        <p className="text-sm mt-1">No se encontraron servicios agendados en el horario</p>
                     </CardContent>
                 </Card>
             ) : (
