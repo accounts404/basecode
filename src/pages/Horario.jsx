@@ -67,6 +67,7 @@ import HorarioCalendario from "../components/horario/HorarioCalendario";
 // Lazy load de componentes pesados
 const HorarioEquiposView = lazy(() => import("../components/horario/HorarioEquiposView"));
 const HorarioColorView = lazy(() => import("../components/horario/HorarioColorView"));
+const HorarioRutasView = lazy(() => import("../components/horario/HorarioRutasView"));
 const CrearServicioForm = lazy(() => import("../components/horario/CrearServicioForm"));
 const CreateTaskForm = lazy(() => import("../components/tasks/CreateTaskForm"));
 const TaskList = lazy(() => import("../components/tasks/TaskList"));
@@ -1416,7 +1417,7 @@ export default function HorarioPage() {
 
                             {/* View toggle group */}
                             <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
-                                {[['day','Día'],['week','Semana'],['month','Mes'],['teams','Equipos'],['color','Colores']].map(([v, label]) => (
+                                {[['day','Día'],['week','Semana'],['month','Mes'],['teams','Equipos'],['color','Colores'],['routes','Rutas']].map(([v, label]) => (
                                     <button
                                         key={v}
                                         onClick={() => setView(v)}
@@ -1598,6 +1599,13 @@ export default function HorarioPage() {
                                     date={date}
                                     users={users}
                                     onSelectEvent={handleSelectEvent}
+                                />
+                            ) : view === 'routes' ? (
+                                <HorarioRutasView
+                                    schedules={filteredSchedules}
+                                    date={date}
+                                    users={users}
+                                    dailyTeamAssignments={dailyTeamAssignments}
                                 />
                             ) : (
                                 <HorarioCalendario
