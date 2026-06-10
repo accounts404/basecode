@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { format, isSameDay, addDays, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,16 +12,15 @@ import {
     ChevronLeft, ChevronRight, CalendarDays
 } from 'lucide-react';
 
-const OFFICE_ADDRESS = '167 Millers Rd, Altona North VIC 3025';
-const OFFICE_LABEL = '🏢 Oficina — 167 Millers Rd, Altona North';
-
-const parseISOLocal = (iso) => {
-    if (!iso) return null;
-    const clean = iso.endsWith('Z') ? iso.slice(0, -1) : iso;
-    return new Date(clean);
+// Timestamps stored in DB represent local wall-clock time but are tagged as UTC.
+// Strip the 'Z' so Date parses them as local time — intentional for this app.
+const toLocal = (isoString) => {
+    if (!isoString) return null;
+    const local = isoString.endsWith('Z') ? isoString.slice(0, -1) : isoString;
+    return new Date(local);
 };
 
-function TravelSegment({ from, segment, index, isLast }) {
+function TravelSegment({ from, segment, index, isLast, officeAddress }) {
     return (
         <div className="flex flex-col items-stretch">
             <div className={`flex items-start gap-3 px-4 py-3 rounded-xl ${
@@ -37,7 +36,7 @@ function TravelSegment({ from, segment, index, isLast }) {
                 </div>
                 <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-900 text-sm">{from.label}</p>
-                    {from.address && from.address !== OFFICE_ADDRESS && (
+                    {from.address && from.address !== officeAddress && (
                         <p className="text-xs text-slate-500 truncate">{from.address}</p>
                     )}
                     {from.timeRange && (
@@ -77,34 +76,22 @@ function TravelSegment({ from, segment, index, isLast }) {
     );
 }
 
-function TeamRouteCard({ team, teamRouteData, loading, users, schedules, date }) {
+function TeamRouteCard({ team, teamSchedules, teamRouteData, loading, officeAddress, officeLabel }) {
     const [expanded, setExpanded] = useState(true);
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-    const teamSchedules = (schedules || [])
-        .filter(s => {
-            if (!s.start_time) return false;
-            if (s.start_time.slice(0, 10) !== dateStr) return false;
-            if (s.status === 'cancelled') return false;
-            return s.cleaner_ids?.some(id => team.team_member_ids?.includes(id));
-        })
-        .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-
-    const teamMemberNames = (team.team_member_ids || [])
-        .map(id => users.find(u => u.id === id)?.full_name)
-        .filter(Boolean);
+    const teamMemberNames = team.memberNames || [];
 
     const routeData = teamRouteData;
     const stops = [
-        { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null },
+        { label: officeLabel, address: officeAddress, timeRange: null },
         ...teamSchedules.map(s => ({
             label: s.client_name || 'Cliente',
             address: s.client_address || 'Sin dirección',
             timeRange: s.start_time
-                ? `${format(parseISOLocal(s.start_time), 'HH:mm')} – ${format(parseISOLocal(s.end_time), 'HH:mm')}`
+                ? `${format(toLocal(s.start_time), 'HH:mm')} – ${format(toLocal(s.end_time), 'HH:mm')}`
                 : null,
         })),
-        { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null }
+        { label: officeLabel, address: officeAddress, timeRange: null }
     ];
 
     return (
@@ -183,6 +170,7 @@ function TeamRouteCard({ team, teamRouteData, loading, users, schedules, date })
                                             segment={routeData?.segments?.[idx] || null}
                                             index={idx}
                                             isLast={idx === stops.length - 1}
+                                            officeAddress={officeAddress}
                                         />
                                     ))}
                                 </div>
@@ -195,7 +183,13 @@ function TeamRouteCard({ team, teamRouteData, loading, users, schedules, date })
     );
 }
 
-export default function HorarioRutasView({ schedules, users, dailyTeamAssignments }) {
+export default function HorarioRutasView({
+    schedules,
+    users,
+    dailyTeamAssignments,
+    defaultOfficeAddress = '167 Millers Rd, Altona North VIC 3025',
+    defaultOfficeLabel = '🏢 Oficina — 167 Millers Rd, Altona North',
+}) {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [routesData, setRoutesData] = useState({});
     const [loading, setLoading] = useState(false);
@@ -204,12 +198,15 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
 
     const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
 
-    const schedulesForDay = (schedules || []).filter(s =>
-        s.start_time?.slice(0, 10) === dateStr && s.status !== 'cancelled'
+    const schedulesForDay = useMemo(() =>
+        (schedules || []).filter(s =>
+            s.start_time?.slice(0, 10) === dateStr && s.status !== 'cancelled'
+        ),
+        [schedules, dateStr]
     );
 
-    // Build teams: first from DailyTeamAssignment, then group remaining services by cleaner combo
-    const teamsForDay = React.useMemo(() => {
+    // Build teams with pre-computed schedules and member names
+    const teamsForDay = useMemo(() => {
         const assignments = (dailyTeamAssignments || []).filter(a => a.date?.slice(0, 10) === dateStr);
         const dynamicTeams = assignments.map(a => ({
             id: a.id,
@@ -218,7 +215,6 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
             vehicle_info: a.vehicle_info || null,
         }));
 
-        // Find services not matched to any assignment → group by cleaner combo
         schedulesForDay.forEach(s => {
             const cleanerIds = s.cleaner_ids || [];
             if (cleanerIds.length === 0) return;
@@ -226,10 +222,8 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
                 cleanerIds.some(id => t.team_member_ids.includes(id))
             );
             if (alreadyInTeam) return;
-
             const teamKey = `dynamic_${[...cleanerIds].sort().join('_')}`;
-            const existing = dynamicTeams.find(t => t.id === teamKey);
-            if (!existing) {
+            if (!dynamicTeams.find(t => t.id === teamKey)) {
                 const names = cleanerIds
                     .map(id => (users || []).find(u => u.id === id)?.full_name)
                     .filter(Boolean);
@@ -242,31 +236,29 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
             }
         });
 
-        // Only return teams that have at least one service
-        return dynamicTeams.filter(team =>
-            schedulesForDay.some(s =>
-                (s.cleaner_ids || []).some(id => team.team_member_ids.includes(id))
-            )
-        );
+        // Pre-compute schedules and member names per team
+        return dynamicTeams
+            .map(team => {
+                const teamSchedules = schedulesForDay
+                    .filter(s => (s.cleaner_ids || []).some(id => team.team_member_ids.includes(id)))
+                    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+                const memberNames = team.team_member_ids
+                    .map(id => (users || []).find(u => u.id === id)?.full_name)
+                    .filter(Boolean);
+                return { ...team, teamSchedules, memberNames };
+            })
+            .filter(team => team.teamSchedules.length > 0);
     }, [dailyTeamAssignments, schedulesForDay, dateStr, users]);
 
-    const fetchAllRoutes = async () => {
+    const fetchAllRoutes = useCallback(async () => {
         if (teamsForDay.length === 0) return;
 
-        // Build teams payload: one entry per team
-        const teamsPayload = teamsForDay.map(team => {
-            const teamSchedules = (schedules || [])
-                .filter(s => {
-                    if (!s.start_time || s.start_time.slice(0, 10) !== dateStr) return false;
-                    if (s.status === 'cancelled') return false;
-                    return s.cleaner_ids?.some(id => team.team_member_ids?.includes(id));
-                })
-                .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-            return {
+        const teamsPayload = teamsForDay
+            .map(team => ({
                 teamId: team.id,
-                addresses: teamSchedules.map(s => s.client_address).filter(Boolean)
-            };
-        }).filter(t => t.addresses.length > 0);
+                addresses: team.teamSchedules.map(s => s.client_address).filter(Boolean)
+            }))
+            .filter(t => t.addresses.length > 0);
 
         if (teamsPayload.length === 0) return;
 
@@ -283,9 +275,8 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
             setError(err.message || 'Error al calcular rutas');
         }
         setLoading(false);
-    };
+    }, [teamsForDay]);
 
-    // Build a cache key from team ids + schedule ids for this day
     const cacheKey = dateStr + ':' + teamsForDay.map(t => t.id).join(',') + ':' + schedulesForDay.map(s => s.id).sort().join(',');
 
     useEffect(() => {
@@ -293,8 +284,7 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
         fetchedKeyRef.current = cacheKey;
         setRoutesData({});
         fetchAllRoutes();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cacheKey]);
+    }, [cacheKey, fetchAllRoutes]);
 
     const isToday = isSameDay(selectedDate, new Date());
 
@@ -309,7 +299,7 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                         <Building2 className="w-3.5 h-3.5" />
-                        Salida desde: 167 Millers Rd, Altona North
+                        Salida desde: {defaultOfficeAddress}
                     </p>
                 </div>
 
@@ -378,11 +368,11 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
                         <TeamRouteCard
                             key={team.id}
                             team={team}
+                            teamSchedules={team.teamSchedules}
                             teamRouteData={routesData[team.id] || null}
                             loading={loading}
-                            users={users}
-                            schedules={schedules}
-                            date={selectedDate}
+                            officeAddress={defaultOfficeAddress}
+                            officeLabel={defaultOfficeLabel}
                         />
                     ))}
                 </div>
