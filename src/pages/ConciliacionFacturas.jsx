@@ -1,120 +1,125 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Schedule } from '@/entities/Schedule';
-import { Client } from '@/entities/Client';
-import { DailyReconciliation } from '@/entities/DailyReconciliation';
-import { User } from '@/entities/User';
-import { WorkEntry } from '@/entities/WorkEntry';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { base44 } from '@/api/base44Client';
 import ReconciliationModal from '../components/conciliacion/ReconciliationModal';
 import ClientSummaryReportTab from '../components/conciliacion/ClientSummaryReportTab';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format, startOfDay, endOfDay, isEqual, parseISO, addDays, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format, isSameDay, addDays, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon, Edit, CheckCircle, Clock, DollarSign, FileCheck, Circle, Send, Landmark, Loader2, ChevronLeft, ChevronRight, AlertTriangle, FileSignature, Eye, X, Trash2, AlertCircle, FileText } from 'lucide-react';
+import {
+    CalendarIcon, Edit, CheckCircle, Clock, DollarSign, FileCheck, Circle,
+    Send, Landmark, Loader2, ChevronLeft, ChevronRight, AlertTriangle,
+    FileSignature, Eye, X, Trash2, AlertCircle, FileText
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { processScheduleForWorkEntries } from '@/functions/processScheduleForWorkEntries';
 import { isDateInRange } from '@/components/utils/priceCalculations';
 
-// Leer hora directamente del string ISO (sin conversión de timezone)
-const formatTimeUTC = (isoString) => {
-    if (!isoString) return '';
-    return isoString.slice(11, 16);
+// ─── Helpers ────────────────────────────────────────────────────────────────
+const formatTimeUTC = (iso) => (iso ? iso.slice(11, 16) : '');
+
+const getPriceForDate = (client, serviceDate) => {
+    if (!client || !serviceDate) return { price: 0, gstType: 'inclusive' };
+    if (!client.price_history || client.price_history.length === 0) {
+        return { price: client.current_service_price || 0, gstType: client.gst_type || 'inclusive' };
+    }
+    const serviceDateStr = serviceDate.slice(0, 10);
+    const sorted = [...client.price_history].sort((a, b) =>
+        new Date(b.effective_date) - new Date(a.effective_date)
+    );
+    for (const entry of sorted) {
+        if (entry.effective_date <= serviceDateStr) {
+            return { price: entry.new_price || client.current_service_price || 0, gstType: entry.gst_type || client.gst_type || 'inclusive' };
+        }
+    }
+    const oldest = sorted[sorted.length - 1];
+    return {
+        price: oldest?.previous_price || oldest?.new_price || client.current_service_price || 0,
+        gstType: oldest?.gst_type || client.gst_type || 'inclusive',
+    };
 };
 
+const calcGst = (amount, gstType) => {
+    if (gstType === 'inclusive') {
+        const base = amount / 1.1;
+        return { base, gst: amount - base, total: amount };
+    }
+    if (gstType === 'exclusive') {
+        const gst = amount * 0.1;
+        return { base: amount, gst, total: amount + gst };
+    }
+    return { base: amount, gst: 0, total: amount };
+};
+
+const getServiceAmount = (service, client) => {
+    if (service.reconciliation_items?.length > 0) {
+        return service.reconciliation_items.reduce((sum, item) => {
+            const v = parseFloat(item.amount) || 0;
+            return item.type === 'discount' ? sum - v : sum + v;
+        }, 0);
+    }
+    if (service.xero_invoiced && service.billed_price_snapshot != null) return service.billed_price_snapshot;
+    return getPriceForDate(client, service.start_time).price;
+};
+
+const getServiceGstType = (service, client) => {
+    if (service.xero_invoiced && service.billed_gst_type_snapshot) return service.billed_gst_type_snapshot;
+    if (service.reconciliation_items?.length > 0) return getPriceForDate(client, service.start_time).gstType;
+    return getPriceForDate(client, service.start_time).gstType;
+};
+
+// ─── Config ─────────────────────────────────────────────────────────────────
 const statusConfig = {
     pending: {
-        color: 'bg-red-500',
-        textColor: 'text-red-700',
-        bgColor: 'bg-gradient-to-r from-red-50 to-red-100',
-        borderColor: 'border-red-300',
+        color: 'bg-red-500', textColor: 'text-red-700',
+        bgColor: 'bg-gradient-to-r from-red-50 to-red-100', borderColor: 'border-red-300',
         text: 'Pendiente de Revisión (Horario)',
         icon: <Circle className="w-6 h-6 text-red-500" />,
     },
     horario_reviewed: {
-        color: 'bg-blue-500',
-        textColor: 'text-blue-700',
-        bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100',
-        borderColor: 'border-blue-300',
+        color: 'bg-blue-500', textColor: 'text-blue-700',
+        bgColor: 'bg-gradient-to-r from-blue-50 to-blue-100', borderColor: 'border-blue-300',
         text: 'Revisado / Listo para Facturar',
         icon: <FileCheck className="w-6 h-6 text-blue-500" />,
     },
     completed: {
-        color: 'bg-green-500',
-        textColor: 'text-green-700',
-        bgColor: 'bg-gradient-to-r from-green-50 to-green-100',
-        borderColor: 'border-green-300',
+        color: 'bg-green-500', textColor: 'text-green-700',
+        bgColor: 'bg-gradient-to-r from-green-50 to-green-100', borderColor: 'border-green-300',
         text: 'Día Facturado Completamente',
         icon: <CheckCircle className="w-6 h-6 text-green-500" />,
-    }
+    },
 };
 
-const gstTypeLabels = {
-    inclusive: 'GST Incluido',
-    exclusive: 'GST Exclusivo',
-    no_tax: 'Sin Impuestos'
-};
-
+const gstTypeLabels = { inclusive: 'GST Incluido', exclusive: 'GST Exclusivo', no_tax: 'Sin Impuestos' };
 const gstTypeBadgeColors = {
     inclusive: 'bg-blue-50 text-blue-700 border border-blue-200',
     exclusive: 'bg-purple-50 text-purple-700 border border-purple-200',
-    no_tax: 'bg-slate-50 text-slate-700 border border-slate-200'
+    no_tax: 'bg-slate-50 text-slate-700 border border-slate-200',
+};
+const itemLabels = {
+    base_service: 'Servicio Base', windows_cleaning: 'Ventanas',
+    steam_vacuum: 'Vapor', other_extra: 'Extra', discount: 'Descuento',
 };
 
-// NUEVA FUNCIÓN: Obtiene el precio correcto para mostrar, consultando price_history si es necesario
-const getPriceForDate = (client, serviceDate) => {
-    if (!client || !serviceDate) return { price: 0, gstType: 'inclusive' };
-    
-    // Si el cliente no tiene historial de precios, usar el precio actual
-    if (!client.price_history || client.price_history.length === 0) {
-        return {
-            price: client.current_service_price || 0,
-            gstType: client.gst_type || 'inclusive'
-        };
+// ─── Batch loader ────────────────────────────────────────────────────────────
+const loadAll = async (entity, sort = '-created_date', batchSize = 2000) => {
+    let all = [], skip = 0;
+    while (true) {
+        const batch = await entity.list(sort, batchSize, skip);
+        const arr = Array.isArray(batch) ? batch : [];
+        all = all.concat(arr);
+        if (arr.length < batchSize) break;
+        skip += batchSize;
     }
-    
-    // Convertir la fecha del servicio a formato comparable (YYYY-MM-DD)
-    const serviceDateStr = format(parseISO(serviceDate), 'yyyy-MM-dd');
-    
-    // Ordenar el historial por fecha efectiva (más reciente primero)
-    const sortedHistory = [...client.price_history].sort((a, b) => {
-        return new Date(b.effective_date) - new Date(a.effective_date);
-    });
-    
-    // Buscar el precio que estaba vigente en la fecha del servicio
-    // (la entrada más reciente cuya effective_date sea <= serviceDate)
-    for (const historyEntry of sortedHistory) {
-        if (historyEntry.effective_date <= serviceDateStr) {
-            return {
-                price: historyEntry.new_price || client.current_service_price || 0,
-                gstType: historyEntry.gst_type || client.gst_type || 'inclusive'
-            };
-        }
-    }
-    
-    // Si no encontramos ninguna entrada en el historial que aplique,
-    // usar el precio más antiguo del historial o el actual como fallback
-    const oldestEntry = sortedHistory[sortedHistory.length - 1];
-    if (oldestEntry) {
-        return {
-            price: oldestEntry.previous_price || oldestEntry.new_price || client.current_service_price || 0,
-            gstType: oldestEntry.gst_type || client.gst_type || 'inclusive'
-        };
-    }
-    
-    // Fallback final: precio actual del cliente
-    return {
-        price: client.current_service_price || 0,
-        gstType: client.gst_type || 'inclusive'
-    };
+    return all;
 };
 
+// ─── Component ───────────────────────────────────────────────────────────────
 export default function ConciliacionFacturasPage() {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [selectedMonth, setSelectedMonth] = useState(new Date());
@@ -127,548 +132,342 @@ export default function ConciliacionFacturasPage() {
     const [currentUser, setCurrentUser] = useState(null);
     const [editingService, setEditingService] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [dayLoading, setDayLoading] = useState(false);
     const [error, setError] = useState(null);
-
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [serviceToDelete, setServiceToDelete] = useState(null);
 
-    const usersMap = useMemo(() => {
-        return new Map(users.map(u => [u.id, u]));
-    }, [users]);
+    // Track if monthly data already loaded to avoid redundant fetches
+    const monthlyLoadedRef = useRef(false);
 
-    const loadAllRecords = async (entity, sortField = '-created_date') => {
-        const BATCH_SIZE = 5000;
-        let allRecords = [];
-        let skip = 0;
-        let hasMore = true;
+    const usersMap = useMemo(() => new Map(users.map(u => [u.id, u])), [users]);
 
-        while (hasMore) {
-            const batch = await entity.list(sortField, BATCH_SIZE, skip);
-            const batchArray = Array.isArray(batch) ? batch : [];
-            
-            allRecords = [...allRecords, ...batchArray];
-            
-            if (batchArray.length < BATCH_SIZE) {
-                hasMore = false;
-            } else {
-                skip += BATCH_SIZE;
+    // ── Initial load: clients, users, workEntries, currentUser — all in parallel
+    useEffect(() => {
+        const init = async () => {
+            setLoading(true);
+            try {
+                const [clientList, userList, workList, user] = await Promise.all([
+                    loadAll(base44.entities.Client),
+                    loadAll(base44.entities.User),
+                    loadAll(base44.entities.WorkEntry, '-work_date'),
+                    base44.auth.me(),
+                ]);
+                const clientMap = new Map(clientList.map(c => [c.id, c]));
+                setClients(clientMap);
+                setUsers(Array.isArray(userList) ? userList : []);
+                setAllWorkEntries(Array.isArray(workList) ? workList : []);
+                setCurrentUser(user);
+            } catch (e) {
+                console.error('Error en carga inicial:', e);
+                setError('Error al cargar datos iniciales.');
+            } finally {
+                setLoading(false);
             }
-        }
-
-        return allRecords;
-    };
-
-    const fetchClients = useCallback(async () => {
-        try {
-            const clientList = await loadAllRecords(Client, '-created_date');
-            const clientMap = new Map();
-            clientList.forEach(c => clientMap.set(c.id, c));
-            setClients(clientMap);
-        } catch (e) {
-            console.error("Failed to fetch clients", e);
-            setError("No se pudieron cargar los clientes.");
-        }
+        };
+        init();
     }, []);
 
-    const fetchUsers = useCallback(async () => {
-        try {
-            const userList = await loadAllRecords(User, '-created_date');
-            setUsers(Array.isArray(userList) ? userList : []);
-        } catch (e) {
-            console.error("Failed to fetch users", e);
-        }
-    }, []);
-
-    const fetchWorkEntries = useCallback(async () => {
-        try {
-            const workEntriesList = await loadAllRecords(WorkEntry, '-work_date');
-            setAllWorkEntries(Array.isArray(workEntriesList) ? workEntriesList : []);
-        } catch (e) {
-            console.error("Failed to fetch work entries", e);
-        }
-    }, []);
-
+    // ── Fetch daily schedules — filtered on server by date string
     const fetchDataForDate = useCallback(async (date) => {
-        setLoading(true);
+        setDayLoading(true);
         setError(null);
         try {
-            const year = date.getFullYear();
-            const month = date.getMonth();
-            const day = date.getDate();
-
-            // Usar formato local sin timezone (YYYY-MM-DDTHH:mm:00.000)
-            const mm = String(month + 1).padStart(2, '0');
-            const dd = String(day).padStart(2, '0');
-            const dateStr = `${year}-${mm}-${dd}`;
+            const dateStr = format(date, 'yyyy-MM-dd');
             const startLocal = `${dateStr}T00:00:00.000`;
             const endLocal = `${dateStr}T23:59:59.999`;
 
             const [schedulesData, reconciliationData] = await Promise.all([
-                Schedule.filter({
-                    start_time: {
-                        $gte: startLocal,
-                        $lte: endLocal
-                    }
-                }, '-start_time'),
-                DailyReconciliation.filter({ date: dateStr })
+                base44.entities.Schedule.filter({ start_time: { $gte: startLocal, $lte: endLocal } }, '-start_time'),
+                base44.entities.DailyReconciliation.filter({ date: dateStr }),
             ]);
 
-            const activeSchedules = schedulesData.filter(schedule =>
-                schedule.status !== 'cancelled'
+            const active = schedulesData
+                .filter(s => s.status !== 'cancelled')
+                .sort((a, b) => {
+                    if (a.xero_invoiced !== b.xero_invoiced) return a.xero_invoiced ? 1 : -1;
+                    return new Date(a.start_time) - new Date(b.start_time);
+                });
+
+            setSchedules(active);
+            setDailyReconciliation(
+                reconciliationData.length > 0
+                    ? reconciliationData[0]
+                    : { date: dateStr, status: 'pending' }
             );
-
-            const sortedSchedules = activeSchedules.sort((a, b) => {
-                if (a.xero_invoiced !== b.xero_invoiced) {
-                    return a.xero_invoiced ? 1 : -1;
-                }
-                return new Date(a.start_time) - new Date(b.start_time);
-            });
-
-            setSchedules(sortedSchedules);
-
-            if (reconciliationData.length > 0) {
-                setDailyReconciliation(reconciliationData[0]);
-            } else {
-                setDailyReconciliation({ date: dateStr, status: 'pending' });
-            }
         } catch (err) {
-            console.error("Error fetching data for date:", err);
-            setError("Hubo un error al cargar los datos para la fecha seleccionada.");
+            console.error('Error cargando datos del día:', err);
+            setError('Error al cargar los datos para la fecha seleccionada.');
         } finally {
-            setLoading(false);
+            setDayLoading(false);
         }
     }, []);
 
-    useEffect(() => {
-        const init = async () => {
-            await fetchClients();
-            await fetchUsers();
-            await fetchWorkEntries();
-            const user = await User.me();
-            setCurrentUser(user);
-        };
-        init();
-    }, [fetchClients, fetchUsers, fetchWorkEntries]);
-
-    useEffect(() => {
-        if (clients.size > 0 && users.length > 0) {
-            fetchDataForDate(selectedDate);
-        }
-    }, [selectedDate, clients, users, fetchDataForDate]);
-
-    useEffect(() => {
-        if (clients.size > 0) {
-            fetchMonthlyData(selectedMonth);
-        }
-    }, [selectedMonth, clients]);
-
+    // ── Fetch monthly schedules — filtered on server with date range
     const fetchMonthlyData = useCallback(async (date) => {
         try {
-            console.log('[ConciliacionFacturas] 🔍 Cargando TODOS los servicios desde abril 2025...');
-            
-            // Usar comparación directa de strings para evitar problemas de timezone
-            const _td = new Date();
-            const todayStr = `${_td.getFullYear()}-${String(_td.getMonth()+1).padStart(2,'0')}-${String(_td.getDate()).padStart(2,'0')}`;
-
-            const BATCH_SIZE = 5000;
-            let allSchedules = [];
-            let skip = 0;
-            let hasMore = true;
-
-            // Cargar todos los registros en lotes
-            while (hasMore) {
-                const batch = await Schedule.list('-start_time', BATCH_SIZE, skip);
-                const batchArray = Array.isArray(batch) ? batch : [];
-                
-                allSchedules = [...allSchedules, ...batchArray];
-                
-                if (batchArray.length < BATCH_SIZE) {
-                    hasMore = false;
-                } else {
-                    skip += BATCH_SIZE;
+            const monthStart = format(startOfMonth(date), 'yyyy-MM-dd');
+            const monthEnd = format(endOfMonth(date), 'yyyy-MM-dd');
+            // Use date-range filter instead of loading everything
+            const data = await base44.entities.Schedule.filter({
+                start_time: {
+                    $gte: `${monthStart}T00:00:00.000`,
+                    $lte: `${monthEnd}T23:59:59.999`,
                 }
-            }
-
-            // Filtrar servicios activos en el rango de fechas (comparación de strings, sin timezone)
-            const activeSchedules = allSchedules.filter(schedule => {
-                if (schedule.status === 'cancelled') return false;
-                const serviceDateStr = (schedule.start_time || '').slice(0, 10);
-                return serviceDateStr >= '2025-04-01' && serviceDateStr <= todayStr;
-            }).sort((a, b) => (b.start_time || '').localeCompare(a.start_time || ''));
-
-            console.log(`[ConciliacionFacturas] ✅ Total de servicios cargados: ${activeSchedules.length}`);
-            setMonthlySchedules(activeSchedules);
+            }, '-start_time', 2000);
+            const active = (Array.isArray(data) ? data : []).filter(s => s.status !== 'cancelled');
+            setMonthlySchedules(active);
         } catch (err) {
-            console.error("Error fetching monthly data:", err);
+            console.error('Error cargando datos mensuales:', err);
         }
     }, []);
 
+    // Trigger daily fetch once clients+users loaded, and when date changes
+    useEffect(() => {
+        if (clients.size > 0) fetchDataForDate(selectedDate);
+    }, [selectedDate, clients, fetchDataForDate]);
+
+    // Trigger monthly fetch when month changes (or clients first load)
+    useEffect(() => {
+        if (clients.size > 0) fetchMonthlyData(selectedMonth);
+    }, [selectedMonth, clients, fetchMonthlyData]);
+
+    // ── Actions ──────────────────────────────────────────────────────────────
     const handleSaveReconciliation = async (serviceId, items, paymentMethod, gstType) => {
-        try {
-            await Schedule.update(serviceId, { 
-                reconciliation_items: items,
-                billed_payment_method_snapshot: paymentMethod,
-                billed_gst_type_snapshot: gstType
-            });
-            setEditingService(null);
-            fetchDataForDate(selectedDate);
-        } catch (err) {
-            console.error("Error saving reconciliation:", err);
-            setError("No se pudo guardar los cambios en el servicio.");
-        }
+        await base44.entities.Schedule.update(serviceId, {
+            reconciliation_items: items,
+            billed_payment_method_snapshot: paymentMethod,
+            billed_gst_type_snapshot: gstType,
+        });
+        setEditingService(null);
+        fetchDataForDate(selectedDate);
     };
 
     const handleMarkDayAsReviewed = async () => {
-        setLoading(true);
+        setDayLoading(true);
         setError(null);
         try {
-            const servicesToComplete = schedules.filter(s =>
-                s.status !== 'completed' && s.status !== 'cancelled'
-            );
-
-            for (const service of servicesToComplete) {
-                try {
-                    await Schedule.update(service.id, { status: 'completed' });
-                    
-                    const result = await processScheduleForWorkEntries({
-                        scheduleId: service.id,
-                        mode: 'create'
-                    });
-                    console.log(`WorkEntries generadas para servicio ${service.id}:`, result);
-                } catch (serviceErr) {
-                    console.error(`Error procesando servicio ${service.id}:`, serviceErr);
-                }
-            }
-
-            const _rn = new Date();
-            const _ts = `${_rn.getFullYear()}-${String(_rn.getMonth()+1).padStart(2,'0')}-${String(_rn.getDate()).padStart(2,'0')}T${String(_rn.getHours()).padStart(2,'0')}:${String(_rn.getMinutes()).padStart(2,'0')}:00.000`;
-            const updateData = {
-                status: 'horario_reviewed',
-                reviewed_by_user_id: currentUser.id,
-                reviewed_at: _ts
-            };
+            const toComplete = schedules.filter(s => s.status !== 'completed' && s.status !== 'cancelled');
+            await Promise.all(toComplete.map(async (service) => {
+                await base44.entities.Schedule.update(service.id, { status: 'completed' });
+                await processScheduleForWorkEntries({ scheduleId: service.id, mode: 'create' });
+            }));
+            const ts = new Date().toISOString().slice(0, 16) + ':00.000';
+            const updateData = { status: 'horario_reviewed', reviewed_by_user_id: currentUser.id, reviewed_at: ts };
             if (dailyReconciliation.id) {
-                await DailyReconciliation.update(dailyReconciliation.id, updateData);
+                await base44.entities.DailyReconciliation.update(dailyReconciliation.id, updateData);
             } else {
-                await DailyReconciliation.create({ date: format(selectedDate, 'yyyy-MM-dd'), ...updateData });
+                await base44.entities.DailyReconciliation.create({ date: format(selectedDate, 'yyyy-MM-dd'), ...updateData });
             }
-
             fetchDataForDate(selectedDate);
         } catch (err) {
-            console.error("Error marking day as reviewed:", err);
-            setError("No se pudo marcar el día como revisado: " + (err.message || ""));
+            console.error('Error marcando día como revisado:', err);
+            setError('No se pudo marcar el día como revisado: ' + (err.message || ''));
         } finally {
-            setLoading(false);
+            setDayLoading(false);
         }
     };
 
     const handleReopenDay = async () => {
-        setLoading(true);
+        setDayLoading(true);
         try {
-            if (dailyReconciliation && dailyReconciliation.id) {
-                await DailyReconciliation.update(dailyReconciliation.id, {
-                    status: 'pending',
-                    reviewed_by_user_id: null,
-                    reviewed_at: null,
-                    completed_at: null
+            if (dailyReconciliation?.id) {
+                await base44.entities.DailyReconciliation.update(dailyReconciliation.id, {
+                    status: 'pending', reviewed_by_user_id: null, reviewed_at: null, completed_at: null,
                 });
                 fetchDataForDate(selectedDate);
             }
         } catch (err) {
-            console.error("Error reopening day:", err);
-            setError("No se pudo reabrir el día para revisión.");
+            setError('No se pudo reabrir el día.');
         } finally {
-            setLoading(false);
+            setDayLoading(false);
         }
     };
 
     const handleMarkAsInvoiced = async (serviceId) => {
-        setLoading(true);
-        const _bn = new Date();
-        const _ts = `${_bn.getFullYear()}-${String(_bn.getMonth()+1).padStart(2,'0')}-${String(_bn.getDate()).padStart(2,'0')}T${String(_bn.getHours()).padStart(2,'0')}:${String(_bn.getMinutes()).padStart(2,'0')}:00.000`;
+        setDayLoading(true);
+        const ts = new Date().toISOString().slice(0, 16) + ':00.000';
         try {
             const service = schedules.find(s => s.id === serviceId);
             const client = clients.get(service.client_id);
-            
-            // CRÍTICO: Tomar "fotografía" del precio, GST y payment_method en el momento de facturación
             const priceSnapshot = getPriceForDate(client, service.start_time);
-            
-            // CRÍTICO: Si ya existen snapshots (guardados desde el modal), MANTENERLOS
-            // Solo usar los valores del cliente si NO existen snapshots previos
-            const finalPaymentMethod = service.billed_payment_method_snapshot || client.payment_method || 'bank_transfer';
+            const finalPaymentMethod = service.billed_payment_method_snapshot || client?.payment_method || 'bank_transfer';
             const finalGstType = service.billed_gst_type_snapshot || priceSnapshot.gstType;
-            
-            await Schedule.update(serviceId, { 
+            await base44.entities.Schedule.update(serviceId, {
                 xero_invoiced: true,
                 billed_price_snapshot: priceSnapshot.price,
                 billed_gst_type_snapshot: finalGstType,
                 billed_payment_method_snapshot: finalPaymentMethod,
-                billed_at: _ts
+                billed_at: ts,
             });
-
-            const updatedSchedules = schedules.map(s =>
-                s.id === serviceId ? {
-                    ...s, 
-                    xero_invoiced: true,
-                    billed_price_snapshot: priceSnapshot.price,
-                    billed_gst_type_snapshot: finalGstType,
-                    billed_payment_method_snapshot: finalPaymentMethod,
-                    billed_at: _ts
-                } : s
+            const updated = schedules.map(s =>
+                s.id === serviceId ? { ...s, xero_invoiced: true, billed_price_snapshot: priceSnapshot.price, billed_gst_type_snapshot: finalGstType, billed_payment_method_snapshot: finalPaymentMethod, billed_at: ts } : s
             ).sort((a, b) => {
-                if (a.xero_invoiced !== b.xero_invoiced) {
-                    return a.xero_invoiced ? 1 : -1;
-                }
+                if (a.xero_invoiced !== b.xero_invoiced) return a.xero_invoiced ? 1 : -1;
                 return new Date(a.start_time) - new Date(b.start_time);
             });
-
-            setSchedules(updatedSchedules);
-
-            const allInvoiced = updatedSchedules.every(s => s.xero_invoiced);
-            if (allInvoiced && dailyReconciliation?.status !== 'completed') {
-                const _cn = new Date();
-                const _cts = `${_cn.getFullYear()}-${String(_cn.getMonth()+1).padStart(2,'0')}-${String(_cn.getDate()).padStart(2,'0')}T${String(_cn.getHours()).padStart(2,'0')}:${String(_cn.getMinutes()).padStart(2,'0')}:00.000`;
-                const updateData = { status: 'completed', completed_at: _cts };
+            setSchedules(updated);
+            if (updated.every(s => s.xero_invoiced) && dailyReconciliation?.status !== 'completed') {
+                const completedTs = new Date().toISOString().slice(0, 16) + ':00.000';
+                const updateData = { status: 'completed', completed_at: completedTs };
                 if (dailyReconciliation.id) {
-                    await DailyReconciliation.update(dailyReconciliation.id, updateData);
+                    await base44.entities.DailyReconciliation.update(dailyReconciliation.id, updateData);
                 } else {
-                    await DailyReconciliation.create({ date: format(selectedDate, 'yyyy-MM-dd'), ...updateData });
+                    await base44.entities.DailyReconciliation.create({ date: format(selectedDate, 'yyyy-MM-dd'), ...updateData });
                 }
                 fetchDataForDate(selectedDate);
             }
         } catch (err) {
-            console.error("Error marking as invoiced:", err);
-            setError("No se pudo marcar el servicio como facturado.");
+            setError('No se pudo marcar el servicio como facturado.');
         } finally {
-            setLoading(false);
+            setDayLoading(false);
         }
     };
 
     const handleUnmarkAsInvoiced = async (serviceId) => {
-        setLoading(true);
+        setDayLoading(true);
         try {
-            // CRÍTICO: Al desmarcar, NO eliminar los snapshots por si se vuelve a facturar
-            // Los snapshots solo se actualizan cuando se vuelve a marcar como facturado
-            await Schedule.update(serviceId, { xero_invoiced: false });
-
-            const updatedSchedules = schedules.map(s =>
-                s.id === serviceId ? {...s, xero_invoiced: false} : s
-            ).sort((a, b) => {
-                if (a.xero_invoiced !== b.xero_invoiced) {
-                    return a.xero_invoiced ? 1 : -1;
-                }
-                return new Date(a.start_time) - new Date(b.start_time);
-            });
-
-            setSchedules(updatedSchedules);
-
-            if (dailyReconciliation?.status === 'completed') {
-                const updateData = {
-                    status: 'horario_reviewed',
-                    completed_at: null
-                };
-                if (dailyReconciliation.id) {
-                    await DailyReconciliation.update(dailyReconciliation.id, updateData);
-                    fetchDataForDate(selectedDate);
-                }
+            await base44.entities.Schedule.update(serviceId, { xero_invoiced: false });
+            const updated = schedules.map(s => s.id === serviceId ? { ...s, xero_invoiced: false } : s)
+                .sort((a, b) => {
+                    if (a.xero_invoiced !== b.xero_invoiced) return a.xero_invoiced ? 1 : -1;
+                    return new Date(a.start_time) - new Date(b.start_time);
+                });
+            setSchedules(updated);
+            if (dailyReconciliation?.status === 'completed' && dailyReconciliation.id) {
+                await base44.entities.DailyReconciliation.update(dailyReconciliation.id, { status: 'horario_reviewed', completed_at: null });
+                fetchDataForDate(selectedDate);
             }
         } catch (err) {
-            console.error("Error unmarking as invoiced:", err);
-            setError("No se pudo quitar el estado de facturado.");
+            setError('No se pudo quitar el estado de facturado.');
         } finally {
-            setLoading(false);
+            setDayLoading(false);
         }
     };
 
-    const handleDeleteClick = (service) => {
-        setServiceToDelete(service);
-        setDeleteConfirmOpen(true);
-    };
+    const handleDeleteClick = (service) => { setServiceToDelete(service); setDeleteConfirmOpen(true); };
+    const handleCancelDelete = () => { setDeleteConfirmOpen(false); setServiceToDelete(null); };
 
     const handleConfirmDelete = async () => {
         if (!serviceToDelete) return;
-
-        setLoading(true);
+        setDayLoading(true);
         setError(null);
         try {
-            await Schedule.delete(serviceToDelete.id);
-
-            const updatedSchedules = schedules.filter(s => s.id !== serviceToDelete.id);
-            setSchedules(updatedSchedules);
-
+            await base44.entities.Schedule.delete(serviceToDelete.id);
+            const updated = schedules.filter(s => s.id !== serviceToDelete.id);
+            setSchedules(updated);
             setDeleteConfirmOpen(false);
             setServiceToDelete(null);
-
-            if (updatedSchedules.length === 0 && dailyReconciliation?.id) {
-                await DailyReconciliation.update(dailyReconciliation.id, {
-                    status: 'pending',
-                    reviewed_by_user_id: null,
-                    reviewed_at: null,
-                    completed_at: null
-                });
-            } else if (updatedSchedules.length === 0 && !dailyReconciliation?.id) {
-                 setDailyReconciliation({ date: format(selectedDate, 'yyyy-MM-dd'), status: 'pending' });
+            if (updated.length === 0) {
+                if (dailyReconciliation?.id) {
+                    await base44.entities.DailyReconciliation.update(dailyReconciliation.id, {
+                        status: 'pending', reviewed_by_user_id: null, reviewed_at: null, completed_at: null,
+                    });
+                }
+                setDailyReconciliation({ date: format(selectedDate, 'yyyy-MM-dd'), status: 'pending' });
             }
-
-            fetchDataForDate(selectedDate);
         } catch (err) {
-            console.error("Error deleting service:", err);
-            setError("No se pudo eliminar el servicio. " + (err.message || ""));
+            setError('No se pudo eliminar el servicio.');
         } finally {
-            setLoading(false);
+            setDayLoading(false);
         }
     };
 
-    const handleCancelDelete = () => {
-        setDeleteConfirmOpen(false);
-        setServiceToDelete(null);
-    };
-
+    // ── Derived ──────────────────────────────────────────────────────────────
     const currentStatus = dailyReconciliation?.status || 'pending';
     const config = statusConfig[currentStatus];
-    const isScheduler = currentUser?.role === 'admin';
-    const isAccountant = currentUser?.role === 'admin';
-
-    // MODIFICADO: Función que respeta el snapshot si está facturado
-    const getReconciledAmount = (service) => {
-        if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-            return service.reconciliation_items.reduce((total, item) => {
-                const amount = parseFloat(item.amount) || 0;
-                return item.type === 'discount' ? total - amount : total + amount;
-            }, 0);
-        }
-        
-        // CRÍTICO: Si está facturado, usar el snapshot
-        if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-            return service.billed_price_snapshot;
-        }
-        
-        // Si no está facturado, calcular el precio vigente en la fecha del servicio
-        const client = clients.get(service.client_id);
-        const priceForDate = getPriceForDate(client, service.start_time);
-        return priceForDate.price;
-    };
+    const isAdmin = currentUser?.role === 'admin';
 
     const totalDelDia = useMemo(() => {
-        return schedules.reduce((total, service) => {
-            let amount = 0;
-            let gstType = 'inclusive';
-            
-            if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-                amount = service.reconciliation_items.reduce((itemTotal, item) => {
-                    const itemAmount = parseFloat(item.amount) || 0;
-                    return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
-                }, 0);
-                
-                if (service.xero_invoiced && service.billed_gst_type_snapshot) {
-                    gstType = service.billed_gst_type_snapshot;
-                } else {
-                    const client = clients.get(service.client_id);
-                    const priceForDate = getPriceForDate(client, service.start_time);
-                    gstType = priceForDate.gstType;
-                }
-            } else {
-                if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                    amount = service.billed_price_snapshot;
-                    gstType = service.billed_gst_type_snapshot || 'inclusive';
-                } else {
-                    const client = clients.get(service.client_id);
-                    const priceForDate = getPriceForDate(client, service.start_time);
-                    amount = priceForDate.price;
-                    gstType = priceForDate.gstType;
-                }
-            }
-            
-            let baseAmount = amount;
-            if (gstType === 'inclusive') {
-                baseAmount = amount / 1.1;
-            }
-            
-            return total + baseAmount;
+        return schedules.reduce((sum, s) => {
+            const client = clients.get(s.client_id);
+            const amount = getServiceAmount(s, client);
+            const gstType = getServiceGstType(s, client);
+            return sum + calcGst(amount, gstType).base;
         }, 0);
     }, [schedules, clients]);
 
-    // Filtrar servicios del mes seleccionado
     const filteredMonthlySchedules = useMemo(() => {
-        const monthStart = startOfMonth(selectedMonth);
-        const monthEnd = endOfMonth(selectedMonth);
-        
-        return monthlySchedules.filter(service => 
-            isDateInRange(service.start_time, monthStart, monthEnd)
-        );
+        const ms = startOfMonth(selectedMonth);
+        const me = endOfMonth(selectedMonth);
+        return monthlySchedules.filter(s => isDateInRange(s.start_time, ms, me));
     }, [monthlySchedules, selectedMonth]);
 
-    const renderReconciledAmountBreakdown = (service) => {
+    const { cashSchedules, nonCashSchedules } = useMemo(() => {
+        const cash = [], nonCash = [];
+        filteredMonthlySchedules.forEach(s => {
+            const client = clients.get(s.client_id);
+            const pm = s.billed_payment_method_snapshot || client?.payment_method;
+            (pm === 'cash' ? cash : nonCash).push(s);
+        });
+        return { cashSchedules: cash, nonCashSchedules: nonCash };
+    }, [filteredMonthlySchedules, clients]);
+
+    const monthlyStats = useMemo(() => {
+        const invoiced = filteredMonthlySchedules.filter(s => s.xero_invoiced);
+        const pending = filteredMonthlySchedules.filter(s => !s.xero_invoiced);
+        const calcTotals = (list) => {
+            const t = { base: 0, gst: 0, total: 0, cashBase: 0, nonCashBase: 0 };
+            list.forEach(s => {
+                const client = clients.get(s.client_id);
+                const amount = getServiceAmount(s, client);
+                const gstType = getServiceGstType(s, client);
+                const { base, gst, total } = calcGst(amount, gstType);
+                t.base += base; t.gst += gst; t.total += total;
+                const pm = s.billed_payment_method_snapshot || client?.payment_method;
+                if (pm === 'cash') t.cashBase += base; else t.nonCashBase += base;
+            });
+            return t;
+        };
+        return {
+            invoiced: calcTotals(invoiced), pending: calcTotals(pending),
+            invoicedCount: invoiced.length, pendingCount: pending.length,
+        };
+    }, [filteredMonthlySchedules, clients]);
+
+    const getCleanerNamesWithTimes = (service) => {
+        const calcHours = (s, e) => (!s || !e ? 0 : (new Date(e) - new Date(s)) / 3600000);
+        if (service.cleaner_schedules?.length > 0) {
+            return service.cleaner_schedules.map(cs => {
+                const user = usersMap.get(cs.cleaner_id);
+                return { name: user?.full_name || 'Desconocido', hours: calcHours(cs.start_time, cs.end_time) };
+            });
+        }
+        const totalHours = calcHours(service.start_time, service.end_time);
+        return (service.cleaner_ids || []).map(id => {
+            const user = usersMap.get(id);
+            return { name: user?.full_name || 'Desconocido', hours: totalHours };
+        });
+    };
+
+    const renderAmountBreakdown = (service) => {
         const client = clients.get(service.client_id);
-        
-        // CRÍTICO: Determinar qué precio y GST usar
         let displayPrice, displayGstType;
-        
-        if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-            // Servicio facturado: usar snapshot inmutable
+        if (service.xero_invoiced && service.billed_price_snapshot != null && !service.reconciliation_items?.length) {
             displayPrice = service.billed_price_snapshot;
             displayGstType = service.billed_gst_type_snapshot || 'inclusive';
         } else {
-            // Servicio NO facturado: usar precio vigente en la fecha del servicio
-            const priceForDate = getPriceForDate(client, service.start_time);
-            displayPrice = priceForDate.price;
-            displayGstType = priceForDate.gstType;
+            const pfd = getPriceForDate(client, service.start_time);
+            displayPrice = pfd.price;
+            displayGstType = pfd.gstType;
         }
 
-        if (!service.reconciliation_items || service.reconciliation_items.length === 0) {
-            return (
-                <div className="space-y-2">
-                    <div className="font-bold text-lg text-blue-700">
-                        ${displayPrice.toFixed(2)}
-                    </div>
-                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
-                        {gstTypeLabels[displayGstType]}
-                    </span>
-                    {service.xero_invoiced && (
-                        <div className="text-xs text-green-600 font-medium flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" />
-                            Precio Facturado
-                        </div>
-                    )}
-                </div>
-            );
+        if (!service.reconciliation_items?.length) {
+            return <AmountCell price={displayPrice} gstType={displayGstType} invoiced={service.xero_invoiced} />;
         }
 
-        if (service.reconciliation_items.length === 1 &&
+        const total = getServiceAmount(service, client);
+        const isTrivial = service.reconciliation_items.length === 1 &&
             service.reconciliation_items[0].type === 'base_service' &&
-            parseFloat(service.reconciliation_items[0].amount) === displayPrice) {
-            return (
-                <div className="space-y-2">
-                    <div className="font-bold text-lg text-blue-700">
-                        ${displayPrice.toFixed(2)}
-                    </div>
-                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
-                        {gstTypeLabels[displayGstType]}
-                    </span>
-                    {service.xero_invoiced && (
-                        <div className="text-xs text-green-600 font-medium flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" />
-                            Precio Facturado
-                        </div>
-                    )}
-                </div>
-            );
-        }
+            parseFloat(service.reconciliation_items[0].amount) === displayPrice;
 
-        const total = getReconciledAmount(service);
-        const itemLabels = {
-            base_service: 'Servicio Base',
-            windows_cleaning: 'Ventanas',
-            steam_vacuum: 'Vapor',
-            other_extra: 'Extra',
-            discount: 'Descuento'
-        };
+        if (isTrivial) return <AmountCell price={displayPrice} gstType={displayGstType} invoiced={service.xero_invoiced} />;
 
         return (
             <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                {service.reconciliation_items.map((item, index) => (
-                    <div key={index} className="flex justify-between items-center text-sm">
-                        <span className={`${item.type === 'discount' ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
+                {service.reconciliation_items.map((item, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                        <span className={item.type === 'discount' ? 'text-red-600 font-medium' : 'text-slate-600'}>
                             {itemLabels[item.type] || item.type}
                         </span>
                         <span className={`font-semibold ${item.type === 'discount' ? 'text-red-600' : 'text-slate-800'}`}>
@@ -676,49 +475,26 @@ export default function ConciliacionFacturasPage() {
                         </span>
                     </div>
                 ))}
-                <div className="border-t border-slate-300 pt-2 mt-2 flex justify-between items-center">
+                <div className="border-t pt-2 flex justify-between">
                     <span className="text-sm font-bold text-blue-700">Total:</span>
                     <span className="font-bold text-lg text-blue-700">${total.toFixed(2)}</span>
                 </div>
                 <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[displayGstType]}`}>
                     {gstTypeLabels[displayGstType]}
                 </span>
-                {service.xero_invoiced && (
-                    <div className="text-xs text-green-600 font-medium flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" />
-                        Precio Facturado
-                    </div>
-                )}
+                {service.xero_invoiced && <InvoicedBadge />}
             </div>
         );
     };
 
-    const renderNotesBreakdown = (service) => {
-        if (!service.reconciliation_items || service.reconciliation_items.length === 0) {
-            return <span className="text-slate-400 italic">Sin notas</span>;
-        }
-
-        const notesWithDescription = service.reconciliation_items.filter(item => item.description && item.description.trim() !== '');
-
-        if (notesWithDescription.length === 0) {
-            return <span className="text-slate-400 italic">Sin notas</span>;
-        }
-
-        const itemLabels = {
-            base_service: 'Servicio Base',
-            windows_cleaning: 'Ventanas',
-            steam_vacuum: 'Vapor',
-            other_extra: 'Extra',
-            discount: 'Descuento'
-        };
-
+    const renderNotes = (service) => {
+        const notes = service.reconciliation_items?.filter(i => i.description?.trim());
+        if (!notes?.length) return <span className="text-slate-400 italic text-sm">Sin notas</span>;
         return (
             <div className="space-y-2 max-w-xs">
-                {notesWithDescription.map((item, index) => (
-                    <div key={index} className="bg-blue-50 p-2 rounded-md border border-blue-200">
-                        <span className="font-semibold text-blue-900 text-xs block mb-1">
-                            {itemLabels[item.type] || item.type}
-                        </span>
+                {notes.map((item, i) => (
+                    <div key={i} className="bg-blue-50 p-2 rounded-md border border-blue-200">
+                        <span className="font-semibold text-blue-900 text-xs block mb-1">{itemLabels[item.type] || item.type}</span>
                         <p className="text-slate-700 text-xs break-words">{item.description}</p>
                     </div>
                 ))}
@@ -726,144 +502,19 @@ export default function ConciliacionFacturasPage() {
         );
     };
 
-    const getCleanerNames = (cleanerIds) => {
-        if (!cleanerIds || !Array.isArray(cleanerIds) || cleanerIds.length === 0) {
-            return [];
-        }
+    // ── Early loading state ──────────────────────────────────────────────────
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center space-y-3">
+                    <Loader2 className="w-10 h-10 animate-spin text-blue-600 mx-auto" />
+                    <p className="text-slate-600 font-medium">Cargando datos...</p>
+                </div>
+            </div>
+        );
+    }
 
-        return cleanerIds
-            .map(id => {
-                const user = usersMap.get(id);
-                return user?.display_name || user?.full_name || 'Desconocido';
-            })
-            .filter(Boolean);
-    };
-
-    const getCleanerNamesWithTimes = (service) => {
-        if (!service.cleaner_ids || !Array.isArray(service.cleaner_ids) || service.cleaner_ids.length === 0) {
-            return [];
-        }
-
-        // Si tiene cleaner_schedules, usarlos para mostrar horarios individuales
-        // Calcular duración en horas usando diferencia de milisegundos (compatible con cualquier formato ISO)
-        const calcHours = (startIso, endIso) => {
-            if (!startIso || !endIso) return 0;
-            return (new Date(endIso) - new Date(startIso)) / 3600000;
-        };
-
-        if (service.cleaner_schedules && Array.isArray(service.cleaner_schedules) && service.cleaner_schedules.length > 0) {
-            return service.cleaner_schedules.map(cs => {
-                const user = usersMap.get(cs.cleaner_id);
-                const name = user?.display_name || user?.full_name || 'Desconocido';
-                const hours = calcHours(cs.start_time, cs.end_time);
-                return { name, hours };
-            }).filter(Boolean);
-        }
-
-        // Si no tiene cleaner_schedules, calcular horas del servicio general
-        const totalHours = calcHours(service.start_time, service.end_time);
-        
-        return service.cleaner_ids.map(id => {
-            const user = usersMap.get(id);
-            const name = user?.display_name || user?.full_name || 'Desconocido';
-            return { name, hours: totalHours };
-        }).filter(Boolean);
-    };
-
-    // Separar servicios cash y no-cash del mes filtrado
-    const { cashSchedules, nonCashSchedules } = useMemo(() => {
-        const cash = [];
-        const nonCash = [];
-        
-        filteredMonthlySchedules.forEach(service => {
-            const client = clients.get(service.client_id);
-            // CRÍTICO: Usar snapshot de payment_method si existe, sino usar el actual del cliente
-            const effectivePaymentMethod = service.billed_payment_method_snapshot || client?.payment_method;
-            
-            if (effectivePaymentMethod === 'cash') {
-                cash.push(service);
-            } else {
-                nonCash.push(service);
-            }
-        });
-        
-        return { cashSchedules: cash, nonCashSchedules: nonCash };
-    }, [filteredMonthlySchedules, clients]);
-
-    // Calcular totales del mes separando cash y no-cash (solo del mes filtrado)
-    const monthlyStats = useMemo(() => {
-        const invoiced = filteredMonthlySchedules.filter(s => s.xero_invoiced === true);
-        const pending = filteredMonthlySchedules.filter(s => s.xero_invoiced !== true);
-
-        const calculateTotals = (schedulesList) => {
-            const totals = { base: 0, gst: 0, total: 0, cashBase: 0, nonCashBase: 0 };
-            
-            schedulesList.forEach(service => {
-                const client = clients.get(service.client_id);
-                // CRÍTICO: Usar snapshot de payment_method si existe, sino usar el actual del cliente
-                const effectivePaymentMethod = service.billed_payment_method_snapshot || client?.payment_method;
-                const isCash = effectivePaymentMethod === 'cash';
-                
-                let amount = 0;
-                let gstType = 'inclusive';
-
-                if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-                    amount = service.reconciliation_items.reduce((itemTotal, item) => {
-                        const itemAmount = parseFloat(item.amount) || 0;
-                        return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
-                    }, 0);
-
-                    if (service.xero_invoiced && service.billed_gst_type_snapshot) {
-                        gstType = service.billed_gst_type_snapshot;
-                    } else {
-                        const priceForDate = getPriceForDate(client, service.start_time);
-                        gstType = priceForDate.gstType;
-                    }
-                } else {
-                    if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                        amount = service.billed_price_snapshot;
-                        gstType = service.billed_gst_type_snapshot || 'inclusive';
-                    } else {
-                        const priceForDate = getPriceForDate(client, service.start_time);
-                        amount = priceForDate.price;
-                        gstType = priceForDate.gstType;
-                    }
-                }
-
-                let baseAmount = amount;
-                let gstAmount = 0;
-                let totalAmount = amount;
-
-                if (gstType === 'inclusive') {
-                    baseAmount = amount / 1.1;
-                    gstAmount = amount - baseAmount;
-                } else if (gstType === 'exclusive') {
-                    gstAmount = amount * 0.1;
-                    totalAmount = amount + gstAmount;
-                }
-
-                totals.base += baseAmount;
-                totals.gst += gstAmount;
-                totals.total += totalAmount;
-                
-                if (isCash) {
-                    totals.cashBase += baseAmount;
-                } else {
-                    totals.nonCashBase += baseAmount;
-                }
-            });
-            
-            return totals;
-        };
-
-        return {
-            invoiced: calculateTotals(invoiced),
-            pending: calculateTotals(pending),
-            invoicedCount: invoiced.length,
-            pendingCount: pending.length
-        };
-    }, [filteredMonthlySchedules, clients]);
-
+    // ── Render ───────────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 p-6 md:p-8">
             <div className="max-w-[1800px] mx-auto space-y-6">
@@ -881,11 +532,16 @@ export default function ConciliacionFacturasPage() {
                 </div>
 
                 {error && (
-                    <Alert variant="destructive" className="shadow-sm">
-                        <AlertTriangle className="h-5 w-5" />
-                        <AlertTitle className="font-bold">Error</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                    </Alert>
+                    <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-5 py-4 text-red-700">
+                        <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                        <div>
+                            <p className="font-bold">Error</p>
+                            <p className="text-sm">{error}</p>
+                        </div>
+                        <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
                 )}
 
                 <Tabs defaultValue="daily" className="space-y-6">
@@ -895,16 +551,17 @@ export default function ConciliacionFacturasPage() {
                         <TabsTrigger value="by-client">Por Cliente</TabsTrigger>
                     </TabsList>
 
+                    {/* ── DAILY TAB ─────────────────────────────────────────── */}
                     <TabsContent value="daily" className="space-y-6">
-                        {/* Date Selector */}
+                        {/* Date nav */}
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
                             <div className="flex items-center justify-center gap-2">
-                                <Button variant="outline" size="icon" onClick={() => setSelectedDate(subDays(selectedDate, 1))} className="hover:bg-white">
+                                <Button variant="outline" size="icon" onClick={() => setSelectedDate(d => subDays(d, 1))}>
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
                                 <Popover>
                                     <PopoverTrigger asChild>
-                                        <Button variant="outline" className="w-[280px] justify-start text-left font-medium hover:bg-white">
+                                        <Button variant="outline" className="w-[280px] justify-start font-medium">
                                             <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
                                             {format(selectedDate, "PPP", { locale: es })}
                                         </Button>
@@ -913,654 +570,272 @@ export default function ConciliacionFacturasPage() {
                                         <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
                                     </PopoverContent>
                                 </Popover>
-                                <Button variant="outline" size="icon" onClick={() => setSelectedDate(addDays(selectedDate, 1))} className="hover:bg-white">
+                                <Button variant="outline" size="icon" onClick={() => setSelectedDate(d => addDays(d, 1))}>
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
+                                {!isSameDay(selectedDate, new Date()) && (
+                                    <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date())} className="text-xs font-semibold">
+                                        Hoy
+                                    </Button>
+                                )}
                             </div>
                         </div>
 
-                {/* Status Card */}
-                <div className={`rounded-xl shadow-lg border-2 ${config.borderColor} ${config.bgColor} overflow-hidden`}>
-                    <div className="p-6">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-white rounded-xl shadow-md">
-                                    {config.icon}
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h2 className={`font-bold text-xl ${config.textColor}`}>Estado del Día</h2>
-                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} text-white shadow-sm`}>
-                                            {config.text}
-                                        </span>
+                        {/* Status card */}
+                        <div className={`rounded-xl shadow-lg border-2 ${config.borderColor} ${config.bgColor} p-6`}>
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-white rounded-xl shadow-md">{config.icon}</div>
+                                    <div>
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <h2 className={`font-bold text-xl ${config.textColor}`}>Estado del Día</h2>
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} text-white`}>{config.text}</span>
+                                        </div>
+                                        <p className="text-slate-700 font-medium capitalize">
+                                            {format(selectedDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
+                                        </p>
                                     </div>
-                                    <p className="text-slate-700 font-medium">
-                                        {format(selectedDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
-                                    </p>
                                 </div>
-                            </div>
-                            <div className="flex gap-3">
-                                {isScheduler && (currentStatus === 'horario_reviewed' || currentStatus === 'completed') && (
-                                    <Button
-                                        onClick={handleReopenDay}
-                                        disabled={loading}
-                                        variant="outline"
-                                        className="border-orange-600 text-orange-700 hover:bg-orange-50 shadow-lg hover:shadow-xl transition-all"
-                                        size="lg"
-                                    >
-                                        <X className="w-5 h-5 mr-2" />
-                                        Volver a Revisar
-                                    </Button>
-                                )}
-                                {isScheduler && currentStatus === 'pending' && (
-                                    <Button
-                                        onClick={handleMarkDayAsReviewed}
-                                        disabled={loading}
-                                        className="bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all"
-                                        size="lg"
-                                    >
-                                        <Send className="w-5 h-5 mr-2" />
-                                        Marcar Día como Revisado
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Services Table */}
-                <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200">
-                                    <TableHead className="font-bold text-slate-700 py-4 min-w-[180px]">Horario</TableHead>
-                                    <TableHead className="font-bold text-slate-700 min-w-[250px]">Cliente</TableHead>
-                                    <TableHead className="font-bold text-slate-700 min-w-[140px]">Monto Original</TableHead>
-                                    <TableHead className="font-bold text-slate-700 w-56">Monto a Facturar</TableHead>
-                                    <TableHead className="font-bold text-slate-700 w-64">Notas Completas</TableHead>
-                                    <TableHead className="font-bold text-slate-700 w-80">Notas Especiales</TableHead>
-                                    <TableHead className="font-bold text-slate-700 text-center min-w-[130px]">Facturado</TableHead>
-                                    <TableHead className="font-bold text-slate-700 text-right min-w-[280px]">Acciones</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {loading ? (
-                                    <TableRow>
-                                        <TableCell colSpan="8" className="text-center py-12">
-                                            <div className="flex flex-col items-center gap-3">
-                                                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                                                <span className="text-slate-600 font-medium">Cargando servicios...</span>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : schedules.length > 0 ? (
-                                    schedules.map((service, index) => {
-                                        const client = clients.get(service.client_id);
-                                        const isUnassigned = !service.cleaner_ids || service.cleaner_ids.length === 0;
-                                        const hasSpecialBillingInstructions = client?.has_special_billing_instructions && client?.special_billing_instructions;
-                                        
-                                        // CRÍTICO: Determinar precio y GST a mostrar en "Monto Original"
-                                        let originalPrice, originalGstType;
-                                        if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                                            originalPrice = service.billed_price_snapshot;
-                                            originalGstType = service.billed_gst_type_snapshot || 'inclusive';
-                                        } else {
-                                            const priceForDate = getPriceForDate(client, service.start_time);
-                                            originalPrice = priceForDate.price;
-                                            originalGstType = priceForDate.gstType;
-                                        }
-
-                                        const cleanerNamesWithTimes = getCleanerNamesWithTimes(service);
-
-                                        return (
-                                        <TableRow
-                                            key={service.id}
-                                            className={`
-                                                ${service.xero_invoiced ? 'bg-green-50/50' : 'hover:bg-slate-50'}
-                                                ${index % 2 === 0 && !service.xero_invoiced ? 'bg-white' : ''}
-                                                transition-colors border-b border-slate-100
-                                            `}
-                                        >
-                                            <TableCell className="font-medium text-slate-900 py-4 min-w-[180px]">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-sm font-bold">
-                                                        {formatTimeUTC(service.start_time)} - {formatTimeUTC(service.end_time)}
-                                                    </span>
-                                                    {cleanerNamesWithTimes.length > 0 ? (
-                                                        <div className="flex flex-col gap-0.5 mt-1">
-                                                            {cleanerNamesWithTimes.map((cleaner, idx) => (
-                                                                <span key={idx} className="text-xs text-slate-600">
-                                                                    • {cleaner.name}
-                                                                    <span className="text-[10px] text-blue-600 ml-1.5 font-bold">
-                                                                        {cleaner.hours}h
-                                                                    </span>
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-xs text-slate-500 mt-1">
-                                                            Sin asignar
-                                                        </span>
-                                                    )}
-                                                    {isUnassigned && (
-                                                        <Badge variant="destructive" className="text-xs w-fit mt-1">
-                                                            SIN ASIGNAR
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="min-w-[250px] py-4">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-medium text-slate-900 text-base">{client?.name || 'Cliente no encontrado'}</span>
-                                                        {hasSpecialBillingInstructions && (
-                                                            <FileSignature className="w-4 h-4 text-orange-500 flex-shrink-0" title="Instrucciones especiales de facturación" />
-                                                        )}
-                                                    </div>
-                                                    {client?.email && (
-                                                        <div className="text-xs text-slate-600">
-                                                            📧 {client.email}
-                                                        </div>
-                                                    )}
-                                                    {client?.mobile_number && (
-                                                        <div className="text-xs text-slate-600">
-                                                            📱 {client.mobile_number}
-                                                        </div>
-                                                    )}
-                                                    {client?.address && (
-                                                        <div className="text-xs text-slate-600">
-                                                            📍 {client.address}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="min-w-[140px]">
-                                                <div className="space-y-2">
-                                                    <div className="font-bold text-lg text-slate-900">
-                                                        ${originalPrice.toFixed(2)}
-                                                    </div>
-                                                    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[originalGstType]}`}>
-                                                        {gstTypeLabels[originalGstType]}
-                                                    </span>
-                                                    {service.xero_invoiced && (
-                                                        <div className="text-xs text-green-600 font-medium flex items-center gap-1">
-                                                            <CheckCircle className="w-3 h-3" />
-                                                            Precio Facturado
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="min-w-[220px]">
-                                                {renderReconciledAmountBreakdown(service)}
-                                            </TableCell>
-                                            <TableCell className="max-w-xs">
-                                                {renderNotesBreakdown(service)}
-                                            </TableCell>
-                                            <TableCell className="max-w-sm">
-                                                {hasSpecialBillingInstructions ? (
-                                                    <div className="bg-gradient-to-br from-orange-50 to-amber-50 border-l-4 border-orange-400 rounded-lg p-3 shadow-sm">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <FileSignature className="w-4 h-4 text-orange-600" />
-                                                            <span className="text-xs font-bold text-orange-900 uppercase">Instrucciones Especiales</span>
-                                                        </div>
-                                                        <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                                                            {client.special_billing_instructions}
-                                                        </p>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-slate-400 text-sm italic">Sin notas especiales</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-center min-w-[130px]">
-                                                {service.xero_invoiced ? (
-                                                    <div className="inline-flex items-center gap-2 bg-green-100 px-3 py-2 rounded-lg border border-green-200">
-                                                        <CheckCircle className="w-5 h-5 text-green-600" />
-                                                        <span className="text-green-700 font-semibold text-sm">Facturado</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className="inline-flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-lg border border-slate-200">
-                                                        <Circle className="w-5 h-5 text-slate-400" />
-                                                        <span className="text-slate-600 text-sm">Pendiente</span>
-                                                    </div>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-right min-w-[280px]">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {isScheduler && currentStatus === 'pending' && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => setEditingService(service)}
-                                                            className="hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
-                                                        >
-                                                            <Edit className="w-4 h-4 mr-2" />
-                                                            Revisar
-                                                        </Button>
-                                                    )}
-
-                                                    {isAccountant && currentStatus === 'horario_reviewed' && !service.xero_invoiced && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => setEditingService(service)}
-                                                            className="hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition-colors"
-                                                        >
-                                                            <Edit className="w-4 h-4 mr-2" />
-                                                            Editar
-                                                        </Button>
-                                                    )}
-
-                                                    {isAccountant && (currentStatus === 'completed' || service.xero_invoiced) && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => setEditingService(service)}
-                                                            className="hover:bg-slate-100"
-                                                        >
-                                                            <Eye className="w-4 h-4 mr-2" />
-                                                            Ver
-                                                        </Button>
-                                                    )}
-
-                                                    {isAccountant && currentStatus === 'horario_reviewed' && !service.xero_invoiced && (
-                                                        <Button
-                                                            variant="default"
-                                                            size="sm"
-                                                            onClick={() => handleMarkAsInvoiced(service.id)}
-                                                            className="bg-green-600 hover:bg-green-700 shadow-sm hover:shadow-md transition-all"
-                                                        >
-                                                            <DollarSign className="w-4 h-4 mr-2" />
-                                                            Facturado
-                                                        </Button>
-                                                    )}
-
-                                                    {isAccountant && service.xero_invoiced && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => handleUnmarkAsInvoiced(service.id)}
-                                                            className="border-orange-600 text-orange-700 hover:bg-orange-50 shadow-sm hover:shadow-md transition-all"
-                                                        >
-                                                            <X className="w-4 h-4 mr-2" />
-                                                            Quitar Facturado
-                                                        </Button>
-                                                    )}
-
-                                                    {isScheduler && !service.xero_invoiced && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => handleDeleteClick(service)}
-                                                            className="border-red-600 text-red-700 hover:bg-red-50 shadow-sm hover:shadow-md transition-all"
-                                                        >
-                                                            <Trash2 className="w-4 h-4 mr-2" />
-                                                            Eliminar
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    )})
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan="8" className="text-center py-12">
-                                            <div className="flex flex-col items-center gap-3">
-                                                <Calendar className="w-12 h-12 text-slate-300" />
-                                                <div>
-                                                    <p className="text-slate-600 font-medium">No hay servicios programados para esta fecha</p>
-                                                    <p className="text-slate-400 text-sm mt-1">Selecciona otra fecha para ver los servicios</p>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-
-                            {!loading && schedules.length > 0 && (
-                                <tfoot>
-                                    <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 font-bold">
-                                        <TableCell colSpan="3" className="text-right py-4">
-                                            <div className="flex flex-col items-end gap-1">
-                                                <span className="text-lg text-blue-900">Total del Día (Base sin GST):</span>
-                                                <span className="text-xs text-blue-600 font-normal">* Monto base excl. impuestos</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="py-4">
-                                            <div className="space-y-2">
-                                                <div className="font-bold text-2xl text-blue-700">
-                                                    ${totalDelDia.toFixed(2)}
-                                                </div>
-                                                <span className="text-xs text-blue-600 font-semibold">
-                                                    {schedules.length} servicio{schedules.length !== 1 ? 's' : ''}
-                                                </span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell colSpan="4"></TableCell>
-                                    </TableRow>
-                                </tfoot>
-                            )}
-                        </Table>
-                    </div>
-                </div>
-                    </TabsContent>
-
-                    <TabsContent value="monthly" className="space-y-6">
-                        {/* Month Selector */}
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                            <div className="flex items-center justify-center gap-2">
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" className="w-[280px] justify-start text-left font-medium hover:bg-white">
-                                            <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
-                                            {format(selectedMonth, "MMMM yyyy", { locale: es })}
+                                <div className="flex gap-3">
+                                    {isAdmin && (currentStatus === 'horario_reviewed' || currentStatus === 'completed') && (
+                                        <Button onClick={handleReopenDay} disabled={dayLoading} variant="outline"
+                                            className="border-orange-600 text-orange-700 hover:bg-orange-50" size="lg">
+                                            <X className="w-5 h-5 mr-2" />Volver a Revisar
                                         </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                        <Calendar 
-                                            mode="single" 
-                                            selected={selectedMonth} 
-                                            onSelect={setSelectedMonth}
-                                            disabled={(date) => date > new Date()}
-                                            initialFocus 
-                                        />
-                                    </PopoverContent>
-                                </Popover>
+                                    )}
+                                    {isAdmin && currentStatus === 'pending' && (
+                                        <Button onClick={handleMarkDayAsReviewed} disabled={dayLoading}
+                                            className="bg-blue-600 hover:bg-blue-700" size="lg">
+                                            {dayLoading ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Send className="w-5 h-5 mr-2" />}
+                                            Marcar Día como Revisado
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        {/* Summary Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <Card className="shadow-lg border border-green-200 bg-gradient-to-br from-green-50 to-white">
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-sm font-semibold text-green-700 uppercase tracking-wide flex items-center gap-2">
-                                        <CheckCircle className="w-4 h-4" />
-                                        Facturado Base
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-3xl font-bold text-green-900">${monthlyStats.invoiced.base.toFixed(2)}</p>
-                                    <div className="mt-3 space-y-1 pt-3 border-t border-green-200">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-green-700 font-medium">💵 Cash:</span>
-                                            <span className="text-sm font-bold text-green-800">${monthlyStats.invoiced.cashBase.toFixed(2)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-xs text-green-700 font-medium">📄 Factura:</span>
-                                            <span className="text-sm font-bold text-green-800">${monthlyStats.invoiced.nonCashBase.toFixed(2)}</span>
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-green-600 mt-2">{monthlyStats.invoicedCount} servicios</p>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="shadow-lg border border-green-200 bg-gradient-to-br from-green-50 to-white">
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-sm font-semibold text-green-700 uppercase tracking-wide flex items-center gap-2">
-                                        <CheckCircle className="w-4 h-4" />
-                                        Facturado con GST
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-3xl font-bold text-green-900">${monthlyStats.invoiced.total.toFixed(2)}</p>
-                                    <p className="text-xs text-green-600 mt-1">GST: ${monthlyStats.invoiced.gst.toFixed(2)}</p>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="shadow-lg border border-orange-200 bg-gradient-to-br from-orange-50 to-white">
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-sm font-semibold text-orange-700 uppercase tracking-wide flex items-center gap-2">
-                                        <Clock className="w-4 h-4" />
-                                        Pendiente Base
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-3xl font-bold text-orange-900">${monthlyStats.pending.base.toFixed(2)}</p>
-                                    <p className="text-xs text-orange-600 mt-1">{monthlyStats.pendingCount} servicios</p>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="shadow-lg border border-orange-200 bg-gradient-to-br from-orange-50 to-white">
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-sm font-semibold text-orange-700 uppercase tracking-wide flex items-center gap-2">
-                                        <Clock className="w-4 h-4" />
-                                        Pendiente con GST
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-3xl font-bold text-orange-900">${monthlyStats.pending.total.toFixed(2)}</p>
-                                    <p className="text-xs text-orange-600 mt-1">GST: ${monthlyStats.pending.gst.toFixed(2)}</p>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* Monthly Services Table - Non-Cash */}
+                        {/* Services table */}
                         <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-                            <div className="p-6 border-b border-slate-200">
-                                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                                    <FileText className="w-6 h-6 text-blue-600" />
-                                    Servicios con Factura
-                                </h2>
-                                <p className="text-sm text-slate-600 mt-1">Servicios con pago por transferencia, tarjeta u otros métodos</p>
-                            </div>
                             <div className="overflow-x-auto">
                                 <Table>
-                                    <TableHeader className="bg-slate-100">
-                                        <TableRow>
-                                            <TableHead className="font-bold text-slate-700">Fecha</TableHead>
-                                            <TableHead className="font-bold text-slate-700">Cliente</TableHead>
-                                            <TableHead className="text-right font-bold text-slate-700">Base</TableHead>
-                                            <TableHead className="text-right font-bold text-slate-700">GST</TableHead>
-                                            <TableHead className="text-right font-bold text-slate-700">Total</TableHead>
-                                            <TableHead className="text-center font-bold text-slate-700">GST Type</TableHead>
-                                            <TableHead className="text-center font-bold text-slate-700">Estado</TableHead>
+                                    <TableHeader>
+                                        <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200">
+                                            <TableHead className="font-bold text-slate-700 py-4 min-w-[180px]">Horario</TableHead>
+                                            <TableHead className="font-bold text-slate-700 min-w-[250px]">Cliente</TableHead>
+                                            <TableHead className="font-bold text-slate-700 min-w-[140px]">Monto Original</TableHead>
+                                            <TableHead className="font-bold text-slate-700 w-56">Monto a Facturar</TableHead>
+                                            <TableHead className="font-bold text-slate-700 w-64">Notas Completas</TableHead>
+                                            <TableHead className="font-bold text-slate-700 w-80">Notas Especiales</TableHead>
+                                            <TableHead className="font-bold text-slate-700 text-center min-w-[130px]">Facturado</TableHead>
+                                            <TableHead className="font-bold text-slate-700 text-right min-w-[280px]">Acciones</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {nonCashSchedules.map((service) => {
+                                        {dayLoading ? (
+                                            <TableRow>
+                                                <TableCell colSpan={8} className="text-center py-12">
+                                                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                                                    <span className="text-slate-500 text-sm">Cargando servicios...</span>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : schedules.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={8} className="text-center py-12 text-slate-400">
+                                                    <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                                    <p className="font-medium">No hay servicios para esta fecha</p>
+                                                    <p className="text-sm mt-1">Selecciona otra fecha para ver los servicios</p>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : schedules.map((service, index) => {
                                             const client = clients.get(service.client_id);
-                                            let amount = 0;
-                                            let gstType = 'inclusive';
-
-                                            if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-                                                amount = service.reconciliation_items.reduce((itemTotal, item) => {
-                                                    const itemAmount = parseFloat(item.amount) || 0;
-                                                    return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
-                                                }, 0);
-
-                                                if (service.xero_invoiced && service.billed_gst_type_snapshot) {
-                                                    gstType = service.billed_gst_type_snapshot;
-                                                } else {
-                                                    const priceForDate = getPriceForDate(client, service.start_time);
-                                                    gstType = priceForDate.gstType;
-                                                }
+                                            const isUnassigned = !service.cleaner_ids?.length;
+                                            const hasSpecialBilling = client?.has_special_billing_instructions && client?.special_billing_instructions;
+                                            let originalPrice, originalGstType;
+                                            if (service.xero_invoiced && service.billed_price_snapshot != null) {
+                                                originalPrice = service.billed_price_snapshot;
+                                                originalGstType = service.billed_gst_type_snapshot || 'inclusive';
                                             } else {
-                                                if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                                                    amount = service.billed_price_snapshot;
-                                                    gstType = service.billed_gst_type_snapshot || 'inclusive';
-                                                } else {
-                                                    const priceForDate = getPriceForDate(client, service.start_time);
-                                                    amount = priceForDate.price;
-                                                    gstType = priceForDate.gstType;
-                                                }
+                                                const pfd = getPriceForDate(client, service.start_time);
+                                                originalPrice = pfd.price;
+                                                originalGstType = pfd.gstType;
                                             }
-
-                                            let baseAmount = amount;
-                                            let gstAmount = 0;
-                                            let totalAmount = amount;
-
-                                            if (gstType === 'inclusive') {
-                                                baseAmount = amount / 1.1;
-                                                gstAmount = amount - baseAmount;
-                                            } else if (gstType === 'exclusive') {
-                                                gstAmount = amount * 0.1;
-                                                totalAmount = amount + gstAmount;
-                                            }
-
-                                            // Extraer fecha directamente de los primeros 10 caracteres (YYYY-MM-DD)
-                                            const serviceDateStr = service.start_time ? service.start_time.slice(0, 10) : '';
-                                            const [serviceYear, serviceMonth, serviceDay] = serviceDateStr.split('-').map(Number);
-                                            const serviceDate = new Date(serviceYear, serviceMonth - 1, serviceDay);
-                                            
+                                            const cleaners = getCleanerNamesWithTimes(service);
                                             return (
-                                                <TableRow key={service.id} className={service.xero_invoiced ? 'bg-green-50/50' : 'hover:bg-slate-50'}>
-                                                    <TableCell className="font-medium">
-                                                        {format(serviceDate, "d MMM", { locale: es })}
+                                                <TableRow key={service.id}
+                                                    className={`border-b border-slate-100 transition-colors ${service.xero_invoiced ? 'bg-green-50/50' : index % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50/50 hover:bg-slate-100'}`}>
+                                                    <TableCell className="py-4 min-w-[180px]">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-sm font-bold">
+                                                                {formatTimeUTC(service.start_time)} - {formatTimeUTC(service.end_time)}
+                                                            </span>
+                                                            {cleaners.map((c, i) => (
+                                                                <span key={i} className="text-xs text-slate-600">
+                                                                    • {c.name}<span className="text-[10px] text-blue-600 ml-1 font-bold">{c.hours}h</span>
+                                                                </span>
+                                                            ))}
+                                                            {isUnassigned && <Badge variant="destructive" className="text-xs w-fit mt-1">SIN ASIGNAR</Badge>}
+                                                        </div>
                                                     </TableCell>
-                                                    <TableCell className="font-semibold text-slate-900">
-                                                        {client?.name || 'Desconocido'}
+                                                    <TableCell className="min-w-[250px] py-4">
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-medium text-slate-900">{client?.name || 'Cliente no encontrado'}</span>
+                                                                {hasSpecialBilling && <FileSignature className="w-4 h-4 text-orange-500 flex-shrink-0" title="Instrucciones especiales" />}
+                                                            </div>
+                                                            {client?.email && <p className="text-xs text-slate-500">📧 {client.email}</p>}
+                                                            {client?.mobile_number && <p className="text-xs text-slate-500">📱 {client.mobile_number}</p>}
+                                                            {client?.address && <p className="text-xs text-slate-500">📍 {client.address}</p>}
+                                                        </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right font-medium">
-                                                        ${baseAmount.toFixed(2)}
+                                                    <TableCell className="min-w-[140px]">
+                                                        <AmountCell price={originalPrice} gstType={originalGstType} invoiced={service.xero_invoiced} />
                                                     </TableCell>
-                                                    <TableCell className="text-right text-slate-600">
-                                                        ${gstAmount.toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-bold text-slate-900">
-                                                        ${totalAmount.toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <Badge className={gstTypeBadgeColors[gstType] || gstTypeBadgeColors.inclusive}>
-                                                            {gstTypeLabels[gstType] || 'Incluido'}
-                                                        </Badge>
+                                                    <TableCell className="min-w-[220px]">{renderAmountBreakdown(service)}</TableCell>
+                                                    <TableCell className="max-w-xs">{renderNotes(service)}</TableCell>
+                                                    <TableCell className="max-w-sm">
+                                                        {hasSpecialBilling ? (
+                                                            <div className="bg-gradient-to-br from-orange-50 to-amber-50 border-l-4 border-orange-400 rounded-lg p-3">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <FileSignature className="w-4 h-4 text-orange-600" />
+                                                                    <span className="text-xs font-bold text-orange-900 uppercase">Instrucciones Especiales</span>
+                                                                </div>
+                                                                <p className="text-sm text-slate-800 whitespace-pre-wrap">{client.special_billing_instructions}</p>
+                                                            </div>
+                                                        ) : <span className="text-slate-400 text-sm italic">Sin notas especiales</span>}
                                                     </TableCell>
                                                     <TableCell className="text-center">
                                                         {service.xero_invoiced ? (
-                                                            <Badge className="bg-green-500 text-white">
-                                                                <CheckCircle className="w-3 h-3 mr-1" />
-                                                                Facturado
-                                                            </Badge>
+                                                            <div className="inline-flex items-center gap-2 bg-green-100 px-3 py-2 rounded-lg border border-green-200">
+                                                                <CheckCircle className="w-5 h-5 text-green-600" />
+                                                                <span className="text-green-700 font-semibold text-sm">Facturado</span>
+                                                            </div>
                                                         ) : (
-                                                            <Badge className="bg-orange-500 text-white">
-                                                                <Clock className="w-3 h-3 mr-1" />
-                                                                Pendiente
-                                                            </Badge>
+                                                            <div className="inline-flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-lg border border-slate-200">
+                                                                <Circle className="w-5 h-5 text-slate-400" />
+                                                                <span className="text-slate-600 text-sm">Pendiente</span>
+                                                            </div>
                                                         )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center justify-end gap-2 flex-wrap">
+                                                            {isAdmin && currentStatus === 'pending' && (
+                                                                <Button variant="outline" size="sm" onClick={() => setEditingService(service)} className="hover:bg-blue-50 hover:text-blue-700">
+                                                                    <Edit className="w-4 h-4 mr-1" />Revisar
+                                                                </Button>
+                                                            )}
+                                                            {isAdmin && currentStatus === 'horario_reviewed' && !service.xero_invoiced && (
+                                                                <>
+                                                                    <Button variant="outline" size="sm" onClick={() => setEditingService(service)} className="hover:bg-blue-50 hover:text-blue-700">
+                                                                        <Edit className="w-4 h-4 mr-1" />Editar
+                                                                    </Button>
+                                                                    <Button variant="default" size="sm" onClick={() => handleMarkAsInvoiced(service.id)} disabled={dayLoading} className="bg-green-600 hover:bg-green-700">
+                                                                        <DollarSign className="w-4 h-4 mr-1" />Facturado
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                            {isAdmin && (currentStatus === 'completed' || service.xero_invoiced) && (
+                                                                <Button variant="ghost" size="sm" onClick={() => setEditingService(service)}>
+                                                                    <Eye className="w-4 h-4 mr-1" />Ver
+                                                                </Button>
+                                                            )}
+                                                            {isAdmin && service.xero_invoiced && (
+                                                                <Button variant="outline" size="sm" onClick={() => handleUnmarkAsInvoiced(service.id)} disabled={dayLoading} className="border-orange-600 text-orange-700 hover:bg-orange-50">
+                                                                    <X className="w-4 h-4 mr-1" />Quitar
+                                                                </Button>
+                                                            )}
+                                                            {isAdmin && !service.xero_invoiced && (
+                                                                <Button variant="outline" size="sm" onClick={() => handleDeleteClick(service)} className="border-red-600 text-red-700 hover:bg-red-50">
+                                                                    <Trash2 className="w-4 h-4 mr-1" />Eliminar
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     </TableCell>
                                                 </TableRow>
                                             );
                                         })}
                                     </TableBody>
+                                    {!dayLoading && schedules.length > 0 && (
+                                        <tfoot>
+                                            <TableRow className="bg-gradient-to-r from-blue-50 to-indigo-50 border-t-2 border-blue-200 font-bold">
+                                                <TableCell colSpan={3} className="text-right py-4">
+                                                    <span className="text-lg text-blue-900">Total del Día (Base sin GST):</span>
+                                                </TableCell>
+                                                <TableCell className="py-4">
+                                                    <div className="font-bold text-2xl text-blue-700">${totalDelDia.toFixed(2)}</div>
+                                                    <span className="text-xs text-blue-600">{schedules.length} servicio{schedules.length !== 1 ? 's' : ''}</span>
+                                                </TableCell>
+                                                <TableCell colSpan={4} />
+                                            </TableRow>
+                                        </tfoot>
+                                    )}
                                 </Table>
                             </div>
                         </div>
-
-                        {/* Monthly Services Table - Cash */}
-                        {cashSchedules.length > 0 && (
-                            <div className="bg-white rounded-xl shadow-lg border border-green-200 overflow-hidden">
-                                <div className="p-6 border-b border-green-200 bg-green-50">
-                                    <h2 className="text-2xl font-bold text-green-900 flex items-center gap-2">
-                                        <DollarSign className="w-6 h-6 text-green-600" />
-                                        Servicios Cash
-                                    </h2>
-                                    <p className="text-sm text-green-700 mt-1">Servicios con pago en efectivo</p>
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <Table>
-                                        <TableHeader className="bg-green-100">
-                                            <TableRow>
-                                                <TableHead className="font-bold text-green-800">Fecha</TableHead>
-                                                <TableHead className="font-bold text-green-800">Cliente</TableHead>
-                                                <TableHead className="text-right font-bold text-green-800">Base</TableHead>
-                                                <TableHead className="text-right font-bold text-green-800">GST</TableHead>
-                                                <TableHead className="text-right font-bold text-green-800">Total</TableHead>
-                                                <TableHead className="text-center font-bold text-green-800">GST Type</TableHead>
-                                                <TableHead className="text-center font-bold text-green-800">Estado</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {cashSchedules.map((service) => {
-                                                const client = clients.get(service.client_id);
-                                                let amount = 0;
-                                                let gstType = 'inclusive';
-
-                                                if (service.reconciliation_items && service.reconciliation_items.length > 0) {
-                                                    amount = service.reconciliation_items.reduce((itemTotal, item) => {
-                                                        const itemAmount = parseFloat(item.amount) || 0;
-                                                        return item.type === 'discount' ? itemTotal - itemAmount : itemTotal + itemAmount;
-                                                    }, 0);
-
-                                                    if (service.xero_invoiced && service.billed_gst_type_snapshot) {
-                                                        gstType = service.billed_gst_type_snapshot;
-                                                    } else {
-                                                        const priceForDate = getPriceForDate(client, service.start_time);
-                                                        gstType = priceForDate.gstType;
-                                                    }
-                                                } else {
-                                                    if (service.xero_invoiced && service.billed_price_snapshot !== undefined && service.billed_price_snapshot !== null) {
-                                                        amount = service.billed_price_snapshot;
-                                                        gstType = service.billed_gst_type_snapshot || 'inclusive';
-                                                    } else {
-                                                        const priceForDate = getPriceForDate(client, service.start_time);
-                                                        amount = priceForDate.price;
-                                                        gstType = priceForDate.gstType;
-                                                    }
-                                                }
-
-                                                let baseAmount = amount;
-                                                let gstAmount = 0;
-                                                let totalAmount = amount;
-
-                                                if (gstType === 'inclusive') {
-                                                    baseAmount = amount / 1.1;
-                                                    gstAmount = amount - baseAmount;
-                                                } else if (gstType === 'exclusive') {
-                                                    gstAmount = amount * 0.1;
-                                                    totalAmount = amount + gstAmount;
-                                                }
-
-                                                const serviceDateStr = service.start_time ? service.start_time.slice(0, 10) : '';
-                                                const [serviceYear, serviceMonth, serviceDay] = serviceDateStr.split('-').map(Number);
-                                                const serviceDate = new Date(serviceYear, serviceMonth - 1, serviceDay);
-
-                                                return (
-                                                    <TableRow key={service.id} className={service.xero_invoiced ? 'bg-green-100/50' : 'hover:bg-green-50'}>
-                                                        <TableCell className="font-medium">
-                                                            {format(serviceDate, "d MMM", { locale: es })}
-                                                        </TableCell>
-                                                        <TableCell className="font-semibold text-slate-900">
-                                                            {client?.name || 'Desconocido'}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-medium">
-                                                            ${baseAmount.toFixed(2)}
-                                                        </TableCell>
-                                                        <TableCell className="text-right text-slate-600">
-                                                            ${gstAmount.toFixed(2)}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-bold text-slate-900">
-                                                            ${totalAmount.toFixed(2)}
-                                                        </TableCell>
-                                                        <TableCell className="text-center">
-                                                            <Badge className={gstTypeBadgeColors[gstType] || gstTypeBadgeColors.inclusive}>
-                                                                {gstTypeLabels[gstType] || 'Incluido'}
-                                                            </Badge>
-                                                        </TableCell>
-                                                        <TableCell className="text-center">
-                                                            {service.xero_invoiced ? (
-                                                                <Badge className="bg-green-500 text-white">
-                                                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                                                    Facturado
-                                                                </Badge>
-                                                            ) : (
-                                                                <Badge className="bg-orange-500 text-white">
-                                                                    <Clock className="w-3 h-3 mr-1" />
-                                                                    Pendiente
-                                                                </Badge>
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </div>
-                        )}
                     </TabsContent>
 
-                    <TabsContent value="by-client" className="space-y-6">
-                        <ClientSummaryReportTab 
-                            monthlySchedules={monthlySchedules} 
+                    {/* ── MONTHLY TAB ───────────────────────────────────────── */}
+                    <TabsContent value="monthly" className="space-y-6">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                            <div className="flex items-center justify-center gap-2">
+                                <Button variant="outline" size="icon" onClick={() => setSelectedMonth(d => subDays(startOfMonth(d), 1))}>
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="w-[280px] justify-start font-medium">
+                                            <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
+                                            {format(selectedMonth, "MMMM yyyy", { locale: es })}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={selectedMonth} onSelect={setSelectedMonth} disabled={d => d > new Date()} initialFocus />
+                                    </PopoverContent>
+                                </Popover>
+                                <Button variant="outline" size="icon" onClick={() => setSelectedMonth(d => addDays(endOfMonth(d), 1))}>
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {[
+                                { label: 'Facturado Base', icon: <CheckCircle className="w-4 h-4" />, color: 'green', value: monthlyStats.invoiced.base, sub: `${monthlyStats.invoicedCount} servicios`, extra: [{ label: '💵 Cash', val: monthlyStats.invoiced.cashBase }, { label: '📄 Factura', val: monthlyStats.invoiced.nonCashBase }] },
+                                { label: 'Facturado con GST', icon: <CheckCircle className="w-4 h-4" />, color: 'green', value: monthlyStats.invoiced.total, sub: `GST: $${monthlyStats.invoiced.gst.toFixed(2)}` },
+                                { label: 'Pendiente Base', icon: <Clock className="w-4 h-4" />, color: 'orange', value: monthlyStats.pending.base, sub: `${monthlyStats.pendingCount} servicios` },
+                                { label: 'Pendiente con GST', icon: <Clock className="w-4 h-4" />, color: 'orange', value: monthlyStats.pending.total, sub: `GST: $${monthlyStats.pending.gst.toFixed(2)}` },
+                            ].map((card, i) => (
+                                <Card key={i} className={`shadow-lg border border-${card.color}-200 bg-gradient-to-br from-${card.color}-50 to-white`}>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className={`text-sm font-semibold text-${card.color}-700 uppercase tracking-wide flex items-center gap-2`}>
+                                            {card.icon}{card.label}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className={`text-3xl font-bold text-${card.color}-900`}>${card.value.toFixed(2)}</p>
+                                        {card.extra && (
+                                            <div className={`mt-3 space-y-1 pt-3 border-t border-${card.color}-200`}>
+                                                {card.extra.map((e, j) => (
+                                                    <div key={j} className="flex justify-between">
+                                                        <span className={`text-xs text-${card.color}-700 font-medium`}>{e.label}:</span>
+                                                        <span className={`text-sm font-bold text-${card.color}-800`}>${e.val.toFixed(2)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <p className={`text-xs text-${card.color}-600 mt-2`}>{card.sub}</p>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+
+                        <MonthlyTable title="Servicios con Factura" schedules={nonCashSchedules} clients={clients} gstTypeLabels={gstTypeLabels} gstTypeBadgeColors={gstTypeBadgeColors} getServiceAmount={getServiceAmount} getServiceGstType={getServiceGstType} calcGst={calcGst} headerColor="slate" />
+                        {cashSchedules.length > 0 && <MonthlyTable title="Servicios Cash" schedules={cashSchedules} clients={clients} gstTypeLabels={gstTypeLabels} gstTypeBadgeColors={gstTypeBadgeColors} getServiceAmount={getServiceAmount} getServiceGstType={getServiceGstType} calcGst={calcGst} headerColor="green" icon={<DollarSign className="w-6 h-6 text-green-600" />} />}
+                    </TabsContent>
+
+                    {/* ── BY CLIENT TAB ─────────────────────────────────────── */}
+                    <TabsContent value="by-client">
+                        <ClientSummaryReportTab
+                            monthlySchedules={monthlySchedules}
                             clients={clients}
                             usersMap={usersMap}
                             allWorkEntries={allWorkEntries}
@@ -1585,65 +860,107 @@ export default function ConciliacionFacturasPage() {
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-red-700">
-                            <AlertTriangle className="w-5 h-5" />
-                            Confirmar Eliminación
+                            <AlertTriangle className="w-5 h-5" />Confirmar Eliminación
                         </DialogTitle>
                     </DialogHeader>
-
-                    <div className="space-y-4">
-                        <Alert variant="destructive" className="bg-red-50 border-red-200">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription className="text-red-800">
-                                ¿Estás seguro de que deseas eliminar este servicio?
-                                <br /><br />
-                                Esta acción <strong>no se puede deshacer</strong> y el servicio se eliminará permanentemente del sistema.
-                            </AlertDescription>
-                        </Alert>
-
-                        {serviceToDelete && (
-                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-2">
-                                <h4 className="font-semibold text-slate-900">Detalles del servicio a eliminar:</h4>
-                                <div className="text-sm text-slate-700 space-y-1">
-                                    <p><strong>Cliente:</strong> {clients.get(serviceToDelete.client_id)?.name || 'Desconocido'}</p>
-                                    <p><strong>Fecha:</strong> {format(new Date(serviceToDelete.start_time.slice(0,10) + 'T12:00:00'), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}</p>
-                                        <p><strong>Horario:</strong> {serviceToDelete.start_time.slice(11,16)} - {serviceToDelete.end_time.slice(11,16)}</p>
-                                    {serviceToDelete.cleaner_ids && serviceToDelete.cleaner_ids.length > 0 && (
-                                        <p><strong>Limpiadores asignados:</strong> {serviceToDelete.cleaner_ids.length}</p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                    <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-800 text-sm">
+                        ¿Estás seguro? Esta acción <strong>no se puede deshacer</strong>.
                     </div>
-
-                    <DialogFooter className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={handleCancelDelete}
-                            disabled={loading}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={handleConfirmDelete}
-                            disabled={loading}
-                            className="bg-red-600 hover:bg-red-700"
-                        >
-                            {loading ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    Eliminando...
-                                </>
-                            ) : (
-                                <>
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Sí, eliminar servicio
-                                </>
-                            )}
+                    {serviceToDelete && (
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm space-y-1">
+                            <p><strong>Cliente:</strong> {clients.get(serviceToDelete.client_id)?.name || 'Desconocido'}</p>
+                            <p><strong>Horario:</strong> {formatTimeUTC(serviceToDelete.start_time)} - {formatTimeUTC(serviceToDelete.end_time)}</p>
+                        </div>
+                    )}
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={handleCancelDelete} disabled={dayLoading}>Cancelar</Button>
+                        <Button variant="destructive" onClick={handleConfirmDelete} disabled={dayLoading}>
+                            {dayLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                            Sí, eliminar
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+        </div>
+    );
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+function AmountCell({ price, gstType, invoiced }) {
+    return (
+        <div className="space-y-1.5">
+            <div className="font-bold text-lg text-blue-700">${(price || 0).toFixed(2)}</div>
+            <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold ${gstTypeBadgeColors[gstType] || gstTypeBadgeColors.inclusive}`}>
+                {gstTypeLabels[gstType] || 'GST Incluido'}
+            </span>
+            {invoiced && <InvoicedBadge />}
+        </div>
+    );
+}
+
+function InvoicedBadge() {
+    return (
+        <div className="text-xs text-green-600 font-medium flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" />Precio Facturado
+        </div>
+    );
+}
+
+function MonthlyTable({ title, schedules, clients, gstTypeLabels, gstTypeBadgeColors, getServiceAmount, getServiceGstType, calcGst, headerColor = 'slate', icon }) {
+    return (
+        <div className={`bg-white rounded-xl shadow-lg border border-${headerColor}-200 overflow-hidden`}>
+            <div className={`p-6 border-b border-${headerColor}-200 ${headerColor === 'green' ? 'bg-green-50' : ''}`}>
+                <h2 className={`text-2xl font-bold text-${headerColor}-900 flex items-center gap-2`}>
+                    {icon || <FileText className="w-6 h-6 text-blue-600" />}{title}
+                </h2>
+            </div>
+            <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader className={`bg-${headerColor}-100`}>
+                        <TableRow>
+                            <TableHead className="font-bold">Fecha</TableHead>
+                            <TableHead className="font-bold">Cliente</TableHead>
+                            <TableHead className="text-right font-bold">Base</TableHead>
+                            <TableHead className="text-right font-bold">GST</TableHead>
+                            <TableHead className="text-right font-bold">Total</TableHead>
+                            <TableHead className="text-center font-bold">GST Type</TableHead>
+                            <TableHead className="text-center font-bold">Estado</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {schedules.length === 0 ? (
+                            <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-400">Sin servicios</TableCell></TableRow>
+                        ) : schedules.map(service => {
+                            const client = clients.get(service.client_id);
+                            const amount = getServiceAmount(service, client);
+                            const gstType = getServiceGstType(service, client);
+                            const { base, gst, total } = calcGst(amount, gstType);
+                            const dateStr = service.start_time?.slice(0, 10) || '';
+                            const [y, m, d] = dateStr.split('-').map(Number);
+                            const dt = new Date(y, m - 1, d);
+                            return (
+                                <TableRow key={service.id} className={service.xero_invoiced ? 'bg-green-50/50' : 'hover:bg-slate-50'}>
+                                    <TableCell className="font-medium">{format(dt, "d MMM", { locale: es })}</TableCell>
+                                    <TableCell className="font-semibold text-slate-900">{client?.name || 'Desconocido'}</TableCell>
+                                    <TableCell className="text-right font-medium">${base.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right text-slate-600">${gst.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-bold">${total.toFixed(2)}</TableCell>
+                                    <TableCell className="text-center">
+                                        <Badge className={gstTypeBadgeColors[gstType] || gstTypeBadgeColors.inclusive}>
+                                            {gstTypeLabels[gstType] || 'Incluido'}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <Badge className={service.xero_invoiced ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}>
+                                            {service.xero_invoiced ? <><CheckCircle className="w-3 h-3 mr-1" />Facturado</> : <><Clock className="w-3 h-3 mr-1" />Pendiente</>}
+                                        </Badge>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
         </div>
     );
 }
