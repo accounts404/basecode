@@ -264,19 +264,12 @@ function TeamRouteCard({ team, teamRouteData, loading, users, schedules, date, c
     );
 }
 
-export default function HorarioRutasView({ schedules, users, dailyTeamAssignments, date: propDate }) {
-    const [selectedDate, setSelectedDate] = useState(propDate || new Date());
+export default function HorarioRutasView({ schedules, users, dailyTeamAssignments }) {
+    const [selectedDate, setSelectedDate] = useState(new Date());
     const [routesData, setRoutesData] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const fetchedKeyRef = useRef(null);
-
-    // Sync with parent date when it changes
-    useEffect(() => {
-        if (propDate && !isSameDay(propDate, selectedDate)) {
-            setSelectedDate(propDate);
-        }
-    }, [propDate]);
 
     const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
 
