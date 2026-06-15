@@ -296,18 +296,13 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
             const allMemberIds = a.team_member_ids || [];
             // Only keep members who have at least one service that day
             const activeMemberIds = allMemberIds.filter(id => cleanersWithServices.has(id));
-            const memberIds = activeMemberIds.length > 0 ? activeMemberIds : allMemberIds;
-            // Always rebuild name from active members so stale saved names don't show
-            const activeNames = memberIds
+            const activeNames = activeMemberIds
                 .map(id => (users || []).find(u => u.id === id)?.full_name)
                 .filter(Boolean);
-            const teamName = activeNames.length > 0
-                ? activeNames.join(' + ')
-                : a.team_name || `Equipo — ${a.vehicle_info || a.driver_name || a.id?.slice(-4)}`;
             return {
                 id: a.id,
-                team_name: teamName,
-                team_member_ids: memberIds,
+                team_name: a.team_name || (activeNames.length > 0 ? activeNames.join(' + ') : `Equipo — ${a.vehicle_info || a.driver_name || a.id?.slice(-4)}`),
+                team_member_ids: activeMemberIds.length > 0 ? activeMemberIds : allMemberIds,
                 vehicle_info: a.vehicle_info || null,
             };
         });
