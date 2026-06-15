@@ -82,6 +82,12 @@ function TimelineStop({ stop, segment, type, stopIndex, totalStops, color }) {
                                     {stop.address}
                                 </p>
                             )}
+                            {!isOffice && stop.cleanerNames?.length > 0 && (
+                                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                    <Users className="w-3 h-3 flex-shrink-0" />
+                                    {stop.cleanerNames.join(' · ')}
+                                </p>
+                            )}
                             {isOffice && (
                                 <p className="text-xs text-slate-400 mt-0.5">{OFFICE_ADDRESS}</p>
                             )}
@@ -136,15 +142,18 @@ function TeamRouteCard({ team, teamRouteData, loading, users, schedules, date, c
     const color = colorScheme;
 
     const stops = [
-        { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null },
+        { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null, cleanerNames: [] },
         ...teamSchedules.map(s => ({
             label: s.client_name || 'Cliente',
             address: s.client_address || 'Sin dirección',
             timeRange: s.start_time
                 ? `${format(parseISOLocal(s.start_time), 'HH:mm')} – ${format(parseISOLocal(s.end_time), 'HH:mm')}`
                 : null,
+            cleanerNames: (s.cleaner_ids || [])
+                .map(id => users.find(u => u.id === id)?.full_name)
+                .filter(Boolean),
         })),
-        { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null }
+        { label: OFFICE_LABEL, address: OFFICE_ADDRESS, timeRange: null, cleanerNames: [] }
     ];
 
     const hasRouteData = teamRouteData && !teamRouteData.error;
