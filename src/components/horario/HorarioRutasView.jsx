@@ -279,28 +279,13 @@ export default function HorarioRutasView({ schedules, users, dailyTeamAssignment
 
     const teamsForDay = useMemo(() => {
         const assignments = (dailyTeamAssignments || []).filter(a => a.date?.slice(0, 10) === dateStr);
+        const dynamicTeams = assignments.map(a => ({
+            id: a.id,
+            team_name: a.team_name || `Equipo — ${a.vehicle_info || a.driver_name || a.id?.slice(-4)}`,
+            team_member_ids: a.team_member_ids || [],
+            vehicle_info: a.vehicle_info || null,
+        }));
 
-        // Build teams from DailyTeamAssignments but only include members who actually work that day
-        const cleanersWithServices = new Set(
-            schedulesForDay.flatMap(s => s.cleaner_ids || [])
-        );
-
-        const dynamicTeams = assignments.map(a => {
-            const allMemberIds = a.team_member_ids || [];
-            // Only keep members who have at least one service that day
-            const activeMemberIds = allMemberIds.filter(id => cleanersWithServices.has(id));
-            const activeNames = activeMemberIds
-                .map(id => (users || []).find(u => u.id === id)?.full_name)
-                .filter(Boolean);
-            return {
-                id: a.id,
-                team_name: a.team_name || (activeNames.length > 0 ? activeNames.join(' + ') : `Equipo — ${a.vehicle_info || a.driver_name || a.id?.slice(-4)}`),
-                team_member_ids: activeMemberIds.length > 0 ? activeMemberIds : allMemberIds,
-                vehicle_info: a.vehicle_info || null,
-            };
-        });
-
-        // Fallback: create dynamic teams for services whose cleaners aren't in any assignment
         schedulesForDay.forEach(s => {
             const cleanerIds = s.cleaner_ids || [];
             if (cleanerIds.length === 0) return;
