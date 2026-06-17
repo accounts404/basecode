@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
@@ -46,7 +45,7 @@ export default function InvoicePreview({ user, invoice, workEntries }) {
         <div className="text-slate-600">Mobile Number: {user.mobile_number || '*********'}</div>
         <div className="text-slate-600">Address: {user.address || '**********'}</div>
         <div className="mt-4">
-          <div className="font-semibold">Date: {format(new Date(), 'd MMMM yyyy')}</div>
+          <div className="font-semibold">Date: {format(new Date(invoice.period_end + 'T12:00:00'), 'd MMMM yyyy')}</div>
           <div className="font-semibold">Invoice: {invoice.invoice_number}</div>
         </div>
       </div>

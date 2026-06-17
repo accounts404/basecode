@@ -178,7 +178,7 @@ export default function InvoiceGenerator({ user, workEntries, onInvoiceGenerated
       // Generar archivo (PDF o HTML como fallback)
       let pdfUrl = null;
       try {
-        const pdfBlob = await generateInvoicePDF(user, invoiceNumber, selectedEntries, totalAmount);
+        const pdfBlob = await generateInvoicePDF(user, invoiceNumber, selectedEntries, totalAmount, format(selectedPeriod.end, 'yyyy-MM-dd'));
         const pdfFile = new File([pdfBlob], `invoice-${invoiceNumber}.pdf`, { type: 'application/pdf' });
         const uploadResult = await UploadFile({ file: pdfFile });
         pdfUrl = uploadResult.file_url;
@@ -293,7 +293,8 @@ export default function InvoiceGenerator({ user, workEntries, onInvoiceGenerated
         invoiceNumber,
         selectedEntries,
         totalAmount,
-        `Preview_${invoiceNumber}.pdf`
+        `Preview_${invoiceNumber}.pdf`,
+        format(selectedPeriod.end, 'yyyy-MM-dd')
       );
       setError("");
     } catch (err) {

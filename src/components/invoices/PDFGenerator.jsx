@@ -67,8 +67,8 @@ export const generateInvoicePDF = async (user, invoiceNumber, workEntries, total
     y += 5;
     doc.text(`Address: ${get(user, 'address')}`, 200, y, { align: 'right' });
     y += 5;
-    const invoiceDate = createdDate ? new Date(createdDate) : new Date();
-    doc.text(`Date: ${format(invoiceDate, 'd MMMM yyyy', { locale: es })}`, 200, y, { align: 'right' });
+    const invoiceDate = createdDate ? new Date(createdDate + 'T12:00:00') : new Date();
+    doc.text(`Date: ${format(invoiceDate, 'd MMMM yyyy')}`, 200, y, { align: 'right' });
     y += 5;
     doc.text(`Invoice: ${invoiceNumber.replace('INV-', '')}`, 200, y, { align: 'right' });
     
