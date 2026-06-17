@@ -85,10 +85,28 @@
       "default": false,
       "description": "\u00bfTiene veh\u00edculo propio?"
     },
+    "has_drivers_license": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u00bfTiene licencia de conducci\u00f3n?"
+    },
     "has_abn": {
       "type": "boolean",
       "default": false,
       "description": "\u00bfTiene ABN?"
+    },
+    "visa_type": {
+      "type": "string",
+      "enum": [
+        "australian_citizen",
+        "permanent_resident",
+        "student_visa",
+        "working_holiday",
+        "temp_skill_shortage",
+        "partner_visa",
+        "other_visa"
+      ],
+      "description": "Tipo de visa actual"
     },
     "english_level": {
       "type": "string",

@@ -15,7 +15,7 @@ import {
   Users, Phone, Mail, MapPin, Plus, Search, Send, MessageCircle,
   CheckCircle, XCircle, Clock, Loader2, Edit, Trash2,
   Filter, ChevronDown, ChevronUp, History, UserCheck, UserX,
-  Facebook, MessageSquare, Tag, Car, FileText, Award
+  Facebook, MessageSquare, Tag, Car, FileText, Award, IdCard
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,11 +54,22 @@ const ENGLISH_OPTIONS = [
   { value: 'nativo', label: 'Nativo' },
 ];
 
+const VISA_OPTIONS = [
+  { value: '', label: '— Sin especificar —' },
+  { value: 'australian_citizen', label: 'Australian Citizen' },
+  { value: 'permanent_resident', label: 'Permanent Resident' },
+  { value: 'student_visa', label: 'Student Visa' },
+  { value: 'working_holiday', label: 'Working Holiday' },
+  { value: 'temp_skill_shortage', label: 'Temp. Skill Shortage' },
+  { value: 'partner_visa', label: 'Partner Visa' },
+  { value: 'other_visa', label: 'Other Visa' },
+];
+
 const EMPTY_FORM = {
   full_name: '', phone_number: '', email: '', address: '', suburb: '',
   source: 'facebook', source_detail: '', status: 'nuevo', availability: 'flexible',
   availability_notes: '', trial_date: '', trial_conducted_by: '', trial_notes: '',
-  has_car: false, has_abn: false, english_level: 'intermedio', general_notes: '', tags: [],
+  has_car: false, has_drivers_license: false, has_abn: false, visa_type: '', english_level: 'intermedio', general_notes: '', tags: [],
 };
 
 export default function CasualesPage() {
@@ -166,7 +177,9 @@ export default function CasualesPage() {
       trial_conducted_by: casual.trial_conducted_by || '',
       trial_notes: casual.trial_notes || '',
       has_car: casual.has_car || false,
+      has_drivers_license: casual.has_drivers_license || false,
       has_abn: casual.has_abn || false,
+      visa_type: casual.visa_type || '',
       english_level: casual.english_level || 'intermedio',
       general_notes: casual.general_notes || '',
       tags: casual.tags || [],
@@ -194,7 +207,9 @@ export default function CasualesPage() {
         trial_conducted_by: form.trial_conducted_by.trim() || null,
         trial_notes: form.trial_notes.trim() || null,
         has_car: form.has_car,
+        has_drivers_license: form.has_drivers_license,
         has_abn: form.has_abn,
+        visa_type: form.visa_type || null,
         english_level: form.english_level,
         general_notes: form.general_notes.trim() || null,
         tags: form.tags,
@@ -435,14 +450,14 @@ export default function CasualesPage() {
                 <TableHead className="font-bold text-slate-700">Fuente</TableHead>
                 <TableHead className="font-bold text-slate-700">Estado</TableHead>
                 <TableHead className="font-bold text-slate-700">Disp.</TableHead>
-                <TableHead className="font-bold text-slate-700">Vehículo / ABN</TableHead>
+                <TableHead className="font-bold text-slate-700">Docs / Visa</TableHead>
                 <TableHead className="font-bold text-slate-700 text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredCasuals.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-slate-400">
+                  <TableCell colSpan={10} className="text-center py-12 text-slate-400">
                     <Users className="w-10 h-10 mx-auto mb-2 opacity-25" />
                     <p>No se encontraron casuales</p>
                   </TableCell>
@@ -530,10 +545,16 @@ export default function CasualesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        {casual.has_drivers_license && <IdCard className="w-4 h-4 text-emerald-600" title="Tiene licencia" />}
                         {casual.has_car && <Car className="w-4 h-4 text-green-600" title="Tiene vehículo" />}
-                        {casual.has_abn && <span className="text-xs font-bold text-blue-600" title="Tiene ABN">ABN</span>}
-                        {!casual.has_car && !casual.has_abn && <span className="text-xs text-slate-300">—</span>}
+                        {casual.has_abn && <span className="font-bold text-blue-600" title="Tiene ABN">ABN</span>}
+                        {casual.visa_type && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 max-w-[100px] truncate" title={VISA_OPTIONS.find(o => o.value === casual.visa_type)?.label}>
+                            {VISA_OPTIONS.find(o => o.value === casual.visa_type)?.label || casual.visa_type}
+                          </span>
+                        )}
+                        {!casual.has_drivers_license && !casual.has_car && !casual.has_abn && !casual.visa_type && <span className="text-xs text-slate-300">—</span>}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -656,6 +677,23 @@ export default function CasualesPage() {
                 <Switch checked={form.has_abn} onCheckedChange={v => setForm(f => ({ ...f, has_abn: v }))} />
                 <Label>Tiene ABN</Label>
               </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <Switch checked={form.has_drivers_license} onCheckedChange={v => setForm(f => ({ ...f, has_drivers_license: v }))} />
+                <Label>Licencia de conducir</Label>
+              </div>
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label>Visa</Label>
+              <Select value={form.visa_type} onValueChange={v => setForm(f => ({ ...f, visa_type: v }))}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar tipo de visa..." /></SelectTrigger>
+                <SelectContent>
+                  {VISA_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Trial section */}
