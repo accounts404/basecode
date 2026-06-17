@@ -1,0 +1,53 @@
+{
+  "name": "CasualMessage",
+  "type": "object",
+  "properties": {
+    "casual_cleaner_id": {
+      "type": "string",
+      "description": "ID del casual al que pertenece este mensaje"
+    },
+    "casual_cleaner_name": {
+      "type": "string",
+      "description": "Nombre del casual para referencia r\u00e1pida"
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "outgoing",
+        "incoming"
+      ],
+      "description": "Direcci\u00f3n del mensaje: saliente (nosotros) o entrante (el casual)"
+    },
+    "content": {
+      "type": "string",
+      "description": "Contenido del mensaje"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sent",
+        "delivered",
+        "failed",
+        "received"
+      ],
+      "description": "Estado del mensaje"
+    },
+    "twilio_sid": {
+      "type": "string",
+      "description": "SID de Twilio para referencia"
+    },
+    "broadcast_id": {
+      "type": "string",
+      "description": "ID del env\u00edo masivo al que pertenece (si fue parte de un broadcast)"
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "description": "ID del admin que envi\u00f3 el mensaje (solo para outgoing)"
+    }
+  },
+  "required": [
+    "casual_cleaner_id",
+    "direction",
+    "content"
+  ]
+}

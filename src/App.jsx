@@ -7,6 +7,7 @@ import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
+import Casuales from './pages/Casuales';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -48,8 +49,9 @@ const AuthenticatedApp = () => {
         <Route path="/" element={<MainPage />} />
         {Object.entries(Pages).map(([path, Page]) => (
           <Route key={path} path={`/${path}`} element={<Page />} />
-        ))}
-        <Route path="*" element={<PageNotFound />} />
+          ))}
+          <Route path="/Casuales" element={<Casuales />} />
+          <Route path="*" element={<PageNotFound />} />
       </Routes>
     </LayoutWrapper>
   );

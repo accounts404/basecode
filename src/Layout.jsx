@@ -67,6 +67,7 @@ const adminMenuItems = [
   { name: 'Clientes', path: 'Clientes', icon: Users },
   { name: 'Seguimiento Clientes', path: 'SeguimientoClientes', icon: Activity },
   { name: 'Limpiadores', path: 'Limpiadores', icon: UserCheck },
+  { name: 'Casuales', path: 'Casuales', icon: Users },
   { name: 'Inducciones', path: 'Inducciones', icon: BookOpen },
   { name: 'Gestión de Flota', path: 'GestionFlota', icon: Car },
   { name: 'Gestión de Llaves', path: 'GestionLlaves', icon: KeySquare },
