@@ -55,7 +55,6 @@ const ENGLISH_OPTIONS = [
 ];
 
 const VISA_OPTIONS = [
-  { value: '', label: '— Sin especificar —' },
   { value: 'australian_citizen', label: 'Australian Citizen' },
   { value: 'permanent_resident', label: 'Permanent Resident' },
   { value: 'student_visa', label: 'Student Visa' },
