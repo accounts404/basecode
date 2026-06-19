@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, Loader2, Sparkles, Trash2, BarChart3, Users, Calendar, TrendingUp, AlertTriangle, ClipboardList } from "lucide-react";
+import { Bot, Send, Loader2, Sparkles, Trash2, BarChart3, Users, Calendar, TrendingUp, AlertTriangle, ClipboardList, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 
 const QUICK_PROMPTS = [
@@ -13,96 +12,155 @@ const QUICK_PROMPTS = [
   { icon: Users, label: "Rendimiento limpiadores", prompt: "Analiza el rendimiento de los limpiadores este mes: horas trabajadas, cantidad de servicios, y quiénes han trabajado más o menos." },
   { icon: AlertTriangle, label: "Quejas y feedback", prompt: "Muéstrame un análisis de las quejas y feedbacks de clientes recientes. ¿Hay patrones o limpiadores que necesiten atención?" },
   { icon: TrendingUp, label: "Análisis rentabilidad", prompt: "Analiza la rentabilidad del negocio: precios promedio por servicio, horas promedio, y qué clientes podrían necesitar ajuste de precios." },
-  { icon: Calendar, label: "Servicios próximos", prompt: "¿Cómo se ve la carga de trabajo de esta semana? ¿Hay días con muchos servicios o días con pocos?" },
+  { icon: Calendar, label: "Servicios próximos", prompt: "¿Cómo se ve la carga de trabajo de esta semana y la próxima? Dame el detalle de cada día con clientes, horarios y limpiadores asignados." },
   { icon: ClipboardList, label: "Clientes sin servicio", prompt: "¿Hay clientes activos que no han tenido servicios en las últimas 2-3 semanas? Podría haber problemas de programación." },
 ];
 
-async function gatherBusinessContext() {
-  const now = new Date();
-  const monthStart = format(startOfMonth(now), 'yyyy-MM-dd');
-  const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
-  const today = format(now, 'yyyy-MM-dd');
-  const nextWeek = format(subDays(now, -7), 'yyyy-MM-dd');
+// Fetch all records paginating through batches
+async function fetchAll(entity, sort, batchSize = 200) {
+  const results = [];
+  let skip = 0;
+  let batch;
+  do {
+    batch = await entity.filter({}, sort, batchSize, skip);
+    results.push(...batch);
+    skip += batchSize;
+  } while (batch.length === batchSize && skip < 2000);
+  return results;
+}
 
-  // Fetch all data in parallel - larger limits to not miss data
-  const [clients, users, schedulesRecent, schedulesOlder, workEntries, feedback, invoices] = await Promise.all([
-    base44.entities.Client.filter({ active: true }, '-created_date', 300),
+async function loadAllData() {
+  const [clients, allClients, users, schedules, workEntries, feedback, invoices] = await Promise.all([
+    base44.entities.Client.filter({ active: true }, '-created_date', 500),
+    base44.entities.Client.filter({}, '-created_date', 500),
     base44.entities.User.list('-created_date', 100),
-    base44.entities.Schedule.filter({}, '-start_time', 200),
-    base44.entities.Schedule.filter({}, 'start_time', 200),
-    base44.entities.WorkEntry.filter({}, '-work_date', 200),
-    base44.entities.ClientFeedback.filter({}, '-feedback_date', 50),
-    base44.entities.Invoice.filter({}, '-created_date', 30),
+    fetchAll(base44.entities.Schedule, '-start_time'),
+    fetchAll(base44.entities.WorkEntry, '-work_date'),
+    base44.entities.ClientFeedback.filter({}, '-feedback_date', 200),
+    base44.entities.Invoice.filter({}, '-created_date', 50),
   ]);
 
-  // Merge and deduplicate schedules
-  const allScheduleMap = {};
-  [...schedulesRecent, ...schedulesOlder].forEach(s => { allScheduleMap[s.id] = s; });
-  const allSchedules = Object.values(allScheduleMap);
-
-  const cleaners = users.filter(u => u.role !== 'admin');
   const cleanerMap = {};
   users.forEach(u => { cleanerMap[u.id] = u.full_name; });
-  
-  // Split schedules by time relevance
-  const upcomingSchedules = allSchedules
-    .filter(s => s.start_time && s.start_time.slice(0, 10) >= today)
-    .sort((a, b) => a.start_time.localeCompare(b.start_time));
-  
-  const thisMonthSchedules = allSchedules
-    .filter(s => s.start_time && s.start_time.slice(0, 10) >= monthStart && s.start_time.slice(0, 10) <= monthEnd);
 
-  const pastMonthSchedules = thisMonthSchedules
-    .filter(s => s.start_time.slice(0, 10) < today)
-    .sort((a, b) => b.start_time.localeCompare(a.start_time));
+  return { clients, allClients, users, schedules, workEntries, feedback, invoices, cleanerMap };
+}
 
-  const recentWorkEntries = workEntries.filter(w => w.work_date >= monthStart);
+function buildBaseContext(data) {
+  const { clients, users, schedules, workEntries, feedback, invoices, cleanerMap } = data;
+  const now = new Date();
+  const today = format(now, 'yyyy-MM-dd');
+  const monthStart = format(startOfMonth(now), 'yyyy-MM-dd');
+  const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
 
-  const formatScheduleDetail = (s) => {
-    const date = format(new Date(s.start_time), "dd/MM/yyyy HH:mm");
-    const endTime = s.end_time ? format(new Date(s.end_time), "HH:mm") : '?';
-    const assignedCleaners = (s.cleaner_ids || []).map(id => cleanerMap[id] || id).join(', ');
-    return `- ${date}-${endTime} | ${s.client_name || 'Sin nombre'} | ${s.client_address || 'Sin dirección'} | Estado: ${s.status} | Limpiadores: [${assignedCleaners || 'SIN ASIGNAR'}] | ID: ${s.id}`;
+  const cleaners = users.filter(u => u.role !== 'admin');
+  const thisMonthSchedules = schedules.filter(s => s.start_time?.slice(0, 10) >= monthStart && s.start_time?.slice(0, 10) <= monthEnd);
+  const upcoming = schedules.filter(s => s.start_time?.slice(0, 10) >= today).sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const pastMonth = thisMonthSchedules.filter(s => s.start_time?.slice(0, 10) < today).sort((a, b) => b.start_time.localeCompare(a.start_time));
+  const monthWork = workEntries.filter(w => w.work_date >= monthStart);
+
+  const fmtS = (s) => {
+    const d = format(new Date(s.start_time), "dd/MM/yyyy HH:mm");
+    const e = s.end_time ? format(new Date(s.end_time), "HH:mm") : '?';
+    const n = (s.cleaner_ids || []).map(id => cleanerMap[id] || id).join(', ');
+    return `- ${d}-${e} | ${s.client_name || '?'} | ${s.client_address || ''} | ${s.status} | Limpiadores: [${n || 'SIN ASIGNAR'}]`;
   };
 
-  return `
-=== DATOS DEL NEGOCIO REDOAK CLEANING ===
-📆 Fecha actual: ${format(now, "EEEE d 'de' MMMM yyyy", { locale: es })}
+  return `=== DATOS REDOAK CLEANING ===
+📆 Hoy: ${format(now, "EEEE d 'de' MMMM yyyy", { locale: es })}
+Datos cargados: ${schedules.length} servicios, ${workEntries.length} work entries, ${clients.length} clientes activos
 
-📊 RESUMEN GENERAL:
-- Clientes activos: ${clients.length}
-- Limpiadores en plantilla: ${cleaners.length}
-- Servicios programados este mes: ${thisMonthSchedules.length}
-- Servicios completados este mes: ${thisMonthSchedules.filter(s => s.status === 'completed').length}
-- Work entries este mes: ${recentWorkEntries.length}
+🔴 SERVICIOS PRÓXIMOS (${upcoming.length}):
+${upcoming.map(fmtS).join('\n') || 'Ninguno.'}
 
-🔴 SERVICIOS PRÓXIMOS (DESDE HOY EN ADELANTE - ${upcomingSchedules.length} servicios):
-${upcomingSchedules.length > 0 ? upcomingSchedules.map(formatScheduleDetail).join('\n') : 'No hay servicios próximos programados.'}
-
-📅 SERVICIOS YA REALIZADOS ESTE MES (${pastMonthSchedules.length}):
-${pastMonthSchedules.slice(0, 30).map(formatScheduleDetail).join('\n')}
+📅 SERVICIOS PASADOS ESTE MES (${pastMonth.length}):
+${pastMonth.slice(0, 40).map(fmtS).join('\n')}
 
 👥 CLIENTES ACTIVOS (${clients.length}):
-${clients.map(c => `- ${c.name}: $${c.current_service_price || 0} (${c.service_frequency || 'sin freq'}) | ${c.service_hours || '?'}h | ${c.address || 'sin dirección'} | GST: ${c.gst_type || 'N/A'}`).join('\n')}
+${clients.map(c => `- ${c.name}: $${c.current_service_price || 0} (${c.service_frequency || '?'}) | ${c.service_hours || '?'}h | ${c.address || ''} | Pago: ${c.payment_method || '?'} | GST: ${c.gst_type || '?'}`).join('\n')}
 
-🧹 LIMPIADORES - DETALLE ESTE MES:
+🧹 LIMPIADORES (${cleaners.length}):
 ${cleaners.map(c => {
-  const entries = recentWorkEntries.filter(w => w.cleaner_id === c.id);
-  const totalHours = entries.reduce((s, w) => s + (w.hours || 0), 0);
-  const totalAmount = entries.reduce((s, w) => s + (w.total_amount || 0), 0);
-  const servicesCount = thisMonthSchedules.filter(s => (s.cleaner_ids || []).includes(c.id)).length;
-  return `- ${c.full_name} (ID: ${c.id}): ${servicesCount} servicios, ${entries.length} work entries, ${totalHours.toFixed(1)}h, $${totalAmount.toFixed(2)}`;
-}).join('\n')}
+    const ent = monthWork.filter(w => w.cleaner_id === c.id);
+    const hrs = ent.reduce((s, w) => s + (w.hours || 0), 0);
+    const amt = ent.reduce((s, w) => s + (w.total_amount || 0), 0);
+    return `- ${c.full_name}: ${ent.length} entries, ${hrs.toFixed(1)}h, $${amt.toFixed(2)} este mes`;
+  }).join('\n')}
 
-⏰ WORK ENTRIES ESTE MES (${recentWorkEntries.length}):
-${recentWorkEntries.slice(0, 50).map(w => `- ${w.work_date} ${w.client_name || 'N/A'}: ${w.hours}h x $${w.hourly_rate || 0} = $${w.total_amount || 0} (${w.cleaner_name || 'N/A'})`).join('\n')}
+💬 FEEDBACK (${feedback.length} total):
+${feedback.slice(0, 20).map(f => `- ${f.feedback_date} ${f.client_name}: ${f.feedback_type} - "${f.description?.slice(0, 80) || ''}"`).join('\n')}
 
-💬 FEEDBACK RECIENTE:
-${feedback.slice(0, 20).map(f => `- ${f.feedback_date} ${f.client_name}: ${f.feedback_type} - "${f.description?.slice(0, 100) || 'Sin descripción'}"`).join('\n')}
+💰 FACTURAS (${invoices.length}):
+${invoices.slice(0, 15).map(i => `- ${i.invoice_number}: ${i.cleaner_name} $${i.total_amount || 0} (${i.status}) ${i.period || ''}`).join('\n')}`;
+}
 
-💰 FACTURAS RECIENTES:
-${invoices.slice(0, 10).map(i => `- ${i.invoice_number}: ${i.cleaner_name} - $${i.total_amount || 0} - ${i.status}`).join('\n')}
+function buildDetailedContext(query, data) {
+  const { clients, allClients, schedules, workEntries, feedback, invoices, cleanerMap, users } = data;
+  const q = query.toLowerCase();
+  const allC = allClients || clients;
+
+  const matchedClients = allC.filter(c => c.name && q.includes(c.name.toLowerCase()));
+  const matchedCleaners = users.filter(u => u.full_name && q.includes(u.full_name.toLowerCase()));
+
+  let extra = '';
+
+  for (const client of matchedClients) {
+    const cSched = schedules.filter(s => s.client_id === client.id || s.client_name === client.name).sort((a, b) => (b.start_time || '').localeCompare(a.start_time || ''));
+    const cWork = workEntries.filter(w => w.client_id === client.id || w.client_name === client.name).sort((a, b) => (b.work_date || '').localeCompare(a.work_date || ''));
+    const cFeed = feedback.filter(f => f.client_id === client.id || f.client_name === client.name);
+
+    extra += `\n=== DETALLE CLIENTE "${client.name}" ===
+- Tipo: ${client.client_type || 'domestic'} | Activo: ${client.active !== false ? 'Sí' : 'No'}
+- Dirección: ${client.address || 'N/A'} | Tel: ${client.mobile_number || 'N/A'} | Email: ${client.email || 'N/A'}
+- Precio: $${client.current_service_price || 0} | Freq: ${client.service_frequency || 'N/A'} | Horas: ${client.service_hours || 'N/A'}
+- Pago: ${client.payment_method || 'N/A'} | GST: ${client.gst_type || 'N/A'}
+- Inicio: ${client.start_date || 'N/A'} | Fin: ${client.end_date || 'N/A'}
+- Propiedad: ${client.property_type || 'N/A'} ${client.property_stories || ''} | Hab: ${client.num_bedrooms || '?'} | Baños: ${client.num_bathrooms || '?'}
+- Acceso: ${client.has_access ? `${client.access_type || ''} - ${client.access_instructions || ''}` : 'No'}
+- Notas admin: ${client.admin_notes || 'N/A'}
+- Notas servicio: ${client.default_service_notes || 'N/A'}
+${client.pets?.length ? `- Mascotas: ${client.pets.map(p => `${p.name} (${p.type})`).join(', ')}` : ''}
+${client.price_history?.length ? `- Historial precios: ${client.price_history.map(p => `$${p.previous_price}→$${p.new_price} (${p.effective_date})`).join(' | ')}` : ''}
+
+SERVICIOS (${cSched.length} total):
+${cSched.map(s => {
+      const d = s.start_time ? format(new Date(s.start_time), "dd/MM/yyyy HH:mm") : '?';
+      const e = s.end_time ? format(new Date(s.end_time), "HH:mm") : '?';
+      const n = (s.cleaner_ids || []).map(id => cleanerMap[id] || id).join(', ');
+      return `- ${d}-${e} | ${s.status} | [${n}] | ${s.service_specific_notes || ''}`;
+    }).join('\n') || 'Sin servicios.'}
+
+WORK ENTRIES (${cWork.length} total):
+${cWork.map(w => `- ${w.work_date}: ${w.hours}h x $${w.hourly_rate || 0} = $${w.total_amount || 0} (${w.cleaner_name || '?'}) ${w.activity || ''}`).join('\n') || 'Sin entradas.'}
+
+FEEDBACK (${cFeed.length}):
+${cFeed.map(f => `- ${f.feedback_date}: ${f.feedback_type} | ${f.severity || ''} | "${f.description || ''}" | Acción: ${f.action_taken || 'N/A'}`).join('\n') || 'Sin feedback.'}
 `;
+  }
+
+  for (const cleaner of matchedCleaners) {
+    const cSched = schedules.filter(s => (s.cleaner_ids || []).includes(cleaner.id)).sort((a, b) => (b.start_time || '').localeCompare(a.start_time || ''));
+    const cWork = workEntries.filter(w => w.cleaner_id === cleaner.id).sort((a, b) => (b.work_date || '').localeCompare(a.work_date || ''));
+    const cFeed = feedback.filter(f => (f.affected_cleaner_ids || []).includes(cleaner.id));
+
+    extra += `\n=== DETALLE LIMPIADOR "${cleaner.full_name}" ===
+- Email: ${cleaner.email || 'N/A'} | Rol: ${cleaner.role}
+
+SERVICIOS (${cSched.length} total):
+${cSched.slice(0, 80).map(s => {
+      const d = s.start_time ? format(new Date(s.start_time), "dd/MM/yyyy HH:mm") : '?';
+      return `- ${d} | ${s.client_name || '?'} | ${s.status}`;
+    }).join('\n') || 'Sin servicios.'}
+
+WORK ENTRIES (${cWork.length} total):
+${cWork.slice(0, 80).map(w => `- ${w.work_date}: ${w.client_name || '?'} ${w.hours}h x $${w.hourly_rate || 0} = $${w.total_amount || 0}`).join('\n') || 'Sin entradas.'}
+
+FEEDBACK (${cFeed.length}):
+${cFeed.map(f => `- ${f.feedback_date}: ${f.client_name} - ${f.feedback_type} - "${f.description?.slice(0, 80) || ''}"`).join('\n') || 'Sin feedback.'}
+`;
+  }
+
+  return extra;
 }
 
 export default function AsistenteIA() {
@@ -110,30 +168,29 @@ export default function AsistenteIA() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [contextLoaded, setContextLoaded] = useState(false);
-  const [businessContext, setBusinessContext] = useState("");
+  const [allData, setAllData] = useState(null);
+  const [dataStats, setDataStats] = useState("");
   const messagesEndRef = useRef(null);
 
-  useEffect(() => {
-    loadContext();
-  }, []);
+  useEffect(() => { loadData(); }, []);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const loadContext = async () => {
+  const loadData = async () => {
+    setContextLoaded(false);
     try {
-      const ctx = await gatherBusinessContext();
-      setBusinessContext(ctx);
+      const data = await loadAllData();
+      setAllData(data);
+      setDataStats(`${data.schedules.length} servicios · ${data.workEntries.length} entries · ${data.clients.length} clientes`);
       setContextLoaded(true);
     } catch (err) {
-      console.error("Error loading context:", err);
+      console.error("Error loading data:", err);
+      setDataStats("Error cargando datos");
       setContextLoaded(true);
     }
   };
 
   const sendMessage = async (text) => {
-    if (!text.trim() || loading) return;
+    if (!text.trim() || loading || !allData) return;
 
     const userMsg = { role: "user", content: text };
     setMessages(prev => [...prev, userMsg]);
@@ -141,21 +198,24 @@ export default function AsistenteIA() {
     setLoading(true);
 
     try {
-      const systemPrompt = `Eres el asistente de inteligencia artificial de RedOak Cleaning Solutions, una empresa de limpieza en Melbourne, Australia.
-Tu rol es ayudar al administrador analizando datos del negocio, dando informes, identificando problemas y sugiriendo mejoras.
+      const baseCtx = buildBaseContext(allData);
+      const detailCtx = buildDetailedContext(text, allData);
+
+      const systemPrompt = `Eres el asistente IA de RedOak Cleaning Solutions, empresa de limpieza en Melbourne, Australia.
+Ayudas al administrador analizando datos, dando informes, identificando problemas y sugiriendo mejoras.
 
 REGLAS:
 - Responde SIEMPRE en español
-- Sé conciso pero completo
-- Usa formato markdown con headers, listas y negritas para organizar la información
-- Cuando analices datos, incluye números específicos
-- Si no tienes suficiente información para responder algo, dilo claramente
-- Enfócate en insights accionables, no solo datos crudos
-- Los precios son en AUD (dólares australianos)
+- Sé conciso pero completo, usa markdown (headers, listas, negritas)
+- Incluye números específicos cuando analices datos
+- Los precios son en AUD
+- Si mencionan un cliente o limpiador, tienes TODOS sus datos históricos abajo
+- Enfócate en insights accionables
 
-${businessContext}
+${baseCtx}
+${detailCtx}
 
-HISTORIAL DE CONVERSACIÓN:
+HISTORIAL:
 ${messages.map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content}`).join('\n')}`;
 
       const response = await base44.integrations.Core.InvokeLLM({
@@ -166,10 +226,7 @@ ${messages.map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content}`
       setMessages(prev => [...prev, { role: "assistant", content: response }]);
     } catch (err) {
       console.error("Error calling AI:", err);
-      setMessages(prev => [...prev, { 
-        role: "assistant", 
-        content: "❌ Error al procesar tu consulta. Por favor intentá de nuevo." 
-      }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "❌ Error al procesar tu consulta. Intentá de nuevo." }]);
     } finally {
       setLoading(false);
     }
@@ -193,18 +250,23 @@ ${messages.map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content}`
           <div>
             <h1 className="text-xl font-bold text-slate-900">Asistente IA</h1>
             <p className="text-xs text-slate-500">
-              {contextLoaded ? "✅ Datos del negocio cargados · Gemini Pro" : "⏳ Cargando datos..."}
+              {contextLoaded ? `✅ ${dataStats} · Gemini Pro` : "⏳ Cargando todos los datos..."}
             </p>
           </div>
         </div>
-        {messages.length > 0 && (
-          <Button variant="outline" size="sm" onClick={() => { setMessages([]); loadContext(); }}>
-            <Trash2 className="w-4 h-4 mr-1" /> Nueva conversación
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={loadData} disabled={!contextLoaded}>
+            <RefreshCw className="w-4 h-4" />
           </Button>
-        )}
+          {messages.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setMessages([])}>
+              <Trash2 className="w-4 h-4 mr-1" /> Nueva
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Messages area */}
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 min-h-0">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
@@ -213,7 +275,7 @@ ${messages.map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content}`
             </div>
             <h2 className="text-lg font-semibold text-slate-800 mb-1">¿En qué puedo ayudarte?</h2>
             <p className="text-sm text-slate-500 mb-6 text-center max-w-md">
-              Tengo acceso a los datos de clientes, servicios, limpiadores, facturas y más. Preguntame lo que necesites.
+              Tengo acceso a TODOS los datos: clientes, servicios (pasados y futuros), limpiadores, facturas y feedback. Preguntá por cualquier cliente o tema.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full max-w-3xl">
               {QUICK_PROMPTS.map((qp, i) => (
@@ -233,9 +295,7 @@ ${messages.map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content}`
           messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                msg.role === 'user' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-white border border-slate-200 shadow-sm'
+                msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 shadow-sm'
               }`}>
                 {msg.role === 'user' ? (
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -253,7 +313,7 @@ ${messages.map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content}`
             <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Analizando...
+                Analizando datos...
               </div>
             </div>
           </div>
@@ -261,13 +321,13 @@ ${messages.map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content}`
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
+      {/* Input */}
       <div className="flex gap-2 items-end">
         <Textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Escribí tu pregunta sobre el negocio..."
+          placeholder="Preguntá sobre cualquier cliente, limpiador, servicio..."
           className="resize-none min-h-[44px] max-h-[120px]"
           rows={1}
           disabled={loading || !contextLoaded}
