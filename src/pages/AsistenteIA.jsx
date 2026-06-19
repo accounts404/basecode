@@ -17,37 +17,45 @@ const QUICK_PROMPTS = [
 ];
 
 async function loadAllData() {
-  // Fetch from BOTH directions to ensure we get all future AND all recent past records
+  const now = new Date();
+  // Date anchors for filtering
+  const past90 = new Date(now); past90.setDate(past90.getDate() - 90);
+  const future180 = new Date(now); future180.setDate(future180.getDate() + 180);
+  const past365 = new Date(now); past365.setDate(past365.getDate() - 365);
+
+  const past90Str = past90.toISOString();
+  const future180Str = future180.toISOString();
+  const past365Str = past365.toISOString();
+
   const [
     clients, allClients, users,
-    schedFuture, schedPast,
-    workRecent, workOld,
+    schedUpcoming,   // from today forward
+    schedRecent,     // last 90 days
+    workRecent,      // last year
     feedback, invoices,
   ] = await Promise.all([
     base44.entities.Client.filter({ active: true }, '-created_date', 500),
     base44.entities.Client.filter({}, '-created_date', 500),
     base44.entities.User.list('-created_date', 100),
-    base44.entities.Schedule.list('-start_time', 1000), // newest/future first
-    base44.entities.Schedule.list('start_time', 1000),  // oldest first
-    base44.entities.WorkEntry.list('-work_date', 1500), // most recent first
-    base44.entities.WorkEntry.list('work_date', 500),   // oldest first
+    // Upcoming: start_time >= now, sorted ascending so tomorrow is first
+    base44.entities.Schedule.filter({ start_time: { $gte: now.toISOString() } }, 'start_time', 1000),
+    // Recent past: start_time >= 90 days ago, sorted descending
+    base44.entities.Schedule.filter({ start_time: { $gte: past90Str, $lt: now.toISOString() } }, '-start_time', 500),
+    // Work entries: last year
+    base44.entities.WorkEntry.filter({ work_date: { $gte: past365Str.slice(0, 10) } }, '-work_date', 2000),
     base44.entities.ClientFeedback.filter({}, '-feedback_date', 200),
     base44.entities.Invoice.filter({}, '-created_date', 50),
   ]);
 
-  // Deduplicate by ID
+  // Deduplicate schedules
   const schedMap = {};
-  [...schedFuture, ...schedPast].forEach(s => { schedMap[s.id] = s; });
+  [...schedUpcoming, ...schedRecent].forEach(s => { schedMap[s.id] = s; });
   const schedules = Object.values(schedMap);
-
-  const workMap = {};
-  [...workRecent, ...workOld].forEach(w => { workMap[w.id] = w; });
-  const workEntries = Object.values(workMap);
 
   const cleanerMap = {};
   users.forEach(u => { cleanerMap[u.id] = u.full_name; });
 
-  return { clients, allClients, users, schedules, workEntries, feedback, invoices, cleanerMap };
+  return { clients, allClients, users, schedules, workEntries: workRecent, feedback, invoices, cleanerMap };
 }
 
 function buildBaseContext(data) {
