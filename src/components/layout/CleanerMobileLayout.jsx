@@ -127,7 +127,7 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
   const isCurrentPage = (url) => location.pathname === url;
 
   return (
-    <div className="flex flex-col h-screen" style={{ backgroundColor: currentTheme.colors.background }}>
+    <div className="flex flex-col h-[100dvh] w-full overflow-hidden" style={{ backgroundColor: currentTheme.colors.background }}>
       {theme === 'christmas' && <ChristmasDecoration />}
       {/* Header móvil simple */}
       <header 
@@ -188,19 +188,20 @@ export default function CleanerMobileLayout({ children, user, hasActiveService, 
       )}
 
       {/* Contenido principal con scroll */}
-      <main className="flex-1 overflow-auto pb-20">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-[calc(5rem+env(safe-area-inset-bottom))]">
         {children}
       </main>
 
       {/* Bottom Navigation */}
       <nav 
-        className="fixed bottom-0 left-0 right-0 border-t px-2 py-2 safe-area-inset-bottom z-50"
+        className="fixed bottom-0 left-0 right-0 border-t px-2 py-2 z-50"
         style={{ 
           backgroundColor: 'white',
           borderColor: currentTheme.colors.cardBorder,
           background: theme === 'christmas' 
             ? 'linear-gradient(180deg, #fef2f2 0%, #ffffff 100%)' 
-            : 'white'
+            : 'white',
+          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))'
         }}
       >
         <div className="flex items-center justify-around max-w-lg mx-auto">
