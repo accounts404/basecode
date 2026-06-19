@@ -16,6 +16,32 @@ const QUICK_PROMPTS = [
   { icon: ClipboardList, label: "Clientes sin servicio", prompt: "¿Hay clientes activos que no han tenido servicios en las últimas 2-3 semanas? Podría haber problemas de programación." },
 ];
 
+// Treat stored datetimes as Melbourne local time (strip Z to avoid UTC conversion)
+function parseLocalDT(dt) {
+  if (!dt) return null;
+  // Remove Z or +offset so JS doesn't shift to UTC — data is already in Melbourne local time
+  const cleaned = dt.replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '');
+  return new Date(cleaned);
+}
+
+function fmtDT(dt) {
+  const d = parseLocalDT(dt);
+  if (!d || isNaN(d)) return '?';
+  return format(d, "dd/MM/yyyy HH:mm");
+}
+
+function fmtTime(dt) {
+  const d = parseLocalDT(dt);
+  if (!d || isNaN(d)) return '?';
+  return format(d, "HH:mm");
+}
+
+function fmtDateOnly(dt) {
+  const d = parseLocalDT(dt);
+  if (!d || isNaN(d)) return '?';
+  return format(d, "dd/MM/yyyy");
+}
+
 async function loadAllData() {
   const now = new Date();
   // Date anchors for filtering
@@ -37,10 +63,10 @@ async function loadAllData() {
     base44.entities.Client.filter({ active: true }, '-created_date', 500),
     base44.entities.Client.filter({}, '-created_date', 500),
     base44.entities.User.list('-created_date', 100),
-    // Upcoming: start_time >= now, sorted ascending so tomorrow is first
-    base44.entities.Schedule.filter({ start_time: { $gte: now.toISOString() } }, 'start_time', 1000),
-    // Recent past: start_time >= 90 days ago, sorted descending
-    base44.entities.Schedule.filter({ start_time: { $gte: past90Str, $lt: now.toISOString() } }, '-start_time', 500),
+    // Upcoming: use today's date string to avoid UTC offset issues
+    base44.entities.Schedule.filter({ start_time: { $gte: format(now, 'yyyy-MM-dd') } }, 'start_time', 1000),
+    // Recent past: last 90 days
+    base44.entities.Schedule.filter({ start_time: { $gte: format(past90, 'yyyy-MM-dd'), $lt: format(now, 'yyyy-MM-dd') } }, '-start_time', 500),
     // Work entries: last year
     base44.entities.WorkEntry.filter({ work_date: { $gte: past365Str.slice(0, 10) } }, '-work_date', 2000),
     base44.entities.ClientFeedback.filter({}, '-feedback_date', 200),
@@ -66,14 +92,16 @@ function buildBaseContext(data) {
   const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
 
   const cleaners = users.filter(u => u.role !== 'admin');
-  const thisMonthSchedules = schedules.filter(s => s.start_time?.slice(0, 10) >= monthStart && s.start_time?.slice(0, 10) <= monthEnd);
-  const upcoming = schedules.filter(s => s.start_time?.slice(0, 10) >= today).sort((a, b) => a.start_time.localeCompare(b.start_time));
-  const pastMonth = thisMonthSchedules.filter(s => s.start_time?.slice(0, 10) < today).sort((a, b) => b.start_time.localeCompare(a.start_time));
+  // Use local date (strip time) for comparisons to avoid UTC shift issues
+  const getLocalDate = (s) => (s.start_time || '').replace(/T.*/, '').replace(/Z.*/, '').slice(0, 10);
+  const thisMonthSchedules = schedules.filter(s => { const d = getLocalDate(s); return d >= monthStart && d <= monthEnd; });
+  const upcoming = schedules.filter(s => getLocalDate(s) >= today).sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+  const pastMonth = thisMonthSchedules.filter(s => getLocalDate(s) < today).sort((a, b) => (b.start_time || '').localeCompare(a.start_time || ''));
   const monthWork = workEntries.filter(w => w.work_date >= monthStart);
 
   const fmtS = (s) => {
-    const d = format(new Date(s.start_time), "dd/MM/yyyy HH:mm");
-    const e = s.end_time ? format(new Date(s.end_time), "HH:mm") : '?';
+    const d = fmtDT(s.start_time);
+    const e = fmtTime(s.end_time);
     const n = (s.cleaner_ids || []).map(id => cleanerMap[id] || id).join(', ');
     return `- ${d}-${e} | ${s.client_name || '?'} | ${s.client_address || ''} | ${s.status} | Limpiadores: [${n || 'SIN ASIGNAR'}]`;
   };
@@ -136,8 +164,8 @@ ${client.price_history?.length ? `- Historial precios: ${client.price_history.ma
 
 SERVICIOS (${cSched.length} total):
 ${cSched.map(s => {
-      const d = s.start_time ? format(new Date(s.start_time), "dd/MM/yyyy HH:mm") : '?';
-      const e = s.end_time ? format(new Date(s.end_time), "HH:mm") : '?';
+      const d = fmtDT(s.start_time);
+      const e = fmtTime(s.end_time);
       const n = (s.cleaner_ids || []).map(id => cleanerMap[id] || id).join(', ');
       return `- ${d}-${e} | ${s.status} | [${n}] | ${s.service_specific_notes || ''}`;
     }).join('\n') || 'Sin servicios.'}
@@ -160,8 +188,7 @@ ${cFeed.map(f => `- ${f.feedback_date}: ${f.feedback_type} | ${f.severity || ''}
 
 SERVICIOS (${cSched.length} total):
 ${cSched.slice(0, 80).map(s => {
-      const d = s.start_time ? format(new Date(s.start_time), "dd/MM/yyyy HH:mm") : '?';
-      return `- ${d} | ${s.client_name || '?'} | ${s.status}`;
+      return `- ${fmtDT(s.start_time)} | ${s.client_name || '?'} | ${s.status}`;
     }).join('\n') || 'Sin servicios.'}
 
 WORK ENTRIES (${cWork.length} total):
