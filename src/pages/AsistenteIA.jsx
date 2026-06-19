@@ -16,29 +16,33 @@ const QUICK_PROMPTS = [
   { icon: ClipboardList, label: "Clientes sin servicio", prompt: "¿Hay clientes activos que no han tenido servicios en las últimas 2-3 semanas? Podría haber problemas de programación." },
 ];
 
-// Fetch all records paginating through batches
-async function fetchAll(entity, sort, batchSize = 200) {
-  const results = [];
-  let skip = 0;
-  let batch;
-  do {
-    batch = await entity.filter({}, sort, batchSize, skip);
-    results.push(...batch);
-    skip += batchSize;
-  } while (batch.length === batchSize && skip < 2000);
-  return results;
-}
-
 async function loadAllData() {
-  const [clients, allClients, users, schedules, workEntries, feedback, invoices] = await Promise.all([
+  // Fetch from BOTH directions to ensure we get all future AND all recent past records
+  const [
+    clients, allClients, users,
+    schedFuture, schedPast,
+    workRecent, workOld,
+    feedback, invoices,
+  ] = await Promise.all([
     base44.entities.Client.filter({ active: true }, '-created_date', 500),
     base44.entities.Client.filter({}, '-created_date', 500),
     base44.entities.User.list('-created_date', 100),
-    fetchAll(base44.entities.Schedule, '-start_time'),
-    fetchAll(base44.entities.WorkEntry, '-work_date'),
+    base44.entities.Schedule.list('-start_time', 1000), // newest/future first
+    base44.entities.Schedule.list('start_time', 1000),  // oldest first
+    base44.entities.WorkEntry.list('-work_date', 1500), // most recent first
+    base44.entities.WorkEntry.list('work_date', 500),   // oldest first
     base44.entities.ClientFeedback.filter({}, '-feedback_date', 200),
     base44.entities.Invoice.filter({}, '-created_date', 50),
   ]);
+
+  // Deduplicate by ID
+  const schedMap = {};
+  [...schedFuture, ...schedPast].forEach(s => { schedMap[s.id] = s; });
+  const schedules = Object.values(schedMap);
+
+  const workMap = {};
+  [...workRecent, ...workOld].forEach(w => { workMap[w.id] = w; });
+  const workEntries = Object.values(workMap);
 
   const cleanerMap = {};
   users.forEach(u => { cleanerMap[u.id] = u.full_name; });
@@ -180,7 +184,7 @@ export default function AsistenteIA() {
     try {
       const data = await loadAllData();
       setAllData(data);
-      setDataStats(`${data.schedules.length} servicios · ${data.workEntries.length} entries · ${data.clients.length} clientes`);
+      setDataStats(`${data.schedules.length} servicios · ${data.workEntries.length} work entries · ${data.clients.length} clientes`);
       setContextLoaded(true);
     } catch (err) {
       console.error("Error loading data:", err);
