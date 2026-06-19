@@ -9,28 +9,38 @@ export default function ActiveServiceTimer({ userId, onServiceClick }) {
     const intervalRef = useRef(null);
 
     useEffect(() => {
+        let isMounted = true;
+
+        const loadActiveService = async () => {
+            try {
+                const schedules = await Schedule.list();
+                if (!isMounted) return;
+                const active = schedules.find(schedule => {
+                    if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userId)) return false;
+                    const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userId);
+                    return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+                });
+                setActiveService(active);
+            } catch (error) {
+                console.error('Error loading active service:', error);
+            }
+        };
+
         loadActiveService();
         const pollInterval = setInterval(loadActiveService, 30000);
-        return () => clearInterval(pollInterval);
+
+        return () => {
+            isMounted = false;
+            clearInterval(pollInterval);
+        };
     }, [userId]);
 
-    const loadActiveService = async () => {
-        try {
-            const schedules = await Schedule.list();
-            const active = schedules.find(schedule => {
-                if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userId)) return false;
-                const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userId);
-                return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
-            });
-            setActiveService(active);
-        } catch (error) {
-            console.error('Error loading active service:', error);
-        }
-    };
-
     useEffect(() => {
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+
         if (!activeService) {
             setElapsedTime(0);
             return;
@@ -47,8 +57,13 @@ export default function ActiveServiceTimer({ userId, onServiceClick }) {
 
         updateTimer();
         intervalRef.current = setInterval(updateTimer, 1000);
-        
-        return () => clearInterval(intervalRef.current);
+
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        };
     }, [activeService, userId]);
 
     const formatTime = (seconds) => {

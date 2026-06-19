@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Client } from '@/entities/Client';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -23,8 +24,7 @@ import { createPageUrl } from '@/utils';
 import ExportClientsCSV from '../components/clients/ExportClientsCSV';
 
 export default function ClientesPage() {
-    const [clients, setClients] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [showForm, setShowForm] = useState(false);
     const [editingClient, setEditingClient] = useState(null);
     const [deletingClient, setDeletingClient] = useState(null);
@@ -93,42 +93,27 @@ export default function ClientesPage() {
 
     const [formData, setFormData] = useState(defaultFormData);
 
-    const loadAllRecords = async (entity, sortField = '-created_date') => {
+    const loadAllRecords = async (entity) => {
         const BATCH_SIZE = 5000;
         let allRecords = [];
         let skip = 0;
         let hasMore = true;
-
         while (hasMore) {
-            const batch = await entity.list(sortField, BATCH_SIZE, skip);
+            const batch = await entity.list('-created_date', BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
-            
             allRecords = [...allRecords, ...batchArray];
-            
-            if (batchArray.length < BATCH_SIZE) {
-                hasMore = false;
-            } else {
-                skip += BATCH_SIZE;
-            }
+            if (batchArray.length < BATCH_SIZE) hasMore = false;
+            else skip += BATCH_SIZE;
         }
-
         return allRecords;
     };
 
-    const fetchClients = useCallback(async () => {
-        setLoading(true);
-        try {
-            const clientsData = await loadAllRecords(Client, '-created_date');
-            setClients(clientsData);
-        } catch (error) {
-            console.error("Error fetching clients:", error);
-        }
-        setLoading(false);
-    }, []);
-
-    useEffect(() => {
-        fetchClients();
-    }, [fetchClients]);
+    const { data: clients = [], isLoading: queryLoading } = useQuery({
+        queryKey: ['clients'],
+        queryFn: () => loadAllRecords(Client),
+        refetchOnWindowFocus: false,
+        staleTime: 60000,
+    });
 
     // Memoize handleEdit to make it stable for useEffect dependencies
     const handleEdit = useCallback((client) => {
@@ -197,7 +182,7 @@ export default function ClientesPage() {
         if (!deletingClient) return;
         try {
             await Client.delete(deletingClient.id);
-            fetchClients();
+            queryClient.invalidateQueries({ queryKey: ['clients'] });
             setDeletingClient(null);
         } catch (error) {
             console.error("Error deleting client:", error);
@@ -206,7 +191,6 @@ export default function ClientesPage() {
 
     const handleSaveClient = async (e) => {
         e.preventDefault();
-        setLoading(true);
         try {
             // Limpiar campos numéricos vacíos
             const cleanedFormData = {
@@ -234,15 +218,13 @@ export default function ClientesPage() {
                 await Client.create(cleanedFormData);
                 console.log('[Clientes] Nuevo cliente creado exitosamente, incluyendo notas estructuradas.');
             }
-            fetchClients();
+            queryClient.invalidateQueries({ queryKey: ['clients'] });
             setShowForm(false);
             setEditingClient(null);
             setFormData(defaultFormData);
         } catch (error) {
             console.error("Error saving client:", error);
             throw error;
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -454,7 +436,7 @@ export default function ClientesPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading ? (
+                            {queryLoading ? (
                                 <TableRow><TableCell colSpan="8" className="text-center py-12">
                                     <div className="flex items-center justify-center gap-2 text-slate-500">
                                         <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
@@ -989,8 +971,8 @@ export default function ClientesPage() {
                                     <Button type="button" variant="outline" onClick={() => { setShowForm(false); setEditingClient(null); setFormData(defaultFormData); }}>
                                         Cancelar
                                     </Button>
-                                    <Button type="submit" disabled={loading}>
-                                        {loading ? 'Guardando...' : (editingClient ? 'Actualizar Cliente' : 'Crear Cliente')}
+                                    <Button type="submit" disabled={queryLoading}>
+                                       {queryLoading ? 'Guardando...' : (editingClient ? 'Actualizar Cliente' : 'Crear Cliente')}
                                     </Button>
                                 </div>
                             </form>
