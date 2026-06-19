@@ -36,6 +36,7 @@ import {
   ListChecks,
   BookOpen,
   KeySquare,
+  Bot,
 } from "lucide-react";
 import {
   Sidebar,
@@ -82,6 +83,7 @@ const adminMenuItems = [
   { name: 'Puntuación Limpiadores', path: 'PuntuacionLimpiadores', icon: Trophy },
   { name: 'Gestión de Uniformes', path: 'GestionCamisas', icon: Shirt },
   { name: 'Historial Clientes', path: 'HistorialClientes', icon: History },
+  { name: 'Asistente IA', path: 'AsistenteIA', icon: Bot },
   { name: 'Configuración', path: 'Configuracion', icon: Settings },
 ];
 

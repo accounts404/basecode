@@ -8,6 +8,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import Casuales from './pages/Casuales';
+import AsistenteIA from './pages/AsistenteIA';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -51,6 +52,7 @@ const AuthenticatedApp = () => {
           <Route key={path} path={`/${path}`} element={<Page />} />
           ))}
           <Route path="/Casuales" element={<Casuales />} />
+          <Route path="/AsistenteIA" element={<AsistenteIA />} />
           <Route path="*" element={<PageNotFound />} />
       </Routes>
     </LayoutWrapper>
