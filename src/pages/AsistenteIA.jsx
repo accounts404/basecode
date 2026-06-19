@@ -34,35 +34,25 @@ function fmtTime(dt) {
 }
 
 async function loadAllData() {
-  const now = new Date();
-  const past90 = new Date(now); past90.setDate(past90.getDate() - 90);
-  const past365 = new Date(now); past365.setDate(past365.getDate() - 365);
-
   const [
     clients, allClients, users,
-    schedUpcoming,
-    schedRecent,
-    workRecent,
+    schedules,
+    workEntries,
     feedback, invoices,
   ] = await Promise.all([
-    base44.entities.Client.filter({ active: true }, '-created_date', 500),
-    base44.entities.Client.filter({}, '-created_date', 500),
+    base44.entities.Client.filter({ active: true }, '-created_date', 5000),
+    base44.entities.Client.filter({}, '-created_date', 5000),
     base44.entities.User.list('-created_date', 100),
-    base44.entities.Schedule.filter({ start_time: { $gte: format(now, 'yyyy-MM-dd') } }, 'start_time', 1000),
-    base44.entities.Schedule.filter({ start_time: { $gte: format(past90, 'yyyy-MM-dd'), $lt: format(now, 'yyyy-MM-dd') } }, '-start_time', 500),
-    base44.entities.WorkEntry.filter({ work_date: { $gte: format(past365, 'yyyy-MM-dd') } }, '-work_date', 2000),
-    base44.entities.ClientFeedback.filter({}, '-feedback_date', 200),
-    base44.entities.Invoice.filter({}, '-created_date', 50),
+    base44.entities.Schedule.list('start_time', 10000),   // todos, sin filtro de fecha
+    base44.entities.WorkEntry.list('-work_date', 10000),  // todos, sin filtro de fecha
+    base44.entities.ClientFeedback.filter({}, '-feedback_date', 2000),
+    base44.entities.Invoice.filter({}, '-created_date', 500),
   ]);
-
-  const schedMap = {};
-  [...schedUpcoming, ...schedRecent].forEach(s => { schedMap[s.id] = s; });
-  const schedules = Object.values(schedMap);
 
   const cleanerMap = {};
   users.forEach(u => { cleanerMap[u.id] = u.full_name; });
 
-  return { clients, allClients, users, schedules, workEntries: workRecent, feedback, invoices, cleanerMap };
+  return { clients, allClients, users, schedules, workEntries, feedback, invoices, cleanerMap };
 }
 
 function buildBaseContext(data) {
@@ -234,7 +224,10 @@ export default function AsistenteIA() {
     try {
       const data = await loadAllData();
       setAllData(data);
-      setDataStats(`${data.schedules.length} servicios · ${data.workEntries.length} work entries · ${data.clients.length} clientes`);
+      const allSched = data.schedules;
+      const minDate = allSched.length ? allSched.reduce((m, s) => s.start_time < m ? s.start_time : m, allSched[0].start_time).slice(0, 10) : '?';
+      const maxDate = allSched.length ? allSched.reduce((m, s) => s.start_time > m ? s.start_time : m, allSched[0].start_time).slice(0, 10) : '?';
+      setDataStats(`✅ ${data.schedules.length} servicios (${minDate} → ${maxDate}) · ${data.workEntries.length} work entries · ${data.clients.length} clientes`);
       setContextLoaded(true);
     } catch (err) {
       console.error("Error loading data:", err);
@@ -407,7 +400,7 @@ ${messages.slice(-10).map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${
             <div>
               <h1 className="text-base font-bold text-slate-900">Asistente IA</h1>
               <p className="text-xs text-slate-500">
-                {contextLoaded ? `✅ ${dataStats}` : "⏳ Cargando datos..."}
+                {contextLoaded ? dataStats : "⏳ Cargando todos los datos..."}
                 {savingMsg && ' · 💾 Guardando...'}
               </p>
             </div>
