@@ -21,55 +21,87 @@ async function gatherBusinessContext() {
   const now = new Date();
   const monthStart = format(startOfMonth(now), 'yyyy-MM-dd');
   const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
-  const weekAgo = format(subDays(now, 7), 'yyyy-MM-dd');
+  const today = format(now, 'yyyy-MM-dd');
+  const nextWeek = format(subDays(now, -7), 'yyyy-MM-dd');
 
-  const [clients, users, schedules, workEntries, feedback, invoices] = await Promise.all([
-    base44.entities.Client.filter({ active: true }, '-created_date', 200),
-    base44.entities.User.list('-created_date', 50),
-    base44.entities.Schedule.filter({}, '-start_time', 100),
+  // Fetch all data in parallel - larger limits to not miss data
+  const [clients, users, schedulesRecent, schedulesOlder, workEntries, feedback, invoices] = await Promise.all([
+    base44.entities.Client.filter({ active: true }, '-created_date', 300),
+    base44.entities.User.list('-created_date', 100),
+    base44.entities.Schedule.filter({}, '-start_time', 200),
+    base44.entities.Schedule.filter({}, 'start_time', 200),
     base44.entities.WorkEntry.filter({}, '-work_date', 200),
     base44.entities.ClientFeedback.filter({}, '-feedback_date', 50),
     base44.entities.Invoice.filter({}, '-created_date', 30),
   ]);
 
+  // Merge and deduplicate schedules
+  const allScheduleMap = {};
+  [...schedulesRecent, ...schedulesOlder].forEach(s => { allScheduleMap[s.id] = s; });
+  const allSchedules = Object.values(allScheduleMap);
+
   const cleaners = users.filter(u => u.role !== 'admin');
-  const admins = users.filter(u => u.role === 'admin');
+  const cleanerMap = {};
+  users.forEach(u => { cleanerMap[u.id] = u.full_name; });
   
-  const recentSchedules = schedules.filter(s => s.start_time >= monthStart);
+  // Split schedules by time relevance
+  const upcomingSchedules = allSchedules
+    .filter(s => s.start_time && s.start_time.slice(0, 10) >= today)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  
+  const thisMonthSchedules = allSchedules
+    .filter(s => s.start_time && s.start_time.slice(0, 10) >= monthStart && s.start_time.slice(0, 10) <= monthEnd);
+
+  const pastMonthSchedules = thisMonthSchedules
+    .filter(s => s.start_time.slice(0, 10) < today)
+    .sort((a, b) => b.start_time.localeCompare(a.start_time));
+
   const recentWorkEntries = workEntries.filter(w => w.work_date >= monthStart);
-  const recentFeedback = feedback.filter(f => f.feedback_date >= monthStart);
+
+  const formatScheduleDetail = (s) => {
+    const date = format(new Date(s.start_time), "dd/MM/yyyy HH:mm");
+    const endTime = s.end_time ? format(new Date(s.end_time), "HH:mm") : '?';
+    const assignedCleaners = (s.cleaner_ids || []).map(id => cleanerMap[id] || id).join(', ');
+    return `- ${date}-${endTime} | ${s.client_name || 'Sin nombre'} | ${s.client_address || 'Sin dirección'} | Estado: ${s.status} | Limpiadores: [${assignedCleaners || 'SIN ASIGNAR'}] | ID: ${s.id}`;
+  };
 
   return `
-=== DATOS DEL NEGOCIO REDOAK CLEANING (${format(now, "d 'de' MMMM yyyy", { locale: es })}) ===
+=== DATOS DEL NEGOCIO REDOAK CLEANING ===
+📆 Fecha actual: ${format(now, "EEEE d 'de' MMMM yyyy", { locale: es })}
 
 📊 RESUMEN GENERAL:
 - Clientes activos: ${clients.length}
-- Limpiadores: ${cleaners.length} (${cleaners.map(c => c.full_name).join(', ')})
-- Servicios este mes: ${recentSchedules.length}
+- Limpiadores en plantilla: ${cleaners.length}
+- Servicios programados este mes: ${thisMonthSchedules.length}
+- Servicios completados este mes: ${thisMonthSchedules.filter(s => s.status === 'completed').length}
 - Work entries este mes: ${recentWorkEntries.length}
 
+🔴 SERVICIOS PRÓXIMOS (DESDE HOY EN ADELANTE - ${upcomingSchedules.length} servicios):
+${upcomingSchedules.length > 0 ? upcomingSchedules.map(formatScheduleDetail).join('\n') : 'No hay servicios próximos programados.'}
+
+📅 SERVICIOS YA REALIZADOS ESTE MES (${pastMonthSchedules.length}):
+${pastMonthSchedules.slice(0, 30).map(formatScheduleDetail).join('\n')}
+
 👥 CLIENTES ACTIVOS (${clients.length}):
-${clients.slice(0, 50).map(c => `- ${c.name}: $${c.current_service_price || 0} (${c.service_frequency || 'sin freq'}) - ${c.address || 'sin dirección'}`).join('\n')}
+${clients.map(c => `- ${c.name}: $${c.current_service_price || 0} (${c.service_frequency || 'sin freq'}) | ${c.service_hours || '?'}h | ${c.address || 'sin dirección'} | GST: ${c.gst_type || 'N/A'}`).join('\n')}
 
-📅 SERVICIOS RECIENTES (últimos del mes):
-${recentSchedules.slice(0, 40).map(s => `- ${format(new Date(s.start_time), 'dd/MM')} ${s.client_name || 'Sin nombre'} - Estado: ${s.status} - Limpiadores: ${(s.cleaner_ids || []).length}`).join('\n')}
-
-⏰ WORK ENTRIES ESTE MES (${recentWorkEntries.length}):
-${recentWorkEntries.slice(0, 40).map(w => `- ${w.work_date} ${w.client_name || 'N/A'}: ${w.hours}h x $${w.hourly_rate || 0} = $${w.total_amount || 0} (${w.cleaner_name || 'N/A'})`).join('\n')}
-
-💬 FEEDBACK RECIENTE (${recentFeedback.length}):
-${recentFeedback.slice(0, 20).map(f => `- ${f.feedback_date} ${f.client_name}: ${f.feedback_type} - "${f.description?.slice(0, 100) || 'Sin descripción'}"`).join('\n')}
-
-💰 FACTURAS RECIENTES:
-${invoices.slice(0, 10).map(i => `- ${i.invoice_number}: ${i.cleaner_name} - $${i.total_amount || 0} - ${i.status}`).join('\n')}
-
-🧹 LIMPIADORES DETALLE:
+🧹 LIMPIADORES - DETALLE ESTE MES:
 ${cleaners.map(c => {
   const entries = recentWorkEntries.filter(w => w.cleaner_id === c.id);
   const totalHours = entries.reduce((s, w) => s + (w.hours || 0), 0);
   const totalAmount = entries.reduce((s, w) => s + (w.total_amount || 0), 0);
-  return `- ${c.full_name}: ${entries.length} entries, ${totalHours.toFixed(1)}h, $${totalAmount.toFixed(2)} este mes`;
+  const servicesCount = thisMonthSchedules.filter(s => (s.cleaner_ids || []).includes(c.id)).length;
+  return `- ${c.full_name} (ID: ${c.id}): ${servicesCount} servicios, ${entries.length} work entries, ${totalHours.toFixed(1)}h, $${totalAmount.toFixed(2)}`;
 }).join('\n')}
+
+⏰ WORK ENTRIES ESTE MES (${recentWorkEntries.length}):
+${recentWorkEntries.slice(0, 50).map(w => `- ${w.work_date} ${w.client_name || 'N/A'}: ${w.hours}h x $${w.hourly_rate || 0} = $${w.total_amount || 0} (${w.cleaner_name || 'N/A'})`).join('\n')}
+
+💬 FEEDBACK RECIENTE:
+${feedback.slice(0, 20).map(f => `- ${f.feedback_date} ${f.client_name}: ${f.feedback_type} - "${f.description?.slice(0, 100) || 'Sin descripción'}"`).join('\n')}
+
+💰 FACTURAS RECIENTES:
+${invoices.slice(0, 10).map(i => `- ${i.invoice_number}: ${i.cleaner_name} - $${i.total_amount || 0} - ${i.status}`).join('\n')}
 `;
 }
 
