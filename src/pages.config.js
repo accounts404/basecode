@@ -1,92 +1,45 @@
-/**
- * pages.config.js - Page routing configuration
- * 
- * This file is AUTO-GENERATED. Do not add imports or modify PAGES manually.
- * Pages are auto-registered when you create files in the ./pages/ folder.
- * 
- * THE ONLY EDITABLE VALUE: mainPage
- * This controls which page is the landing page (shown when users visit the app).
- * 
- * Example file structure:
- * 
- *   import HomePage from './pages/HomePage';
- *   import Dashboard from './pages/Dashboard';
- *   import Settings from './pages/Settings';
- *   
- *   export const PAGES = {
- *       "HomePage": HomePage,
- *       "Dashboard": Dashboard,
- *       "Settings": Settings,
- *   }
- *   
- *   export const pagesConfig = {
- *       mainPage: "HomePage",
- *       Pages: PAGES,
- *   };
- * 
- * Example with Layout (wraps all pages):
- *
- *   import Home from './pages/Home';
- *   import Settings from './pages/Settings';
- *   import __Layout from './Layout.jsx';
- *
- *   export const PAGES = {
- *       "Home": Home,
- *       "Settings": Settings,
- *   }
- *
- *   export const pagesConfig = {
- *       mainPage: "Home",
- *       Pages: PAGES,
- *       Layout: __Layout,
- *   };
- *
- * To change the main page from HomePage to Dashboard, use find_replace:
- *   Old: mainPage: "HomePage",
- *   New: mainPage: "Dashboard",
- *
- * The mainPage value must match a key in the PAGES object exactly.
- */
-import AdminTasksPanel from './pages/AdminTasksPanel';
-import AuditoriaWorkEntries from './pages/AuditoriaWorkEntries';
-import AumentoClientes from './pages/AumentoClientes';
-import Clientes from './pages/Clientes';
-import SeguimientoClientes from './pages/SeguimientoClientes';
-import ConciliacionFacturas from './pages/ConciliacionFacturas';
-import ConciliacionHoras from './pages/ConciliacionHoras';
-import Configuracion from './pages/Configuracion';
-import Cotizaciones from './pages/Cotizaciones';
-import Dashboard from './pages/Dashboard';
-import Facturas from './pages/Facturas';
-import GestionCamisas from './pages/GestionCamisas';
-import GestionLlaves from './pages/GestionLlaves';
-import GestionFlota from './pages/GestionFlota';
-import GestionServiciosAdmin from './pages/GestionServiciosAdmin';
-import HistorialClientes from './pages/HistorialClientes';
-import Home from './pages/Home';
-import Horario from './pages/Horario';
-import Inducciones from './pages/Inducciones';
-import Limpiadores from './pages/Limpiadores';
-import MiPerfil from './pages/MiPerfil';
-import MiPuntuacion from './pages/MiPuntuacion';
-import MisFacturas from './pages/MisFacturas';
-import MisHoras from './pages/MisHoras';
-import PuntuacionLimpiadores from './pages/PuntuacionLimpiadores';
-import QuoteDetail from './pages/QuoteDetail';
-import QuoteItemization from './pages/QuoteItemization';
-import QuoteSettings from './pages/QuoteSettings';
-import RegistrarTrabajo from './pages/RegistrarTrabajo';
-import Rentabilidad from './pages/Rentabilidad';
-import Reportes from './pages/Reportes';
-import ReportesServicio from './pages/ReportesServicio';
-import RevisionPrecios from './pages/RevisionPrecios';
-import ServiceItemsManagement from './pages/ServiceItemsManagement';
-import ServicioActivo from './pages/ServicioActivo';
-import TVDashboard from './pages/TVDashboard';
-import TrabajoEntradas from './pages/TrabajoEntradas';
-import Vehiculos from './pages/Vehiculos';
+import React from 'react';
 import __Layout from './Layout.jsx';
 
+// Importaciones dinámicas con React.lazy
+const AdminTasksPanel = React.lazy(() => import('./pages/AdminTasksPanel'));
+const AuditoriaWorkEntries = React.lazy(() => import('./pages/AuditoriaWorkEntries'));
+const AumentoClientes = React.lazy(() => import('./pages/AumentoClientes'));
+const Clientes = React.lazy(() => import('./pages/Clientes'));
+const SeguimientoClientes = React.lazy(() => import('./pages/SeguimientoClientes'));
+const ConciliacionFacturas = React.lazy(() => import('./pages/ConciliacionFacturas'));
+const ConciliacionHoras = React.lazy(() => import('./pages/ConciliacionHoras'));
+const Configuracion = React.lazy(() => import('./pages/Configuracion'));
+const Cotizaciones = React.lazy(() => import('./pages/Cotizaciones'));
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const Facturas = React.lazy(() => import('./pages/Facturas'));
+const GestionCamisas = React.lazy(() => import('./pages/GestionCamisas'));
+const GestionLlaves = React.lazy(() => import('./pages/GestionLlaves'));
+const GestionFlota = React.lazy(() => import('./pages/GestionFlota'));
+const GestionServiciosAdmin = React.lazy(() => import('./pages/GestionServiciosAdmin'));
+const HistorialClientes = React.lazy(() => import('./pages/HistorialClientes'));
+const Home = React.lazy(() => import('./pages/Home'));
+const Horario = React.lazy(() => import('./pages/Horario'));
+const Inducciones = React.lazy(() => import('./pages/Inducciones'));
+const Limpiadores = React.lazy(() => import('./pages/Limpiadores'));
+const MiPerfil = React.lazy(() => import('./pages/MiPerfil'));
+const MiPuntuacion = React.lazy(() => import('./pages/MiPuntuacion'));
+const MisFacturas = React.lazy(() => import('./pages/MisFacturas'));
+const MisHoras = React.lazy(() => import('./pages/MisHoras'));
+const PuntuacionLimpiadores = React.lazy(() => import('./pages/PuntuacionLimpiadores'));
+const QuoteDetail = React.lazy(() => import('./pages/QuoteDetail'));
+const QuoteItemization = React.lazy(() => import('./pages/QuoteItemization'));
+const QuoteSettings = React.lazy(() => import('./pages/QuoteSettings'));
+const RegistrarTrabajo = React.lazy(() => import('./pages/RegistrarTrabajo'));
+const Rentabilidad = React.lazy(() => import('./pages/Rentabilidad'));
+const Reportes = React.lazy(() => import('./pages/Reportes'));
+const ReportesServicio = React.lazy(() => import('./pages/ReportesServicio'));
+const RevisionPrecios = React.lazy(() => import('./pages/RevisionPrecios'));
+const ServiceItemsManagement = React.lazy(() => import('./pages/ServiceItemsManagement'));
+const ServicioActivo = React.lazy(() => import('./pages/ServicioActivo'));
+const TVDashboard = React.lazy(() => import('./pages/TVDashboard'));
+const TrabajoEntradas = React.lazy(() => import('./pages/TrabajoEntradas'));
+const Vehiculos = React.lazy(() => import('./pages/Vehiculos'));
 
 export const PAGES = {
     "AdminTasksPanel": AdminTasksPanel,
@@ -127,7 +80,7 @@ export const PAGES = {
     "TVDashboard": TVDashboard,
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
-}
+};
 
 export const pagesConfig = {
     mainPage: "Horario",

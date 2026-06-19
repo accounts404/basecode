@@ -1,4 +1,5 @@
 import './App.css'
+import React, { Suspense } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -7,8 +8,8 @@ import NavigationTracker from '@/lib/NavigationTracker'
 import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
-import Casuales from './pages/Casuales';
-import AsistenteIA from './pages/AsistenteIA';
+const Casuales = React.lazy(() => import('./pages/Casuales'));
+const AsistenteIA = React.lazy(() => import('./pages/AsistenteIA'));
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
@@ -46,15 +47,17 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <LayoutWrapper currentPageName={mainPageKey}>
-      <Routes>
-        <Route path="/" element={<MainPage />} />
-        {Object.entries(Pages).map(([path, Page]) => (
-          <Route key={path} path={`/${path}`} element={<Page />} />
+      <Suspense fallback={<div className="fixed inset-0 flex items-center justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" /></div>}>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route key={path} path={`/${path}`} element={<Page />} />
           ))}
           <Route path="/Casuales" element={<Casuales />} />
           <Route path="/AsistenteIA" element={<AsistenteIA />} />
           <Route path="*" element={<PageNotFound />} />
-      </Routes>
+        </Routes>
+      </Suspense>
     </LayoutWrapper>
   );
 };
