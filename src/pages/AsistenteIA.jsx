@@ -33,6 +33,21 @@ function fmtTime(dt) {
   return format(d, "HH:mm");
 }
 
+async function fetchAll(entity, filter, sort) {
+  const PAGE = 1000;
+  let all = [];
+  let skip = 0;
+  while (true) {
+    const batch = filter
+      ? await entity.filter(filter, sort, PAGE, skip)
+      : await entity.list(sort, PAGE, skip);
+    all = all.concat(batch);
+    if (batch.length < PAGE) break;
+    skip += PAGE;
+  }
+  return all;
+}
+
 async function loadAllData() {
   const [
     clients, allClients, users,
@@ -40,13 +55,13 @@ async function loadAllData() {
     workEntries,
     feedback, invoices,
   ] = await Promise.all([
-    base44.entities.Client.filter({ active: true }, '-created_date', 5000),
-    base44.entities.Client.filter({}, '-created_date', 5000),
+    fetchAll(base44.entities.Client, { active: true }, '-created_date'),
+    fetchAll(base44.entities.Client, null, '-created_date'),
     base44.entities.User.list('-created_date', 100),
-    base44.entities.Schedule.list('start_time', 10000),   // todos, sin filtro de fecha
-    base44.entities.WorkEntry.list('-work_date', 10000),  // todos, sin filtro de fecha
-    base44.entities.ClientFeedback.filter({}, '-feedback_date', 2000),
-    base44.entities.Invoice.filter({}, '-created_date', 500),
+    fetchAll(base44.entities.Schedule, null, 'start_time'),
+    fetchAll(base44.entities.WorkEntry, null, '-work_date'),
+    fetchAll(base44.entities.ClientFeedback, null, '-feedback_date'),
+    fetchAll(base44.entities.Invoice, null, '-created_date'),
   ]);
 
   const cleanerMap = {};
