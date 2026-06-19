@@ -1,0 +1,40 @@
+{
+  "name": "AIConversation",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo de la conversaci\u00f3n (primeras palabras del primer mensaje)"
+    },
+    "messages": {
+      "type": "array",
+      "description": "Historial de mensajes de la conversaci\u00f3n",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "description": "ID del usuario admin que cre\u00f3 la conversaci\u00f3n"
+    },
+    "last_message_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha del \u00faltimo mensaje"
+    }
+  },
+  "required": [
+    "title"
+  ]
+}
