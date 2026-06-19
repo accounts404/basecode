@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Bot, Send, Loader2, X, Minus, MessageSquare, Trash, Plus } from "lucide-react";
+import { Bot, Send, Loader2, X, Minus, MessageSquare, Trash, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import ReactMarkdown from "react-markdown";
 import { format } from "date-fns";
 import { base44 } from "@/api/base44Client";
-import { loadAllData, buildDataStats, sendAIMessage } from "./aiAssistantCore";
+import { loadAllData, buildDataStats, getCachedData, clearCachedData } from "./aiAssistantCore";
+import { sendAIMessage } from "./aiAssistantCore";
 
 export default function RedOakIAWidget() {
   const [open, setOpen] = useState(false);
@@ -17,23 +18,40 @@ export default function RedOakIAWidget() {
   const [allData, setAllData] = useState(null);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataStats, setDataStats] = useState("");
+  const [loadedAt, setLoadedAt] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
   const [showConvList, setShowConvList] = useState(false);
   const messagesEndRef = useRef(null);
 
+  const doLoadData = (forceRefresh = false) => {
+    if (!forceRefresh) {
+      const cached = getCachedData();
+      if (cached) {
+        setAllData(cached.data);
+        setDataStats(buildDataStats(cached.data));
+        setLoadedAt(cached.loadedAt);
+        return;
+      }
+    } else {
+      clearCachedData();
+    }
+    setDataLoading(true);
+    loadAllData().then(data => {
+      setAllData(data);
+      setDataStats(buildDataStats(data));
+      setLoadedAt(Date.now());
+      setDataLoading(false);
+    }).catch(() => {
+      setDataStats("Error cargando datos");
+      setDataLoading(false);
+    });
+  };
+
   // Load data once when widget first opens
   useEffect(() => {
     if (open && !allData && !dataLoading) {
-      setDataLoading(true);
-      loadAllData().then(data => {
-        setAllData(data);
-        setDataStats(buildDataStats(data));
-        setDataLoading(false);
-      }).catch(() => {
-        setDataStats("Error cargando datos");
-        setDataLoading(false);
-      });
+      doLoadData(false);
     }
     if (open && conversations.length === 0) {
       base44.entities.AIConversation.list('-last_message_at', 50).then(setConversations);
@@ -123,11 +141,19 @@ export default function RedOakIAWidget() {
               <div>
                 <p className="text-white font-bold text-sm leading-tight">RedOak IA</p>
                 <p className="text-blue-100 text-xs leading-tight">
-                  {dataLoading ? "⏳ Cargando datos..." : dataStats ? "Listo" : ""}
+                  {dataLoading ? "⏳ Cargando datos..." : loadedAt ? `Datos de hace ${Math.round((Date.now() - loadedAt) / 60000)} min` : ""}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => doLoadData(true)}
+                className="p-1.5 rounded-lg hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+                title="Actualizar datos"
+                disabled={dataLoading}
+              >
+                <RefreshCw className={`w-4 h-4 ${dataLoading ? 'animate-spin' : ''}`} />
+              </button>
               <button
                 onClick={() => setShowConvList(s => !s)}
                 className="p-1.5 rounded-lg hover:bg-white/20 text-white/80 hover:text-white transition-colors"

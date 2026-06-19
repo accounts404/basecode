@@ -33,6 +33,29 @@ export async function fetchAll(entity, filter, sort) {
   return all;
 }
 
+const CACHE_KEY = 'redoak_ia_data';
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos
+
+export function getCachedData() {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { data, loadedAt } = JSON.parse(raw);
+    if (Date.now() - loadedAt > CACHE_TTL_MS) return null;
+    return { data, loadedAt };
+  } catch { return null; }
+}
+
+export function setCachedData(data) {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, loadedAt: Date.now() }));
+  } catch {}
+}
+
+export function clearCachedData() {
+  try { sessionStorage.removeItem(CACHE_KEY); } catch {}
+}
+
 export async function loadAllData() {
   const [clients, allClients, users, schedules, workEntries, feedback, invoices] = await Promise.all([
     fetchAll(base44.entities.Client, { active: true }, '-created_date'),
@@ -45,7 +68,9 @@ export async function loadAllData() {
   ]);
   const cleanerMap = {};
   users.forEach(u => { cleanerMap[u.id] = u.full_name; });
-  return { clients, allClients, users, schedules, workEntries, feedback, invoices, cleanerMap };
+  const data = { clients, allClients, users, schedules, workEntries, feedback, invoices, cleanerMap };
+  setCachedData(data);
+  return data;
 }
 
 export function buildDataStats(data) {
@@ -78,12 +103,12 @@ export function buildBaseContext(data) {
 
   return `=== DATOS REDOAK CLEANING ===
 📆 Hoy: ${format(now, "EEEE d 'de' MMMM yyyy", { locale: es })}
-Datos cargados: ${schedules.length} servicios, ${workEntries.length} work entries, ${clients.length} clientes activos
+Datos cargados: ${schedules.length} servicios totales, ${workEntries.length} work entries, ${clients.length} clientes activos
 
-🔴 SERVICIOS PRÓXIMOS (${upcoming.length}):
-${upcoming.map(fmtS).join('\n') || 'Ninguno.'}
+🔴 SERVICIOS PRÓXIMOS (${upcoming.length} total, mostrando próximos 50):
+${upcoming.slice(0, 50).map(fmtS).join('\n') || 'Ninguno.'}
 
-📅 SERVICIOS PASADOS ESTE MES (${pastMonth.length}):
+📅 SERVICIOS PASADOS ESTE MES (${pastMonth.length} total, mostrando últimos 40):
 ${pastMonth.slice(0, 40).map(fmtS).join('\n')}
 
 👥 CLIENTES ACTIVOS (${clients.length}):
@@ -192,7 +217,7 @@ ${baseCtx}
 ${detailCtx}
 
 HISTORIAL:
-${messages.slice(-10).map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content}`).join('\n')}`;
+${messages.slice(-8).map(m => `${m.role === 'user' ? 'Admin' : 'Asistente'}: ${m.content.slice(0, 600)}`).join('\n')}`;
 
     const response = await base44.integrations.Core.InvokeLLM({
       prompt: `${systemPrompt}\n\nAdmin: ${text}`,
