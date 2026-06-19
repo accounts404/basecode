@@ -6,6 +6,7 @@ import { syncActiveService, shouldSkipActiveCheck, hasRecentClockOut } from '@/c
 import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeProvider, { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
 import ChristmasDecoration from '@/components/theme/ChristmasDecoration';
+import RedOakIAWidget from '@/components/ai/RedOakIAWidget';
 import {
   LayoutDashboard,
   Clock,
@@ -494,6 +495,7 @@ function LayoutContent({ children, currentPageName }) {
         </div>
 
         {/* Main content con padding ajustado */}
+        <RedOakIAWidget />
         <main className={`flex-1 flex flex-col transition-all duration-300 ${
           isSidebarExpanded ? 'ml-64' : 'ml-20'
         }`}>
