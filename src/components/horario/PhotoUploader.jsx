@@ -34,11 +34,14 @@ export default function PhotoUploader({ uploadedUrls = [], onUrlsChange }) {
 
     const compressImage = (file) => {
         return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) { resolve(file); return; }
             const reader = new FileReader();
             reader.readAsDataURL(file);
+            reader.onerror = () => resolve(file);
             reader.onload = (event) => {
                 const img = new Image();
                 img.src = event.target.result;
+                img.onerror = () => resolve(file);
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
                     const MAX_WIDTH = 1280;
@@ -55,8 +58,9 @@ export default function PhotoUploader({ uploadedUrls = [], onUrlsChange }) {
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     canvas.toBlob((blob) => {
+                        if (!blob) { resolve(file); return; }
                         resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
-                    }, 'image/jpeg', 0.6);
+                    }, 'image/jpeg', 0.7);
                 };
             };
         });
