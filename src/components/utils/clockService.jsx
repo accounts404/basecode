@@ -18,6 +18,21 @@ import {
     clearAllFlags
 } from './activeServiceManager';
 
+// Función auxiliar para reintentar promesas en caso de fallo de red
+const fetchWithRetry = async (fn, maxRetries = 3, initialDelay = 2000) => {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+        try {
+            return await fn();
+        } catch (error) {
+            attempt++;
+            if (attempt >= maxRetries) throw error;
+            console.warn(`[ClockService] Fallo de red detectado. Reintento ${attempt}/${maxRetries} en ${initialDelay * attempt}ms...`);
+            await new Promise(resolve => setTimeout(resolve, initialDelay * attempt));
+        }
+    }
+};
+
 // Generar UUID para idempotencia
 const generateUUID = () => {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -165,10 +180,12 @@ export const performClockIn = async (scheduleId, userId, onProgress) => {
         // PASO 4: Llamar a la backend function (timestamp lo genera el servidor en hora Melbourne)
         onProgress?.({ stage: 'saving', message: 'Registrando Clock In...' });
 
-        const { data: clockInResult } = await base44.functions.invoke('clockIn', {
-            scheduleId,
-            location: userLocation
-        }, { headers: { 'Idempotency-Key': idempotencyKey } });
+        const { data: clockInResult } = await fetchWithRetry(() =>
+            base44.functions.invoke('clockIn', {
+                scheduleId,
+                location: userLocation
+            }, { headers: { 'Idempotency-Key': idempotencyKey } })
+        );
 
         if (!clockInResult?.success) {
             throw new Error(clockInResult?.error || 'Error al registrar Clock In');
@@ -233,10 +250,12 @@ export const performClockOut = async (scheduleId, userId, onProgress) => {
         // La función backend valida clock-in previo, procesa WorkEntries si es el último, etc.
         onProgress?.({ stage: 'saving', message: 'Registrando Clock Out...' });
 
-        const { data: clockOutResult } = await base44.functions.invoke('clockOut', {
-            scheduleId,
-            location: userLocation
-        }, { headers: { 'Idempotency-Key': idempotencyKey } });
+        const { data: clockOutResult } = await fetchWithRetry(() =>
+            base44.functions.invoke('clockOut', {
+                scheduleId,
+                location: userLocation
+            }, { headers: { 'Idempotency-Key': idempotencyKey } })
+        );
 
         if (!clockOutResult?.success) {
             throw new Error(clockOutResult?.error || 'Error al registrar Clock Out');

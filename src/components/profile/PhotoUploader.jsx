@@ -11,19 +11,42 @@ export default function PhotoUploader({ currentPhotoUrl, onUploadSuccess, userNa
   const fileInputRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState(currentPhotoUrl);
 
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1280;
+          const MAX_HEIGHT = 1280;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+          } else {
+            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            resolve(new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }));
+          }, 'image/jpeg', 0.6);
+        };
+      };
+    });
+  };
+
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       setError("Por favor selecciona un archivo de imagen válido.");
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError("La imagen no puede ser mayor a 5MB.");
       return;
     }
 
@@ -31,20 +54,19 @@ export default function PhotoUploader({ currentPhotoUrl, onUploadSuccess, userNa
     setError("");
 
     try {
-      // Create preview
       const localPreviewUrl = URL.createObjectURL(file);
       setPreviewUrl(localPreviewUrl);
 
-      const { file_url } = await UploadFile({ file });
+      const compressedFile = await compressImage(file);
+      const { file_url } = await UploadFile({ file: compressedFile });
       onUploadSuccess('profile_photo_url', file_url);
       setPreviewUrl(file_url);
 
-      // Clean up local preview
       URL.revokeObjectURL(localPreviewUrl);
     } catch (err) {
       setError("Error al subir la foto. Inténtalo de nuevo.");
       console.error("Upload error:", err);
-      setPreviewUrl(currentPhotoUrl); // Reset to original
+      setPreviewUrl(currentPhotoUrl);
     } finally {
       setUploading(false);
     }
