@@ -610,6 +610,27 @@ export default function HorarioPage() {
         }
     }, [isCleanerView, user, startServiceTimer]);
 
+    // Refresco silencioso (background) — no activa el spinner global
+    const silentRefresh = async () => {
+        if (!user) return;
+        try {
+            if (user.role === 'admin') {
+                const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                    loadAllRecords('Schedule', '-start_time'),
+                    loadAllRecords('Task', '-created_date'),
+                    loadAllRecords('DailyTeamAssignment', '-date')
+                ]);
+                setSchedules(allSchedules);
+                setTasks(allTasks);
+                setDailyTeamAssignments(allAssignments);
+            } else {
+                await loadCleanerSpecificData(date, true);
+            }
+        } catch (error) {
+            logger.error('Horario', 'Error en silentRefresh', error);
+        }
+    };
+
     const handleRefresh = async () => {
           if (!user) return;
 
@@ -662,8 +683,8 @@ export default function HorarioPage() {
             setSchedules(prev => prev.filter(s => s.id !== deletedId));
         }
 
-        // 2. Refresco en background (sin await)
-        handleRefresh();
+        // 2. Refresco silencioso en background (sin spinner)
+        silentRefresh();
     };
 
     // Clock In/Out usando funciones backend (atómico, idempotente, timestamp del servidor)
@@ -1087,7 +1108,7 @@ export default function HorarioPage() {
         } catch (error) {
             console.error('[Horario] Error al redimensionar:', error);
             setError(`Error al guardar tamaño: ${error.message}`);
-            handleRefresh(); // Revertir y recargar si falla el backend
+            silentRefresh(); // Revertir y recargar si falla el backend
         }
     };
 
@@ -1124,7 +1145,7 @@ export default function HorarioPage() {
         } catch (error) {
             console.error('[Horario] Error al mover:', error);
             setError(`Error al guardar movimiento: ${error.message}`);
-            handleRefresh(); // Revertir y recargar si falla el backend
+            silentRefresh(); // Revertir y recargar si falla el backend
         }
     };
 
