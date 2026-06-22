@@ -227,10 +227,22 @@ export default function CrearServicioForm({
                     setClientDefaultNotesModified(false); // Reset modified flag
                 } catch (clientError) {
                     console.warn('[CrearServicioForm] No se pudo cargar el cliente actual:', clientError);
-                    setSelectedClient(null); // Clear selected client if not found
-                    setClientDefaultNotes(''); // Clear default notes
-                    setClientDefaultNotesModified(false); // Reset modified flag
-                    setError('Error: No se pudo cargar la información del cliente asociado a este servicio.');
+                    // En vista de solo lectura (limpiador), usar los datos del snapshot del servicio
+                    // como fallback en lugar de mostrar un error bloqueante
+                    if (isReadOnly) {
+                        setSelectedClient({
+                            id: schedule.client_id,
+                            name: schedule.client_name || '',
+                            address: schedule.client_address || '',
+                        });
+                        setClientDefaultNotes('');
+                        setClientDefaultNotesModified(false);
+                    } else {
+                        setSelectedClient(null);
+                        setClientDefaultNotes('');
+                        setClientDefaultNotesModified(false);
+                        setError('Error: No se pudo cargar la información del cliente asociado a este servicio.');
+                    }
                 }
             } else {
                 setSelectedClient(null);
