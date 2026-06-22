@@ -936,155 +936,99 @@ export default function HorarioPage() {
     }, [users]);
 
     const handleSaveService = async (serviceData, updateScope) => {
-        if (isCleanerView) {
-            console.log('[Horario] Limpiadores no pueden guardar servicios');
-            return;
-        }
+        if (isCleanerView) return;
 
         try {
-            let wasCompleted = false;
             let originalCleanerSchedules = [];
             const isNewService = !selectedEvent?.id;
 
             if (serviceData.cleaner_ids && serviceData.cleaner_ids.length > 0) {
-                const assignedColor = getColorFromMostExperiencedCleaner(serviceData.cleaner_ids);
-                serviceData.color = assignedColor;
+                serviceData.color = getColorFromMostExperiencedCleaner(serviceData.cleaner_ids);
             }
 
             let savedServiceId = null;
+            let savedServiceObj = null;
 
+            // 1. GUARDADO PRINCIPAL (Bloquea ~1 seg para confirmar red y base de datos)
             if (!isNewService) {
-                wasCompleted = selectedEvent.status === 'completed';
                 originalCleanerSchedules = selectedEvent.cleaner_schedules || [];
-
-                const wasNotCompleted = selectedEvent.status !== 'completed';
-                const isNowCompleted = serviceData.status === 'completed';
-                const statusChangedToCompleted = wasNotCompleted && isNowCompleted;
-
                 const originalRecurrenceRule = selectedEvent.recurrence_rule || 'none';
                 const newRecurrenceRule = serviceData.recurrence_rule || 'none';
-                const hasRecurrenceRuleChanged = originalRecurrenceRule !== newRecurrenceRule;
 
-                if (hasRecurrenceRuleChanged) {
-                    try {
-                        const { data: modificationResult } = await modificarRecurrencia({
-                            scheduleId: selectedEvent.id,
-                            updatedData: serviceData,
-                            updateScope: updateScope,
-                            originalRecurrenceRule: originalRecurrenceRule,
-                        });
-                        if (modificationResult.success) {
-                            savedServiceId = selectedEvent.id;
-                        } else {
-                            throw new Error(modificationResult.error || 'Error al modificar recurrencia');
-                        }
-                    } catch (modRecurrenceError) {
-                        console.error('[Horario] ❌ Error en modificarRecurrencia:', modRecurrenceError);
-                        setError(`Error: ${modRecurrenceError.message || 'Error desconocido'}`);
-                        throw modRecurrenceError;
-                    }
+                if (originalRecurrenceRule !== newRecurrenceRule) {
+                    const { data: modResult } = await modificarRecurrencia({
+                        scheduleId: selectedEvent.id, updatedData: serviceData, updateScope, originalRecurrenceRule
+                    });
+                    if (!modResult.success) throw new Error(modResult.error);
+                    savedServiceId = selectedEvent.id;
+                    savedServiceObj = { ...selectedEvent, ...serviceData };
                 } else if (updateScope === 'this_and_future' && selectedEvent.recurrence_id) {
                     await Schedule.update(selectedEvent.id, serviceData);
                     savedServiceId = selectedEvent.id;
-                    try {
-                        const { data: recurrenceResult } = await actualizarSerieRecurrente({
-                            scheduleId: selectedEvent.id,
-                            updateScope: updateScope,
-                            updatedData: serviceData
-                        });
-
-                        if (!recurrenceResult.success) {
-                            setError(`Error: ${recurrenceResult.error}`);
-                        }
-                    } catch (recurrenceError) {
-                        console.error('[Horario] ❌ Error en actualizarSerieRecurrente:', recurrenceError);
-                        setError(`Error: ${recurrenceError.message || 'Error desconocido'}`);
-                        throw recurrenceError;
-                    }
+                    savedServiceObj = { ...selectedEvent, ...serviceData };
                 } else {
                     await Schedule.update(selectedEvent.id, serviceData);
                     savedServiceId = selectedEvent.id;
+                    savedServiceObj = { ...selectedEvent, ...serviceData };
                 }
-
-                if (statusChangedToCompleted && savedServiceId) {
-                    try {
-                        const { data } = await processScheduleForWorkEntries({
-                            scheduleId: savedServiceId,
-                            mode: 'create'
-                        });
-
-                        if (data.success && data.created_entries > 0) {
-                            console.log(`[Horario] ✅ WorkEntries creadas: ${data.created_entries}`);
-                        }
-                    } catch (workEntryError) {
-                        console.error("[Horario] ❌ Error creando WorkEntries:", workEntryError);
-                    }
-                }
-
-                if (wasCompleted && serviceData.cleaner_schedules && updateScope === 'this_only') {
-                    await updateWorkEntriesIfNeeded(selectedEvent.id, serviceData.cleaner_schedules, originalCleanerSchedules);
-                }
-
             } else {
                 const newService = await Schedule.create(serviceData);
                 savedServiceId = newService.id;
-
-                if (serviceData.status === 'completed' && savedServiceId) {
-                    try {
-                        const { data } = await processScheduleForWorkEntries({
-                            scheduleId: savedServiceId,
-                            mode: 'create'
-                        });
-
-                        if (data.success && data.created_entries > 0) {
-                            console.log(`[Horario] ✅ WorkEntries creadas: ${data.created_entries}`);
-                        }
-                    } catch (workEntryError) {
-                        console.error("[Horario] ❌ Error creando WorkEntries:", workEntryError);
-                    }
-                }
-
-                if (serviceData.recurrence_rule && serviceData.recurrence_rule !== 'none') {
-                    try {
-                        const { data: recurrenceResult } = await generarRecurrencias({
-                            scheduleId: savedServiceId,
-                            recurrenceRule: serviceData.recurrence_rule,
-                            months: 6
-                        });
-
-                        if (!recurrenceResult.success) {
-                            setError(`Error al generar recurrencias: ${recurrenceResult.error}`);
-                        }
-                    } catch (recurrenceError) {
-                        console.error('[Horario] ❌ Error generando recurrencias:', recurrenceError);
-                        setError(`Error: ${recurrenceError.message || 'Error desconocido'}`);
-                    }
-                }
+                savedServiceObj = newService;
             }
 
-            if (serviceData.structured_service_notes && serviceData.client_id) {
-                try {
-                    const currentClient = await Client.get(serviceData.client_id);
-                    const serviceNotes = serviceData.structured_service_notes || {};
-                    const clientNotes = currentClient.structured_service_notes || {};
-
-                    if (!isEqual(serviceNotes, clientNotes)) {
-                        await Client.update(currentClient.id, {
-                            structured_service_notes: serviceNotes
-                        });
-                    }
-                } catch (clientError) {
-                    console.error('[Horario] ❌ Error actualizando notas del cliente:', clientError);
-                }
-            }
-
+            // 2. CIERRE INSTANTÁNEO Y ACTUALIZACIÓN OPTIMISTA (Liberamos la pantalla)
+            setSchedules(prev => {
+                if (isNewService) return [...prev, savedServiceObj];
+                return prev.map(s => s.id === savedServiceId ? { ...s, ...savedServiceObj } : s);
+            });
             setShowForm(false);
             setSelectedEvent(null);
-            await handleRefresh();
+
+            // 3. TAREAS PESADAS EN BACKGROUND (Generación de meses, WorkEntries y Refresco)
+            (async () => {
+                try {
+                    const statusChangedToCompleted = (!isNewService && selectedEvent.status !== 'completed' && serviceData.status === 'completed') || (isNewService && serviceData.status === 'completed');
+
+                    // A. Operaciones complejas de base de datos
+                    if (!isNewService && updateScope === 'this_and_future' && selectedEvent.recurrence_id && selectedEvent.recurrence_rule === serviceData.recurrence_rule) {
+                        await actualizarSerieRecurrente({ scheduleId: savedServiceId, updateScope, updatedData: serviceData });
+                    }
+                    if (statusChangedToCompleted && savedServiceId) {
+                        await processScheduleForWorkEntries({ scheduleId: savedServiceId, mode: 'create' });
+                    }
+                    if (!isNewService && selectedEvent.status === 'completed' && serviceData.cleaner_schedules && updateScope === 'this_only') {
+                        await updateWorkEntriesIfNeeded(savedServiceId, serviceData.cleaner_schedules, originalCleanerSchedules);
+                    }
+                    if (isNewService && serviceData.recurrence_rule && serviceData.recurrence_rule !== 'none') {
+                        await generarRecurrencias({ scheduleId: savedServiceId, recurrenceRule: serviceData.recurrence_rule, months: 6 });
+                    }
+                    if (serviceData.structured_service_notes && serviceData.client_id) {
+                        const currentClient = await Client.get(serviceData.client_id);
+                        if (!isEqual(serviceData.structured_service_notes, currentClient.structured_service_notes || {})) {
+                            await Client.update(currentClient.id, { structured_service_notes: serviceData.structured_service_notes });
+                        }
+                    }
+
+                    // B. Sincronización silenciosa final
+                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                        loadAllRecords('Schedule', '-start_time'),
+                        loadAllRecords('Task', '-created_date'),
+                        loadAllRecords('DailyTeamAssignment', '-date')
+                    ]);
+                    setSchedules(allSchedules);
+                    setTasks(allTasks);
+                    setDailyTeamAssignments(allAssignments);
+
+                } catch (bgError) {
+                    console.error('[Horario] Error en background tasks:', bgError);
+                }
+            })();
+
         } catch (error) {
             console.error('[Horario] Error guardando servicio:', error);
-            setError(`Error: ${error.message || 'Error desconocido'}`);
-            throw error;
+            setError(`Error al guardar: ${error.message || 'Intente nuevamente'}`);
+            setShowForm(false);
         }
     };
 
