@@ -75,6 +75,27 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
         }
 
         // Crear nueva cita limpia
+        // IMPORTANTE: cleaner_schedules se recalcula desde cleaner_ids para evitar datos fantasma
+        const duracionMs = new Date(citaOriginal.end_time) - new Date(citaOriginal.start_time);
+        const cleanerSchedules = (citaOriginal.cleaner_ids || []).map(cleanerId => {
+            const original = (citaOriginal.cleaner_schedules || []).find(cs => cs.cleaner_id === cleanerId);
+            if (original) {
+                // Calcular offset del limpiador respecto al inicio del servicio original
+                const offsetStart = new Date(original.start_time) - new Date(citaOriginal.start_time);
+                const offsetEnd = new Date(original.end_time) - new Date(citaOriginal.start_time);
+                return {
+                    cleaner_id: cleanerId,
+                    start_time: formatLocalISO(new Date(siguienteInicio.getTime() + offsetStart)),
+                    end_time: formatLocalISO(new Date(siguienteInicio.getTime() + offsetEnd)),
+                };
+            }
+            return {
+                cleaner_id: cleanerId,
+                start_time: formatLocalISO(siguienteInicio),
+                end_time: formatLocalISO(siguienteFin),
+            };
+        });
+
         const nuevaCita = {
             ...citaOriginal,
             start_time: formatLocalISO(siguienteInicio),
@@ -86,6 +107,7 @@ async function generarSiguientesCitas(base44, citaOriginal, monthsToGenerate) {
             xero_invoiced: false,
             on_my_way_sent_at: null,
             reminder_sent_at: null,
+            cleaner_schedules: cleanerSchedules, // Siempre sincronizado con cleaner_ids
         };
         delete nuevaCita.id;
 
