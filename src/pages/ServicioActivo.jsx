@@ -140,7 +140,7 @@ export default function ServicioActivoPage() {
                             duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
                         }
                         setScheduledDuration(duration);
-                        startTimer(parsed.fullSchedule, user.id, duration);
+                        startTimer(parsed.fullSchedule, userData.id, duration);
                     }
                 } catch (parseError) {
                     console.warn('[ServicioActivo] Error parseando cache:', parseError);
