@@ -492,7 +492,7 @@ export default function ServicioActivoPage() {
     const defaultClientPhotos = getDefaultClientPhotos();
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 pb-20">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4 pb-32">
             <div className="max-w-2xl mx-auto space-y-4">
                 {error && (
                     <Alert variant="destructive" className="border-2">
@@ -562,7 +562,7 @@ export default function ServicioActivoPage() {
                                 </div>
                                 
                                 <div className="text-center mb-4">
-                                    <p className="text-5xl font-bold text-blue-600 font-mono tracking-tight">
+                                    <p className="text-4xl sm:text-5xl font-bold text-blue-600 font-mono tracking-tight">
                                         {formatElapsedTime(elapsedTime)}
                                     </p>
                                     <p className="text-sm text-slate-500 mt-2">Tiempo transcurrido</p>
@@ -996,13 +996,13 @@ export default function ServicioActivoPage() {
                     </Card>
                 )}
 
-                {/* Botones de Acción */}
-                <div className="space-y-3 sticky bottom-4">
+                {/* Botones de Acción Estilo "Dock" Nativo */}
+                <div className="sticky bottom-2 sm:bottom-4 left-0 right-0 p-3 sm:p-4 bg-white/80 backdrop-blur-md border border-slate-200/50 rounded-2xl shadow-lg z-40 space-y-3">
                     <Button
                         onClick={() => setShowReportDialog(true)}
                         variant="outline"
                         disabled={clockingOut}
-                        className="w-full h-14 text-base font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50"
+                        className="w-full h-12 sm:h-14 text-sm sm:text-base font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50 bg-white"
                     >
                         <AlertTriangle className="w-5 h-5 mr-2" />
                         Reportar un Problema
@@ -1011,7 +1011,7 @@ export default function ServicioActivoPage() {
                     <Button
                         onClick={() => handleClockOut(0)}
                         disabled={clockingOut}
-                        className="w-full h-14 text-base font-semibold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                        className="w-full h-14 sm:h-16 text-sm sm:text-base font-bold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all"
                     >
                         {clockingOut ? (
                             <>
@@ -1020,14 +1020,14 @@ export default function ServicioActivoPage() {
                             </>
                         ) : (
                             <>
-                                <CheckCircle className="w-5 h-5 mr-2" />
-                                Finalizar Servicio (Clock Out)
+                                <CheckCircle className="w-6 h-6 mr-2" />
+                                Finalizar Servicio
                             </>
                         )}
                     </Button>
                     {clockingOut && (
-                        <p className="text-center text-sm text-slate-600 font-medium bg-blue-50 p-3 rounded-lg border border-blue-200">
-                            💡 <strong>No cierres esta página</strong> hasta que el proceso se complete
+                        <p className="text-center text-xs text-slate-600 font-medium bg-blue-50/90 p-2 rounded-lg border border-blue-200">
+                            💡 <strong>No cierres esta app</strong> hasta que termine
                         </p>
                     )}
                 </div>

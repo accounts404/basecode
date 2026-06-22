@@ -1318,32 +1318,22 @@ export default function HorarioPage() {
         <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: currentTheme.colors.background }}>
             <Toaster />
             {isCleanerView ? (
-                <header className="flex-shrink-0 bg-white border-b shadow-sm" style={{ borderColor: currentTheme.colors.cardBorder }}>
-                    <div className="flex items-center justify-between px-4 py-3">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-                                <CalendarIcon className="w-4 h-4 text-white" />
-                            </div>
-                            <div>
-                                <h1 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                                    {theme === 'christmas' && <span>🎄</span>}
-                                    Mi Horario
-                                    {theme === 'christmas' && <span>🎁</span>}
-                                </h1>
-                                <p className="text-xs text-slate-400 capitalize">{format(date, "EEEE, d 'de' MMMM", { locale: es })}</p>
-                            </div>
-                            {!loading && (
-                                <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
-                            )}
+                <header className="flex-shrink-0 bg-white border-b shadow-sm z-10" style={{ borderColor: currentTheme.colors.cardBorder }}>
+                    <div className="relative flex items-center justify-between px-2 py-3">
+                        <Button variant="ghost" size="icon" onClick={handlePrev} className="h-10 w-10 rounded-full hover:bg-slate-100 active:bg-slate-200">
+                            <ChevronLeft className="w-6 h-6 text-slate-700" />
+                        </Button>
+                        <div className="flex flex-col items-center justify-center min-w-[140px] cursor-pointer" onClick={handleToday}>
+                            <h1 className="text-lg font-bold text-slate-900 leading-tight">
+                                {isToday(date) ? 'Hoy' : format(date, "EEEE d", { locale: es })}
+                            </h1>
+                            <p className="text-xs text-slate-500 font-medium capitalize">{format(date, "MMMM yyyy", { locale: es })}</p>
                         </div>
-                        <Button
-                            variant="ghost"
-                            onClick={handleRefresh}
-                            disabled={refreshing}
-                            size="sm"
-                            className="text-slate-500 hover:text-slate-800"
-                        >
-                            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                        <Button variant="ghost" size="icon" onClick={handleNext} className="h-10 w-10 rounded-full hover:bg-slate-100 active:bg-slate-200">
+                            <ChevronRight className="w-6 h-6 text-slate-700" />
+                        </Button>
+                        <Button variant="ghost" onClick={handleRefresh} disabled={refreshing} size="icon" className="h-9 w-9 rounded-full absolute right-2 bg-white shadow-md border border-slate-100">
+                            <RefreshCw className={`w-4 h-4 text-blue-600 ${refreshing ? 'animate-spin' : ''}`} />
                         </Button>
                     </div>
                 </header>
