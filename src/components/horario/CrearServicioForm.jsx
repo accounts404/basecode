@@ -220,17 +220,42 @@ export default function CrearServicioForm({
             let client = null;
             if (schedule.client_id) {
                 try {
-                    // MODIFICADO: Siempre recargar el cliente para tener la información más actualizada
-                    client = await Client.get(schedule.client_id);
+                    // 1. REINTENTOS AUTOMÁTICOS PARA REDES MÓVILES INESTABLES
+                    let retries = 2;
+                    while (retries >= 0) {
+                        try {
+                            client = await Client.get(schedule.client_id);
+                            break; // Éxito en la descarga
+                        } catch (err) {
+                            if (retries === 0) throw err;
+                            retries--;
+                            await new Promise(r => setTimeout(r, 1000)); // Esperar 1s y reintentar
+                        }
+                    }
+                    
                     setSelectedClient(client);
-                    setClientDefaultNotes(client.default_service_notes || ''); // Load the default notes
-                    setClientDefaultNotesModified(false); // Reset modified flag
+                    setClientDefaultNotes(client.default_service_notes || '');
+                    setClientDefaultNotesModified(false);
                 } catch (clientError) {
-                    console.warn('[CrearServicioForm] No se pudo cargar el cliente actual:', clientError);
-                    setSelectedClient(null); // Clear selected client if not found
-                    setClientDefaultNotes(''); // Clear default notes
-                    setClientDefaultNotesModified(false); // Reset modified flag
-                    setError('Error: No se pudo cargar la información del cliente asociado a este servicio.');
+                    console.warn('[CrearServicioForm] Falló la descarga del cliente, activando modo Offline Fallback:', clientError);
+                    
+                    // 2. MODO SUPERVIVENCIA (FALLBACK OFFLINE)
+                    const fallbackClient = {
+                        id: schedule.client_id,
+                        name: schedule.client_name,
+                        address: schedule.client_address,
+                        structured_service_notes: schedule.structured_service_notes || {},
+                        has_access: false // Prevenir errores con datos faltantes
+                    };
+                    
+                    setSelectedClient(fallbackClient);
+                    setClientDefaultNotes(schedule.notes_public || ''); 
+                    setClientDefaultNotesModified(false);
+                    
+                    // Solo mostramos alerta dura si es el administrador editando, no al limpiador en calle
+                    if (!isReadOnly) {
+                        setError('⚠️ Conexión inestable: Mostrando versión offline del servicio.');
+                    }
                 }
             } else {
                 setSelectedClient(null);
