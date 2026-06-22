@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
+import { useAuth } from '@/lib/AuthContext';
 import { syncActiveService, shouldSkipActiveCheck, hasRecentClockOut } from '@/components/utils/activeServiceManager';
 import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeProvider, { useTheme, THEME_DEFINITIONS } from '@/components/theme/ThemeProvider';
@@ -134,8 +135,7 @@ function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme } = useTheme();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isLoadingAuth } = useAuth();
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [isScoringParticipant, setIsScoringParticipant] = useState(false);
   const [hasActiveService, setHasActiveService] = useState(false);
@@ -160,7 +160,6 @@ function LayoutContent({ children, currentPageName }) {
   const lastCheckRef = React.useRef(0);
 
   useEffect(() => {
-    loadInitialData();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -236,46 +235,38 @@ function LayoutContent({ children, currentPageName }) {
     }
   }, [location.pathname, navigate, isCheckingService]);
 
-  const loadInitialData = async () => {
-    try {
-      const cachedUser = localStorage.getItem('redoak_user');
-      if (cachedUser) {
-        const parsed = JSON.parse(cachedUser);
-        setUser(parsed);
-        setLoading(false);
-        
-        if (parsed.role !== 'admin') {
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSecondaryData = async () => {
+      if (!user) return;
+
+      try {
+        if (user.role !== 'admin') {
           setIsCleanerView(true);
-          // Verificación inicial de servicio activo
-          checkForActiveService(parsed.id, true);
+          const currentMonth = format(new Date(), 'yyyy-MM');
+          const scores = await base44.entities.MonthlyCleanerScore.filter({
+            cleaner_id: user.id,
+            month_period: currentMonth,
+            is_participating: true,
+          });
+          if (isMounted) setIsScoringParticipant(scores.length > 0);
+
+          await checkForActiveService(user.id, true);
         }
+      } catch (error) {
+        console.error("Error loading secondary cleaner data:", error);
+      } finally {
+        if (isMounted) setInitialLoadComplete(true);
       }
+    };
 
-      const freshUser = await base44.auth.me();
-      setUser(freshUser);
-      localStorage.setItem('redoak_user', JSON.stringify(freshUser));
-
-      if (freshUser.role !== 'admin') {
-        setIsCleanerView(true);
-        const currentMonth = format(new Date(), 'yyyy-MM');
-        const scores = await base44.entities.MonthlyCleanerScore.filter({
-          cleaner_id: freshUser.id,
-          month_period: currentMonth,
-          is_participating: true,
-        });
-        setIsScoringParticipant(scores.length > 0);
-
-        // Verificar servicio activo
-        await checkForActiveService(freshUser.id, true);
-      }
-    } catch (error) {
-      console.error("Error loading user:", error);
-      localStorage.removeItem('redoak_user');
-    } finally {
-      setLoading(false);
-      setInitialLoadComplete(true);
+    if (user && !isLoadingAuth) {
+      loadSecondaryData();
     }
-  };
+
+    return () => { isMounted = false; };
+  }, [user, isLoadingAuth, checkForActiveService]);
 
   // OPTIMIZADO: Polling más inteligente para limpiadores
   useEffect(() => {
@@ -302,14 +293,13 @@ function LayoutContent({ children, currentPageName }) {
   const handleLogout = async () => {
     localStorage.clear();
     await base44.auth.logout();
-    setUser(null);
   };
 
   if (currentPageName === 'TVDashboard') {
     return <div className="min-h-screen w-full">{children}</div>;
   }
 
-  if (loading && !user) {
+  if (isLoadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100">
         <div className="flex items-center gap-3">
