@@ -653,10 +653,17 @@ export default function HorarioPage() {
     };
 
     const handleServiceDeleted = async () => {
-        console.log("[Horario] Servicio eliminado, recargando...");
+        const deletedId = selectedEvent?.id;
         setShowForm(false);
         setSelectedEvent(null);
-        await handleRefresh();
+
+        // 1. ACTUALIZACIÓN OPTIMISTA (Eliminar de la vista inmediatamente)
+        if (deletedId) {
+            setSchedules(prev => prev.filter(s => s.id !== deletedId));
+        }
+
+        // 2. Refresco en background (sin await)
+        handleRefresh();
     };
 
     // Clock In/Out usando funciones backend (atómico, idempotente, timestamp del servidor)
@@ -1061,79 +1068,63 @@ export default function HorarioPage() {
     };
 
     const handleResizeEvent = async (eventId, newStartTime, newEndTime) => {
-        if (isCleanerView || user?.role !== 'admin') {
-            return;
-        }
+        if (isCleanerView || user?.role !== 'admin') return;
+
+        const toLocalISO = (d) => {
+            const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
+            const h = String(d.getUTCHours()).padStart(2,'0'), mi = String(d.getUTCMinutes()).padStart(2,'0');
+            return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
+        };
+        const startStr = toLocalISO(newStartTime);
+        const endStr = toLocalISO(newEndTime);
+
+        // 1. ACTUALIZACIÓN OPTIMISTA (Instantánea)
+        setSchedules(prev => prev.map(s => s.id === eventId ? { ...s, start_time: startStr, end_time: endStr } : s));
 
         try {
-            const schedulesArray = Array.isArray(schedules) ? schedules : [];
-            const scheduleToUpdate = schedulesArray.find(s => s.id === eventId);
-            if (!scheduleToUpdate) {
-                return;
-            }
-
-            // El calendario construye fechas con Date.UTC, usar getters UTC para evitar desfase de timezone
-            const toLocalISO = (d) => {
-                const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
-                const h = String(d.getUTCHours()).padStart(2,'0'), mi = String(d.getUTCMinutes()).padStart(2,'0');
-                return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
-            };
-            const updatePayload = {
-                start_time: toLocalISO(newStartTime),
-                end_time: toLocalISO(newEndTime),
-            };
-
-            await Schedule.update(eventId, updatePayload);
-            await handleRefresh();
-
+            // 2. Sincronización en background sin bloquear UI
+            await Schedule.update(eventId, { start_time: startStr, end_time: endStr });
         } catch (error) {
             console.error('[Horario] Error al redimensionar:', error);
-            setError(`Error: ${error.message || 'Error desconocido'}`);
-            await handleRefresh();
+            setError(`Error al guardar tamaño: ${error.message}`);
+            handleRefresh(); // Revertir y recargar si falla el backend
         }
     };
 
     const handleMoveEvent = async (eventId, newStartTime, newEndTime) => {
-        if (isCleanerView || user?.role !== 'admin') {
-            return;
+        if (isCleanerView || user?.role !== 'admin') return;
+
+        const toLocalISO = (d) => {
+            const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
+            const h = String(d.getUTCHours()).padStart(2,'0'), mi = String(d.getUTCMinutes()).padStart(2,'0');
+            return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
+        };
+        const startStr = toLocalISO(newStartTime);
+        const endStr = toLocalISO(newEndTime);
+
+        let updatePayload = { start_time: startStr, end_time: endStr };
+        const scheduleToUpdate = schedules.find(s => s.id === eventId);
+
+        if (scheduleToUpdate?.cleaner_schedules && Array.isArray(scheduleToUpdate.cleaner_schedules) && scheduleToUpdate.cleaner_schedules.length > 0) {
+            const originalStart = new Date(scheduleToUpdate.start_time);
+            const timeDiff = newStartTime.getTime() - originalStart.getTime();
+            updatePayload.cleaner_schedules = scheduleToUpdate.cleaner_schedules.map(cs => ({
+                ...cs,
+                start_time: toLocalISO(new Date(new Date(cs.start_time).getTime() + timeDiff)),
+                end_time: toLocalISO(new Date(new Date(cs.end_time).getTime() + timeDiff)),
+            }));
         }
 
+        // 1. ACTUALIZACIÓN OPTIMISTA (Instantánea)
+        setSchedules(prev => prev.map(s => s.id === eventId ? { ...s, ...updatePayload } : s));
+
         try {
-            const schedulesArray = Array.isArray(schedules) ? schedules : [];
-            const scheduleToUpdate = schedulesArray.find(s => s.id === eventId);
-            if (!scheduleToUpdate) {
-                return;
-            }
-
-            // El calendario construye fechas con Date.UTC, usar getters UTC para evitar desfase de timezone
-            const toLocalISO = (d) => {
-                const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
-                const h = String(d.getUTCHours()).padStart(2,'0'), mi = String(d.getUTCMinutes()).padStart(2,'0');
-                return `${y}-${mo}-${dy}T${h}:${mi}:00.000`;
-            };
-            const updatePayload = {
-                start_time: toLocalISO(newStartTime),
-                end_time: toLocalISO(newEndTime),
-            };
-
-            if (scheduleToUpdate.cleaner_schedules && Array.isArray(scheduleToUpdate.cleaner_schedules) && scheduleToUpdate.cleaner_schedules.length > 0) {
-                const originalStart = new Date(scheduleToUpdate.start_time);
-                const timeDiff = newStartTime.getTime() - originalStart.getTime();
-
-                updatePayload.cleaner_schedules = scheduleToUpdate.cleaner_schedules.map(cs => ({
-                    ...cs,
-                    start_time: toLocalISO(new Date(new Date(cs.start_time).getTime() + timeDiff)),
-                    end_time: toLocalISO(new Date(new Date(cs.end_time).getTime() + timeDiff)),
-                }));
-            }
-
+            // 2. Sincronización en background sin bloquear UI
             await Schedule.update(eventId, updatePayload);
-            await handleRefresh();
-
         } catch (error) {
             console.error('[Horario] Error al mover:', error);
-            setError(`Error: ${error.message || 'Error desconocido'}`);
-            await handleRefresh();
+            setError(`Error al guardar movimiento: ${error.message}`);
+            handleRefresh(); // Revertir y recargar si falla el backend
         }
     };
 
