@@ -30,6 +30,7 @@ import {
 import { format, differenceInSeconds } from "date-fns";
 import { es } from "date-fns/locale";
 import ServiceReportForm from "../components/reports/ServiceReportForm";
+import { useAuth } from "@/lib/AuthContext";
 
 // Parsear ISO string como local (sin conversión de timezone)
 const parseISOAsUTC = (isoString) => {
@@ -50,7 +51,7 @@ const formatElapsedTime = (seconds) => {
 
 export default function ServicioActivoPage() {
     const navigate = useNavigate();
-    const [user, setUser] = useState(null);
+    const { user } = useAuth();
     const [activeService, setActiveService] = useState(null);
     const [clientInfo, setClientInfo] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -63,107 +64,57 @@ export default function ServicioActivoPage() {
     const [showReportDialog, setShowReportDialog] = useState(false);
     const intervalRef = useRef(null);
     const pollingRef = useRef(null);
-    const isUnmountingRef = useRef(false); // NUEVO: Flag para prevenir actualizaciones después de unmount
+    const isUnmountingRef = useRef(false);
 
     useEffect(() => {
-        loadUserAndActiveService();
+        if (user) loadUserAndActiveService();
         return () => {
-            // LIMPIEZA TOTAL al desmontar el componente
             isUnmountingRef.current = true;
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-            if (pollingRef.current) {
-                clearInterval(pollingRef.current);
-                pollingRef.current = null;
-            }
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            if (pollingRef.current) clearInterval(pollingRef.current);
         };
-    }, []);
+    }, [user]);
 
-    // Polling automático cada 20 segundos para actualizar el estado del servicio
+    // Polling ultra-ligero: Solo descarga el servicio activo actual
     useEffect(() => {
-        // CRÍTICO: No iniciar polling si estamos en proceso de Clock Out o desmontando
-        if (loading || !activeService || !user || clockingOut || isUnmountingRef.current) {
-            return;
-        }
+        if (loading || !activeService?.id || !user || clockingOut || isUnmountingRef.current) return;
 
-        console.log('[ServicioActivo] 🔄 Iniciando polling automático cada 20 segundos');
-        
         pollingRef.current = setInterval(async () => {
-            // CRÍTICO: Verificar antes de cada actualización si estamos desmontando o haciendo Clock Out
             if (isUnmountingRef.current || clockingOut) {
-                console.log('[ServicioActivo] 🛑 Polling cancelado: componente desmontando o Clock Out en progreso');
-                if (pollingRef.current) {
-                    clearInterval(pollingRef.current);
-                    pollingRef.current = null;
-                }
+                if (pollingRef.current) clearInterval(pollingRef.current);
                 return;
             }
 
             try {
-                console.log('[ServicioActivo] 🔄 Actualización automática silenciosa...');
-                
-                const schedules = await base44.entities.Schedule.filter({ status: { $in: ['scheduled', 'in_progress'] } });
-                const schedulesArray = Array.isArray(schedules) ? schedules : [];
+                const updatedService = await base44.entities.Schedule.get(activeService.id);
+                if (isUnmountingRef.current || clockingOut) return;
 
-                const active = schedulesArray.find(schedule => {
-                    if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(user.id)) return false;
-                    const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === user.id);
-                    return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
-                });
+                const cleanerClockData = updatedService?.clock_in_data?.find(c => c.cleaner_id === user.id);
+                const stillActive = cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
 
-                // CRÍTICO: Verificar nuevamente antes de actualizar estado
-                if (isUnmountingRef.current || clockingOut) {
-                    console.log('[ServicioActivo] 🛑 Actualización cancelada: componente desmontando o Clock Out en progreso');
-                    return;
-                }
-
-                if (!active) {
-                    console.log('[ServicioActivo] ⚠️ No hay servicio activo, redirigiendo a Horario');
+                if (!stillActive || updatedService.status === 'completed' || updatedService.status === 'cancelled') {
                     navigate(createPageUrl("Horario"), { replace: true });
                     return;
                 }
 
-                // Actualizar el servicio activo silenciosamente
-                setActiveService(active);
+                setActiveService(updatedService);
                 
-                // Recargar información del cliente si cambió o no existe
-                if (active.client_id && (!clientInfo || clientInfo.id !== active.client_id)) {
-                    try {
-                        const client = await base44.entities.Client.get(active.client_id);
-                        if (!isUnmountingRef.current && !clockingOut) {
-                            setClientInfo(client);
-                            console.log('[ServicioActivo] Cliente actualizado por polling:', client.name);
-                        }
-                    } catch (clientError) {
-                        console.warn('[ServicioActivo] Error actualizando cliente en polling:', clientError);
-                    }
+                if (updatedService.client_id && (!clientInfo || clientInfo.id !== updatedService.client_id)) {
+                    const client = await base44.entities.Client.get(updatedService.client_id);
+                    if (!isUnmountingRef.current && !clockingOut) setClientInfo(client);
                 }
+            } catch (error) { console.error('Error en polling:', error); }
+        }, 20000);
 
-                console.log('[ServicioActivo] ✅ Actualización automática completada');
-            } catch (error) {
-                console.error('[ServicioActivo] ❌ Error en polling automático:', error);
-            }
-        }, 20000); // 20 segundos
-
-        return () => {
-            if (pollingRef.current) {
-                clearInterval(pollingRef.current);
-                pollingRef.current = null;
-                console.log('[ServicioActivo] 🛑 Polling automático detenido');
-            }
-        };
-    }, [loading, activeService, user, clientInfo, navigate, clockingOut]);
+        return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+    }, [loading, activeService?.id, user, clientInfo?.id, navigate, clockingOut]);
 
     const loadUserAndActiveService = async () => {
         // CRÍTICO: No cargar si estamos desmontando
         if (isUnmountingRef.current) return;
 
         try {
-            const userData = await base44.auth.me();
             if (isUnmountingRef.current) return;
-            setUser(userData);
 
             // 🚀 PASO 1: Cargar datos INMEDIATAMENTE desde localStorage para mostrar UI rápido
             console.log('[ServicioActivo] 📦 Cargando datos iniciales desde localStorage...');
@@ -177,7 +128,7 @@ export default function ServicioActivoPage() {
                         setLoading(false); // Mostrar UI inmediatamente
                         
                         // Calcular duración desde cache
-                        const cleanerSchedule = parsed.fullSchedule.cleaner_schedules?.find(cs => cs.cleaner_id === userData.id);
+                        const cleanerSchedule = parsed.fullSchedule.cleaner_schedules?.find(cs => cs.cleaner_id === user.id);
                         let duration = 0;
                         if (cleanerSchedule?.start_time && cleanerSchedule?.end_time) {
                             const schedStart = parseISOAsUTC(cleanerSchedule.start_time);
@@ -204,8 +155,8 @@ export default function ServicioActivoPage() {
             const schedulesArray = Array.isArray(schedules) ? schedules : [];
 
             const active = schedulesArray.find(schedule => {
-                if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userData.id)) return false;
-                const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userData.id);
+                if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(user.id)) return false;
+                const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === user.id);
                 return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
             });
 
@@ -235,7 +186,7 @@ export default function ServicioActivoPage() {
 
             // Calcular duración programada para este limpiador específico
             let duration = 0;
-            const cleanerSchedule = active.cleaner_schedules?.find(cs => cs.cleaner_id === userData.id);
+            const cleanerSchedule = active.cleaner_schedules?.find(cs => cs.cleaner_id === user.id);
             
             if (cleanerSchedule && cleanerSchedule.start_time && cleanerSchedule.end_time) {
                 const schedStart = parseISOAsUTC(cleanerSchedule.start_time);
@@ -251,7 +202,7 @@ export default function ServicioActivoPage() {
             
             if (isUnmountingRef.current) return;
             setScheduledDuration(duration);
-            startTimer(active, userData.id, duration);
+            startTimer(active, user.id, duration);
 
         } catch (error) {
             console.error('[ServicioActivo] Error cargando datos:', error);
@@ -492,7 +443,7 @@ export default function ServicioActivoPage() {
     const defaultClientPhotos = getDefaultClientPhotos();
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4 pb-32">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4 pb-48">
             <div className="max-w-2xl mx-auto space-y-4">
                 {error && (
                     <Alert variant="destructive" className="border-2">
@@ -996,13 +947,14 @@ export default function ServicioActivoPage() {
                     </Card>
                 )}
 
-                {/* Botones de Acción Estilo "Dock" Nativo */}
-                <div className="sticky bottom-2 sm:bottom-4 left-0 right-0 p-3 sm:p-4 bg-white/80 backdrop-blur-md border border-slate-200/50 rounded-2xl shadow-lg z-40 space-y-3">
+                {/* Botones de Acción Estilo "Dock" Nativo con Safe-Area Fix */}
+            <div className="fixed bottom-0 left-0 right-0 px-4 pt-4 pb-8 sm:pb-6 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.15)] z-[100]">
+                <div className="max-w-2xl mx-auto flex flex-col gap-3">
                     <Button
                         onClick={() => setShowReportDialog(true)}
                         variant="outline"
                         disabled={clockingOut}
-                        className="w-full h-12 sm:h-14 text-sm sm:text-base font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50 bg-white"
+                        className="w-full h-12 text-sm sm:text-base font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50 bg-white"
                     >
                         <AlertTriangle className="w-5 h-5 mr-2" />
                         Reportar un Problema
@@ -1011,7 +963,7 @@ export default function ServicioActivoPage() {
                     <Button
                         onClick={() => handleClockOut(0)}
                         disabled={clockingOut}
-                        className="w-full h-14 sm:h-16 text-sm sm:text-base font-bold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+                        className="w-full h-14 sm:h-16 text-sm sm:text-base font-bold bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all"
                     >
                         {clockingOut ? (
                             <>
@@ -1025,12 +977,8 @@ export default function ServicioActivoPage() {
                             </>
                         )}
                     </Button>
-                    {clockingOut && (
-                        <p className="text-center text-xs text-slate-600 font-medium bg-blue-50/90 p-2 rounded-lg border border-blue-200">
-                            💡 <strong>No cierres esta app</strong> hasta que termine
-                        </p>
-                    )}
                 </div>
+            </div>
             </div>
 
             {/* Dialog para reportar problema */}
