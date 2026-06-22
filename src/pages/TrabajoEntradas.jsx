@@ -356,7 +356,6 @@ export default function TrabajoEntradasPage() {
   const handleEditEntry = async () => {
     if (!editEntry) return;
     
-    // BLOQUEO: No permitir editar entradas en facturas PAGADAS
     if (paidEntryIds.has(editEntry.id)) {
       setNotification({ type: "error", message: "❌ Esta entrada pertenece a una factura PAGADA y no puede ser modificada." });
       setEditEntry(null);
@@ -365,7 +364,6 @@ export default function TrabajoEntradasPage() {
     
     setUpdating(true);
     try {
-      // Get cleaner information
       const cleaner = cleaners.find(c => c.id === editEntry.cleaner_id);
       
       const updatedData = {
@@ -383,35 +381,37 @@ export default function TrabajoEntradasPage() {
         invoiced: editEntry.invoiced
       };
 
-      await base44.entities.WorkEntry.update(editEntry.id, updatedData);
+      // 1. ACTUALIZACIÓN OPTIMISTA: Mutamos la UI de inmediato sin esperar al servidor
+      const optimisticallyUpdatedEntry = { ...editEntry, ...updatedData };
+      setWorkEntries(prev => prev.map(entry => entry.id === editEntry.id ? optimisticallyUpdatedEntry : entry));
       
-      // Update related invoice if exists (simplified version without PDF regeneration)
       let invoiceMessage = "";
       if (editEntry.invoiced) {
-        invoiceMessage = await updateRelatedInvoice(editEntry.id, { ...editEntry, ...updatedData });
+        invoiceMessage = await updateRelatedInvoice(editEntry.id, optimisticallyUpdatedEntry);
       }
       
-      setNotification({ 
-        type: "success", 
-        message: `Entrada actualizada exitosamente. ${invoiceMessage}`
-      });
+      setNotification({ type: "success", message: `Entrada actualizada exitosamente. ${invoiceMessage}` });
       setEditEntry(null);
-      loadData();
+      setUpdating(false); // Liberamos la pantalla del usuario aquí mismo
+
+      // 2. BACKGROUND FETCH: Guardamos en la base de datos de forma invisible
+      base44.entities.WorkEntry.update(editEntry.id, updatedData).catch((bgError) => {
+        console.error("Error en update de fondo:", bgError);
+        setNotification({ type: "error", message: "Error al sincronizar con el servidor. Recargando..." });
+        loadData(); // Solo interrumpimos al usuario si ocurre un error grave
+      });
+
     } catch (error) {
       console.error("Error updating entry:", error);
-      setNotification({ 
-        type: "error", 
-        message: "Error al actualizar la entrada. Por favor, inténtalo de nuevo."
-      });
-    } finally {
+      setNotification({ type: "error", message: "Error al actualizar la entrada. Por favor, inténtalo de nuevo." });
       setUpdating(false);
+      loadData();
     }
   };
 
   const handleDeleteEntry = async () => {
     if (!deleteEntry) return;
     
-    // BLOQUEO: No permitir eliminar entradas en facturas PAGADAS
     if (paidEntryIds.has(deleteEntry.id)) {
       setNotification({ type: "error", message: "❌ Esta entrada pertenece a una factura PAGADA y no puede ser eliminada." });
       setDeleteEntry(null);
@@ -420,26 +420,33 @@ export default function TrabajoEntradasPage() {
     
     setDeleting(true);
     try {
-      // Update related invoice first (simplified version)
+      const entryIdToDelete = deleteEntry.id;
+      const wasInvoiced = deleteEntry.invoiced;
+
+      // 1. ACTUALIZACIÓN OPTIMISTA: Quitamos la fila de la pantalla al instante
+      setWorkEntries(prev => prev.filter(entry => entry.id !== entryIdToDelete));
+      
       let invoiceMessage = "";
-      if (deleteEntry.invoiced) {
-        invoiceMessage = await updateRelatedInvoice(deleteEntry.id, null);
+      if (wasInvoiced) {
+        invoiceMessage = await updateRelatedInvoice(entryIdToDelete, null);
       }
       
-      // Then delete the work entry
-      await base44.entities.WorkEntry.delete(deleteEntry.id);
-      
-      setNotification({ 
-        type: "success", 
-        message: `Entrada de trabajo eliminada exitosamente. ${invoiceMessage || ''}`
-      });
+      setNotification({ type: "success", message: `Entrada eliminada exitosamente. ${invoiceMessage || ''}` });
       setDeleteEntry(null);
-      loadData();
+      setDeleting(false); // Liberamos la pantalla
+
+      // 2. BACKGROUND FETCH: Borramos en la base de datos de forma invisible
+      base44.entities.WorkEntry.delete(entryIdToDelete).catch((bgError) => {
+        console.error("Error eliminando en background:", bgError);
+        setNotification({ type: "error", message: "Error al sincronizar con el servidor. Recargando..." });
+        loadData(); // Solo interrumpimos al usuario si ocurre un error grave
+      });
+
     } catch (error) {
       console.error("Error deleting entry:", error);
       setNotification({ type: "error", message: "Error al eliminar la entrada de trabajo." });
-    } finally {
       setDeleting(false);
+      loadData();
     }
   };
 
