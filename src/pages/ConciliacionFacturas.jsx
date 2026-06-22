@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { processScheduleForWorkEntries } from '@/functions/processScheduleForWorkEntries';
 import { isDateInRange } from '@/components/utils/priceCalculations';
+import { useAuth } from '@/lib/AuthContext';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const formatTimeUTC = (iso) => (iso ? iso.slice(11, 16) : '');
@@ -129,7 +130,7 @@ export default function ConciliacionFacturasPage() {
     const [clients, setClients] = useState(new Map());
     const [users, setUsers] = useState([]);
     const [dailyReconciliation, setDailyReconciliation] = useState(null);
-    const [currentUser, setCurrentUser] = useState(null);
+    const { user: currentUser } = useAuth();
     const [editingService, setEditingService] = useState(null);
     const [loading, setLoading] = useState(true);
     const [dayLoading, setDayLoading] = useState(false);
@@ -142,22 +143,26 @@ export default function ConciliacionFacturasPage() {
 
     const usersMap = useMemo(() => new Map(users.map(u => [u.id, u])), [users]);
 
-    // ── Initial load: clients, users, workEntries, currentUser — all in parallel
+    // ── Initial load: clients, users, recent workEntries — all in parallel
     useEffect(() => {
         const init = async () => {
             setLoading(true);
             try {
-                const [clientList, userList, workList, user] = await Promise.all([
+                // OPTIMIZACIÓN CRÍTICA: Solo cargar WorkEntries de los últimos 3 meses
+                const threeMonthsAgo = new Date();
+                threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+                const minDateStr = format(threeMonthsAgo, 'yyyy-MM-dd');
+
+                const [clientList, userList, workList] = await Promise.all([
                     loadAll(base44.entities.Client),
                     loadAll(base44.entities.User),
-                    loadAll(base44.entities.WorkEntry, '-work_date'),
-                    base44.auth.me(),
+                    base44.entities.WorkEntry.filter({ work_date: { $gte: minDateStr } }, '-work_date', 5000),
                 ]);
+
                 const clientMap = new Map(clientList.map(c => [c.id, c]));
                 setClients(clientMap);
                 setUsers(Array.isArray(userList) ? userList : []);
                 setAllWorkEntries(Array.isArray(workList) ? workList : []);
-                setCurrentUser(user);
             } catch (e) {
                 console.error('Error en carga inicial:', e);
                 setError('Error al cargar datos iniciales.');
@@ -165,8 +170,11 @@ export default function ConciliacionFacturasPage() {
                 setLoading(false);
             }
         };
-        init();
-    }, []);
+
+        if (currentUser) {
+            init();
+        }
+    }, [currentUser]);
 
     // ── Fetch daily schedules — filtered on server by date string
     const fetchDataForDate = useCallback(async (date) => {
