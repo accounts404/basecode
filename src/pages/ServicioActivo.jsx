@@ -30,7 +30,6 @@ import {
 import { format, differenceInSeconds } from "date-fns";
 import { es } from "date-fns/locale";
 import ServiceReportForm from "../components/reports/ServiceReportForm";
-import { useAuth } from "@/lib/AuthContext";
 
 // Parsear ISO string como local (sin conversión de timezone)
 const parseISOAsUTC = (isoString) => {
@@ -51,7 +50,7 @@ const formatElapsedTime = (seconds) => {
 
 export default function ServicioActivoPage() {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const [user, setUser] = useState(null);
     const [activeService, setActiveService] = useState(null);
     const [clientInfo, setClientInfo] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -64,105 +63,154 @@ export default function ServicioActivoPage() {
     const [showReportDialog, setShowReportDialog] = useState(false);
     const intervalRef = useRef(null);
     const pollingRef = useRef(null);
-    const isUnmountingRef = useRef(false);
+    const isUnmountingRef = useRef(false); // NUEVO: Flag para prevenir actualizaciones después de unmount
 
     useEffect(() => {
-        if (user) {
-            loadUserAndActiveService();
-        }
+        loadUserAndActiveService();
         return () => {
+            // LIMPIEZA TOTAL al desmontar el componente
             isUnmountingRef.current = true;
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            if (pollingRef.current) clearInterval(pollingRef.current);
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
         };
-    }, [user]);
+    }, []);
 
-    // Polling ultra-ligero: Solo descarga el servicio activo específico
+    // Polling automático cada 20 segundos para actualizar el estado del servicio
     useEffect(() => {
-        if (loading || !activeService?.id || !user || clockingOut || isUnmountingRef.current) return;
+        // CRÍTICO: No iniciar polling si estamos en proceso de Clock Out o desmontando
+        if (loading || !activeService || !user || clockingOut || isUnmountingRef.current) {
+            return;
+        }
 
+        console.log('[ServicioActivo] 🔄 Iniciando polling automático cada 20 segundos');
+        
         pollingRef.current = setInterval(async () => {
+            // CRÍTICO: Verificar antes de cada actualización si estamos desmontando o haciendo Clock Out
             if (isUnmountingRef.current || clockingOut) {
-                if (pollingRef.current) clearInterval(pollingRef.current);
+                console.log('[ServicioActivo] 🛑 Polling cancelado: componente desmontando o Clock Out en progreso');
+                if (pollingRef.current) {
+                    clearInterval(pollingRef.current);
+                    pollingRef.current = null;
+                }
                 return;
             }
 
             try {
-                // OPTIMIZACIÓN: Solo descargar este servicio por ID, no toda la base de datos
-                const updatedService = await base44.entities.Schedule.get(activeService.id);
+                console.log('[ServicioActivo] 🔄 Actualización automática silenciosa...');
                 
-                if (isUnmountingRef.current || clockingOut) return;
+                const schedules = await base44.entities.Schedule.filter({ status: { $in: ['scheduled', 'in_progress'] } });
+                const schedulesArray = Array.isArray(schedules) ? schedules : [];
 
-                const cleanerClockData = updatedService?.clock_in_data?.find(c => c.cleaner_id === user.id);
-                const stillActive = cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+                const active = schedulesArray.find(schedule => {
+                    if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(user.id)) return false;
+                    const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === user.id);
+                    return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+                });
 
-                if (!stillActive || updatedService.status === 'completed' || updatedService.status === 'cancelled') {
+                // CRÍTICO: Verificar nuevamente antes de actualizar estado
+                if (isUnmountingRef.current || clockingOut) {
+                    console.log('[ServicioActivo] 🛑 Actualización cancelada: componente desmontando o Clock Out en progreso');
+                    return;
+                }
+
+                if (!active) {
+                    console.log('[ServicioActivo] ⚠️ No hay servicio activo, redirigiendo a Horario');
                     navigate(createPageUrl("Horario"), { replace: true });
                     return;
                 }
 
-                setActiveService(updatedService);
+                // Actualizar el servicio activo silenciosamente
+                setActiveService(active);
                 
-                if (updatedService.client_id && (!clientInfo || clientInfo.id !== updatedService.client_id)) {
-                    const client = await base44.entities.Client.get(updatedService.client_id);
-                    if (!isUnmountingRef.current && !clockingOut) setClientInfo(client);
+                // Recargar información del cliente si cambió o no existe
+                if (active.client_id && (!clientInfo || clientInfo.id !== active.client_id)) {
+                    try {
+                        const client = await base44.entities.Client.get(active.client_id);
+                        if (!isUnmountingRef.current && !clockingOut) {
+                            setClientInfo(client);
+                            console.log('[ServicioActivo] Cliente actualizado por polling:', client.name);
+                        }
+                    } catch (clientError) {
+                        console.warn('[ServicioActivo] Error actualizando cliente en polling:', clientError);
+                    }
                 }
+
+                console.log('[ServicioActivo] ✅ Actualización automática completada');
             } catch (error) {
-                console.error('[ServicioActivo] Error en polling automático:', error);
+                console.error('[ServicioActivo] ❌ Error en polling automático:', error);
             }
-        }, 20000);
+        }, 20000); // 20 segundos
 
         return () => {
-            if (pollingRef.current) clearInterval(pollingRef.current);
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+                console.log('[ServicioActivo] 🛑 Polling automático detenido');
+            }
         };
-    }, [loading, activeService?.id, user, clientInfo?.id, navigate, clockingOut]);
+    }, [loading, activeService, user, clientInfo, navigate, clockingOut]);
 
     const loadUserAndActiveService = async () => {
-        if (isUnmountingRef.current || !user) return;
+        // CRÍTICO: No cargar si estamos desmontando
+        if (isUnmountingRef.current) return;
 
         try {
-            const cachedActiveService = localStorage.getItem('redoak_active_service');
-            let targetServiceId = null;
+            const userData = await base44.auth.me();
+            if (isUnmountingRef.current) return;
+            setUser(userData);
 
+            // 🚀 PASO 1: Cargar datos INMEDIATAMENTE desde localStorage para mostrar UI rápido
+            console.log('[ServicioActivo] 📦 Cargando datos iniciales desde localStorage...');
+            const cachedActiveService = localStorage.getItem('redoak_active_service');
             if (cachedActiveService) {
                 try {
                     const parsed = JSON.parse(cachedActiveService);
                     if (parsed.fullSchedule) {
+                        console.log('[ServicioActivo] ✅ Mostrando servicio desde caché:', parsed.clientName);
                         setActiveService(parsed.fullSchedule);
-                        targetServiceId = parsed.fullSchedule.id;
-                        setLoading(false); 
+                        setLoading(false); // Mostrar UI inmediatamente
                         
-                        const cleanerSchedule = parsed.fullSchedule.cleaner_schedules?.find(cs => cs.cleaner_id === user.id);
+                        // Calcular duración desde cache
+                        const cleanerSchedule = parsed.fullSchedule.cleaner_schedules?.find(cs => cs.cleaner_id === userData.id);
                         let duration = 0;
                         if (cleanerSchedule?.start_time && cleanerSchedule?.end_time) {
-                            duration = Math.floor((parseISOAsUTC(cleanerSchedule.end_time).getTime() - parseISOAsUTC(cleanerSchedule.start_time).getTime()) / 1000);
+                            const schedStart = parseISOAsUTC(cleanerSchedule.start_time);
+                            const schedEnd = parseISOAsUTC(cleanerSchedule.end_time);
+                            duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
                         } else {
-                            duration = Math.floor((parseISOAsUTC(parsed.fullSchedule.end_time).getTime() - parseISOAsUTC(parsed.fullSchedule.start_time).getTime()) / 1000);
+                            const schedStart = parseISOAsUTC(parsed.fullSchedule.start_time);
+                            const schedEnd = parseISOAsUTC(parsed.fullSchedule.end_time);
+                            duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
                         }
                         setScheduledDuration(duration);
-                        startTimer(parsed.fullSchedule, user.id, duration);
+                        startTimer(parsed.fullSchedule, userData.id, duration);
                     }
-                } catch (e) { console.warn(e); }
-            }
-
-            let active = null;
-            if (targetServiceId) {
-                const fetchedService = await base44.entities.Schedule.get(targetServiceId);
-                const cleanerClockData = fetchedService?.clock_in_data?.find(c => c.cleaner_id === user.id);
-                if (cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time) {
-                    active = fetchedService;
+                } catch (parseError) {
+                    console.warn('[ServicioActivo] Error parseando cache:', parseError);
                 }
             }
 
-            if (!active) {
-                const { syncActiveService } = await import('@/components/utils/activeServiceManager');
-                const syncResult = await syncActiveService(user.id);
-                if (syncResult.hasActive && syncResult.schedule) {
-                    active = syncResult.schedule;
-                }
-            }
+            // 🚀 PASO 2: Actualizar en background desde la base de datos
+            console.log('[ServicioActivo] 🔄 Sincronizando con base de datos en background...');
+            const schedules = await base44.entities.Schedule.filter({ status: { $in: ['scheduled', 'in_progress'] } });
+            if (isUnmountingRef.current) return;
+
+            const schedulesArray = Array.isArray(schedules) ? schedules : [];
+
+            const active = schedulesArray.find(schedule => {
+                if (!schedule.cleaner_ids || !schedule.cleaner_ids.includes(userData.id)) return false;
+                const cleanerClockData = schedule.clock_in_data?.find(c => c.cleaner_id === userData.id);
+                return cleanerClockData?.clock_in_time && !cleanerClockData?.clock_out_time;
+            });
 
             if (!active) {
+                console.log('[ServicioActivo] No hay servicio activo, redirigiendo a Horario');
                 navigate(createPageUrl("Horario"), { replace: true });
                 return;
             }
@@ -170,30 +218,50 @@ export default function ServicioActivoPage() {
             if (isUnmountingRef.current) return;
             setActiveService(active);
 
+            // Cargar información del cliente
             if (active.client_id) {
                 try {
                     const client = await base44.entities.Client.get(active.client_id);
-                    if (!isUnmountingRef.current) setClientInfo(client);
-                } catch (e) {}
+                    if (!isUnmountingRef.current) {
+                        setClientInfo(client);
+                        console.log('[ServicioActivo] Cliente cargado:', client.name);
+                        console.log('[ServicioActivo] Notas estructuradas del cliente:', client.structured_service_notes);
+                        console.log('[ServicioActivo] Notas por defecto del cliente:', client.default_service_notes);
+                    }
+                } catch (clientError) {
+                    console.warn('[ServicioActivo] Error cargando cliente:', clientError);
+                }
             }
 
+            // Calcular duración programada para este limpiador específico
             let duration = 0;
-            const cleanerSchedule = active.cleaner_schedules?.find(cs => cs.cleaner_id === user.id);
-            if (cleanerSchedule?.start_time && cleanerSchedule?.end_time) {
-                duration = Math.floor((parseISOAsUTC(cleanerSchedule.end_time).getTime() - parseISOAsUTC(cleanerSchedule.start_time).getTime()) / 1000);
+            const cleanerSchedule = active.cleaner_schedules?.find(cs => cs.cleaner_id === userData.id);
+            
+            if (cleanerSchedule && cleanerSchedule.start_time && cleanerSchedule.end_time) {
+                const schedStart = parseISOAsUTC(cleanerSchedule.start_time);
+                const schedEnd = parseISOAsUTC(cleanerSchedule.end_time);
+                duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
+                console.log('[ServicioActivo] Duración individual del limpiador:', duration, 'segundos (', formatElapsedTime(duration), ')');
             } else {
-                duration = Math.floor((parseISOAsUTC(active.end_time).getTime() - parseISOAsUTC(active.start_time).getTime()) / 1000);
+                const schedStart = parseISOAsUTC(active.start_time);
+                const schedEnd = parseISOAsUTC(active.end_time);
+                duration = Math.floor((schedEnd.getTime() - schedStart.getTime()) / 1000);
+                console.log('[ServicioActivo] Duración general del servicio:', duration, 'segundos (', formatElapsedTime(duration), ')');
             }
             
             if (isUnmountingRef.current) return;
             setScheduledDuration(duration);
-            startTimer(active, user.id, duration);
+            startTimer(active, userData.id, duration);
 
         } catch (error) {
             console.error('[ServicioActivo] Error cargando datos:', error);
-            if (!isUnmountingRef.current) setError("Error al cargar el servicio activo");
+            if (!isUnmountingRef.current) {
+                setError("Error al cargar el servicio activo");
+            }
         } finally {
-            if (!isUnmountingRef.current) setLoading(false);
+            if (!isUnmountingRef.current) {
+                setLoading(false);
+            }
         }
     };
 
@@ -928,11 +996,8 @@ export default function ServicioActivoPage() {
                     </Card>
                 )}
 
-            </div>
-
                 {/* Botones de Acción Estilo "Dock" Nativo */}
-                <div className="fixed bottom-0 left-0 right-0 p-3 sm:p-4 bg-white/95 backdrop-blur-md border-t border-slate-200/50 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.15)] z-50">
-                    <div className="max-w-2xl mx-auto space-y-3">
+                <div className="sticky bottom-2 sm:bottom-4 left-0 right-0 p-3 sm:p-4 bg-white/80 backdrop-blur-md border border-slate-200/50 rounded-2xl shadow-lg z-40 space-y-3">
                     <Button
                         onClick={() => setShowReportDialog(true)}
                         variant="outline"
@@ -965,8 +1030,8 @@ export default function ServicioActivoPage() {
                             💡 <strong>No cierres esta app</strong> hasta que termine
                         </p>
                     )}
-                    </div>
                 </div>
+            </div>
 
             {/* Dialog para reportar problema */}
             <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
