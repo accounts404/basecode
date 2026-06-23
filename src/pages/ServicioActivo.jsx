@@ -258,14 +258,16 @@ export default function ServicioActivoPage() {
             return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
         });
 
-        // Capturar GPS — solicita permiso al usuario si no fue otorgado aún
+        // Capturar GPS con timeout de 5s para no bloquear el Clock Out en zonas sin señal
         let userLocation = null;
         try {
             const { getUserLocation } = await import('@/components/utils/clockService');
-            setError('📍 Obteniendo tu ubicación... Si tu navegador lo solicita, permite el acceso.');
-            userLocation = await getUserLocation();
+            setError('📍 Obteniendo tu ubicación...');
+            const GPS_TIMEOUT = new Promise((_, reject) => setTimeout(() => reject(new Error('GPS timeout')), 5000));
+            userLocation = await Promise.race([getUserLocation(), GPS_TIMEOUT]);
             setError('');
         } catch (e) {
+            // GPS falló o tardó demasiado — continuar sin ubicación
             setError('');
         }
 

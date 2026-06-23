@@ -106,18 +106,13 @@ Deno.serve(async (req) => {
         let workEntriesCreated = 0;
 
         if (newStatus === 'completed' && originalStatus !== 'completed') {
-            try {
-                const result = await base44.asServiceRole.functions.invoke('processScheduleForWorkEntries', {
-                    scheduleId,
-                    mode: 'create'
-                });
-                if (result?.data?.success) {
-                    workEntriesCreated = result.data.created_entries || 0;
-                    workEntriesProcessed = true;
-                }
-            } catch (err) {
-                console.error('[ClockOut] Error WorkEntries (no bloqueante):', err);
-            }
+            // Fire-and-Forget: responde al móvil inmediatamente sin bloquear
+            base44.asServiceRole.functions.invoke('processScheduleForWorkEntries', {
+                scheduleId,
+                mode: 'create'
+            }).catch(err => console.error('[ClockOut] Error Async WorkEntries:', err));
+
+            workEntriesProcessed = true; // Se asume encolado exitoso
         }
 
         const successResponse = {
