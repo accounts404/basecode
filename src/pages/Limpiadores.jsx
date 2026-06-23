@@ -439,6 +439,11 @@ function CleanerCard({ cleaner, onToggleActive, onEdit, onManageRates }) {
                   <Clock2 className="w-3 h-3 text-green-500" />{availableDays.length} días disponibles
                 </span>
               )}
+              {cleaner.abn && (
+                <span className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+                  <FileText className="w-3 h-3 text-indigo-500" />ABN: {cleaner.abn}
+                </span>
+              )}
               {docs.filter(d => d.url).map(d => (
                 <a key={d.label} href={d.url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full hover:bg-blue-100">
