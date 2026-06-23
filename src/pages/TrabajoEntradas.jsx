@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from "@/api/base44Client"; // Corrected import for base44
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -119,66 +120,73 @@ export default function TrabajoEntradasPage() {
     return allRecords;
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      console.log('[TrabajoEntradas] 📊 Iniciando carga paginada de TODAS las entradas...');
-      
-      const [currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult] = await Promise.all([
-        base44.auth.me(),
-        loadAllRecords('WorkEntry', '-work_date'),
-        loadAllRecords('User', '-created_date'),
-        loadAllRecords('Client', '-created_date'),
-        loadAllRecords('Invoice', '-created_date')
-      ]);
-      
-      console.log('[TrabajoEntradas] ✅ Entradas cargadas:', entriesResult?.length || 0);
-
-      const isAdminUser = currentUser.role === 'admin';
-      setIsAdmin(isAdminUser);
-      
-      const entries = Array.isArray(entriesResult) ? entriesResult : [];
-      const allUsers = Array.isArray(cleanersResult) ? cleanersResult : [];
-      const clientsData = Array.isArray(clientsResult) ? clientsResult : [];
-      
-      const cleanerUsers = allUsers.filter(user => user.role !== 'admin');
-      setCleaners(cleanerUsers);
-      setAllClients(clientsData.filter(c => c.active !== false));
-
-      // Calcular IDs de WorkEntries en facturas PAGADAS — estas no se pueden tocar
-      const paidInvoices = (Array.isArray(invoicesResult) ? invoicesResult : []).filter(inv => inv.status === 'paid');
-      const paidIds = new Set();
-      paidInvoices.forEach(inv => {
-        (inv.work_entries || []).forEach(id => paidIds.add(id));
-      });
-      setPaidEntryIds(paidIds);
-      console.log(`[TrabajoEntradas] 🔒 ${paidIds.size} WorkEntries protegidas (en facturas pagadas)`);
-
-      
-      const entriesWithCleanerInfo = entries.map(entry => {
-        const cleaner = cleanerUsers.find(c => c.id === entry.cleaner_id);
-        return {
-          ...entry,
-          cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Usuario no encontrado',
-          cleaner_email: cleaner ? cleaner.email : ''
-        };
-      });
-      
-      setWorkEntries(entriesWithCleanerInfo);
-    } catch (error) {
-      console.error("Error loading data:", error);
-      setNotification({ type: "error", message: "Error cargando datos." });
-      setWorkEntries([]); // Clear state on error
-      setCleaners([]);
-      setAllClients([]);
-    } finally {
-      setLoading(false);
-    }
+  // 1. Carga pesada delegada a React Query
+  const fetchHeavyData = async () => {
+    console.log('[TrabajoEntradas] 📊 Iniciando carga pesada (Cacheada por React Query)...');
+    const [currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult] = await Promise.all([
+      base44.auth.me(),
+      loadAllRecords('WorkEntry', '-work_date'),
+      loadAllRecords('User', '-created_date'),
+      loadAllRecords('Client', '-created_date'),
+      loadAllRecords('Invoice', '-created_date')
+    ]);
+    return { currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult };
   };
 
+  const { data: cachedData, refetch } = useQuery({
+    queryKey: ['trabajoEntradasGlobal'],
+    queryFn: fetchHeavyData,
+    staleTime: 1000 * 60 * 10, // 10 minutos de memoria caché
+    refetchOnWindowFocus: false,
+  });
+
+  // 2. Sincronización con el estado local (Mantiene vivas las Actualizaciones Optimistas)
   useEffect(() => {
-    loadData();
-  }, []);
+    if (cachedData) {
+      try {
+        const { currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult } = cachedData;
+        const isAdminUser = currentUser.role === 'admin';
+        setIsAdmin(isAdminUser);
+        
+        const entries = Array.isArray(entriesResult) ? entriesResult : [];
+        const allUsers = Array.isArray(cleanersResult) ? cleanersResult : [];
+        const clientsData = Array.isArray(clientsResult) ? clientsResult : [];
+        
+        const cleanerUsers = allUsers.filter(user => user.role !== 'admin');
+        setCleaners(cleanerUsers);
+        setAllClients(clientsData.filter(c => c.active !== false));
+
+        const paidInvoices = (Array.isArray(invoicesResult) ? invoicesResult : []).filter(inv => inv.status === 'paid');
+        const paidIds = new Set();
+        paidInvoices.forEach(inv => {
+          (inv.work_entries || []).forEach(id => paidIds.add(id));
+        });
+        setPaidEntryIds(paidIds);
+
+        const entriesWithCleanerInfo = entries.map(entry => {
+          const cleaner = cleanerUsers.find(c => c.id === entry.cleaner_id);
+          return {
+            ...entry,
+            cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Usuario no encontrado',
+            cleaner_email: cleaner ? cleaner.email : ''
+          };
+        });
+        
+        setWorkEntries(entriesWithCleanerInfo);
+      } catch (error) {
+        console.error("Error procesando datos en caché:", error);
+        setNotification({ type: "error", message: "Error cargando datos desde la memoria." });
+      } finally {
+        setLoading(false);
+      }
+    }
+  }, [cachedData]);
+
+  // 3. Puente de compatibilidad para funciones antiguas
+  const loadData = () => {
+    setLoading(true);
+    refetch();
+  };
 
   useEffect(() => {
     if (editEntry) {
