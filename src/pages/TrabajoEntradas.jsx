@@ -97,14 +97,14 @@ export default function TrabajoEntradasPage() {
     total_amount: ""
   });
 
-  // Helper para cargar TODOS los registros con paginación automática
-  const loadAllRecords = async (entityName, sortField = '-created_date') => {
-    const BATCH_SIZE = 5000;
+  // Helper para cargar registros con paginación automática y freno de seguridad
+  const loadAllRecords = async (entityName, sortField = '-created_date', maxLimit = 10000) => {
+    const BATCH_SIZE = 500;
     let allRecords = [];
     let skip = 0;
     let hasMore = true;
 
-    while (hasMore) {
+    while (hasMore && allRecords.length < maxLimit) {
       const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
       const batchArray = Array.isArray(batch) ? batch : [];
       
@@ -117,7 +117,7 @@ export default function TrabajoEntradasPage() {
       }
     }
 
-    return allRecords;
+    return allRecords.slice(0, maxLimit);
   };
 
   // 1. Carga pesada delegada a React Query
