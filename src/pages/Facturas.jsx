@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User } from "@/entities/User";
 import { Invoice } from "@/entities/Invoice";
 import { WorkEntry } from "@/entities/WorkEntry";
@@ -54,10 +55,7 @@ export default function FacturasPage() {
   const [emailConfigOpen, setEmailConfigOpen] = useState(false);
   const [savingEmailConfig, setSavingEmailConfig] = useState(false);
 
-  // Load initial data
-  useEffect(() => {
-    loadData();
-  }, []);
+  const queryClient = useQueryClient();
 
   const filterInvoicesByPeriod = useCallback(() => {
     let invoicesToFilter = invoices || []; // Start with all invoices (or empty array)
@@ -176,19 +174,17 @@ export default function FacturasPage() {
     }
   }, [user]);
 
-  const loadAllRecords = async (entityName, sortField = '-created_date') => {
+  const loadAllRecords = async (entityName, sortField = '-created_date', maxLimit = 10000) => {
     const { base44 } = await import('@/api/base44Client');
-    const BATCH_SIZE = 5000;
+    const BATCH_SIZE = 500;
     let allRecords = [];
     let skip = 0;
     let hasMore = true;
 
-    while (hasMore) {
+    while (hasMore && allRecords.length < maxLimit) {
       const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
       const batchArray = Array.isArray(batch) ? batch : [];
-      
       allRecords = [...allRecords, ...batchArray];
-      
       if (batchArray.length < BATCH_SIZE) {
         hasMore = false;
       } else {
@@ -196,44 +192,45 @@ export default function FacturasPage() {
       }
     }
 
-    return allRecords;
+    return allRecords.slice(0, maxLimit);
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    setError(""); // Reset error
-    try {
+  const { data: globalData, isLoading: isLoadingGlobal, isError: isQueryError } = useQuery({
+    queryKey: ['facturasGlobalAdmin'],
+    queryFn: async () => {
       const userData = await User.me();
-      setUser(userData);
-      if (userData.role === 'admin') {
-        console.log('[Facturas] 📊 Cargando TODOS los registros con paginación...');
-        
-        const [invoicesData, workEntriesData, usersData] = await Promise.all([
-          loadAllRecords('Invoice', '-created_date'),
-          loadAllRecords('WorkEntry', '-work_date'),
-          loadAllRecords('User', '-created_date'),
-        ]);
-        
-        console.log('[Facturas] ✅ Registros cargados:', {
-          invoices: invoicesData?.length || 0,
-          workEntries: workEntriesData?.length || 0,
-          users: usersData?.length || 0
-        });
+      if (userData.role !== 'admin') return { userData, invoicesData: [], workEntriesData: [], usersData: [] };
+      const [invoicesData, workEntriesData, usersData] = await Promise.all([
+        loadAllRecords('Invoice', '-created_date'),
+        loadAllRecords('WorkEntry', '-work_date'),
+        loadAllRecords('User', '-created_date'),
+      ]);
+      return { userData, invoicesData, workEntriesData, usersData };
+    },
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-        setInvoices(invoicesData || []);
-        setWorkEntries(workEntriesData || []);
-        setUsers(usersData || []);
-      }
-    } catch (err) {
-      console.error("Error loading data:", err);
-      setError(err.message || "Ocurrió un error de red. Por favor, intenta de nuevo.");
-      setInvoices([]);
-      setWorkEntries([]);
-      setUsers([]);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (globalData) {
+      setUser(globalData.userData);
+      setInvoices(globalData.invoicesData || []);
+      setWorkEntries(globalData.workEntriesData || []);
+      setUsers(globalData.usersData || []);
     }
-  };
+  }, [globalData]);
+
+  useEffect(() => {
+    setLoading(isLoadingGlobal);
+  }, [isLoadingGlobal]);
+
+  useEffect(() => {
+    if (isQueryError) setError("Ocurrió un error de red. Por favor, intenta de nuevo.");
+  }, [isQueryError]);
+
+  const loadData = useCallback(async () => {
+    queryClient.invalidateQueries({ queryKey: ['facturasGlobalAdmin'] });
+  }, [queryClient]);
 
   const handlePeriodChange = (period) => {
     setSelectedPeriod(period);

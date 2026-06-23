@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { User } from "@/entities/User";
 import { WorkEntry } from "@/entities/WorkEntry";
 import { Invoice } from "@/entities/Invoice";
@@ -33,9 +33,7 @@ export default function MisFacturasPage() {
   const [invoiceToDelete, setInvoiceToDelete] = useState(null);
   const [downloadLoading, setDownloadLoading] = useState(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const queryClient = useQueryClient();
 
   const filterInvoicesByPeriod = useCallback(() => {
     if (!selectedPeriod) {
@@ -59,47 +57,58 @@ export default function MisFacturasPage() {
     filterInvoicesByPeriod();
   }, [selectedPeriod, invoices, filterInvoicesByPeriod]);
 
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
+  const { data: cleanerData, isLoading: isLoadingQuery, isError: isQueryError } = useQuery({
+    queryKey: ['misFacturasCleaner', user?.id],
+    queryFn: async () => {
       const userData = await User.me();
-      setUser(userData);
-      
-      const [invoicesResult, workEntriesResult] = await Promise.allSettled([
-        Invoice.filter({ cleaner_id: userData.id }, "-created_date"),
-        WorkEntry.filter({ cleaner_id: userData.id }, "-work_date")
+      const BATCH_SIZE = 500;
+      const maxLimit = 10000;
+
+      const fetchWithLimit = async (filterFn) => {
+        let all = [];
+        let skip = 0;
+        let hasMore = true;
+        while (hasMore && all.length < maxLimit) {
+          const batch = await filterFn(skip, BATCH_SIZE);
+          const arr = Array.isArray(batch) ? batch : [];
+          all = [...all, ...arr];
+          hasMore = arr.length === BATCH_SIZE;
+          skip += BATCH_SIZE;
+        }
+        return all.slice(0, maxLimit);
+      };
+
+      const [allInvoices, allWorkEntries] = await Promise.all([
+        fetchWithLimit((skip, limit) => Invoice.filter({ cleaner_id: userData.id }, "-created_date", limit, skip)),
+        fetchWithLimit((skip, limit) => WorkEntry.filter({ cleaner_id: userData.id }, "-work_date", limit, skip)),
       ]);
-      
-      if (invoicesResult.status === 'rejected') {
-        console.error('Error loading invoices:', invoicesResult.reason);
-        throw new Error('Error al cargar tus reportes. Revisa tu conexión e inténtalo de nuevo.');
-      }
-      if (workEntriesResult.status === 'rejected') {
-        console.error('Error loading work entries:', workEntriesResult.reason);
-        throw new Error('Error al cargar tus horas de trabajo. Revisa tu conexión e inténtalo de nuevo.');
-      }
 
-      const allInvoices = invoicesResult.value || [];
-      const allWorkEntries = workEntriesResult.value || [];
+      return { userData, allInvoices, allWorkEntries };
+    },
+    enabled: true,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-      // REMOVIDO EL FILTRO DE EXCLUSIÓN DE AGOSTO 2025 - Mostrar todas las facturas
-      // The previous filtering logic for `validInvoices` has been removed.
-      // All invoices returned from the API will now be displayed, including drafts and any from the August 2025 test period.
-      console.log('Loaded all invoices for user:', userData.id, allInvoices.length);
-      console.log('Loaded work entries for user:', userData.id, allWorkEntries.length);
-
-      setInvoices(allInvoices);
-      setWorkEntries(allWorkEntries);
-    } catch (err) {
-      console.error("Error loading data:", err);
-      setError(err.message || "Ocurrió un error de red. Por favor, intenta de nuevo.");
-      setInvoices([]);
-      setWorkEntries([]);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (cleanerData) {
+      setUser(cleanerData.userData);
+      setInvoices(cleanerData.allInvoices || []);
+      setWorkEntries(cleanerData.allWorkEntries || []);
     }
-  };
+  }, [cleanerData]);
+
+  useEffect(() => {
+    setLoading(isLoadingQuery);
+  }, [isLoadingQuery]);
+
+  useEffect(() => {
+    if (isQueryError) setError("Ocurrió un error de red. Por favor, intenta de nuevo.");
+  }, [isQueryError]);
+
+  const loadData = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['misFacturasCleaner'] });
+  }, [queryClient]);
 
   const handlePeriodChange = (period) => {
     setSelectedPeriod(period);
