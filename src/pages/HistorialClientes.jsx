@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Client } from '@/entities/Client';
 import { Schedule } from '@/entities/Schedule';
 import { ServiceReport } from '@/entities/ServiceReport';
@@ -58,10 +59,6 @@ export default function HistorialClientes() {
     const [logContactClient, setLogContactClient] = useState(null);
 
     useEffect(() => {
-        loadData();
-    }, []);
-
-    useEffect(() => {
         // Verificar si hay un cliente pre-seleccionado en la URL
         const urlParams = new URLSearchParams(window.location.search);
         const clientId = urlParams.get('client_id');
@@ -70,24 +67,16 @@ export default function HistorialClientes() {
         }
     }, [clients]);
 
-    useEffect(() => {
-        if (selectedClientId) {
-            loadClientSchedules(selectedClientId);
-        }
-    }, [selectedClientId]);
-
-    const loadAllRecords = async (entity, sortField = '-created_date') => {
-        const BATCH_SIZE = 5000;
+    const loadAllRecords = async (entity, sortField = '-created_date', maxLimit = 10000) => {
+        const BATCH_SIZE = 500;
         let allRecords = [];
         let skip = 0;
         let hasMore = true;
 
-        while (hasMore) {
+        while (hasMore && allRecords.length < maxLimit) {
             const batch = await entity.list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
-            
             allRecords = [...allRecords, ...batchArray];
-            
             if (batchArray.length < BATCH_SIZE) {
                 hasMore = false;
             } else {
@@ -95,41 +84,51 @@ export default function HistorialClientes() {
             }
         }
 
-        return allRecords;
+        return allRecords.slice(0, maxLimit);
     };
 
-    const loadData = async () => {
-        setLoading(true);
-        try {
+    // Datos globales cacheados 10 minutos
+    const { data: globalData, isLoading: isLoadingGlobal } = useQuery({
+        queryKey: ['historialClientesGlobal'],
+        queryFn: async () => {
             const [clientsData, cleanersData, reportsData] = await Promise.all([
                 loadAllRecords(Client, '-created_date'),
                 loadAllRecords(User, '-created_date'),
                 loadAllRecords(ServiceReport, '-created_date')
             ]);
-            setClients(clientsData || []);
-            setCleaners(cleanersData || []);
-            setServiceReports(reportsData || []);
-        } catch (error) {
-            console.error('Error cargando datos:', error);
-        } finally {
+            return { clientsData, cleanersData, reportsData };
+        },
+        staleTime: 10 * 60 * 1000,
+        refetchOnWindowFocus: false,
+    });
+
+    useEffect(() => {
+        if (globalData) {
+            setClients(globalData.clientsData || []);
+            setCleaners(globalData.cleanersData || []);
+            setServiceReports(globalData.reportsData || []);
             setLoading(false);
         }
-    };
+    }, [globalData]);
 
-    const loadClientSchedules = async (clientId) => {
-        setLoading(true);
-        try {
-            const BATCH_SIZE = 5000;
+    useEffect(() => {
+        setLoading(isLoadingGlobal);
+    }, [isLoadingGlobal]);
+
+    // Horarios del cliente seleccionado, cacheados por clientId
+    const { data: schedulesData, isLoading: isLoadingSchedules } = useQuery({
+        queryKey: ['clientSchedules', selectedClientId],
+        queryFn: async () => {
+            const BATCH_SIZE = 500;
+            const maxLimit = 10000;
             let allSchedules = [];
             let skip = 0;
             let hasMore = true;
 
-            while (hasMore) {
-                const batch = await Schedule.filter({ client_id: clientId }, '-start_time', BATCH_SIZE, skip);
+            while (hasMore && allSchedules.length < maxLimit) {
+                const batch = await Schedule.filter({ client_id: selectedClientId }, '-start_time', BATCH_SIZE, skip);
                 const batchArray = Array.isArray(batch) ? batch : [];
-                
                 allSchedules = [...allSchedules, ...batchArray];
-                
                 if (batchArray.length < BATCH_SIZE) {
                     hasMore = false;
                 } else {
@@ -137,13 +136,22 @@ export default function HistorialClientes() {
                 }
             }
 
-            setSchedules(allSchedules || []);
-        } catch (error) {
-            console.error('Error cargando horarios del cliente:', error);
-        } finally {
-            setLoading(false);
+            return allSchedules.slice(0, maxLimit);
+        },
+        enabled: !!selectedClientId,
+        staleTime: 10 * 60 * 1000,
+        refetchOnWindowFocus: false,
+    });
+
+    useEffect(() => {
+        if (schedulesData) {
+            setSchedules(schedulesData);
         }
-    };
+    }, [schedulesData]);
+
+    useEffect(() => {
+        if (selectedClientId) setLoading(isLoadingSchedules);
+    }, [isLoadingSchedules, selectedClientId]);
 
     const selectedClient = useMemo(() => {
         return clients.find(c => c.id === selectedClientId);
