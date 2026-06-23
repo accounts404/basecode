@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { WorkEntry } from "@/entities/WorkEntry";
 import { User } from "@/entities/User";
 import { Schedule } from "@/entities/Schedule";
@@ -59,20 +60,19 @@ export default function ReportesPage() {
     return dateOnly && (dateOnly.startsWith('2025-08') || dateOnly.startsWith('2025-09'));
   };
 
-  // Helper para cargar TODOS los registros con paginación automática
-  const loadAllRecords = async (entityName, sortField = '-created_date') => {
+  const queryClient = useQueryClient();
+
+  const loadAllRecords = async (entityName, sortField = '-created_date', maxLimit = 10000) => {
     const { base44 } = await import('@/api/base44Client');
-    const BATCH_SIZE = 5000;
+    const BATCH_SIZE = 500;
     let allRecords = [];
     let skip = 0;
     let hasMore = true;
 
-    while (hasMore) {
+    while (hasMore && allRecords.length < maxLimit) {
       const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
       const batchArray = Array.isArray(batch) ? batch : [];
-      
       allRecords = [...allRecords, ...batchArray];
-      
       if (batchArray.length < BATCH_SIZE) {
         hasMore = false;
       } else {
@@ -80,68 +80,53 @@ export default function ReportesPage() {
       }
     }
 
-    return allRecords;
+    return allRecords.slice(0, maxLimit);
   };
 
+  const { data: reportesData, isLoading: isLoadingQuery } = useQuery({
+    queryKey: ['reportesGlobal'],
+    queryFn: async () => {
+      const [allEntriesRaw, allUsers, allSchedulesRaw, allClientsRaw] = await Promise.all([
+        loadAllRecords('WorkEntry', '-work_date'),
+        loadAllRecords('User', '-created_date'),
+        loadAllRecords('Schedule', '-start_time'),
+        loadAllRecords('Client', '-created_date'),
+      ]);
+
+      const aprilCutoff = new Date('2024-04-01');
+      const allEntries = allEntriesRaw.filter(e => {
+        const workDate = new Date(e.work_date);
+        return workDate >= aprilCutoff && !isExcludedMonth(e.work_date);
+      });
+      const allSchedules = allSchedulesRaw.filter(s => {
+        const startTime = new Date(s.start_time);
+        return startTime >= aprilCutoff && !isExcludedMonth(s.start_time);
+      });
+      const allClients = allClientsRaw.filter(c => c.active !== false);
+      const cleanerUsers = allUsers.filter(u => u.role !== 'admin');
+      const entriesWithCleanerInfo = allEntries.map(entry => {
+        const cleaner = cleanerUsers.find(c => c.id === entry.cleaner_id);
+        return { ...entry, cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Desconocido' };
+      });
+
+      return { entriesWithCleanerInfo, cleanerUsers, allClients, allSchedules };
+    },
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        console.log('[Reportes] 📊 Cargando TODOS los registros desde abril 2024...');
-        
-        // Cargar TODOS los registros con paginación automática
-        const [allEntriesRaw, allUsers, allSchedulesRaw, allClientsRaw] = await Promise.all([
-          loadAllRecords('WorkEntry', '-work_date'),
-          loadAllRecords('User', '-created_date'),
-          loadAllRecords('Schedule', '-start_time'),
-          loadAllRecords('Client', '-created_date')
-        ]);
-        
-        console.log('[Reportes] ✅ Registros cargados:', {
-          entries: allEntriesRaw?.length || 0,
-          schedules: allSchedulesRaw?.length || 0,
-          users: allUsers?.length || 0,
-          clients: allClientsRaw?.length || 0
-        });
+    if (reportesData) {
+      setWorkEntries(reportesData.entriesWithCleanerInfo);
+      setCleaners(reportesData.cleanerUsers);
+      setClients(reportesData.allClients);
+      setSchedules(reportesData.allSchedules);
+    }
+  }, [reportesData]);
 
-        // Filtrar desde abril 2024 Y EXCLUIR agosto y septiembre 2025
-        const aprilCutoff = new Date('2024-04-01');
-        const allEntries = allEntriesRaw.filter(e => {
-          const workDate = new Date(e.work_date);
-          return workDate >= aprilCutoff && !isExcludedMonth(e.work_date);
-        });
-        const allSchedules = allSchedulesRaw.filter(s => {
-          const startTime = new Date(s.start_time);
-          return startTime >= aprilCutoff && !isExcludedMonth(s.start_time);
-        });
-        setSchedules(allSchedules);
-        
-        console.log('[Reportes] 🚫 Datos de agosto y septiembre 2025 excluidos');
-
-        const allClients = allClientsRaw.filter(c => c.active !== false);
-        
-        const cleanerUsers = allUsers.filter(u => u.role !== 'admin');
-        setCleaners(cleanerUsers);
-        setClients(allClients);
-
-        const entriesWithCleanerInfo = allEntries.map(entry => {
-          const cleaner = cleanerUsers.find(c => c.id === entry.cleaner_id);
-          return {
-            ...entry,
-            cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Desconocido',
-          };
-        });
-        setWorkEntries(entriesWithCleanerInfo);
-        
-        console.log('[Reportes] 📈 Entradas filtradas desde abril 2024:', entriesWithCleanerInfo.length);
-      } catch (error) {
-        console.error("Error loading report data:", error);
-      }
-      setLoading(false);
-    };
-
-    loadData();
-  }, []);
+  useEffect(() => {
+    setLoading(isLoadingQuery);
+  }, [isLoadingQuery]);
   
   const handlePeriodChange = (period) => {
     setSelectedPeriod(period);

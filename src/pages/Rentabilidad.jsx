@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Client } from '@/entities/Client';
 import { WorkEntry } from '@/entities/WorkEntry';
 import { FixedCost } from '@/entities/FixedCost';
@@ -30,18 +31,18 @@ export default function RentabilidadPage() {
     const [pricingThresholds, setPricingThresholds] = useState([]);
     const [trainingClientId, setTrainingClientId] = useState(null);
 
-    const loadAllRecords = async (entity, sortField = '-created_date') => {
-        const BATCH_SIZE = 5000;
+    const queryClient = useQueryClient();
+
+    const loadAllRecords = async (entity, sortField = '-created_date', maxLimit = 10000) => {
+        const BATCH_SIZE = 500;
         let allRecords = [];
         let skip = 0;
         let hasMore = true;
 
-        while (hasMore) {
+        while (hasMore && allRecords.length < maxLimit) {
             const batch = await entity.list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
-            
             allRecords = [...allRecords, ...batchArray];
-            
             if (batchArray.length < BATCH_SIZE) {
                 hasMore = false;
             } else {
@@ -49,13 +50,12 @@ export default function RentabilidadPage() {
             }
         }
 
-        return allRecords;
+        return allRecords.slice(0, maxLimit);
     };
 
-    const loadAllInitialData = async () => {
-        setLoading(true);
-        setError('');
-        try {
+    const { data: rentabilidadData, isLoading: isLoadingQuery, isError: isQueryError } = useQuery({
+        queryKey: ['rentabilidadGlobal'],
+        queryFn: async () => {
             const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData] = await Promise.all([
                 loadAllRecords(Client, '-created_date'),
                 loadAllRecords(WorkEntry, '-work_date'),
@@ -63,30 +63,46 @@ export default function RentabilidadPage() {
                 loadAllRecords(Schedule, '-start_time'),
                 loadAllRecords(FixedCost, '-created_date'),
             ]);
-            
+
             const filteredWorkEntries = (workEntriesData || []).filter(e => !isExcludedMonth(e.work_date));
             const filteredSchedules = (schedulesData || []).filter(s => !isExcludedMonth(s.start_time));
-            
-            setClients(clientsData || []);
-            setAllWorkEntries(filteredWorkEntries);
-            setPricingThresholds(thresholdsData || []);
-            setAllSchedules(filteredSchedules);
-            setAllFixedCosts(fixedCostsData || []);
-            
             const trainingClient = (clientsData || []).find(c => c.name === 'TRAINING' || c.client_type === 'training');
-            if (trainingClient) {
-                setTrainingClientId(trainingClient.id);
-            }
-        } catch (err) {
-            console.error("Error loading initial data:", err);
-            setError("No se pudieron cargar los datos.");
-        } finally {
-            setLoading(false);
+
+            return {
+                clientsData: clientsData || [],
+                filteredWorkEntries,
+                thresholdsData: thresholdsData || [],
+                filteredSchedules,
+                fixedCostsData: fixedCostsData || [],
+                trainingClientId: trainingClient?.id || null,
+            };
+        },
+        staleTime: 10 * 60 * 1000,
+        refetchOnWindowFocus: false,
+    });
+
+    useEffect(() => {
+        if (rentabilidadData) {
+            setClients(rentabilidadData.clientsData);
+            setAllWorkEntries(rentabilidadData.filteredWorkEntries);
+            setPricingThresholds(rentabilidadData.thresholdsData);
+            setAllSchedules(rentabilidadData.filteredSchedules);
+            setAllFixedCosts(rentabilidadData.fixedCostsData);
+            setTrainingClientId(rentabilidadData.trainingClientId);
         }
+    }, [rentabilidadData]);
+
+    useEffect(() => {
+        setLoading(isLoadingQuery);
+        if (isQueryError) setError("No se pudieron cargar los datos.");
+    }, [isLoadingQuery, isQueryError]);
+
+    const loadAllInitialData = () => {
+        queryClient.invalidateQueries({ queryKey: ['rentabilidadGlobal'] });
     };
 
     useEffect(() => {
-        loadAllInitialData();
+        // no-op: reemplazado por useQuery
     }, []);
 
     const handleSort = (column) => {
