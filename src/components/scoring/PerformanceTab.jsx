@@ -523,6 +523,21 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           overall_score: overallScore,
           general_notes: generalNotes,
         });
+
+        // Notificación al limpiador por nueva evaluación
+        try {
+          await base44.entities.TaskNotification.create({
+            user_id: selectedCleaner.id,
+            task_id: `perf-${Date.now()}`,
+            task_title: 'Nueva Evaluación de Calidad',
+            notification_type: 'comment_added',
+            message: `Has recibido una evaluación en ${client?.name || 'un servicio'} con un puntaje de ${overallScore % 1 === 0 ? overallScore : overallScore.toFixed(2)}/100`,
+            read: false,
+            action_url: '/MiPuntuacion'
+          });
+        } catch (e) {
+          console.error('No se pudo notificar al limpiador:', e);
+        }
       }
 
       // Reload reviews to get updated list, then recalculate average

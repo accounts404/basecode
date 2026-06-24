@@ -157,6 +157,22 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
           date_applied: new Date().toISOString()
         });
         adjustmentId = adj.id;
+
+        // Notificación al limpiador por deducción de puntualidad
+        try {
+          await base44.entities.TaskNotification.create({
+            user_id: selectedCleaner.id,
+            task_id: `punct-${Date.now()}`,
+            task_title: 'Ajuste de Puntuación',
+            notification_type: 'overdue_alert',
+            message: `Se ha registrado una deducción de ${Math.abs(impact)} puntos por ${incidentType === "punctuality" ? "Puntualidad" : "Presentación Personal"}. ${reason}`,
+            read: false,
+            action_url: '/MiPuntuacion'
+          });
+        } catch (e) {
+          console.error('No se pudo notificar al limpiador:', e);
+        }
+
         const newScore = Math.max(0, monthlyScore.current_score + impact);
         await base44.entities.MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
       }
