@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +37,10 @@ export default function CleanerDashboard() {
     const [teamMembers, setTeamMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [dataLoaded, setDataLoaded] = useState(false);
+    const [revalidating, setRevalidating] = useState(false);
+
+    const CACHE_KEY = 'cleaner_dashboard_cache';
+    const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
     useEffect(() => {
         loadInitialData();
@@ -45,8 +48,8 @@ export default function CleanerDashboard() {
 
     const loadInitialData = async () => {
         try {
-            // PASO 1: Cargar datos críticos desde caché primero (INSTANTÁNEO)
-            const cachedData = localStorage.getItem('cleaner_dashboard_cache');
+            // PASO 1: Mostrar caché instantáneamente si existe
+            const cachedData = localStorage.getItem(CACHE_KEY);
             if (cachedData) {
                 const parsed = JSON.parse(cachedData);
                 setUser(parsed.user);
@@ -56,16 +59,26 @@ export default function CleanerDashboard() {
                 setTeamMembers(parsed.teamMembers);
                 setDataLoaded(true);
                 setLoading(false);
-                
-                // NUEVO: Si hay servicio activo, redirigir inmediatamente a ServicioActivo
+
                 if (parsed.stats?.activeService) {
                     navigate(createPageUrl('ServicioActivo'));
-                    return; // Importante para detener la carga de datos frescos si ya se redirige
+                    return;
                 }
+
+                // PASO 2: Si los datos tienen menos de 5 min, no revalidar
+                const age = Date.now() - (parsed.timestamp || 0);
+                if (age < CACHE_TTL) {
+                    console.log(`[CleanerDashboard] ✅ Caché vigente (${Math.round(age / 1000)}s). Sin revalidación.`);
+                    return;
+                }
+
+                // PASO 3: Caché vencida — revalidar en background con indicador
+                console.log('[CleanerDashboard] 🔄 Caché vencida. Revalidando en background...');
+                setRevalidating(true);
             }
 
-            // PASO 2: Cargar datos frescos en segundo plano (SIN BLOQUEAR UI)
-            loadFreshData();
+            // Sin caché: carga bloqueante normal
+            await loadFreshData();
         } catch (error) {
             console.error("Error loading initial data:", error);
             setLoading(false);
@@ -177,8 +190,8 @@ export default function CleanerDashboard() {
             setTeamMembers(team);
             setDataLoaded(true);
 
-            // Guardar en caché
-            localStorage.setItem('cleaner_dashboard_cache', JSON.stringify({
+            // Guardar en caché con timestamp actualizado
+            localStorage.setItem(CACHE_KEY, JSON.stringify({
                 user: userData,
                 stats: freshStats,
                 assignedVehicle: vehicleInfo,
@@ -191,6 +204,7 @@ export default function CleanerDashboard() {
             console.error("Error loading fresh data:", error);
         } finally {
             setLoading(false);
+            setRevalidating(false);
         }
     };
 
@@ -218,9 +232,17 @@ export default function CleanerDashboard() {
             <div className="max-w-6xl mx-auto space-y-6">
                 {/* Header con mensaje motivacional */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
-                    <h1 className="text-3xl font-bold mb-2">
-                        ¡Hola, {user?.full_name?.split(' ')[0] || 'Limpiador'}! 👋
-                    </h1>
+                    <div className="flex items-start justify-between">
+                        <h1 className="text-3xl font-bold mb-2">
+                            ¡Hola, {user?.full_name?.split(' ')[0] || 'Limpiador'}! 👋
+                        </h1>
+                        {revalidating && (
+                            <span className="flex items-center gap-1.5 text-xs bg-white/20 rounded-full px-3 py-1 mt-1 flex-shrink-0">
+                                <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                                Actualizando...
+                            </span>
+                        )}
+                    </div>
                     <p className="text-blue-100 text-lg">{motivationalMessage}</p>
                 </div>
 
