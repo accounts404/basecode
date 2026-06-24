@@ -98,14 +98,19 @@ export default function TrabajoEntradasPage() {
   });
 
   // Helper para cargar registros con paginación automática y freno de seguridad
-  const loadAllRecords = async (entityName, sortField = '-created_date', maxLimit = 10000) => {
+  const loadAllRecords = async (entityName, sortField = '-created_date', maxLimit = 10000, filterObj = null) => {
     const BATCH_SIZE = 500;
     let allRecords = [];
     let skip = 0;
     let hasMore = true;
 
     while (hasMore && allRecords.length < maxLimit) {
-      const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+      let batch;
+      if (filterObj) {
+        batch = await base44.entities[entityName].filter(filterObj, sortField, BATCH_SIZE, skip);
+      } else {
+        batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+      }
       const batchArray = Array.isArray(batch) ? batch : [];
       
       allRecords = [...allRecords, ...batchArray];
@@ -122,13 +127,18 @@ export default function TrabajoEntradasPage() {
 
   // 1. Carga pesada delegada a React Query
   const fetchHeavyData = async () => {
-    console.log('[TrabajoEntradas] 📊 Iniciando carga pesada (Cacheada por React Query)...');
+    console.log('[TrabajoEntradas] 📊 Iniciando carga pesada (Filtrada a 3 meses)...');
+
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const minDateStr = format(threeMonthsAgo, 'yyyy-MM-dd');
+
     const [currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult] = await Promise.all([
       base44.auth.me(),
-      loadAllRecords('WorkEntry', '-work_date'),
-      loadAllRecords('User', '-created_date'),
-      loadAllRecords('Client', '-created_date'),
-      loadAllRecords('Invoice', '-created_date')
+      loadAllRecords('WorkEntry', '-work_date', 5000, { work_date: { $gte: minDateStr } }),
+      loadAllRecords('User', '-created_date', 2000),
+      loadAllRecords('Client', '-created_date', 2000),
+      loadAllRecords('Invoice', '-created_date', 5000, { created_date: { $gte: minDateStr } })
     ]);
     return { currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult };
   };
@@ -213,45 +223,43 @@ export default function TrabajoEntradasPage() {
 
   const updateRelatedInvoice = async (entryId, updatedEntry = null) => {
     try {
-      // Find invoices that contain this work entry
-      const invoices = await loadAllRecords('Invoice', '-created_date');
-      const relatedInvoice = invoices.find(invoice => 
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const minDateStr = format(threeMonthsAgo, 'yyyy-MM-dd');
+
+      const invoices = await loadAllRecords('Invoice', '-created_date', 5000, { created_date: { $gte: minDateStr } });
+      const relatedInvoice = invoices.find(invoice =>
         invoice.work_entries && invoice.work_entries.includes(entryId)
       );
 
       if (relatedInvoice) {
         let updatedWorkEntriesIds = [...relatedInvoice.work_entries];
-        
+
         if (updatedEntry === null) {
-          // Entry was deleted, remove from invoice
           updatedWorkEntriesIds = updatedWorkEntriesIds.filter(id => id !== entryId);
         }
 
-        // Fetch all work entries once to resolve all IDs efficiently
-        const allWorkEntries = await loadAllRecords('WorkEntry', '-work_date');
-        
+        const allWorkEntries = await loadAllRecords('WorkEntry', '-work_date', 5000, { work_date: { $gte: minDateStr } });
+
         const workEntriesData = updatedWorkEntriesIds.map(id => {
-          // If we are updating the current entry, use the new data
           if (updatedEntry && updatedEntry.id === id) return updatedEntry;
           return allWorkEntries.find(e => e.id === id);
         });
-        
+
         const validEntries = workEntriesData.filter(entry => entry);
         const newTotal = validEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
 
-        // Simple update without PDF regeneration to avoid timeouts
         await base44.entities.Invoice.update(relatedInvoice.id, {
           work_entries: updatedWorkEntriesIds,
           total_amount: newTotal
         });
-        
+
         return `Factura ${relatedInvoice.invoice_number} actualizada.`;
       }
-      return ""; // Return empty string if no related invoice found
+      return "";
     } catch (error) {
       console.error("Error updating related invoice:", error);
-      // Don't throw error, just log and continue
-      return ""; // Return empty string on error
+      return "";
     }
   };
 
