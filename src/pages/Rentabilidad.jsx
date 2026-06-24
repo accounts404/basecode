@@ -7,7 +7,7 @@ import { PricingThreshold } from '@/entities/PricingThreshold';
 import { Schedule } from '@/entities/Schedule';
 import { User } from '@/entities/User';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Activity, RefreshCw } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import RentabilityAnalysisTab from '../components/rentabilidad/RentabilityAnalysisTab';
 import PricingFrequencyTab from '../components/rentabilidad/PricingFrequencyTab';
 import SuperannuationTab from '../components/rentabilidad/SuperannuationTab';
@@ -53,7 +53,7 @@ export default function RentabilidadPage() {
         return allRecords.slice(0, maxLimit);
     };
 
-    const { data: rentabilidadData, isLoading: isLoadingQuery, isFetching, isError: isQueryError } = useQuery({
+    const { data: rentabilidadData, isLoading: isLoadingQuery, isError: isQueryError } = useQuery({
         queryKey: ['rentabilidadGlobal'],
         queryFn: async () => {
             const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData] = await Promise.all([
@@ -93,10 +93,9 @@ export default function RentabilidadPage() {
     }, [rentabilidadData]);
 
     useEffect(() => {
-        // Solo mostrar loading si NO hay datos en caché todavía
-        setLoading(isLoadingQuery && !rentabilidadData);
+        setLoading(isLoadingQuery);
         if (isQueryError) setError("No se pudieron cargar los datos.");
-    }, [isLoadingQuery, isQueryError, rentabilidadData]);
+    }, [isLoadingQuery, isQueryError]);
 
     const loadAllInitialData = () => {
         queryClient.invalidateQueries({ queryKey: ['rentabilidadGlobal'] });
@@ -119,28 +118,8 @@ export default function RentabilidadPage() {
         loadAllInitialData();
     };
 
+    if (loading) return <div className="p-8 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700"></div></div>;
     if (error) return <div className="p-8 text-red-700 text-center font-medium">{error}</div>;
-
-    if (loading) return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-6 md:p-10">
-            <div className="max-w-[1920px] mx-auto">
-                <div className="mb-10 flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-xl bg-slate-200 animate-pulse" />
-                    <div className="space-y-2">
-                        <div className="h-8 w-72 bg-slate-200 rounded-lg animate-pulse" />
-                        <div className="h-4 w-96 bg-slate-100 rounded animate-pulse" />
-                    </div>
-                </div>
-                <div className="h-12 w-full max-w-3xl bg-slate-200 rounded-lg animate-pulse mb-6" />
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-28 bg-slate-200 rounded-xl animate-pulse" />
-                    ))}
-                </div>
-                <div className="h-96 bg-slate-200 rounded-xl animate-pulse" />
-            </div>
-        </div>
-    );
 
     const clientsForPricingAnalysis = clients.filter(c => c.id !== trainingClientId);
 
@@ -154,15 +133,7 @@ export default function RentabilidadPage() {
                         </div>
                         <div>
                             <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Análisis de Rentabilidad</h1>
-                            <div className="flex items-center gap-3 mt-1">
-                                <p className="text-slate-600 text-lg font-light">Evaluación financiera detallada por cliente y período</p>
-                                {isFetching && !isLoadingQuery && (
-                                    <span className="flex items-center gap-1 text-xs text-slate-400">
-                                        <RefreshCw className="w-3 h-3 animate-spin" />
-                                        Actualizando...
-                                    </span>
-                                )}
-                            </div>
+                            <p className="text-slate-600 mt-1 text-lg font-light">Evaluación financiera detallada por cliente y período</p>
                         </div>
                     </div>
                 </div>
