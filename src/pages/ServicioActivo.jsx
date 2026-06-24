@@ -252,11 +252,8 @@ export default function ServicioActivoPage() {
         if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; }
         if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
 
-        // Generar idempotency key único para esta operación
-        const idempotencyKey = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-            const r = Math.random() * 16 | 0;
-            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-        });
+        // Generar idempotency key único y criptográficamente seguro
+        const idempotencyKey = crypto.randomUUID();
 
         // Capturar GPS con timeout de 5s para no bloquear el Clock Out en zonas sin señal
         let userLocation = null;

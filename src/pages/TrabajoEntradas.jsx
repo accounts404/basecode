@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useQuery } from '@tanstack/react-query';
-import { base44 } from "@/api/base44Client"; // Corrected import for base44
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { base44 } from "@/api/base44Client";
+import { loadAllRecords } from "@/api/entities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,7 @@ const numberToWords = (num) => {
 
 
 export default function TrabajoEntradasPage() {
+  const queryClient = useQueryClient();
   const [isAdmin, setIsAdmin] = useState(false);
   const [workEntries, setWorkEntries] = useState([]);
   const [cleaners, setCleaners] = useState([]);
@@ -100,34 +102,6 @@ export default function TrabajoEntradasPage() {
     hourly_rate: "",
     total_amount: ""
   });
-
-  // Helper para cargar registros con paginación automática y freno de seguridad
-  const loadAllRecords = async (entityName, sortField = '-created_date', maxLimit = 10000, filterObj = null) => {
-    const BATCH_SIZE = 500;
-    let allRecords = [];
-    let skip = 0;
-    let hasMore = true;
-
-    while (hasMore && allRecords.length < maxLimit) {
-      let batch;
-      if (filterObj) {
-        batch = await base44.entities[entityName].filter(filterObj, sortField, BATCH_SIZE, skip);
-      } else {
-        batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
-      }
-      const batchArray = Array.isArray(batch) ? batch : [];
-      
-      allRecords = [...allRecords, ...batchArray];
-      
-      if (batchArray.length < BATCH_SIZE) {
-        hasMore = false;
-      } else {
-        skip += BATCH_SIZE;
-      }
-    }
-
-    return allRecords.slice(0, maxLimit);
-  };
 
   // 1. Carga pesada delegada a React Query
   const fetchHeavyData = async () => {
@@ -458,7 +432,10 @@ export default function TrabajoEntradasPage() {
       setUpdating(false); // Liberamos la pantalla del usuario aquí mismo
 
       // 2. BACKGROUND FETCH: Guardamos en la base de datos de forma invisible
-      base44.entities.WorkEntry.update(editEntry.id, updatedData).catch((bgError) => {
+      base44.entities.WorkEntry.update(editEntry.id, updatedData).then(() => {
+        // Invalidar caché React Query para que la próxima visita tenga datos frescos
+        queryClient.invalidateQueries({ queryKey: ['trabajoEntradasGlobal_Fase1'] });
+      }).catch((bgError) => {
         console.error("Error en update de fondo:", bgError);
         setNotification({ type: "error", message: "Error al sincronizar con el servidor. Recargando..." });
         loadData(); // Solo interrumpimos al usuario si ocurre un error grave
@@ -499,7 +476,9 @@ export default function TrabajoEntradasPage() {
       setDeleting(false); // Liberamos la pantalla
 
       // 2. BACKGROUND FETCH: Borramos en la base de datos de forma invisible
-      base44.entities.WorkEntry.delete(entryIdToDelete).catch((bgError) => {
+      base44.entities.WorkEntry.delete(entryIdToDelete).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['trabajoEntradasGlobal_Fase1'] });
+      }).catch((bgError) => {
         console.error("Error eliminando en background:", bgError);
         setNotification({ type: "error", message: "Error al sincronizar con el servidor. Recargando..." });
         loadData(); // Solo interrumpimos al usuario si ocurre un error grave
