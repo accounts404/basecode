@@ -263,8 +263,10 @@ export default function ServicioActivoPage() {
         try {
             const { getUserLocation } = await import('@/components/utils/clockService');
             setError('📍 Obteniendo tu ubicación...');
-            const GPS_TIMEOUT = new Promise((_, reject) => setTimeout(() => reject(new Error('GPS timeout')), 5000));
-            userLocation = await Promise.race([getUserLocation(), GPS_TIMEOUT]);
+            userLocation = await Promise.race([
+                getUserLocation(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('GPS Timeout')), 4000))
+            ]);
             setError('');
         } catch (e) {
             // GPS falló o tardó demasiado — continuar sin ubicación
