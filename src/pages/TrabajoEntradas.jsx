@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from "@/api/base44Client"; // Corrected import for base44
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +80,10 @@ export default function TrabajoEntradasPage() {
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClients, setSelectedClients] = useState([]);
 
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const historyFetchedRef = React.useRef(false); // Guard anti-loop
+
   // Audit state
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [auditData, setAuditData] = useState(null);
@@ -127,21 +131,25 @@ export default function TrabajoEntradasPage() {
 
   // 1. Carga pesada delegada a React Query
   const fetchHeavyData = async () => {
-    console.log('[TrabajoEntradas] 📊 Iniciando carga pesada (Cacheada por React Query)...');
+    console.log('[TrabajoEntradas] ⚡ Fase 1: Fast First Paint (Últimos 3 meses)...');
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - 3);
+    const minDateStr = format(cutoffDate, 'yyyy-MM-dd');
+
     const [currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult] = await Promise.all([
       base44.auth.me(),
-      loadAllRecords('WorkEntry', '-work_date'),
-      loadAllRecords('User', '-created_date'),
-      loadAllRecords('Client', '-created_date'),
-      loadAllRecords('Invoice', '-created_date')
+      loadAllRecords('WorkEntry', '-work_date', 5000, { work_date: { $gte: minDateStr } }),
+      loadAllRecords('User', '-created_date', 2000),
+      loadAllRecords('Client', '-created_date', 2000),
+      loadAllRecords('Invoice', '-created_date', 5000, { created_date: { $gte: minDateStr } })
     ]);
-    return { currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult };
+    return { currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult, minDateStr };
   };
 
   const { data: cachedData, refetch } = useQuery({
-    queryKey: ['trabajoEntradasGlobal'],
+    queryKey: ['trabajoEntradasGlobal_Fase1'],
     queryFn: fetchHeavyData,
-    staleTime: 1000 * 60 * 10, // 10 minutos de memoria caché
+    staleTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
   });
 
@@ -187,7 +195,55 @@ export default function TrabajoEntradasPage() {
     }
   }, [cachedData]);
 
-  // 3. Puente de compatibilidad para funciones antiguas
+  // 3. Fase 2: Background Sync — carga histórico silenciosamente después del First Paint
+  useEffect(() => {
+    if (!cachedData || historyFetchedRef.current) return;
+
+    historyFetchedRef.current = true; // Guard: solo corre una vez
+    setIsLoadingHistory(true);
+    console.log('[TrabajoEntradas] 🔄 Fase 2: Background Sync (Datos históricos)...');
+
+    const { minDateStr, cleanersResult } = cachedData;
+    const cleanerUsers = (cleanersResult || []).filter(u => u.role !== 'admin');
+
+    Promise.all([
+      loadAllRecords('WorkEntry', '-work_date', 10000, { work_date: { $lt: minDateStr } }),
+      loadAllRecords('Invoice', '-created_date', 10000, { created_date: { $lt: minDateStr } })
+    ]).then(([olderEntries, olderInvoices]) => {
+      // Añadir IDs de facturas pagadas antiguas
+      if (olderInvoices.length > 0) {
+        setPaidEntryIds(prev => {
+          const merged = new Set(prev);
+          olderInvoices.filter(inv => inv.status === 'paid').forEach(inv => {
+            (inv.work_entries || []).forEach(id => merged.add(id));
+          });
+          return merged;
+        });
+      }
+
+      // Añadir entradas antiguas procesadas
+      if (olderEntries.length > 0) {
+        const processed = olderEntries.map(entry => {
+          const cleaner = cleanerUsers.find(c => c.id === entry.cleaner_id);
+          return {
+            ...entry,
+            cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Usuario no encontrado',
+            cleaner_email: cleaner ? cleaner.email : ''
+          };
+        });
+        setWorkEntries(prev => [...prev, ...processed]);
+      }
+
+      console.log('[TrabajoEntradas] ✅ Fase 2 Completada.');
+      setHistoryLoaded(true);
+    }).catch(err => {
+      console.error("Error cargando historial en background:", err);
+    }).finally(() => {
+      setIsLoadingHistory(false);
+    });
+  }, [cachedData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 4. Puente de compatibilidad para funciones antiguas
   const loadData = () => {
     setLoading(true);
     refetch();
@@ -680,6 +736,18 @@ export default function TrabajoEntradasPage() {
           </h1>
           <div className="flex items-center flex-wrap gap-4">
             <p className="text-slate-600">Registro detallado de todo el trabajo realizado por los limpiadores.</p>
+            {isLoadingHistory && (
+              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Cargando historial completo...
+              </div>
+            )}
+            {historyLoaded && (
+              <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                <CheckCircle className="w-3 h-3" />
+                Historial completo cargado
+              </div>
+            )}
             
             {/* Botón de Auditoría */}
             {isAdmin && (
