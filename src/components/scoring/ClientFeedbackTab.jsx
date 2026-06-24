@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MessageSquare, Plus, ThumbsUp, ThumbsDown, AlertTriangle, Star, Search, X } from "lucide-react";
+import { MessageSquare, Plus, ThumbsUp, ThumbsDown, AlertTriangle, Star, Search, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -154,6 +154,36 @@ export default function ClientFeedbackTab({ monthPeriod, limpiadores, monthlySco
     setSaving(false);
   };
 
+  const handleDeleteFeedback = async (feedback) => {
+    if (!confirm("¿Eliminar este feedback? Se restaurarán los puntos a los limpiadores afectados.")) return;
+    setLoading(true);
+    try {
+      await base44.entities.ClientFeedback.delete(feedback.id);
+      // Revertir puntos a TODOS los limpiadores afectados
+      if (feedback.points_impact !== 0 && (feedback.affected_cleaner_ids || []).length > 0) {
+        for (const cleanerId of feedback.affected_cleaner_ids) {
+          const freshScores = await base44.entities.MonthlyCleanerScore.filter({ cleaner_id: cleanerId, month_period: monthPeriod });
+          const freshScore = freshScores[0];
+          if (freshScore) {
+            await base44.entities.MonthlyCleanerScore.update(freshScore.id, {
+              current_score: freshScore.current_score - feedback.points_impact
+            });
+          }
+          // Buscar y eliminar el ScoreAdjustment asociado
+          const adjs = await base44.entities.ScoreAdjustment.filter({ cleaner_id: cleanerId, month_period: monthPeriod });
+          const relatedAdj = adjs.find(a => a.notes?.includes(feedback.description?.slice(0, 50)));
+          if (relatedAdj) await base44.entities.ScoreAdjustment.delete(relatedAdj.id);
+        }
+      }
+      await loadData();
+      if (onScoreApplied) onScoreApplied();
+    } catch (e) {
+      console.error(e);
+      alert("Error eliminando feedback.");
+    }
+    setLoading(false);
+  };
+
   const complaints = feedbacks.filter(f => f.feedback_type === "complaint");
   const compliments = feedbacks.filter(f => f.feedback_type === "compliment");
   const participatingCleaners = limpiadores.filter(c => monthlyScores.some(s => s.cleaner_id === c.id && s.is_participating));
@@ -234,6 +264,9 @@ export default function ClientFeedbackTab({ monthPeriod, limpiadores, monthlySco
                         {format(new Date(fb.feedback_date), "d MMM yyyy", { locale: es })} · {CHANNELS[fb.feedback_channel]} · Por: {fb.registered_by_admin_name}
                       </p>
                     </div>
+                    <button onClick={() => handleDeleteFeedback(fb)} className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors ml-2 mt-1" title="Eliminar feedback">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </CardContent>
               </Card>

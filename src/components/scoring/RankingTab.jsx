@@ -217,7 +217,7 @@ export default function RankingTab({ monthPeriod, limpiadores, monthlyScores, on
     }
     setCustomLoading(true);
     try {
-      const adjs = await base44.entities.ScoreAdjustment.list();
+      const adjs = await base44.entities.ScoreAdjustment.list("-date_applied", 3000);
       const filtered = adjs.filter(a => {
         const adjDate = a.date_applied ? a.date_applied.split('T')[0] : '';
         return adjDate >= dateFrom && adjDate <= dateTo;

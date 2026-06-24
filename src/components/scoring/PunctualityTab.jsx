@@ -46,18 +46,21 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
     absence: false,
     notes: ""
   });
-  const [customPoints, setCustomPoints] = useState({
-    uniform_pts: 3,
-    presentation_pts: 2,
-    absence_pts: 15,
-    late_5_pts: 2,
-    late_15_pts: 5,
+  const [customPoints, setCustomPoints] = useState(() => {
+    try {
+      const saved = localStorage.getItem('redoak_punctuality_weights');
+      return saved ? JSON.parse(saved) : { uniform_pts: 3, presentation_pts: 2, absence_pts: 15, late_5_pts: 2, late_15_pts: 5 };
+    } catch { return { uniform_pts: 3, presentation_pts: 2, absence_pts: 15, late_5_pts: 2, late_15_pts: 5 }; }
   });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadRecords();
   }, [monthPeriod]);
+
+  useEffect(() => {
+    localStorage.setItem('redoak_punctuality_weights', JSON.stringify(customPoints));
+  }, [customPoints]);
 
   const loadRecords = async () => {
     setLoading(true);
@@ -205,6 +208,32 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
     setSaving(false);
   };
 
+  const handleDeleteRecord = async (record) => {
+    if (!confirm("¿Eliminar este registro? Se restaurarán los puntos deducidos.")) return;
+    setLoading(true);
+    try {
+      await base44.entities.PunctualityRecord.delete(record.id);
+      if (record.score_adjustment_id) {
+        await base44.entities.ScoreAdjustment.delete(record.score_adjustment_id);
+      }
+      if (record.points_impact !== 0) {
+        const freshScores = await base44.entities.MonthlyCleanerScore.filter({ cleaner_id: record.cleaner_id, month_period: monthPeriod });
+        const freshScore = freshScores[0];
+        if (freshScore) {
+          await base44.entities.MonthlyCleanerScore.update(freshScore.id, {
+            current_score: freshScore.current_score - record.points_impact
+          });
+        }
+      }
+      await loadRecords();
+      if (onScoreApplied) onScoreApplied();
+    } catch (e) {
+      console.error(e);
+      alert("Error eliminando registro.");
+    }
+    setLoading(false);
+  };
+
   const participatingCleaners = limpiadores.filter(c => monthlyScores.some(s => s.cleaner_id === c.id && s.is_participating));
 
   const visibleCleaners = filterCleaner === "all"
@@ -294,14 +323,19 @@ export default function PunctualityTab({ monthPeriod, limpiadores, monthlyScores
                   )}
                 </div>
 
-                {(filterCleaner === "all" ? cleanerRecords.slice(0, 2) : cleanerRecords).map(r => (
-                  <div key={r.id} className={`text-xs p-2 rounded mb-1 ${r.points_impact < 0 ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
-                    <div className="flex justify-between">
-                      <span>{format(new Date(r.date), "d MMM", { locale: es })} — {r.absence ? "Ausencia" : r.minutes_late > 0 ? `${r.minutes_late} min tarde` : !r.uniform_ok ? "Sin uniforme" : "OK"}</span>
-                      <span className={r.points_impact < 0 ? "text-red-600 font-bold" : "text-green-600 font-bold"}>{r.points_impact}</span>
-                    </div>
+                <div className="max-h-48 overflow-y-auto pr-1 space-y-1">
+                {cleanerRecords.map(r => (
+                <div key={r.id} className={`text-xs p-2 rounded ${r.points_impact < 0 ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="flex-1 truncate">{format(new Date(r.date), "d MMM", { locale: es })} — {r.absence ? "Ausencia" : r.minutes_late > 0 ? `${r.minutes_late} min tarde` : !r.uniform_ok ? "Sin uniforme" : "OK"}</span>
+                    <span className={`font-bold flex-shrink-0 ${r.points_impact < 0 ? "text-red-600" : "text-green-600"}`}>{r.points_impact}</span>
+                    <button onClick={() => handleDeleteRecord(r)} className="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors" title="Eliminar">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
+                </div>
                 ))}
+                </div>
               </CardContent>
             </Card>
           );

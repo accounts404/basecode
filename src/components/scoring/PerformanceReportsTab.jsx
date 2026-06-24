@@ -347,7 +347,7 @@ function VehicleDetailDialog({ record, open, onClose }) {
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 
-export default function PerformanceReportsTab({ limpiadores }) {
+export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
   const [loading, setLoading] = useState(true);
   const [allPerformance, setAllPerformance] = useState([]);
   const [allPunctuality, setAllPunctuality] = useState([]);
@@ -375,7 +375,7 @@ export default function PerformanceReportsTab({ limpiadores }) {
   const [openFeedback, setOpenFeedback] = useState(null);
   const [openVehicle, setOpenVehicle] = useState(null);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => { loadAll(); }, [monthPeriod]);
 
   const loadAll = async () => {
     setLoading(true);

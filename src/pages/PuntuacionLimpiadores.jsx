@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Users, Calendar, Star, Gift, Crown, Clock, Car, MessageSquare, BarChart2, ClipboardList } from "lucide-react";
+import { Trophy, Users, Calendar, Star, Gift, Crown, Clock, Car, MessageSquare, BarChart2, ClipboardList, CheckCircle } from "lucide-react";
 import RankingTab from "../components/scoring/RankingTab";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -384,6 +384,9 @@ export default function PuntuacionLimpiadoresPage() {
                                 <Label>Mes:</Label>
                                 <Input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-40" />
                             </div>
+                            <Button onClick={handleFinishMonth} className="bg-green-600 hover:bg-green-700 text-white">
+                                <CheckCircle className="w-4 h-4 mr-2" /> Finalizar Mes
+                            </Button>
                             <Button onClick={handleSemestralBonus} variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-50">
                                 <Star className="w-4 h-4 mr-2" /> Bono Semestral
                             </Button>
@@ -458,7 +461,7 @@ export default function PuntuacionLimpiadoresPage() {
                     <ClientFeedbackTab monthPeriod={selectedMonth} limpiadores={limpiadores} monthlyScores={monthlyScores} user={user} onScoreApplied={loadMonthlyScores} />
                 </TabsContent>
                 <TabsContent value="reports" className="mt-4">
-                    <PerformanceReportsTab limpiadores={limpiadores} />
+                    <PerformanceReportsTab limpiadores={limpiadores} monthPeriod={selectedMonth} />
                 </TabsContent>
             </Tabs>
 
