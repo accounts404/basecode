@@ -5,22 +5,20 @@ import { WorkEntry } from "@/entities/WorkEntry";
 import { MonthlyCleanerScore } from "@/entities/MonthlyCleanerScore";
 import { ScoreAdjustment } from "@/entities/ScoreAdjustment";
 import { SemiAnnualBonus } from "@/entities/SemiAnnualBonus";
+import { TaskNotification } from "@/entities/TaskNotification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, TrendingUp, Users, Calendar, Plus, Medal, Crown, Award, Gift, Star, CheckCircle, Eye, ClipboardList, Clock, Car, MessageSquare, BarChart2 } from "lucide-react";
+import { Trophy, Users, Calendar, Star, Gift, Crown, Clock, Car, MessageSquare, BarChart2, ClipboardList } from "lucide-react";
 import RankingTab from "../components/scoring/RankingTab";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import CategorySelector from "../components/scoring/CategorySelector";
-import SimplePagination from "../components/ui/simple-pagination";
 import CleanerScoreHistoryDialog from "../components/scoring/CleanerScoreHistoryDialog";
 import PerformanceTab from "../components/scoring/PerformanceTab";
 import PunctualityTab from "../components/scoring/PunctualityTab";
@@ -37,41 +35,27 @@ export default function PuntuacionLimpiadoresPage() {
     const [showAdjustDialog, setShowAdjustDialog] = useState(false);
     const [showBonusDialog, setShowBonusDialog] = useState(false);
     const [showSemestralDialog, setShowSemestralDialog] = useState(false);
+
+    const [currentRanking, setCurrentRanking] = useState([]);
+    const [monthlyWinnerId, setMonthlyWinnerId] = useState("");
+
     const [selectedCleaner, setSelectedCleaner] = useState(null);
-    const [adjustmentData, setAdjustmentData] = useState({
-        type: 'deduction',
-        category: '',
-        points: '',
-        notes: ''
-    });
-    const [bonusData, setBonusData] = useState({
-        amount: '',
-        description: ''
-    });
-    const [semestralData, setSemestralData] = useState({
-        period_start: '',
-        period_end: '',
-        amount: '',
-        description: ''
-    });
+    const [adjustmentData, setAdjustmentData] = useState({ type: 'deduction', category: '', points: '', notes: '' });
+    const [bonusData, setBonusData] = useState({ amount: '', description: '' });
+    const [semestralData, setSemestralData] = useState({ period_start: '', period_end: '', amount: '', description: '' });
     const [semestralRanking, setSemestralRanking] = useState([]);
     const [redOakClientId, setRedOakClientId] = useState(null);
     const [showHistoryDialog, setShowHistoryDialog] = useState(false);
     const [cleanerForHistory, setCleanerForHistory] = useState(null);
-    const [rankingPage, setRankingPage] = useState(1);
 
-    // Cargar cliente RedOak para bonificaciones
     useEffect(() => {
         const loadRedOakClient = async () => {
             try {
                 const clients = await Client.list();
                 const redOakClient = clients.find(c =>
-                    c.name.toLowerCase().includes('redoak') ||
-                    c.name.toLowerCase().includes('red oak')
+                    c.name?.toLowerCase().includes('redoak') || c.name?.toLowerCase().includes('red oak')
                 );
-                if (redOakClient) {
-                    setRedOakClientId(redOakClient.id);
-                }
+                if (redOakClient) setRedOakClientId(redOakClient.id);
             } catch (error) {
                 console.error('Error cargando cliente RedOak:', error);
             }
@@ -84,20 +68,13 @@ export default function PuntuacionLimpiadoresPage() {
         let allRecords = [];
         let skip = 0;
         let hasMore = true;
-
         while (hasMore) {
             const batch = await entity.list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
-            
             allRecords = [...allRecords, ...batchArray];
-            
-            if (batchArray.length < BATCH_SIZE) {
-                hasMore = false;
-            } else {
-                skip += BATCH_SIZE;
-            }
+            hasMore = batchArray.length === BATCH_SIZE;
+            skip += batchArray.length;
         }
-
         return allRecords;
     };
 
@@ -113,11 +90,14 @@ export default function PuntuacionLimpiadoresPage() {
         }
     }, [selectedMonth]);
 
-    // Auto-create MonthlyCleanerScore for every active cleaner that doesn't have one yet
     const ensureAllCleanersHaveScore = useCallback(async (cleaners, existingScores) => {
+        // No generar fantasmas para meses futuros
+        if (selectedMonth > format(new Date(), 'yyyy-MM')) return;
+
         const existingIds = new Set(existingScores.map(s => s.cleaner_id));
         const missing = cleaners.filter(c => !existingIds.has(c.id));
         if (missing.length === 0) return;
+
         await Promise.all(missing.map(c =>
             MonthlyCleanerScore.create({
                 cleaner_id: c.id,
@@ -137,15 +117,12 @@ export default function PuntuacionLimpiadoresPage() {
             const userData = await User.me();
             setUser(userData);
 
-            // Cargar todos los limpiadores activos
             const allUsers = await loadAllRecords(User, '-created_date');
             const cleaners = allUsers.filter(u => u.role !== 'admin' && u.active !== false);
             setLimpiadores(cleaners);
 
-            // Cargar puntuaciones y auto-crear para los que no tienen
             const scores = await loadMonthlyScores();
             await ensureAllCleanersHaveScore(cleaners, scores || []);
-            // Reload after creation so all cleaners appear
             await loadMonthlyScores();
         } catch (error) {
             console.error('Error cargando datos:', error);
@@ -158,17 +135,17 @@ export default function PuntuacionLimpiadoresPage() {
         loadInitialData();
     }, [loadInitialData]);
 
-    // When month changes (after initial load), also ensure all cleaners have scores
     const prevMonthRef = React.useRef(selectedMonth);
     useEffect(() => {
-        if (prevMonthRef.current === selectedMonth) return; // skip on mount (handled by loadInitialData)
+        if (prevMonthRef.current === selectedMonth) return;
         prevMonthRef.current = selectedMonth;
+        if (limpiadores.length === 0) return;
         const reinit = async () => {
             const scores = await loadMonthlyScores();
             await ensureAllCleanersHaveScore(limpiadores, scores || []);
             await loadMonthlyScores();
         };
-        if (limpiadores.length > 0) reinit();
+        reinit();
     }, [selectedMonth]);
 
     const getCurrentRanking = () => {
@@ -180,12 +157,7 @@ export default function PuntuacionLimpiadoresPage() {
 
     const handleScoreAdjustment = (cleaner) => {
         setSelectedCleaner(cleaner);
-        setAdjustmentData({
-            type: 'deduction',
-            category: '',
-            points: '',
-            notes: ''
-        });
+        setAdjustmentData({ type: 'deduction', category: '', points: '', notes: '' });
         setShowAdjustDialog(true);
     };
 
@@ -194,13 +166,11 @@ export default function PuntuacionLimpiadoresPage() {
             alert('Por favor completa todos los campos requeridos');
             return;
         }
-
         try {
             const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.cleaner_id);
             const pointsValue = parseInt(adjustmentData.points, 10);
             const pointsImpact = adjustmentData.type === 'deduction' ? -Math.abs(pointsValue) : Math.abs(pointsValue);
 
-            // Crear el ajuste
             await ScoreAdjustment.create({
                 monthly_score_id: monthlyScore.id,
                 cleaner_id: selectedCleaner.cleaner_id,
@@ -214,11 +184,25 @@ export default function PuntuacionLimpiadoresPage() {
                 date_applied: new Date().toISOString()
             });
 
-            // Actualizar puntuación
+            // Notificación al limpiador en caso de deducción
+            if (pointsImpact < 0) {
+                try {
+                    await TaskNotification.create({
+                        user_id: selectedCleaner.cleaner_id,
+                        task_id: `adj-${Date.now()}`,
+                        task_title: 'Ajuste Manual en Ranking',
+                        notification_type: 'overdue_alert',
+                        message: `Se ha registrado una deducción de ${Math.abs(pointsImpact)} puntos en tu score. Motivo: ${adjustmentData.category}`,
+                        read: false,
+                        action_url: '/MiPuntuacion'
+                    });
+                } catch (e) {
+                    console.error('No se pudo notificar al limpiador:', e);
+                }
+            }
+
             const newScore = Math.max(0, monthlyScore.current_score + pointsImpact);
-            await MonthlyCleanerScore.update(monthlyScore.id, {
-                current_score: newScore
-            });
+            await MonthlyCleanerScore.update(monthlyScore.id, { current_score: newScore });
 
             setShowAdjustDialog(false);
             await loadMonthlyScores();
@@ -234,34 +218,27 @@ export default function PuntuacionLimpiadoresPage() {
             alert('No hay participantes en este mes');
             return;
         }
-
-        const winner = ranking[0];
-        setSelectedCleaner(winner);
-        setBonusData({
-            amount: '',
-            description: ''
-        });
+        setCurrentRanking(ranking);
+        setMonthlyWinnerId(ranking[0].cleaner_id);
+        setBonusData({ amount: '', description: '' });
         setShowBonusDialog(true);
     };
 
     const handleSaveMonthlyBonus = async () => {
-        if (!bonusData.amount || !bonusData.description) {
+        if (!bonusData.amount || !bonusData.description || !monthlyWinnerId) {
             alert('Por favor completa todos los campos de la bonificación');
             return;
         }
-
         if (!redOakClientId) {
             alert('Error: No se encontró el cliente RedOak Cleaning Solutions');
             return;
         }
-
+        const winner = currentRanking.find(c => c.cleaner_id === monthlyWinnerId);
         try {
             const bonusAmount = parseFloat(bonusData.amount);
-
-            // Crear WorkEntry para la bonificación
             const workEntry = await WorkEntry.create({
-                cleaner_id: selectedCleaner.cleaner_id,
-                cleaner_name: selectedCleaner.cleaner_name,
+                cleaner_id: winner.cleaner_id,
+                cleaner_name: winner.cleaner_name,
                 client_id: redOakClientId,
                 client_name: "RedOak Cleaning Solutions",
                 work_date: new Date().toISOString().split('T')[0],
@@ -271,12 +248,10 @@ export default function PuntuacionLimpiadoresPage() {
                 hourly_rate: bonusAmount,
                 total_amount: bonusAmount
             });
-
-            // Actualizar MonthlyCleanerScore con la bonificación
-            const monthlyScore = monthlyScores.find(s => s.cleaner_id === selectedCleaner.cleaner_id);
+            const monthlyScore = monthlyScores.find(s => s.cleaner_id === winner.cleaner_id);
             await MonthlyCleanerScore.update(monthlyScore.id, {
                 status: 'closed',
-                final_rank: selectedCleaner.current_rank,
+                final_rank: winner.current_rank,
                 monthly_bonus_amount: bonusAmount,
                 monthly_bonus_description: bonusData.description,
                 monthly_bonus_work_entry_id: workEntry.id,
@@ -284,10 +259,9 @@ export default function PuntuacionLimpiadoresPage() {
                 closed_by_admin: user.id,
                 closed_date: new Date().toISOString()
             });
-
             setShowBonusDialog(false);
             await loadMonthlyScores();
-            alert(`¡Bonificación de $${bonusAmount} AUD otorgada exitosamente a ${selectedCleaner.cleaner_name}!`);
+            alert(`¡Bonificación de $${bonusAmount} AUD otorgada exitosamente a ${winner.cleaner_name}!`);
         } catch (error) {
             console.error('Error otorgando bonificación mensual:', error);
             alert('Error al otorgar la bonificación');
@@ -295,12 +269,7 @@ export default function PuntuacionLimpiadoresPage() {
     };
 
     const handleSemestralBonus = () => {
-        setSemestralData({
-            period_start: '',
-            period_end: '',
-            amount: '',
-            description: ''
-        });
+        setSemestralData({ period_start: '', period_end: '', amount: '', description: '' });
         setSemestralRanking([]);
         setShowSemestralDialog(true);
     };
@@ -310,45 +279,29 @@ export default function PuntuacionLimpiadoresPage() {
             alert('Por favor selecciona las fechas del período semestral');
             return;
         }
-
         try {
-            // Obtener todos los scores mensuales en el rango
-            const allScores = await MonthlyCleanerScore.list();
-            const periodScores = allScores.filter(score => {
-                const scoreMonth = score.month_period;
-                return scoreMonth >= semestralData.period_start.substring(0, 7) &&
-                       scoreMonth <= semestralData.period_end.substring(0, 7) &&
-                       score.is_participating;
+            const startMonth = semestralData.period_start.substring(0, 7);
+            const endMonth = semestralData.period_end.substring(0, 7);
+
+            // Filtrado en BD en lugar de cargar todo
+            const periodScores = await MonthlyCleanerScore.filter({
+                month_period: { $gte: startMonth, $lte: endMonth },
+                is_participating: true
             });
 
-            // Calcular promedios por limpiador
             const cleanerAverages = {};
             periodScores.forEach(score => {
                 if (!cleanerAverages[score.cleaner_id]) {
-                    cleanerAverages[score.cleaner_id] = {
-                        cleaner_id: score.cleaner_id,
-                        cleaner_name: score.cleaner_name,
-                        scores: [],
-                        total: 0,
-                        count: 0
-                    };
+                    cleanerAverages[score.cleaner_id] = { cleaner_id: score.cleaner_id, cleaner_name: score.cleaner_name, total: 0, count: 0 };
                 }
-                cleanerAverages[score.cleaner_id].scores.push(score.current_score);
                 cleanerAverages[score.cleaner_id].total += score.current_score;
                 cleanerAverages[score.cleaner_id].count += 1;
             });
 
-            // Calcular ranking semestral
             const ranking = Object.values(cleanerAverages)
-                .map(cleaner => ({
-                    ...cleaner,
-                    average_score: cleaner.total / cleaner.count
-                }))
+                .map(c => ({ ...c, average_score: c.total / c.count }))
                 .sort((a, b) => b.average_score - a.average_score)
-                .map((cleaner, index) => ({
-                    ...cleaner,
-                    rank: index + 1
-                }));
+                .map((c, i) => ({ ...c, rank: i + 1 }));
 
             setSemestralRanking(ranking);
         } catch (error) {
@@ -358,26 +311,12 @@ export default function PuntuacionLimpiadoresPage() {
     };
 
     const handleSaveSemestralBonus = async () => {
-        if (semestralRanking.length === 0) {
-            alert('Primero calcula el ranking semestral');
-            return;
-        }
-
-        if (!semestralData.amount || !semestralData.description) {
-            alert('Por favor completa todos los campos de la bonificación');
-            return;
-        }
-
-        if (!redOakClientId) {
-            alert('Error: No se encontró el cliente RedOak Cleaning Solutions');
-            return;
-        }
-
+        if (semestralRanking.length === 0) { alert('Primero calcula el ranking semestral'); return; }
+        if (!semestralData.amount || !semestralData.description) { alert('Por favor completa todos los campos de la bonificación'); return; }
+        if (!redOakClientId) { alert('Error: No se encontró el cliente RedOak Cleaning Solutions'); return; }
         try {
             const winner = semestralRanking[0];
             const bonusAmount = parseFloat(semestralData.amount);
-
-            // Crear WorkEntry para la bonificación semestral
             const workEntry = await WorkEntry.create({
                 cleaner_id: winner.cleaner_id,
                 cleaner_name: winner.cleaner_name,
@@ -390,8 +329,6 @@ export default function PuntuacionLimpiadoresPage() {
                 hourly_rate: bonusAmount,
                 total_amount: bonusAmount
             });
-
-            // Crear registro de bonificación semestral
             await SemiAnnualBonus.create({
                 period_label: `${format(new Date(semestralData.period_start), 'MMM yyyy', { locale: es })} - ${format(new Date(semestralData.period_end), 'MMM yyyy', { locale: es })}`,
                 period_start: semestralData.period_start,
@@ -406,7 +343,6 @@ export default function PuntuacionLimpiadoresPage() {
                 awarded_by_admin: user.id,
                 participating_cleaners: semestralRanking
             });
-
             setShowSemestralDialog(false);
             alert(`¡Bonificación semestral de $${bonusAmount} AUD otorgada exitosamente a ${winner.cleaner_name}!`);
         } catch (error) {
@@ -415,12 +351,10 @@ export default function PuntuacionLimpiadoresPage() {
         }
     };
 
-    const handleViewHistory = (cleaner) => { // NEW: Function to open history dialog
+    const handleViewHistory = (cleaner) => {
         setCleanerForHistory(cleaner);
         setShowHistoryDialog(true);
     };
-
-    const isMonthClosed = false; // El ranking ya no depende de MonthlyCleanerScore
 
     if (loading) {
         return (
@@ -429,6 +363,8 @@ export default function PuntuacionLimpiadoresPage() {
             </div>
         );
     }
+
+    const selectedWinner = currentRanking.find(c => c.cleaner_id === monthlyWinnerId);
 
     return (
         <div className="p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -446,16 +382,10 @@ export default function PuntuacionLimpiadoresPage() {
                         <div className="flex items-center gap-3 flex-wrap">
                             <div className="flex items-center gap-2">
                                 <Label>Mes:</Label>
-                                <Input
-                                    type="month"
-                                    value={selectedMonth}
-                                    onChange={(e) => setSelectedMonth(e.target.value)}
-                                    className="w-40"
-                                />
+                                <Input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-40" />
                             </div>
                             <Button onClick={handleSemestralBonus} variant="outline" className="border-purple-300 text-purple-700 hover:bg-purple-50">
-                                <Star className="w-4 h-4 mr-2" />
-                                Bono Semestral
+                                <Star className="w-4 h-4 mr-2" /> Bono Semestral
                             </Button>
                         </div>
                     </div>
@@ -489,7 +419,7 @@ export default function PuntuacionLimpiadoresPage() {
                 </Card>
             </div>
 
-            {/* TABS PRINCIPALES */}
+            {/* Tabs */}
             <Tabs defaultValue="ranking">
                 <TabsList className="grid w-full grid-cols-6 h-12">
                     <TabsTrigger value="ranking" className="flex items-center gap-1 text-xs md:text-sm">
@@ -512,62 +442,21 @@ export default function PuntuacionLimpiadoresPage() {
                     </TabsTrigger>
                 </TabsList>
 
-                {/* TAB 1: RANKING */}
                 <TabsContent value="ranking" className="mt-4">
-                    <RankingTab
-                        monthPeriod={selectedMonth}
-                        limpiadores={limpiadores}
-                        monthlyScores={monthlyScores}
-                        onViewHistory={handleViewHistory}
-                        onScoresChanged={loadMonthlyScores}
-                    />
+                    <RankingTab monthPeriod={selectedMonth} limpiadores={limpiadores} monthlyScores={monthlyScores} onViewHistory={handleViewHistory} onScoresChanged={loadMonthlyScores} />
                 </TabsContent>
-
-                {/* TAB 2: PERFORMANCE */}
                 <TabsContent value="performance" className="mt-4">
-                    <PerformanceTab
-                        monthPeriod={selectedMonth}
-                        limpiadores={limpiadores}
-                        monthlyScores={monthlyScores}
-                        user={user}
-                        onScoreApplied={loadMonthlyScores}
-                    />
+                    <PerformanceTab monthPeriod={selectedMonth} limpiadores={limpiadores} monthlyScores={monthlyScores} user={user} onScoreApplied={loadMonthlyScores} />
                 </TabsContent>
-
-                {/* TAB 3: PUNTUALIDAD */}
                 <TabsContent value="punctuality" className="mt-4">
-                    <PunctualityTab
-                        monthPeriod={selectedMonth}
-                        limpiadores={limpiadores}
-                        monthlyScores={monthlyScores}
-                        user={user}
-                        onScoreApplied={loadMonthlyScores}
-                    />
+                    <PunctualityTab monthPeriod={selectedMonth} limpiadores={limpiadores} monthlyScores={monthlyScores} user={user} onScoreApplied={loadMonthlyScores} />
                 </TabsContent>
-
-                {/* TAB 4: VEHÍCULOS */}
                 <TabsContent value="vehicle" className="mt-4">
-                    <VehicleChecklistTab
-                        monthPeriod={selectedMonth}
-                        limpiadores={limpiadores}
-                        monthlyScores={monthlyScores}
-                        user={user}
-                        onScoreApplied={loadMonthlyScores}
-                    />
+                    <VehicleChecklistTab monthPeriod={selectedMonth} limpiadores={limpiadores} monthlyScores={monthlyScores} user={user} onScoreApplied={loadMonthlyScores} />
                 </TabsContent>
-
-                {/* TAB 5: FEEDBACK */}
                 <TabsContent value="feedback" className="mt-4">
-                    <ClientFeedbackTab
-                        monthPeriod={selectedMonth}
-                        limpiadores={limpiadores}
-                        monthlyScores={monthlyScores}
-                        user={user}
-                        onScoreApplied={loadMonthlyScores}
-                    />
+                    <ClientFeedbackTab monthPeriod={selectedMonth} limpiadores={limpiadores} monthlyScores={monthlyScores} user={user} onScoreApplied={loadMonthlyScores} />
                 </TabsContent>
-
-                {/* TAB 6: REPORTES */}
                 <TabsContent value="reports" className="mt-4">
                     <PerformanceReportsTab limpiadores={limpiadores} />
                 </TabsContent>
@@ -582,28 +471,20 @@ export default function PuntuacionLimpiadoresPage() {
                     <div className="space-y-4">
                         <div>
                             <Label>Tipo de Ajuste</Label>
-                            <Select value={adjustmentData.type} onValueChange={(value) =>
-                                setAdjustmentData(prev => ({ ...prev, type: value, category: '' }))
-                            }>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
+                            <Select value={adjustmentData.type} onValueChange={(value) => setAdjustmentData(prev => ({ ...prev, type: value, category: '' }))}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="deduction">Deducción (-)</SelectItem>
                                     <SelectItem value="bonus">Bonificación (+)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
-
                         <CategorySelector
                             selectedCategory={adjustmentData.category}
-                            onCategoryChange={(category) =>
-                                setAdjustmentData(prev => ({ ...prev, category }))
-                            }
+                            onCategoryChange={(category) => setAdjustmentData(prev => ({ ...prev, category }))}
                             adjustmentType={adjustmentData.type}
                             userId={user?.id}
                         />
-
                         <div>
                             <Label>Puntos</Label>
                             <Input
@@ -611,14 +492,12 @@ export default function PuntuacionLimpiadoresPage() {
                                 value={adjustmentData.points}
                                 onChange={(e) => {
                                     const value = e.target.value;
-                                    const newPoints = value === '' ? '' : parseInt(value, 10);
-                                    setAdjustmentData(prev => ({ ...prev, points: newPoints }));
+                                    setAdjustmentData(prev => ({ ...prev, points: value === '' ? '' : parseInt(value, 10) }));
                                 }}
                                 onFocus={(e) => e.target.select()}
                                 placeholder="Ingresa los puntos"
                             />
                         </div>
-
                         <div>
                             <Label>Notas</Label>
                             <Textarea
@@ -630,12 +509,8 @@ export default function PuntuacionLimpiadoresPage() {
                         </div>
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="outline" onClick={() => setShowAdjustDialog(false)}>
-                            Cancelar
-                        </Button>
-                        <Button onClick={handleSaveAdjustment}>
-                            Aplicar Ajuste
-                        </Button>
+                        <Button variant="outline" onClick={() => setShowAdjustDialog(false)}>Cancelar</Button>
+                        <Button onClick={handleSaveAdjustment}>Aplicar Ajuste</Button>
                     </div>
                 </DialogContent>
             </Dialog>
@@ -644,46 +519,46 @@ export default function PuntuacionLimpiadoresPage() {
             <Dialog open={showBonusDialog} onOpenChange={setShowBonusDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>🏆 Otorgar Bonificación Mensual</DialogTitle>
+                        <DialogTitle>🎉 Otorgar Bonificación Mensual</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                            <h3 className="font-semibold text-yellow-900">Ganador del Mes:</h3>
-                            <p className="text-2xl font-bold text-yellow-800">{selectedCleaner?.cleaner_name}</p>
-                            <p className="text-yellow-700">Puntuación: {selectedCleaner?.current_score} puntos</p>
+                        <div>
+                            <Label>Seleccionar Limpiador a Bonificar</Label>
+                            <Select value={monthlyWinnerId} onValueChange={setMonthlyWinnerId}>
+                                <SelectTrigger><SelectValue placeholder="Seleccione al limpiador" /></SelectTrigger>
+                                <SelectContent>
+                                    {currentRanking.map(c => (
+                                        <SelectItem key={c.cleaner_id} value={c.cleaner_id}>
+                                            #{c.current_rank} - {c.cleaner_name} ({c.current_score} pts)
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
-
+                        {selectedWinner && (
+                            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                <h3 className="font-semibold text-yellow-900">Seleccionado:</h3>
+                                <p className="text-yellow-800">
+                                    Rank #{selectedWinner.current_rank} — Puntuación: {selectedWinner.current_score} pts
+                                </p>
+                            </div>
+                        )}
                         <div>
                             <Label>Monto de la Bonificación (AUD)</Label>
-                            <Input
-                                type="number"
-                                step="0.01"
-                                value={bonusData.amount}
-                                onChange={(e) => setBonusData(prev => ({ ...prev, amount: e.target.value }))}
-                                placeholder="50.00"
-                            />
+                            <Input type="number" step="0.01" value={bonusData.amount} onChange={(e) => setBonusData(prev => ({ ...prev, amount: e.target.value }))} placeholder="50.00" />
                         </div>
-
                         <div>
                             <Label>Descripción</Label>
-                            <Input
-                                value={bonusData.description}
-                                onChange={(e) => setBonusData(prev => ({ ...prev, description: e.target.value }))}
-                                placeholder="Tarjeta de regalo, efectivo, etc."
-                            />
+                            <Input value={bonusData.description} onChange={(e) => setBonusData(prev => ({ ...prev, description: e.target.value }))} placeholder="Bono por excelente calidad este mes" />
                         </div>
-
                         <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
                             💡 Esta bonificación se agregará como una entrada de trabajo y aparecerá en la próxima factura del limpiador.
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowBonusDialog(false)}>
-                            Cancelar
-                        </Button>
+                        <Button variant="outline" onClick={() => setShowBonusDialog(false)}>Cancelar</Button>
                         <Button onClick={handleSaveMonthlyBonus} className="bg-green-600 hover:bg-green-700">
-                            <Gift className="w-4 h-4 mr-2" />
-                            Otorgar Bonificación
+                            <Gift className="w-4 h-4 mr-2" /> Otorgar Bonificación
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -693,46 +568,30 @@ export default function PuntuacionLimpiadoresPage() {
             <Dialog open={showSemestralDialog} onOpenChange={setShowSemestralDialog}>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>⭐ Bonificación Semestral</DialogTitle>
+                        <DialogTitle>🌟 Bonificación Semestral</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-6">
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <Label>Fecha Inicio del Semestre</Label>
-                                <Input
-                                    type="date"
-                                    value={semestralData.period_start}
-                                    onChange={(e) => setSemestralData(prev => ({ ...prev, period_start: e.target.value }))}
-                                />
+                                <Input type="date" value={semestralData.period_start} onChange={(e) => setSemestralData(prev => ({ ...prev, period_start: e.target.value }))} />
                             </div>
                             <div>
                                 <Label>Fecha Fin del Semestre</Label>
-                                <Input
-                                    type="date"
-                                    value={semestralData.period_end}
-                                    onChange={(e) => setSemestralData(prev => ({ ...prev, period_end: e.target.value }))}
-                                />
+                                <Input type="date" value={semestralData.period_end} onChange={(e) => setSemestralData(prev => ({ ...prev, period_end: e.target.value }))} />
                             </div>
                         </div>
-
-                        <Button onClick={calculateSemestralRanking} className="w-full">
-                            Calcular Ranking Semestral
-                        </Button>
-
+                        <Button onClick={calculateSemestralRanking} className="w-full">Calcular Ranking Semestral</Button>
                         {semestralRanking.length > 0 && (
                             <>
                                 <Card>
-                                    <CardHeader>
-                                        <CardTitle>Ranking Semestral</CardTitle>
-                                    </CardHeader>
+                                    <CardHeader><CardTitle>Ranking Semestral</CardTitle></CardHeader>
                                     <CardContent>
                                         <div className="space-y-2">
                                             {semestralRanking.slice(0, 5).map((cleaner, index) => (
-                                                <div key={cleaner.cleaner_id} className={`flex justify-between items-center p-3 rounded ${
-                                                    index === 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-slate-50'
-                                                }`}>
+                                                <div key={cleaner.cleaner_id} className={`flex justify-between items-center p-3 rounded ${index === 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-slate-50'}`}>
                                                     <div className="flex items-center gap-2">
-                                                        {index === 0 ? <Crown className="w-5 h-5 text-yellow-500" /> : `#${index + 1}`}
+                                                        {index === 0 ? <Crown className="w-5 h-5 text-yellow-500" /> : <span className="font-bold text-slate-500">#{index + 1}</span>}
                                                         <span className="font-medium">{cleaner.cleaner_name}</span>
                                                     </div>
                                                     <span className="font-bold">{cleaner.average_score.toFixed(1)} pts promedio</span>
@@ -741,45 +600,31 @@ export default function PuntuacionLimpiadoresPage() {
                                         </div>
                                     </CardContent>
                                 </Card>
-
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label>Monto de la Bonificación (AUD)</Label>
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={semestralData.amount}
-                                            onChange={(e) => setSemestralData(prev => ({ ...prev, amount: e.target.value }))}
-                                            placeholder="200.00"
-                                        />
+                                        <Input type="number" step="0.01" value={semestralData.amount} onChange={(e) => setSemestralData(prev => ({ ...prev, amount: e.target.value }))} placeholder="200.00" />
                                     </div>
                                     <div>
                                         <Label>Descripción</Label>
-                                        <Input
-                                            value={semestralData.description}
-                                            onChange={(e) => setSemestralData(prev => ({ ...prev, description: e.target.value }))}
-                                            placeholder="Bono semestral de rendimiento"
-                                        />
+                                        <Input value={semestralData.description} onChange={(e) => setSemestralData(prev => ({ ...prev, description: e.target.value }))} placeholder="Bono semestral de rendimiento" />
                                     </div>
                                 </div>
                             </>
                         )}
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowSemestralDialog(false)}>
-                            Cancelar
-                        </Button>
+                        <Button variant="outline" onClick={() => setShowSemestralDialog(false)}>Cancelar</Button>
                         {semestralRanking.length > 0 && (
                             <Button onClick={handleSaveSemestralBonus} className="bg-purple-600 hover:bg-purple-700">
-                                <Star className="w-4 h-4 mr-2" />
-                                Otorgar Bonificación Semestral
+                                <Star className="w-4 h-4 mr-2" /> Otorgar Bonificación Semestral
                             </Button>
                         )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* NEW: Dialog - Historial de Puntuación del Limpiador */}
+            {/* Dialog - Historial */}
             <CleanerScoreHistoryDialog
                 isOpen={showHistoryDialog}
                 onClose={() => setShowHistoryDialog(false)}
