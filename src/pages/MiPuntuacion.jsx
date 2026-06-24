@@ -1,23 +1,41 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Trophy, Crown, Medal, Award, TrendingUp, TrendingDown,
   Car, Star, MessageSquare, ChevronDown, ChevronUp,
   Loader2, Info, CheckCircle, AlertCircle, ThumbsUp, ThumbsDown,
   ClipboardList, Calendar, ChevronLeft, ChevronRight, Sparkles,
-  Image, Phone, User, MapPin
+  Clock, Phone, User, MapPin, Image
 } from "lucide-react";
 import { format, parseISO, subMonths, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
-// ── Helpers ──────────────────────────────────────────────────
+// --- Helpers ---
 function getScoreLevel(score, max = 118) {
   const pct = (score / max) * 100;
   if (pct >= 95) return { label: "Excelente", color: "emerald", gradient: "from-emerald-500 to-green-600", text: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", bar: "bg-emerald-500" };
   if (pct >= 85) return { label: "Muy Bueno", color: "blue", gradient: "from-blue-500 to-blue-600", text: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200", bar: "bg-blue-500" };
   if (pct >= 70) return { label: "Regular", color: "amber", gradient: "from-amber-500 to-orange-500", text: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", bar: "bg-amber-500" };
   return { label: "Bajo", color: "red", gradient: "from-red-500 to-red-600", text: "text-red-600", bg: "bg-red-50", border: "border-red-200", bar: "bg-red-400" };
+}
+
+function getNextLevelInfo(score, max = 118) {
+  const pct = (score / max) * 100;
+  if (pct >= 95) return null;
+  if (pct >= 85) return { pointsNeeded: Math.ceil((0.95 * max) - score), nextLevel: "Excelente" };
+  if (pct >= 70) return { pointsNeeded: Math.ceil((0.85 * max) - score), nextLevel: "Muy Bueno" };
+  return { pointsNeeded: Math.ceil((0.70 * max) - score), nextLevel: "Regular" };
+}
+
+function getPunctualityLabel(data) {
+  if (data.absence) return "Ausencia sin aviso";
+  if (!data.uniform_ok) return "Uniforme incompleto";
+  if (!data.presentation_ok) return "Presentación personal";
+  if (data.minutes_late > 0) return `Llegó ${data.minutes_late} min tarde`;
+  return "Registro de puntualidad";
 }
 
 function ScoreRing({ score, max = 118 }) {
@@ -76,9 +94,7 @@ function RankBadge({ rank, total }) {
   );
 }
 
-
-
-// ── Timeline de eventos unificada ───────────────────────────
+// --- Timeline de eventos unificada ---
 function UnifiedTimeline({ userId, monthPeriod }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,11 +104,12 @@ function UnifiedTimeline({ userId, monthPeriod }) {
     const load = async () => {
       setLoading(true);
       try {
-        const [adjs, perfs, vehs, feedbacks] = await Promise.all([
+        const [adjs, perfs, vehs, feedbacks, puncts] = await Promise.all([
           base44.entities.ScoreAdjustment.filter({ cleaner_id: userId, month_period: monthPeriod }),
           base44.entities.PerformanceReview.filter({ cleaner_id: userId, month_period: monthPeriod }),
           base44.entities.VehicleChecklistRecord.filter({ month_period: monthPeriod }),
           base44.entities.ClientFeedback.filter({ month_period: monthPeriod }),
+          base44.entities.PunctualityRecord.filter({ cleaner_id: userId, month_period: monthPeriod }),
         ]);
 
         const myVehs = vehs.filter(r => (r.team_member_ids || []).includes(userId));
@@ -102,13 +119,7 @@ function UnifiedTimeline({ userId, monthPeriod }) {
 
         // Performance reviews
         perfs.forEach(r => {
-          timeline.push({
-            id: `perf-${r.id}`,
-            type: "performance",
-            date: r.review_date,
-            score: r.overall_score,
-            data: r,
-          });
+          timeline.push({ id: `perf-${r.id}`, type: "performance", date: r.review_date, score: r.overall_score, data: r });
         });
 
         // Vehicle checklists
@@ -116,47 +127,26 @@ function UnifiedTimeline({ userId, monthPeriod }) {
           const TOTAL_POSSIBLE = 18;
           const earned = (r.checklist_items || []).reduce((s, i) => i.passed ? s + (i.points || i.points_if_fail || 0) : s, 0);
           const failedItems = (r.checklist_items || []).filter(i => !i.passed);
-          timeline.push({
-            id: `veh-${r.id}`,
-            type: "vehicle",
-            date: r.date,
-            score: earned,
-            max: TOTAL_POSSIBLE,
-            failedItems,
-            data: r,
-          });
+          timeline.push({ id: `veh-${r.id}`, type: "vehicle", date: r.date, score: earned, max: TOTAL_POSSIBLE, failedItems, data: r });
         });
 
-        // Feedbacks de clientes (solo los que afectan al limpiador)
+        // Feedbacks de clientes
         myFeedbacks.forEach(f => {
-          timeline.push({
-            id: `fb-${f.id}`,
-            type: "feedback",
-            date: f.feedback_date,
-            feedbackType: f.feedback_type,
-            points: f.points_impact,
-            data: f,
-          });
+          timeline.push({ id: `fb-${f.id}`, type: "feedback", date: f.feedback_date, feedbackType: f.feedback_type, points: f.points_impact, data: f });
         });
 
-        // Ajustes manuales (excluyendo los auto-generados de vehicle/perf/feedback)
+        // Registros de Puntualidad
+        puncts.forEach(p => {
+          timeline.push({ id: `punct-${p.id}`, type: "punctuality", date: p.date, points: p.points_impact, data: p });
+        });
+
+        // Ajustes manuales (excluir los auto-generados)
         const autoCategories = ["Revisión Vehicular (Promedio Mensual)", "Evaluación de Performance"];
-        const feedbackCategories = adjs.filter(a => a.category?.includes("Feedback de Cliente")).map(a => a.id);
         const manualAdjs = adjs.filter(a =>
-          !autoCategories.includes(a.category) &&
-          !a.category?.includes("Feedback de Cliente")
+          !autoCategories.includes(a.category) && !a.category?.includes("Feedback de Cliente")
         );
         manualAdjs.forEach(a => {
-          timeline.push({
-            id: `adj-${a.id}`,
-            type: "adjustment",
-            date: a.date_applied || a.created_date,
-            points: a.points_impact,
-            category: a.category,
-            notes: a.notes,
-            adjType: a.adjustment_type,
-            data: a,
-          });
+          timeline.push({ id: `adj-${a.id}`, type: "adjustment", date: a.date_applied || a.created_date, points: a.points_impact, category: a.category, notes: a.notes, adjType: a.adjustment_type, data: a });
         });
 
         timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -188,6 +178,41 @@ function UnifiedTimeline({ userId, monthPeriod }) {
       catch { return item.date; }
     })();
 
+    // PUNTUALIDAD
+    if (item.type === "punctuality") {
+      const isNegative = (item.points || 0) < 0;
+      const label = getPunctualityLabel(item.data);
+      return (
+        <div key={item.id} className="relative">
+          <div className="absolute left-5 top-0 bottom-0 w-px bg-slate-100" />
+          <div className="relative flex gap-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 z-10 border-2 ${isNegative ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}>
+              <Clock className={`w-4 h-4 ${isNegative ? "text-red-600" : "text-green-600"}`} />
+            </div>
+            <div className="flex-1 pb-4">
+              <div className={`bg-white rounded-2xl border shadow-sm p-3.5 ${isNegative ? "border-red-100" : "border-green-100"}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> {dateStr}
+                  </span>
+                  {item.points !== 0 && (
+                    <span className={`text-sm font-black ${isNegative ? "text-red-600" : "text-green-600"}`}>
+                      {item.points > 0 ? "+" : ""}{item.points} pts
+                    </span>
+                  )}
+                </div>
+                <p className="font-semibold text-slate-800 text-sm">⏰ {label}</p>
+                {item.data.notes && (
+                  <p className="text-xs text-slate-600 mt-1 italic">{item.data.notes}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // PERFORMANCE
     if (item.type === "performance") {
       const score = item.score || 0;
       const level = getScoreLevel(score, 100);
@@ -199,10 +224,7 @@ function UnifiedTimeline({ userId, monthPeriod }) {
               <Star className={`w-4 h-4 ${level.text}`} />
             </div>
             <div className="flex-1 pb-4">
-              <button
-                className="w-full text-left"
-                onClick={() => setExpanded(isExp ? null : item.id)}
-              >
+              <button className="w-full text-left" onClick={() => setExpanded(isExp ? null : item.id)}>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
@@ -223,7 +245,6 @@ function UnifiedTimeline({ userId, monthPeriod }) {
 
               {isExp && (
                 <div className="mt-2 space-y-2">
-                  {/* Áreas de evaluación — incluidas */}
                   {(item.data.area_scores || []).filter(a => a.included).map(area => {
                     const pct = area.max_points > 0 ? (area.score / area.max_points) * 100 : 100;
                     const areaLevel = getScoreLevel(pct, 100);
@@ -238,7 +259,6 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-2">
                           <div className={`h-full rounded-full ${areaLevel.bar} transition-all duration-700`} style={{ width: `${pct}%` }} />
                         </div>
-                        {/* Ítems que NO se cumplieron */}
                         {failedItems.length > 0 && (
                           <div className="mb-2">
                             <p className="text-xs font-semibold text-red-600 mb-1 flex items-center gap-1">
@@ -253,7 +273,6 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                             </div>
                           </div>
                         )}
-                        {/* Ítems cumplidos */}
                         {passedItems.length > 0 && (
                           <div className="mb-2">
                             <p className="text-xs font-semibold text-green-600 mb-1 flex items-center gap-1">
@@ -280,7 +299,6 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                               {area.photos.map((ph, i) => (
                                 <a key={i} href={ph.url} target="_blank" rel="noopener noreferrer" className="block">
                                   <img src={ph.url} alt={ph.comment || "foto"} className="w-full h-16 object-cover rounded-lg border border-slate-200" />
-                                  {ph.comment && <p className="text-xs text-slate-400 mt-0.5 truncate">{ph.comment}</p>}
                                 </a>
                               ))}
                             </div>
@@ -289,10 +307,9 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                       </div>
                     );
                   })}
-                  {/* Áreas no realizadas */}
                   {(item.data.area_scores || []).filter(a => !a.included).length > 0 && (
                     <div className="bg-slate-50 rounded-2xl border border-slate-100 p-3">
-                      <p className="text-xs font-semibold text-slate-400 mb-1.5">Áreas no realizadas en este servicio:</p>
+                      <p className="text-xs font-semibold text-slate-400 mb-1.5">Áreas no realizadas:</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(item.data.area_scores || []).filter(a => !a.included).map(area => (
                           <span key={area.area_key} className="text-xs bg-slate-200 text-slate-500 px-2 py-1 rounded-full">{area.area_name}</span>
@@ -300,14 +317,12 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                       </div>
                     </div>
                   )}
-                  {/* Notas generales */}
                   {item.data.general_notes && (
                     <div className="bg-amber-50 rounded-2xl border border-amber-100 p-3">
-                      <p className="text-xs font-semibold text-amber-700 mb-1">📝 Notas generales del evaluador:</p>
+                      <p className="text-xs font-semibold text-amber-700 mb-1">📝 Notas del evaluador:</p>
                       <p className="text-sm text-amber-800">{item.data.general_notes}</p>
                     </div>
                   )}
-                  {/* Fotos generales del servicio */}
                   {item.data.photos?.length > 0 && (
                     <div className="bg-white rounded-2xl border border-slate-100 p-3">
                       <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1"><Image className="w-3 h-3" /> Fotos de evidencia</p>
@@ -315,7 +330,6 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                         {item.data.photos.map((ph, i) => (
                           <a key={i} href={ph.url} target="_blank" rel="noopener noreferrer" className="block">
                             <img src={ph.url} alt={ph.comment || "foto"} className="w-full h-16 object-cover rounded-lg border border-slate-200" />
-                            {ph.comment && <p className="text-xs text-slate-400 mt-0.5 truncate">{ph.comment}</p>}
                           </a>
                         ))}
                       </div>
@@ -329,6 +343,7 @@ function UnifiedTimeline({ userId, monthPeriod }) {
       );
     }
 
+    // VEHICLE
     if (item.type === "vehicle") {
       const allOk = item.failedItems.length === 0;
       return (
@@ -339,10 +354,7 @@ function UnifiedTimeline({ userId, monthPeriod }) {
               <Car className={`w-4 h-4 ${allOk ? "text-green-600" : "text-amber-600"}`} />
             </div>
             <div className="flex-1 pb-4">
-              <button
-                className="w-full text-left"
-                onClick={() => setExpanded(isExp ? null : item.id)}
-              >
+              <button className="w-full text-left" onClick={() => setExpanded(isExp ? null : item.id)}>
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
@@ -355,14 +367,12 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                   </div>
                   <p className="font-semibold text-slate-800 text-sm">Revisión de Vehículo</p>
                   <p className="text-xs text-slate-500 mt-0.5">{item.data.vehicle_info || "Vehículo asignado"}</p>
-                  {allOk ? (
-                    <p className="text-xs text-green-600 flex items-center gap-1 mt-1.5"><CheckCircle className="w-3 h-3" /> Todo en orden ✓</p>
-                  ) : (
-                    <p className="text-xs text-amber-600 mt-1.5">{item.failedItems.length} observación(es) — toca para ver detalles</p>
-                  )}
+                  {allOk
+                    ? <p className="text-xs text-green-600 flex items-center gap-1 mt-1.5"><CheckCircle className="w-3 h-3" /> Todo en orden ✓</p>
+                    : <p className="text-xs text-amber-600 mt-1.5">{item.failedItems.length} observación(es) — toca para ver detalles</p>
+                  }
                 </div>
               </button>
-
               {isExp && (
                 <div className="mt-2 space-y-2">
                   {item.failedItems.length > 0 && (
@@ -377,24 +387,12 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                             <Badge className="bg-red-100 text-red-800 text-xs ml-2 shrink-0">-{fi.points || fi.points_if_fail} pts</Badge>
                           </div>
                           {fi.notes && (
-                            <div className="bg-red-50 rounded-lg px-2 py-1.5 mt-1">
-                              <p className="text-xs text-red-700"><span className="font-semibold">Comentario:</span> {fi.notes}</p>
-                            </div>
-                          )}
-                          {fi.photos?.length > 0 && (
-                            <div className="grid grid-cols-3 gap-1 mt-2">
-                              {fi.photos.map((ph, pi) => (
-                                <a key={pi} href={ph.url || ph} target="_blank" rel="noopener noreferrer">
-                                  <img src={ph.url || ph} alt="evidencia" className="w-full h-14 object-cover rounded-lg border border-red-100" />
-                                </a>
-                              ))}
-                            </div>
+                            <p className="text-xs text-red-700 bg-red-50 rounded-lg px-2 py-1.5 mt-1">{fi.notes}</p>
                           )}
                         </div>
                       ))}
                     </div>
                   )}
-                  {/* Ítems OK */}
                   {(item.data.checklist_items || []).filter(i => i.passed).length > 0 && (
                     <div className="bg-green-50 rounded-2xl border border-green-100 p-3">
                       <p className="text-xs font-bold text-green-700 mb-2 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Ítems aprobados:</p>
@@ -407,24 +405,10 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                       </div>
                     </div>
                   )}
-                  {/* Notas generales del vehículo */}
                   {item.data.notes && (
                     <div className="bg-amber-50 rounded-2xl border border-amber-100 p-3">
                       <p className="text-xs font-semibold text-amber-700 mb-1">📝 Notas del inspector:</p>
                       <p className="text-sm text-amber-800">{item.data.notes}</p>
-                    </div>
-                  )}
-                  {/* Fotos generales del registro */}
-                  {item.data.photos?.length > 0 && (
-                    <div className="bg-white rounded-2xl border border-slate-100 p-3">
-                      <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1"><Image className="w-3 h-3" /> Fotos generales</p>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {item.data.photos.map((ph, i) => (
-                          <a key={i} href={ph.url || ph} target="_blank" rel="noopener noreferrer">
-                            <img src={ph.url || ph} alt="foto" className="w-full h-16 object-cover rounded-lg border border-slate-200" />
-                          </a>
-                        ))}
-                      </div>
                     </div>
                   )}
                 </div>
@@ -435,24 +419,21 @@ function UnifiedTimeline({ userId, monthPeriod }) {
       );
     }
 
+    // FEEDBACK
     if (item.type === "feedback") {
       const isCompliment = item.feedbackType === "compliment";
       const isComplaint = item.feedbackType === "complaint";
       const pts = item.points || 0;
-      const borderColor = isCompliment ? "border-green-100" : isComplaint ? "border-red-100" : "border-slate-100";
-      const iconBg = isCompliment ? "bg-green-50 border-green-200" : isComplaint ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200";
       return (
         <div key={item.id} className="relative">
           <div className="absolute left-5 top-0 bottom-0 w-px bg-slate-100" />
           <div className="relative flex gap-3">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 z-10 border-2 ${iconBg}`}>
-              {isCompliment ? <ThumbsUp className="w-4 h-4 text-green-600" /> :
-               isComplaint ? <ThumbsDown className="w-4 h-4 text-red-600" /> :
-               <MessageSquare className="w-4 h-4 text-slate-500" />}
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 z-10 border-2 ${isCompliment ? "bg-green-50 border-green-200" : isComplaint ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"}`}>
+              {isCompliment ? <ThumbsUp className="w-4 h-4 text-green-600" /> : isComplaint ? <ThumbsDown className="w-4 h-4 text-red-600" /> : <MessageSquare className="w-4 h-4 text-slate-500" />}
             </div>
             <div className="flex-1 pb-4">
               <button className="w-full text-left" onClick={() => setExpanded(isExp ? null : item.id)}>
-                <div className={`bg-white rounded-2xl border shadow-sm p-3.5 hover:shadow-md transition-shadow ${borderColor}`}>
+                <div className={`bg-white rounded-2xl border shadow-sm p-3.5 hover:shadow-md transition-shadow ${isCompliment ? "border-green-100" : isComplaint ? "border-red-100" : "border-slate-100"}`}>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
                       <Calendar className="w-3 h-3" /> {dateStr}
@@ -475,17 +456,14 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                   )}
                 </div>
               </button>
-
               {isExp && (
                 <div className="mt-2 space-y-2">
-                  {/* Descripción completa */}
                   {item.data.description && (
                     <div className={`rounded-2xl border p-3 ${isCompliment ? "bg-green-50 border-green-100" : isComplaint ? "bg-red-50 border-red-100" : "bg-slate-50 border-slate-100"}`}>
                       <p className="text-xs font-semibold text-slate-600 mb-1">Comentario completo:</p>
                       <p className="text-sm text-slate-700 italic">"{item.data.description}"</p>
                     </div>
                   )}
-                  {/* Detalles del feedback */}
                   <div className="bg-white rounded-2xl border border-slate-100 p-3 space-y-2">
                     {item.data.client_name && (
                       <div className="flex items-center gap-2 text-xs text-slate-600">
@@ -499,32 +477,13 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                         <span><span className="font-semibold">Reportado por:</span> {item.data.reported_by}</span>
                       </div>
                     )}
-                    {item.data.channel && (
-                      <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span><span className="font-semibold">Canal:</span> {item.data.channel}</span>
-                      </div>
-                    )}
                     {item.data.admin_notes && (
                       <div className="bg-amber-50 rounded-xl p-2.5 border border-amber-100 mt-1">
-                        <p className="text-xs font-semibold text-amber-700 mb-0.5">Nota del administrador:</p>
+                        <p className="text-xs font-semibold text-amber-700 mb-0.5">Nota del admin:</p>
                         <p className="text-xs text-amber-800">{item.data.admin_notes}</p>
                       </div>
                     )}
                   </div>
-                  {/* Fotos de evidencia */}
-                  {item.data.photos?.length > 0 && (
-                    <div className="bg-white rounded-2xl border border-slate-100 p-3">
-                      <p className="text-xs font-semibold text-slate-600 mb-2 flex items-center gap-1"><Image className="w-3 h-3" /> Fotos adjuntas</p>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {item.data.photos.map((ph, i) => (
-                          <a key={i} href={ph.url || ph} target="_blank" rel="noopener noreferrer">
-                            <img src={ph.url || ph} alt="evidencia" className="w-full h-16 object-cover rounded-lg border border-slate-200" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -533,6 +492,7 @@ function UnifiedTimeline({ userId, monthPeriod }) {
       );
     }
 
+    // AJUSTE MANUAL
     if (item.type === "adjustment") {
       const isBonus = item.adjType === "bonus";
       return (
@@ -557,9 +517,7 @@ function UnifiedTimeline({ userId, monthPeriod }) {
                 </p>
                 {item.notes && (
                   <div className={`mt-2 rounded-xl px-3 py-2 ${isBonus ? "bg-emerald-50" : "bg-red-50"}`}>
-                    <p className={`text-xs ${isBonus ? "text-emerald-700" : "text-red-700"}`}>
-                      <span className="font-semibold">Detalle:</span> {item.notes}
-                    </p>
+                    <p className={`text-xs ${isBonus ? "text-emerald-700" : "text-red-700"}`}>{item.notes}</p>
                   </div>
                 )}
                 {item.data.admin_name && (
@@ -577,15 +535,10 @@ function UnifiedTimeline({ userId, monthPeriod }) {
     return null;
   };
 
-  return (
-    <div className="space-y-0 pt-2">
-      {items.map(renderItem)}
-    </div>
-  );
+  return <div className="space-y-0 pt-2">{items.map(renderItem)}</div>;
 }
 
-
-// ── Main Page ────────────────────────────────────────────────
+// --- Main Page ---
 export default function MiPuntuacionPage() {
   const [user, setUser] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
@@ -594,6 +547,7 @@ export default function MiPuntuacionPage() {
   const [adjs, setAdjs] = useState([]);
   const [perfReviews, setPerfReviews] = useState([]);
   const [vehicleRecs, setVehicleRecs] = useState([]);
+  const [historicalScores, setHistoricalScores] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const currentMonth = format(new Date(), "yyyy-MM");
@@ -605,7 +559,10 @@ export default function MiPuntuacionPage() {
       try {
         const me = await base44.auth.me();
         setUser(me);
-        await loadMonthData(me.id, selectedMonth);
+        await Promise.all([
+          loadMonthData(me.id, selectedMonth),
+          loadHistoricalData(me.id),
+        ]);
       } catch (e) { console.error(e); }
       setLoading(false);
     };
@@ -626,6 +583,17 @@ export default function MiPuntuacionPage() {
     setAdjs(adjustments);
     setPerfReviews(perf);
     setVehicleRecs(veh.filter(r => (r.team_member_ids || []).includes(userId)));
+  };
+
+  const loadHistoricalData = async (userId) => {
+    const hist = await base44.entities.MonthlyCleanerScore.filter({ cleaner_id: userId });
+    const sorted = hist
+      .sort((a, b) => a.month_period.localeCompare(b.month_period))
+      .slice(-6);
+    setHistoricalScores(sorted.map(h => ({
+      month: format(new Date(h.month_period + "-02"), "MMM", { locale: es }),
+      score: h.current_score,
+    })));
   };
 
   const navigateMonth = async (dir) => {
@@ -655,26 +623,19 @@ export default function MiPuntuacionPage() {
         }, 0) / vehicleRecs.length
       : TOTAL_POSSIBLE;
 
-    const vehicleAdj = adjs.find(a => a.category === "Revisión Vehicular (Promedio Mensual)")?.points_impact || 0;
     const relevantAdjs = adjs.filter(a =>
       a.category !== "Revisión Vehicular (Promedio Mensual)" &&
       a.category !== "Evaluación de Performance"
     );
     const adjScore = relevantAdjs.reduce((s, a) => s + (a.points_impact || 0), 0);
 
-    const totalScore = perfAvg + vehAvgRaw + vehicleAdj + adjScore;
+    // Fuente de verdad: current_score de la BD (no recalculado)
+    const totalScore = monthlyScore.current_score;
 
     const ranked = [...allScores].sort((a, b) => b.current_score - a.current_score);
     const myRank = ranked.findIndex(s => s.cleaner_id === user.id) + 1;
 
-    return {
-      perfAvg,
-      vehAvg: vehAvgRaw,
-      adjScore,
-      totalScore,
-      rank: myRank > 0 ? myRank : null,
-      total: allScores.length,
-    };
+    return { perfAvg, vehAvg: vehAvgRaw, adjScore, totalScore, rank: myRank > 0 ? myRank : null, total: allScores.length };
   }, [user, monthlyScore, perfReviews, vehicleRecs, adjs, allScores]);
 
   if (loading && !user) {
@@ -687,21 +648,17 @@ export default function MiPuntuacionPage() {
 
   const monthLabel = format(new Date(selectedMonth + "-02"), "MMMM yyyy", { locale: es });
   const isCurrentMonth = selectedMonth === currentMonth;
-
   const isParticipating = monthlyScore?.is_participating === true;
   const totalScore = scoreData?.totalScore ?? 0;
   const level = getScoreLevel(totalScore, 118);
+  const nextLevel = getNextLevelInfo(totalScore, 118);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
-      {/* ── Hero Header ── */}
+      {/* Hero Header */}
       <div className={`bg-gradient-to-br ${level.gradient} px-4 pt-8 pb-10`}>
-        {/* Nav de mes */}
         <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => navigateMonth("prev")}
-            className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
-          >
+          <button onClick={() => navigateMonth("prev")} className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
           <p className="text-white font-bold capitalize text-base">{monthLabel}</p>
@@ -718,13 +675,21 @@ export default function MiPuntuacionPage() {
           <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-white/60" /></div>
         ) : (
           <>
-            {/* Anillo de puntuación — solo si participa */}
             {isParticipating ? (
               <>
                 <ScoreRing score={totalScore} max={118} />
                 {scoreData?.rank && (
                   <div className="flex justify-center mt-4">
                     <RankBadge rank={scoreData.rank} total={scoreData.total} />
+                  </div>
+                )}
+                {nextLevel && (
+                  <div className="flex justify-center mt-3">
+                    <div className="bg-black/10 rounded-full px-4 py-1.5 inline-block text-center">
+                      <p className="text-xs text-white/90">
+                        Te faltan <span className="font-bold">{nextLevel.pointsNeeded} pts</span> para el nivel {nextLevel.nextLevel}
+                      </p>
+                    </div>
                   </div>
                 )}
               </>
@@ -740,7 +705,7 @@ export default function MiPuntuacionPage() {
         )}
       </div>
 
-      {/* ── Banner no participante ── */}
+      {/* Banner no participante */}
       {!loading && !isParticipating && (
         <div className="px-4 mt-4">
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
@@ -749,16 +714,16 @@ export default function MiPuntuacionPage() {
             </div>
             <div>
               <p className="font-semibold text-amber-800 text-sm">No participas en el ranking este mes</p>
-              <p className="text-xs text-amber-600 mt-0.5">Podés ver tus evaluaciones y actividad, pero tu puntuación no cuenta para el ranking mensual. Contactá al administrador para más información.</p>
+              <p className="text-xs text-amber-600 mt-0.5">Puedes ver tus evaluaciones y actividad, pero tu puntuación no cuenta para el ranking mensual. Contacta al administrador para más información.</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── 3 Mini Cards ── */}
+      {/* Mini Cards */}
       {!loading && scoreData && isParticipating && (
         <div className="px-4 -mt-4">
-          <div className="bg-white rounded-3xl shadow-lg p-4 space-y-3">
+          <div className="bg-white rounded-3xl shadow-lg p-4 space-y-3 border border-slate-100">
             {/* Calidad */}
             <div className="bg-blue-50 rounded-2xl p-4">
               <div className="flex items-center justify-between mb-2">
@@ -797,7 +762,7 @@ export default function MiPuntuacionPage() {
               </div>
             </div>
 
-            {/* Ajustes */}
+            {/* Otros Ajustes */}
             <div className={`rounded-2xl p-4 ${scoreData.adjScore >= 0 ? "bg-emerald-50" : "bg-red-50"}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -808,9 +773,9 @@ export default function MiPuntuacionPage() {
                     }
                   </div>
                   <div>
-                    <span className="text-sm font-semibold text-slate-700">Feedbacks</span>
+                    <span className="text-sm font-semibold text-slate-700">Otros Ajustes</span>
                     <p className={`text-xs ${scoreData.adjScore >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-                      {scoreData.adjScore === 0 ? "Sin feedbacks este mes" : scoreData.adjScore > 0 ? "Feedbacks positivos" : "Feedbacks negativos"}
+                      {scoreData.adjScore === 0 ? "Sin ajustes este mes" : scoreData.adjScore > 0 ? "Ajustes positivos" : "Ajustes negativos"}
                     </p>
                   </div>
                 </div>
@@ -823,7 +788,34 @@ export default function MiPuntuacionPage() {
         </div>
       )}
 
-      {/* ── Timeline y historial ── */}
+      {/* Gráfico Histórico */}
+      {!loading && historicalScores.length > 1 && (
+        <div className="px-4 mt-6">
+          <Card className="border border-slate-100 shadow-sm rounded-3xl">
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-sm text-slate-700 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-blue-500" /> Histórico de Puntuación
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-2 pb-4">
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={historicalScores} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} domain={[0, 118]} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                    formatter={(value) => [`${value} pts`, "Puntaje"]}
+                  />
+                  <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: "#3b82f6", strokeWidth: 0 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Timeline */}
       {!loading && user && (
         <div className="px-4 mt-6">
           <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
