@@ -55,12 +55,19 @@ Deno.serve(async (req) => {
 
                 const individualSchedule = schedule.cleaner_schedules?.find(cs => cs.cleaner_id === cleanerId);
 
-                if (!individualSchedule) {
-                    console.log('- SALTANDO: sin horario individual');
-                    continue;
+                let durationMinutes = 0;
+                if (individualSchedule && individualSchedule.start_time && individualSchedule.end_time) {
+                    // Se respeta la división manual del administrador
+                    durationMinutes = isoToMinutes(individualSchedule.end_time) - isoToMinutes(individualSchedule.start_time);
+                } else {
+                    // Salvavidas: División matemática del tiempo programado general
+                    const totalServiceMinutes = isoToMinutes(schedule.end_time) - isoToMinutes(schedule.start_time);
+                    const numberOfCleaners = schedule.cleaner_ids?.length || 1;
+                    durationMinutes = totalServiceMinutes / numberOfCleaners;
+                    console.log(`- Salvavidas: ${totalServiceMinutes}min / ${numberOfCleaners} limpiadores = ${durationMinutes}min`);
                 }
 
-                const totalMinutes = isoToMinutes(individualSchedule.end_time) - isoToMinutes(individualSchedule.start_time);
+                const totalMinutes = durationMinutes;
                 const cleanerHours = totalMinutes / 60;
 
                 console.log('- Horas:', cleanerHours);

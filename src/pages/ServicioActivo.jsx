@@ -265,7 +265,7 @@ export default function ServicioActivoPage() {
             setError('📍 Obteniendo tu ubicación...');
             userLocation = await Promise.race([
                 getUserLocation(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('GPS Timeout')), 4000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('GPS Timeout')), 2000))
             ]);
             setError('');
         } catch (e) {
