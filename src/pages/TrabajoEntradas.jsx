@@ -127,18 +127,13 @@ export default function TrabajoEntradasPage() {
 
   // 1. Carga pesada delegada a React Query
   const fetchHeavyData = async () => {
-    console.log('[TrabajoEntradas] 📊 Iniciando carga pesada (Filtrada a 3 meses)...');
-
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const minDateStr = format(threeMonthsAgo, 'yyyy-MM-dd');
-
+    console.log('[TrabajoEntradas] 📊 Iniciando carga pesada (Cacheada por React Query)...');
     const [currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult] = await Promise.all([
       base44.auth.me(),
-      loadAllRecords('WorkEntry', '-work_date', 5000, { work_date: { $gte: minDateStr } }),
-      loadAllRecords('User', '-created_date', 2000),
-      loadAllRecords('Client', '-created_date', 2000),
-      loadAllRecords('Invoice', '-created_date', 5000, { created_date: { $gte: minDateStr } })
+      loadAllRecords('WorkEntry', '-work_date'),
+      loadAllRecords('User', '-created_date'),
+      loadAllRecords('Client', '-created_date'),
+      loadAllRecords('Invoice', '-created_date')
     ]);
     return { currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult };
   };
@@ -223,29 +218,25 @@ export default function TrabajoEntradasPage() {
 
   const updateRelatedInvoice = async (entryId, updatedEntry = null) => {
     try {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const minDateStr = format(threeMonthsAgo, 'yyyy-MM-dd');
-
-      const invoices = await loadAllRecords('Invoice', '-created_date', 5000, { created_date: { $gte: minDateStr } });
-      const relatedInvoice = invoices.find(invoice =>
+      const invoices = await loadAllRecords('Invoice', '-created_date');
+      const relatedInvoice = invoices.find(invoice => 
         invoice.work_entries && invoice.work_entries.includes(entryId)
       );
 
       if (relatedInvoice) {
         let updatedWorkEntriesIds = [...relatedInvoice.work_entries];
-
+        
         if (updatedEntry === null) {
           updatedWorkEntriesIds = updatedWorkEntriesIds.filter(id => id !== entryId);
         }
 
-        const allWorkEntries = await loadAllRecords('WorkEntry', '-work_date', 5000, { work_date: { $gte: minDateStr } });
-
+        const allWorkEntries = await loadAllRecords('WorkEntry', '-work_date');
+        
         const workEntriesData = updatedWorkEntriesIds.map(id => {
           if (updatedEntry && updatedEntry.id === id) return updatedEntry;
           return allWorkEntries.find(e => e.id === id);
         });
-
+        
         const validEntries = workEntriesData.filter(entry => entry);
         const newTotal = validEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
 
@@ -253,7 +244,7 @@ export default function TrabajoEntradasPage() {
           work_entries: updatedWorkEntriesIds,
           total_amount: newTotal
         });
-
+        
         return `Factura ${relatedInvoice.invoice_number} actualizada.`;
       }
       return "";
