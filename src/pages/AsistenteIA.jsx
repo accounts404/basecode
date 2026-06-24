@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Bot, Send, Loader2, Sparkles, BarChart3, Users, Calendar, TrendingUp, AlertTriangle, ClipboardList, RefreshCw, Plus, MessageSquare, ChevronLeft, ChevronRight, Trash } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { format } from "date-fns";
-import { loadAllData, buildDataStats, buildBaseContext, buildDetailedContext, sendAIMessage } from "@/components/ai/aiAssistantCore";
+import { loadAllData, buildDataStats, buildBaseContext, buildDetailedContext, sendAIMessage, getCachedData, clearCachedData } from "@/components/ai/aiAssistantCore";
 
 const QUICK_PROMPTS = [
   { icon: BarChart3, label: "Resumen del mes", prompt: "Dame un resumen completo del negocio este mes: cantidad de servicios, ingresos estimados, clientes activos y cualquier dato relevante." },
@@ -56,8 +56,19 @@ export default function AsistenteIA() {
     setLoadingConvs(false);
   };
 
-  const loadData = async () => {
+  const loadData = async (forceRefresh = false) => {
     setContextLoaded(false);
+    if (!forceRefresh) {
+      const cached = getCachedData();
+      if (cached) {
+        setAllData(cached.data);
+        setDataStats(buildDataStats(cached.data));
+        setContextLoaded(true);
+        return;
+      }
+    } else {
+      clearCachedData();
+    }
     try {
       const data = await loadAllData();
       setAllData(data);
@@ -171,7 +182,7 @@ export default function AsistenteIA() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={loadData} disabled={!contextLoaded} title="Actualizar datos">
+            <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={!contextLoaded} title="Actualizar datos">
               <RefreshCw className="w-4 h-4" />
             </Button>
             {activeConvId && (

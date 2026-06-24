@@ -140,8 +140,8 @@ export default function RedOakIAWidget() {
               </div>
               <div>
                 <p className="text-white font-bold text-sm leading-tight">RedOak IA</p>
-                <p className="text-blue-100 text-xs leading-tight">
-                  {dataLoading ? "⏳ Cargando datos..." : loadedAt ? `Datos de hace ${Math.round((Date.now() - loadedAt) / 60000)} min` : ""}
+                <p className="text-blue-100 text-xs leading-tight truncate max-w-[200px]">
+                  {dataLoading ? "⏳ Cargando datos..." : dataStats || (loadedAt ? `Datos de hace ${Math.round((Date.now() - loadedAt) / 60000)} min` : "")}
                 </p>
               </div>
             </div>
