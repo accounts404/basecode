@@ -41,9 +41,11 @@ Deno.serve(async (req) => {
         twilio_sid: messageSid || null,
       });
 
+      const currentUnread = matchedCasual.unread_replies || 0;
       await base44.asServiceRole.entities.CasualCleaner.update(matchedCasual.id, {
         last_contacted_at: new Date().toISOString(),
         status: matchedCasual.status === 'nuevo' ? 'contactado' : matchedCasual.status,
+        unread_replies: currentUnread + 1,
       });
     }
 

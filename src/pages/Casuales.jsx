@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { sendBulkCasualSMS } from '@/functions/sendBulkCasualSMS';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,14 +11,18 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Users, Phone, Mail, MapPin, Plus, Search, Send, MessageCircle,
   CheckCircle, XCircle, Clock, Loader2, Edit, Trash2,
-  Filter, ChevronDown, ChevronUp, History, UserCheck, UserX,
-  Facebook, MessageSquare, Tag, Car, FileText, Award, IdCard
+  ChevronDown, UserCheck, UserX,
+  Facebook, MessageSquare, Tag, Car, FileText, Award, IdCard,
+  AlertTriangle, ToggleLeft, ToggleRight, Star
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import CasualesInbox from '@/components/casuales/CasualesInbox';
+import EmergencySMSDialog from '@/components/casuales/EmergencySMSDialog';
 
 const STATUS_CONFIG = {
   nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: <Users className="w-3 h-3" /> },
@@ -68,7 +72,9 @@ const EMPTY_FORM = {
   full_name: '', phone_number: '', email: '', address: '', suburb: '',
   source: 'facebook', source_detail: '', status: 'nuevo', availability: 'flexible',
   availability_notes: '', trial_date: '', trial_conducted_by: '', trial_notes: '',
-  has_car: false, has_drivers_license: false, has_abn: false, visa_type: '', english_level: 'intermedio', general_notes: '', tags: [],
+  has_car: false, has_drivers_license: false, has_abn: false, visa_type: '',
+  english_level: 'intermedio', general_notes: '', tags: [], rating: 0,
+  is_active: true, available_for_work: false,
 };
 
 export default function CasualesPage() {
@@ -78,27 +84,21 @@ export default function CasualesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('directorio');
 
-  // Form state
   const [showForm, setShowForm] = useState(false);
   const [editingCasual, setEditingCasual] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formLoading, setFormLoading] = useState(false);
   const [tagInput, setTagInput] = useState('');
 
-  // SMS state
   const [showSMS, setShowSMS] = useState(false);
   const [smsMessage, setSmsMessage] = useState('');
   const [smsLoading, setSmsLoading] = useState(false);
   const [smsResult, setSmsResult] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
 
-  // Conversation modal
-  const [conversationCasual, setConversationCasual] = useState(null);
-  const [conversationLoading, setConversationLoading] = useState(false);
-  const [manualNote, setManualNote] = useState('');
-
-  // Delete confirm
+  const [showEmergency, setShowEmergency] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
   const loadData = useCallback(async () => {
@@ -123,8 +123,6 @@ export default function CasualesPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Filters ────────────────────────────────────────────────────────────────
-
   const filteredCasuals = useMemo(() => {
     let list = casuals;
     if (search) {
@@ -146,9 +144,13 @@ export default function CasualesPage() {
     total: casuals.length,
     activos: casuals.filter(c => c.status === 'activo').length,
     nuevos: casuals.filter(c => c.status === 'nuevo').length,
-    trialPendiente: casuals.filter(c => c.status === 'trial_pendiente').length,
+    disponibles: casuals.filter(c => c.available_for_work).length,
     descartados: casuals.filter(c => c.status === 'descartado').length,
   }), [casuals]);
+
+  const totalUnread = useMemo(() =>
+    casuals.reduce((sum, c) => sum + (c.unread_replies || 0), 0),
+  [casuals]);
 
   // ── Form handlers ──────────────────────────────────────────────────────────
 
@@ -182,6 +184,9 @@ export default function CasualesPage() {
       english_level: casual.english_level || 'intermedio',
       general_notes: casual.general_notes || '',
       tags: casual.tags || [],
+      rating: casual.rating || 0,
+      is_active: casual.is_active !== false,
+      available_for_work: casual.available_for_work || false,
     });
     setTagInput('');
     setShowForm(true);
@@ -212,8 +217,10 @@ export default function CasualesPage() {
         english_level: form.english_level,
         general_notes: form.general_notes.trim() || null,
         tags: form.tags,
+        rating: form.rating || 0,
+        is_active: form.is_active,
+        available_for_work: form.available_for_work,
       };
-
       if (editingCasual) {
         await base44.entities.CasualCleaner.update(editingCasual.id, data);
       } else {
@@ -250,6 +257,26 @@ export default function CasualesPage() {
     setForm(f => ({ ...f, tags: f.tags.filter(t => t !== tag) }));
   };
 
+  // ── Quick toggles ──────────────────────────────────────────────────────────
+
+  const quickToggle = async (casualId, field, currentValue) => {
+    try {
+      await base44.entities.CasualCleaner.update(casualId, { [field]: !currentValue });
+      setCasuals(prev => prev.map(c => c.id === casualId ? { ...c, [field]: !currentValue } : c));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const quickUpdateStatus = async (casualId, newStatus) => {
+    try {
+      await base44.entities.CasualCleaner.update(casualId, { status: newStatus });
+      loadData();
+    } catch (e) {
+      console.error('Error actualizando estado:', e);
+    }
+  };
+
   // ── SMS handlers ───────────────────────────────────────────────────────────
 
   const toggleSelect = (id) => {
@@ -273,10 +300,7 @@ export default function CasualesPage() {
     setSmsLoading(true);
     setSmsResult(null);
     try {
-      const res = await sendBulkCasualSMS({
-        casual_ids: [...selectedIds],
-        message: smsMessage.trim(),
-      });
+      const res = await sendBulkCasualSMS({ casual_ids: [...selectedIds], message: smsMessage.trim() });
       setSmsResult(res.data);
       loadData();
     } catch (e) {
@@ -284,61 +308,6 @@ export default function CasualesPage() {
     }
     setSmsLoading(false);
   };
-
-  // ── Conversation handlers ──────────────────────────────────────────────────
-
-  const openConversation = async (casual) => {
-    setConversationCasual(casual);
-    setConversationLoading(true);
-    setManualNote('');
-    try {
-      const msgs = await base44.entities.CasualMessage.filter(
-        { casual_cleaner_id: casual.id },
-        'created_date',
-        100
-      );
-      setMessages(prev => ({ ...prev, [casual.id]: msgs }));
-    } catch (e) {
-      console.error('Error cargando mensajes:', e);
-    }
-    setConversationLoading(false);
-  };
-
-  const addManualNote = async () => {
-    if (!manualNote.trim() || !conversationCasual) return;
-    try {
-      await base44.entities.CasualMessage.create({
-        casual_cleaner_id: conversationCasual.id,
-        casual_cleaner_name: conversationCasual.full_name,
-        direction: 'incoming',
-        content: manualNote.trim(),
-        status: 'received',
-      });
-      setManualNote('');
-      // Reload messages
-      const msgs = await base44.entities.CasualMessage.filter(
-        { casual_cleaner_id: conversationCasual.id },
-        'created_date',
-        100
-      );
-      setMessages(prev => ({ ...prev, [conversationCasual.id]: msgs }));
-    } catch (e) {
-      console.error('Error agregando nota:', e);
-    }
-  };
-
-  // ── Quick status update ────────────────────────────────────────────────────
-
-  const quickUpdateStatus = async (casualId, newStatus) => {
-    try {
-      await base44.entities.CasualCleaner.update(casualId, { status: newStatus });
-      loadData();
-    } catch (e) {
-      console.error('Error actualizando estado:', e);
-    }
-  };
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -361,7 +330,14 @@ export default function CasualesPage() {
             <p className="text-slate-500 text-sm">Gestiona y contacta limpiadores casuales</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            onClick={() => setShowEmergency(true)}
+            className="bg-red-600 hover:bg-red-700 font-bold"
+          >
+            <AlertTriangle className="w-4 h-4 mr-2" />
+            Emergencia
+          </Button>
           <Button onClick={openNewForm} className="bg-violet-600 hover:bg-violet-700">
             <Plus className="w-4 h-4 mr-2" />Agregar Casual
           </Button>
@@ -381,8 +357,8 @@ export default function CasualesPage() {
         {[
           { label: 'Total', value: stats.total, color: 'slate' },
           { label: 'Nuevos', value: stats.nuevos, color: 'blue' },
-          { label: 'Trial Pend.', value: stats.trialPendiente, color: 'purple' },
           { label: 'Activos', value: stats.activos, color: 'green' },
+          { label: 'Disponibles hoy', value: stats.disponibles, color: 'emerald' },
           { label: 'Descartados', value: stats.descartados, color: 'red' },
         ].map(s => (
           <Card key={s.label} className={`border-${s.color}-200`}>
@@ -394,201 +370,249 @@ export default function CasualesPage() {
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <Input
-            placeholder="Buscar por nombre, teléfono, email, suburbio..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los estados</SelectItem>
-            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={sourceFilter} onValueChange={setSourceFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Fuente" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las fuentes</SelectItem>
-            {Object.entries(SOURCE_CONFIG).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="bg-white border border-slate-200">
+          <TabsTrigger value="directorio" className="flex items-center gap-2">
+            <Users className="w-4 h-4" /> Directorio
+          </TabsTrigger>
+          <TabsTrigger value="inbox" className="flex items-center gap-2">
+            <MessageCircle className="w-4 h-4" />
+            Bandeja
+            {totalUnread > 0 && (
+              <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0 ml-1">{totalUnread}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50">
-                <TableHead className="w-10">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.size === filteredCasuals.length && filteredCasuals.length > 0}
-                    onChange={toggleSelectAll}
-                    className="rounded border-slate-300"
-                  />
-                </TableHead>
-                <TableHead className="font-bold text-slate-700">Nombre</TableHead>
-                <TableHead className="font-bold text-slate-700">Contacto</TableHead>
-                <TableHead className="font-bold text-slate-700">Ubicación</TableHead>
-                <TableHead className="font-bold text-slate-700">Fuente</TableHead>
-                <TableHead className="font-bold text-slate-700">Estado</TableHead>
-                <TableHead className="font-bold text-slate-700">Disp.</TableHead>
-                <TableHead className="font-bold text-slate-700">Docs / Visa</TableHead>
-                <TableHead className="font-bold text-slate-700 text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCasuals.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="text-center py-12 text-slate-400">
-                    <Users className="w-10 h-10 mx-auto mb-2 opacity-25" />
-                    <p>No se encontraron casuales</p>
-                  </TableCell>
-                </TableRow>
-              ) : filteredCasuals.map(casual => {
-                const config = STATUS_CONFIG[casual.status] || STATUS_CONFIG.nuevo;
-                const src = SOURCE_CONFIG[casual.source] || SOURCE_CONFIG.other;
-                const msgCount = (messages[casual.id] || []).length;
-                const lastMsg = messages[casual.id]?.[0];
-                return (
-                  <TableRow key={casual.id} className="hover:bg-slate-50/50">
-                    <TableCell>
+        {/* ── DIRECTORIO TAB ──────────────────────────────────────────────── */}
+        <TabsContent value="directorio" className="mt-4 space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Buscar por nombre, teléfono, email, suburbio..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Fuente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las fuentes</SelectItem>
+                {Object.entries(SOURCE_CONFIG).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50">
+                    <TableHead className="w-10">
                       <input
                         type="checkbox"
-                        checked={selectedIds.has(casual.id)}
-                        onChange={() => toggleSelect(casual.id)}
+                        checked={selectedIds.size === filteredCasuals.length && filteredCasuals.length > 0}
+                        onChange={toggleSelectAll}
                         className="rounded border-slate-300"
                       />
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-semibold text-slate-900">{casual.full_name}</div>
-                      {(casual.tags || []).length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {casual.tags.map(tag => (
-                            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1 text-sm">
-                        {casual.phone_number && (
-                          <p className="flex items-center gap-1 text-slate-700">
-                            <Phone className="w-3 h-3 text-slate-400" />{casual.phone_number}
-                          </p>
-                        )}
-                        {casual.email && (
-                          <p className="flex items-center gap-1 text-slate-600 text-xs">
-                            <Mail className="w-3 h-3 text-slate-400" />{casual.email}
-                          </p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-slate-600">
-                      {casual.suburb || casual.address ? (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                          {casual.suburb || casual.address}
-                        </span>
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-1 text-sm text-slate-600">
-                        {src.icon}{src.label}
-                      </span>
-                      {casual.source_detail && (
-                        <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[120px]">{casual.source_detail}</p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="relative group">
-                        <Badge className={`cursor-pointer ${config.color}`}>
-                          {config.icon}
-                          <span className="ml-1">{config.label}</span>
-                          <ChevronDown className="w-3 h-3 ml-1 opacity-50" />
-                        </Badge>
-                        <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 hidden group-hover:block min-w-[160px]">
-                          {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                            <button
-                              key={k}
-                              onClick={() => quickUpdateStatus(casual.id, k)}
-                              className={`w-full text-left px-3 py-1.5 rounded text-sm hover:bg-slate-50 flex items-center gap-2 ${k === casual.status ? 'font-bold' : ''}`}
-                            >
-                              <Badge className={v.color}>{v.label}</Badge>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className="bg-slate-100 text-slate-700 text-xs">
-                        {AVAILABILITY_OPTIONS.find(o => o.value === casual.availability)?.label || casual.availability}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5 text-xs">
-                        {casual.has_drivers_license && <IdCard className="w-4 h-4 text-emerald-600" title="Tiene licencia" />}
-                        {casual.has_car && <Car className="w-4 h-4 text-green-600" title="Tiene vehículo" />}
-                        {casual.has_abn && <span className="font-bold text-blue-600" title="Tiene ABN">ABN</span>}
-                        {casual.visa_type && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 max-w-[100px] truncate" title={VISA_OPTIONS.find(o => o.value === casual.visa_type)?.label}>
-                            {VISA_OPTIONS.find(o => o.value === casual.visa_type)?.label || casual.visa_type}
-                          </span>
-                        )}
-                        {!casual.has_drivers_license && !casual.has_car && !casual.has_abn && !casual.visa_type && <span className="text-xs text-slate-300">—</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {lastMsg && (
-                          <span className="text-[10px] text-slate-400 mr-1" title={lastMsg.content}>
-                            {format(new Date(lastMsg.created_date), 'd/M HH:mm')}
-                          </span>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => openConversation(casual)}
-                          title="Ver conversación"
-                        >
-                          <MessageCircle className={`w-4 h-4 ${msgCount > 0 ? 'text-violet-600' : 'text-slate-400'}`} />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditForm(casual)}>
-                          <Edit className="w-4 h-4 text-slate-500" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(casual.id)}>
-                          <Trash2 className="w-4 h-4 text-red-400" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-700">Nombre</TableHead>
+                    <TableHead className="font-bold text-slate-700">Contacto</TableHead>
+                    <TableHead className="font-bold text-slate-700">Fuente</TableHead>
+                    <TableHead className="font-bold text-slate-700">Estado</TableHead>
+                    <TableHead className="font-bold text-slate-700 text-center">Habilitado</TableHead>
+                    <TableHead className="font-bold text-slate-700 text-center">Disp. Hoy</TableHead>
+                    <TableHead className="font-bold text-slate-700">Docs</TableHead>
+                    <TableHead className="font-bold text-slate-700 text-right">Acciones</TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredCasuals.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-12 text-slate-400">
+                        <Users className="w-10 h-10 mx-auto mb-2 opacity-25" />
+                        <p>No se encontraron casuales</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredCasuals.map(casual => {
+                    const config = STATUS_CONFIG[casual.status] || STATUS_CONFIG.nuevo;
+                    const src = SOURCE_CONFIG[casual.source] || SOURCE_CONFIG.other;
+                    const msgCount = (messages[casual.id] || []).length;
+                    const unread = casual.unread_replies || 0;
+                    const isEnabled = casual.is_active !== false;
+                    const availToday = casual.available_for_work === true;
+                    return (
+                      <TableRow key={casual.id} className={`hover:bg-slate-50/50 ${!isEnabled ? 'opacity-50' : ''}`}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(casual.id)}
+                            onChange={() => toggleSelect(casual.id)}
+                            className="rounded border-slate-300"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-slate-900 flex items-center gap-1">
+                            {casual.full_name}
+                            {unread > 0 && (
+                              <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0">{unread}</Badge>
+                            )}
+                          </div>
+                          {casual.suburb && (
+                            <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3" />{casual.suburb}
+                            </p>
+                          )}
+                          {(casual.tags || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {casual.tags.map(tag => (
+                                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                          {(casual.rating || 0) > 0 && (
+                            <div className="flex items-center gap-0.5 mt-1">
+                              {[1,2,3,4,5].map(s => (
+                                <Star key={s} className={`w-3 h-3 ${s <= casual.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200'}`} />
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1 text-sm">
+                            {casual.phone_number && (
+                              <p className="flex items-center gap-1 text-slate-700">
+                                <Phone className="w-3 h-3 text-slate-400" />{casual.phone_number}
+                              </p>
+                            )}
+                            {casual.email && (
+                              <p className="flex items-center gap-1 text-slate-600 text-xs">
+                                <Mail className="w-3 h-3 text-slate-400" />{casual.email}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="flex items-center gap-1 text-sm text-slate-600">
+                            {src.icon}{src.label}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="relative group">
+                            <Badge className={`cursor-pointer ${config.color}`}>
+                              {config.icon}
+                              <span className="ml-1">{config.label}</span>
+                              <ChevronDown className="w-3 h-3 ml-1 opacity-50" />
+                            </Badge>
+                            <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-slate-200 rounded-lg shadow-lg p-1.5 hidden group-hover:block min-w-[160px]">
+                              {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                                <button
+                                  key={k}
+                                  onClick={() => quickUpdateStatus(casual.id, k)}
+                                  className={`w-full text-left px-3 py-1.5 rounded text-sm hover:bg-slate-50 flex items-center gap-2 ${k === casual.status ? 'font-bold' : ''}`}
+                                >
+                                  <Badge className={v.color}>{v.label}</Badge>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </TableCell>
+                        {/* Toggle Habilitado */}
+                        <TableCell className="text-center">
+                          <button
+                            onClick={() => quickToggle(casual.id, 'is_active', isEnabled)}
+                            className="flex items-center justify-center mx-auto"
+                            title={isEnabled ? 'Deshabilitar' : 'Habilitar'}
+                          >
+                            {isEnabled
+                              ? <ToggleRight className="w-7 h-7 text-green-500" />
+                              : <ToggleLeft className="w-7 h-7 text-slate-300" />
+                            }
+                          </button>
+                        </TableCell>
+                        {/* Toggle Disponible Hoy */}
+                        <TableCell className="text-center">
+                          <button
+                            onClick={() => quickToggle(casual.id, 'available_for_work', availToday)}
+                            className="flex items-center justify-center mx-auto"
+                            title={availToday ? 'Marcar no disponible' : 'Marcar disponible hoy'}
+                          >
+                            {availToday
+                              ? <ToggleRight className="w-7 h-7 text-emerald-500" />
+                              : <ToggleLeft className="w-7 h-7 text-slate-300" />
+                            }
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 text-xs">
+                            {casual.has_drivers_license && <IdCard className="w-4 h-4 text-emerald-600" title="Tiene licencia" />}
+                            {casual.has_car && <Car className="w-4 h-4 text-green-600" title="Tiene vehículo" />}
+                            {casual.has_abn && <span className="font-bold text-blue-600 text-[10px]">ABN</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => { setActiveTab('inbox'); }}
+                              title="Ver conversación"
+                            >
+                              <MessageCircle className={`w-4 h-4 ${msgCount > 0 ? 'text-violet-600' : 'text-slate-400'}`} />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditForm(casual)}>
+                              <Edit className="w-4 h-4 text-slate-500" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(casual.id)}>
+                              <Trash2 className="w-4 h-4 text-red-400" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </TabsContent>
 
-      {/* ── Form Modal ─────────────────────────────────────────────────────── */}
+        {/* ── INBOX TAB ───────────────────────────────────────────────────── */}
+        <TabsContent value="inbox" className="mt-4">
+          <CasualesInbox casuals={casuals} messages={messages} onRefresh={loadData} />
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Emergency SMS Dialog ─────────────────────────────────────────── */}
+      <EmergencySMSDialog
+        open={showEmergency}
+        onClose={() => setShowEmergency(false)}
+        casuals={casuals}
+        onRefresh={loadData}
+      />
+
+      {/* ── Form Modal ───────────────────────────────────────────────────── */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -621,7 +645,7 @@ export default function CasualesPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(SOURCE_CONFIG).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v.icon}{v.label}</SelectItem>
+                    <SelectItem key={k} value={k}>{v.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -653,10 +677,6 @@ export default function CasualesPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Notas de disponibilidad</Label>
-              <Input value={form.availability_notes} onChange={e => setForm(f => ({ ...f, availability_notes: e.target.value }))} placeholder="Ej: Solo lunes y miércoles" />
-            </div>
-            <div className="space-y-1.5">
               <Label>Nivel de inglés</Label>
               <Select value={form.english_level} onValueChange={v => setForm(f => ({ ...f, english_level: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -666,22 +686,6 @@ export default function CasualesPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Switch checked={form.has_car} onCheckedChange={v => setForm(f => ({ ...f, has_car: v }))} />
-                <Label>Tiene vehículo</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={form.has_abn} onCheckedChange={v => setForm(f => ({ ...f, has_abn: v }))} />
-                <Label>Tiene ABN</Label>
-              </div>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Switch checked={form.has_drivers_license} onCheckedChange={v => setForm(f => ({ ...f, has_drivers_license: v }))} />
-                <Label>Licencia de conducir</Label>
-              </div>
             </div>
             <div className="space-y-1.5 md:col-span-2">
               <Label>Visa</Label>
@@ -695,10 +699,41 @@ export default function CasualesPage() {
               </Select>
             </div>
 
+            {/* Toggles */}
+            <div className="md:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[
+                { key: 'has_car', label: 'Tiene vehículo' },
+                { key: 'has_abn', label: 'Tiene ABN' },
+                { key: 'has_drivers_license', label: 'Licencia de conducir' },
+                { key: 'is_active', label: 'Habilitado (recibe SMS)' },
+                { key: 'available_for_work', label: 'Disponible hoy' },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-2">
+                  <Switch checked={form[key]} onCheckedChange={v => setForm(f => ({ ...f, [key]: v }))} />
+                  <Label className="text-sm">{label}</Label>
+                </div>
+              ))}
+            </div>
+
+            {/* Rating */}
+            <div className="space-y-1.5 md:col-span-2">
+              <Label>Calificación interna</Label>
+              <div className="flex items-center gap-1">
+                {[1,2,3,4,5].map(s => (
+                  <button key={s} type="button" onClick={() => setForm(f => ({ ...f, rating: s === f.rating ? 0 : s }))}>
+                    <Star className={`w-6 h-6 ${s <= form.rating ? 'text-yellow-400 fill-yellow-400' : 'text-slate-300'}`} />
+                  </button>
+                ))}
+                {form.rating > 0 && (
+                  <span className="text-xs text-slate-400 ml-2">{form.rating}/5</span>
+                )}
+              </div>
+            </div>
+
             {/* Trial section */}
             <div className="md:col-span-2 border-t pt-4 mt-2">
               <h3 className="font-bold text-sm text-slate-700 mb-3">🧪 Trial</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Fecha del trial</Label>
                   <Input type="date" value={form.trial_date} onChange={e => setForm(f => ({ ...f, trial_date: e.target.value }))} />
@@ -707,21 +742,18 @@ export default function CasualesPage() {
                   <Label>Realizado por</Label>
                   <Input value={form.trial_conducted_by} onChange={e => setForm(f => ({ ...f, trial_conducted_by: e.target.value }))} placeholder="Nombre del supervisor" />
                 </div>
-                <div className="space-y-1.5 md:col-span-1" />
-                <div className="space-y-1.5 md:col-span-3">
+                <div className="space-y-1.5 md:col-span-2">
                   <Label>Notas del trial</Label>
                   <Textarea value={form.trial_notes} onChange={e => setForm(f => ({ ...f, trial_notes: e.target.value }))} placeholder="Resultados, desempeño, observaciones..." rows={2} />
                 </div>
               </div>
             </div>
 
-            {/* Notes */}
             <div className="space-y-1.5 md:col-span-2">
               <Label>Notas generales</Label>
               <Textarea value={form.general_notes} onChange={e => setForm(f => ({ ...f, general_notes: e.target.value }))} placeholder="Cualquier otra información relevante..." rows={2} />
             </div>
 
-            {/* Tags */}
             <div className="space-y-1.5 md:col-span-2">
               <Label>Etiquetas</Label>
               <div className="flex gap-2">
@@ -754,7 +786,7 @@ export default function CasualesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── SMS Modal ──────────────────────────────────────────────────────── */}
+      {/* ── SMS Modal ────────────────────────────────────────────────────── */}
       <Dialog open={showSMS} onOpenChange={setShowSMS}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -777,15 +809,9 @@ export default function CasualesPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Mensaje</Label>
-              <Textarea
-                value={smsMessage}
-                onChange={e => setSmsMessage(e.target.value)}
-                placeholder="Escribe el mensaje a enviar..."
-                rows={4}
-              />
+              <Textarea value={smsMessage} onChange={e => setSmsMessage(e.target.value)} placeholder="Escribe el mensaje a enviar..." rows={4} />
               <p className="text-xs text-slate-400">{smsMessage.length} caracteres</p>
             </div>
-
             {smsResult && (
               <div className={`rounded-lg p-3 text-sm ${smsResult.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
                 {smsResult.error ? (
@@ -822,62 +848,7 @@ export default function CasualesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Conversation Modal ─────────────────────────────────────────────── */}
-      <Dialog open={!!conversationCasual} onOpenChange={() => setConversationCasual(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5 text-violet-600" />
-              Conversación: {conversationCasual?.full_name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto space-y-3 min-h-[300px] max-h-[50vh] py-2">
-            {conversationLoading ? (
-              <div className="flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
-            ) : (messages[conversationCasual?.id] || []).length === 0 ? (
-              <p className="text-center text-slate-400 text-sm py-8">Sin mensajes aún</p>
-            ) : (
-              [...(messages[conversationCasual?.id] || [])].reverse().map(msg => (
-                <div key={msg.id} className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${
-                    msg.direction === 'outgoing'
-                      ? 'bg-violet-600 text-white rounded-br-md'
-                      : 'bg-slate-100 text-slate-800 rounded-bl-md'
-                  }`}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                    <p className={`text-[10px] mt-1 ${msg.direction === 'outgoing' ? 'text-violet-200' : 'text-slate-400'}`}>
-                      {format(new Date(msg.created_date), 'd MMM HH:mm', { locale: es })}
-                      {msg.direction === 'incoming' && msg.twilio_sid && ' · SMS'}
-                      {msg.direction === 'incoming' && !msg.twilio_sid && ' · Nota manual'}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          {/* Manual note input */}
-          <div className="border-t pt-3">
-            <div className="flex gap-2">
-              <Input
-                value={manualNote}
-                onChange={e => setManualNote(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addManualNote()}
-                placeholder="Agregar nota manual..."
-                className="flex-1"
-              />
-              <Button size="sm" onClick={addManualNote} disabled={!manualNote.trim()} className="bg-violet-600 hover:bg-violet-700">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">Las respuestas SMS llegan automáticamente. Usa esto para notas manuales.</p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConversationCasual(null)}>Cerrar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Delete Confirm ─────────────────────────────────────────────────── */}
+      {/* ── Delete Confirm ───────────────────────────────────────────────── */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

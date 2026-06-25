@@ -36,7 +36,7 @@
     },
     "source_detail": {
       "type": "string",
-      "description": "Detalle de la fuente (ej: nombre del grupo de Facebook, qui\u00e9n lo refiri\u00f3)"
+      "description": "Detalle de la fuente"
     },
     "status": {
       "type": "string",
@@ -49,7 +49,17 @@
         "descartado"
       ],
       "default": "nuevo",
-      "description": "Estado actual del casual"
+      "description": "Estado actual del casual en el pipeline"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Habilitado/Deshabilitado para recibir SMS y convocatorias"
+    },
+    "available_for_work": {
+      "type": "boolean",
+      "default": false,
+      "description": "Disponible para trabajar hoy/esta semana (se activa manualmente)"
     },
     "availability": {
       "type": "string",
@@ -61,7 +71,7 @@
         "flexible",
         "no_disponible"
       ],
-      "description": "Disponibilidad horaria"
+      "description": "Disponibilidad horaria general"
     },
     "availability_notes": {
       "type": "string",
@@ -118,6 +128,10 @@
       ],
       "description": "Nivel de ingl\u00e9s"
     },
+    "rating": {
+      "type": "number",
+      "description": "Calificaci\u00f3n interna del 1 al 5"
+    },
     "general_notes": {
       "type": "string",
       "description": "Notas y comentarios generales"
@@ -127,12 +141,17 @@
       "items": {
         "type": "string"
       },
-      "description": "Etiquetas para filtrar (ej: 'zona norte', 'confiable', 'experiencia previa')"
+      "description": "Etiquetas para filtrar"
     },
     "last_contacted_at": {
       "type": "string",
       "format": "date-time",
       "description": "\u00daltima vez que se contact\u00f3"
+    },
+    "unread_replies": {
+      "type": "number",
+      "default": 0,
+      "description": "Cantidad de replies sin leer del casual"
     }
   },
   "required": [
