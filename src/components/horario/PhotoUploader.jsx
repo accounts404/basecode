@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { UploadFile } from '@/integrations/Core';
+import { base44 } from '@/api/base44Client';
 import { Upload, X, Loader2, MessageSquare, Image } from 'lucide-react';
 import { Reorder } from "framer-motion"; // Added Reorder import
 
@@ -76,7 +76,7 @@ export default function PhotoUploader({ uploadedUrls = [], onUrlsChange }) {
         for (const file of files) {
             try {
                 const compressedFile = await compressImage(file);
-                const { file_url } = await UploadFile({ file: compressedFile });
+                const { file_url } = await base44.integrations.Core.UploadFile({ file: compressedFile });
                 if (file_url) {
                     currentPhotos.push({ url: file_url, comment: '' });
                 }
