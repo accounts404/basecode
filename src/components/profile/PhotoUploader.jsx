@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { UploadFile } from "@/integrations/Core";
+import { base44 } from '@/api/base44Client';
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, AlertCircle, Camera, Loader2, User } from "lucide-react";
@@ -62,7 +62,7 @@ export default function PhotoUploader({ currentPhotoUrl, onUploadSuccess, userNa
       setPreviewUrl(localPreviewUrl);
 
       const compressedFile = await compressImage(file);
-      const { file_url } = await UploadFile({ file: compressedFile });
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: compressedFile });
       onUploadSuccess('profile_photo_url', file_url);
       setPreviewUrl(file_url);
 
