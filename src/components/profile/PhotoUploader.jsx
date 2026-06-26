@@ -45,6 +45,13 @@ export default function PhotoUploader({ currentPhotoUrl, onUploadSuccess, userNa
     });
   };
 
+  const toBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -62,7 +69,8 @@ export default function PhotoUploader({ currentPhotoUrl, onUploadSuccess, userNa
       setPreviewUrl(localPreviewUrl);
 
       const compressedFile = await compressImage(file);
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: compressedFile });
+      const base64 = await toBase64(compressedFile);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: base64 });
       onUploadSuccess('profile_photo_url', file_url);
       setPreviewUrl(file_url);
 

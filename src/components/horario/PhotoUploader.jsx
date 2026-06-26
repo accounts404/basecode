@@ -66,6 +66,13 @@ export default function PhotoUploader({ uploadedUrls = [], onUrlsChange }) {
         });
     };
 
+    const toBase64 = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
     const handleFileChange = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -76,7 +83,8 @@ export default function PhotoUploader({ uploadedUrls = [], onUrlsChange }) {
         for (const file of files) {
             try {
                 const compressedFile = await compressImage(file);
-                const { file_url } = await base44.integrations.Core.UploadFile({ file: compressedFile });
+                const base64 = await toBase64(compressedFile);
+                const { file_url } = await base44.integrations.Core.UploadFile({ file: base64 });
                 if (file_url) {
                     currentPhotos.push({ url: file_url, comment: '' });
                 }

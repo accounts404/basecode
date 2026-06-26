@@ -7,12 +7,20 @@ import { base44 } from '@/api/base44Client';
 export default function KeyPhotoUploader({ photos = [], onChange, disabled = false }) {
   const [uploading, setUploading] = useState(false);
 
+  const toBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const base64 = await toBase64(file);
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: base64 });
       onChange([...photos, { url: file_url, comment: '' }]);
     } catch (err) {
       console.error('Error subiendo foto:', err);
