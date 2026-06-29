@@ -1543,8 +1543,14 @@ export default function HorarioPage() {
                         Sin asignar hoy:
                     </span>
                     {unassignedCleanersForDate.map(cleaner => (
-                        <span key={cleaner.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                            {cleaner.full_name}
+                        <span key={cleaner.id} className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                            <span
+                                className="w-4 h-4 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+                                style={{ backgroundColor: cleaner.color || '#f59e0b', fontSize: '9px' }}
+                            >
+                                {(cleaner.full_name || '?').charAt(0).toUpperCase()}
+                            </span>
+                            {cleaner.full_name || cleaner.email || 'Sin nombre'}
                         </span>
                     ))}
                 </div>
