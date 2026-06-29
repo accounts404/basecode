@@ -4,7 +4,7 @@
   "properties": {
     "display_name": {
       "type": "string",
-      "description": "Un nombre corto o alias para mostrar en la interfaz de administraci\u00f3n para una identificaci\u00f3n m\u00e1s f\u00e1cil."
+      "description": "Un nombre corto o alias para mostrar en la interfaz de administraci\u00f3n."
     },
     "color": {
       "type": "string",
@@ -96,6 +96,11 @@
         "casual"
       ],
       "default": "casual"
+    },
+    "can_see_access_info": {
+      "type": "boolean",
+      "default": false,
+      "description": "Permite que el limpiador vea la informaci\u00f3n de acceso del cliente (llaves, c\u00f3digos, instrucciones) en su portal. Por defecto desactivado. Para limpiadores de planta se recomienda activar manualmente."
     },
     "availability": {
       "type": "object",

@@ -52,7 +52,7 @@ const defaultAvailability = {
 
 function EditCleanerSheet({ cleaner, onSave, onCancel, allCleaners }) {
   const [formData, setFormData] = useState({
-    display_name: cleaner.display_name || "", // Nuevo campo
+    display_name: cleaner.display_name || "",
     start_date: cleaner.start_date || "",
     birth_date: cleaner.birth_date || "",
     hr_notes: cleaner.hr_notes || "",
@@ -60,8 +60,9 @@ function EditCleanerSheet({ cleaner, onSave, onCancel, allCleaners }) {
     emergency_contact_phone: cleaner.emergency_contact_phone || "",
     employee_type: cleaner.employee_type || "casual",
     active: cleaner.active !== false,
+    can_see_access_info: cleaner.can_see_access_info || false,
     availability: cleaner.availability || defaultAvailability,
-    color: cleaner.color || '#3b82f6', // Default to a shade of blue
+    color: cleaner.color || '#3b82f6',
   });
   const [saving, setSaving] = useState(false);
 
@@ -70,7 +71,7 @@ function EditCleanerSheet({ cleaner, onSave, onCancel, allCleaners }) {
     // the formData state is updated accordingly.
     if (cleaner) {
       setFormData({
-        display_name: cleaner.display_name || "", // Nuevo campo
+        display_name: cleaner.display_name || "",
         start_date: cleaner.start_date || "",
         birth_date: cleaner.birth_date || "",
         hr_notes: cleaner.hr_notes || "",
@@ -78,6 +79,7 @@ function EditCleanerSheet({ cleaner, onSave, onCancel, allCleaners }) {
         emergency_contact_phone: cleaner.emergency_contact_phone || "",
         employee_type: cleaner.employee_type || "casual",
         active: cleaner.active !== false,
+        can_see_access_info: cleaner.can_see_access_info || false,
         availability: cleaner.availability || defaultAvailability,
         color: cleaner.color || '#3b82f6',
       });
@@ -273,6 +275,18 @@ function EditCleanerSheet({ cleaner, onSave, onCancel, allCleaners }) {
             id="active"
             checked={formData.active}
             onCheckedChange={(checked) => setFormData({ ...formData, active: checked })}
+          />
+        </div>
+        <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <div>
+            <Label htmlFor="can_see_access_info" className="font-medium text-amber-900">Ver Información de Acceso</Label>
+            <p className="text-xs text-amber-700 mt-0.5">Permite ver llaves, códigos y accesos del cliente en su portal</p>
+          </div>
+          <Switch
+            id="can_see_access_info"
+            checked={formData.can_see_access_info}
+            onCheckedChange={(checked) => setFormData({ ...formData, can_see_access_info: checked })}
+            className="data-[state=checked]:bg-amber-600"
           />
         </div>
         <div className="space-y-2">
