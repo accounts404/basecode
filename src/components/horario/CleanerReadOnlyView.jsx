@@ -440,7 +440,7 @@ export default function CleanerReadOnlyView({
                             <FamilyAndPetsManager client={selectedClient} onUpdate={() => {}} isReadOnly={true} />
                         </div>
                     )}
-                    {selectedClient?.has_access && currentUser?.can_see_access_info && (
+                    {selectedClient?.has_access && (currentUser?.can_see_access_info || currentUser?.employee_type === 'permanent') && (
                         <div className="bg-amber-50 border-l-4 border-amber-400 p-6 rounded-r-lg">
                             <h3 className="font-semibold text-amber-900 flex items-center gap-2 mb-4"><KeySquare className="w-5 h-5" />Instrucciones de Acceso</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
@@ -463,7 +463,7 @@ export default function CleanerReadOnlyView({
                             </div>
                         </div>
                     )}
-                    {selectedClient?.has_access && !currentUser?.can_see_access_info && currentUser?.role !== 'admin' && (
+                    {selectedClient?.has_access && !currentUser?.can_see_access_info && currentUser?.employee_type !== 'permanent' && currentUser?.role !== 'admin' && (
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center gap-3 text-slate-500">
                             <KeySquare className="w-5 h-5 text-slate-400" />
                             <p className="text-sm">La información de acceso no está disponible para tu perfil. Contacta al administrador si necesitas acceso.</p>
