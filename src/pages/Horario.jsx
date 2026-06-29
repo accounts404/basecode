@@ -265,14 +265,19 @@ export default function HorarioPage() {
                 const validClients = clients.filter(Boolean);
                 const keys = [];
 
-                for (const schedule of todaySchedules) {
-                    const client = validClients.find(c => c.id === schedule.client_id);
-                    if (client && client.has_access && client.access_identifier) {
-                        keys.push({
-                            identifier: client.access_identifier,
-                            client_name: client.name,
-                            access_type: client.access_type
-                        });
+                // Solo mostrar llaves si el limpiador es permanente o tiene permiso explícito
+                const canSeeAccess = user?.employee_type === 'permanent' || user?.can_see_access_info;
+
+                if (canSeeAccess) {
+                    for (const schedule of todaySchedules) {
+                        const client = validClients.find(c => c.id === schedule.client_id);
+                        if (client && client.has_access && client.access_identifier) {
+                            keys.push({
+                                identifier: client.access_identifier,
+                                client_name: client.name,
+                                access_type: client.access_type
+                            });
+                        }
                     }
                 }
 
