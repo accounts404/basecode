@@ -1115,6 +1115,17 @@ export default function HorarioPage() {
         });
     }, [schedules, isCleanerView, user?.id]);
 
+    const unassignedCleanersForDate = useMemo(() => {
+        if (!user || user.role !== 'admin' || view !== 'day') return [];
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const assignedIds = new Set(
+            schedules
+                .filter(s => s.start_time?.slice(0, 10) === dateStr && s.status !== 'cancelled')
+                .flatMap(s => s.cleaner_ids || [])
+        );
+        return users.filter(u => u.role !== 'admin' && u.active !== false && !assignedIds.has(u.id));
+    }, [user, view, date, schedules, users]);
+
     const servicesForSelectedDateCount = React.useMemo(() => {
         if (!isCleanerView) return 0;
         try {
@@ -1522,6 +1533,20 @@ export default function HorarioPage() {
                         onTaskClick={handleTaskClick}
                         onToggleTaskStatus={handleToggleTaskStatus}
                     />
+                </div>
+            )}
+
+            {user?.role === 'admin' && view === 'day' && unassignedCleanersForDate.length > 0 && (
+                <div className="flex-shrink-0 bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-amber-700 whitespace-nowrap flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Sin asignar hoy:
+                    </span>
+                    {unassignedCleanersForDate.map(cleaner => (
+                        <span key={cleaner.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                            {cleaner.full_name}
+                        </span>
+                    ))}
                 </div>
             )}
 
