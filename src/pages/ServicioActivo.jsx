@@ -549,7 +549,7 @@ export default function ServicioActivoPage() {
                 )}
 
                 {/* Información de Acceso */}
-                {clientInfo?.has_access && (
+                {clientInfo?.has_access && (user?.can_see_access_info || user?.employee_type === 'permanent') && (
                     <Card className="shadow-lg">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-lg">
