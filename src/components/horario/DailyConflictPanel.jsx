@@ -30,26 +30,15 @@ export default function DailyConflictPanel({ schedules, users, date }) {
         };
 
         // Agrupar servicios por limpiador
-        // IMPORTANTE: Siempre usar el start_time del schedule principal para extraer la hora
-        // porque los cleaner_schedules pueden tener fechas en UTC distintas al día local.
-        // Solo usamos cleaner_schedules si su fecha (slice 0-10) coincide con dateStr.
+        // IMPORTANTE: Los cleaner_schedules están guardados en UTC pero start_time/end_time
+        // del schedule principal están en hora local. Siempre usar el schedule principal.
         const schedulesByUser = {};
         daySchedules.forEach(sched => {
-            const schedDateStr = sched.start_time?.slice(0, 10);
+            const startStr = sched.start_time?.slice(11, 16);
+            const endStr = sched.end_time?.slice(11, 16);
+
             (sched.cleaner_ids || []).forEach(cleanerId => {
                 if (!schedulesByUser[cleanerId]) schedulesByUser[cleanerId] = [];
-
-                // Usar cleaner_schedule solo si su fecha base coincide con el día
-                const cs = sched.cleaner_schedules?.find(c => c.cleaner_id === cleanerId);
-                const csDateMatches = cs?.start_time?.slice(0, 10) === schedDateStr;
-
-                const startStr = (cs && csDateMatches)
-                    ? cs.start_time.slice(11, 16)
-                    : sched.start_time?.slice(11, 16);
-                const endStr = (cs && csDateMatches)
-                    ? cs.end_time.slice(11, 16)
-                    : sched.end_time?.slice(11, 16);
-
                 schedulesByUser[cleanerId].push({
                     scheduleId: sched.id,
                     clientName: sched.client_name || 'Sin cliente',
