@@ -1,11 +1,30 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { AlertTriangle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { base44 } from '@/api/base44Client';
 
 export default function DailyConflictPanel({ schedules, users, date }) {
     const [expanded, setExpanded] = useState(true);
+    const [freshSchedules, setFreshSchedules] = useState(null);
+    const lastDateRef = useRef(null);
+
+    // Fetch fresh schedules for the selected day directly from DB to avoid stale cache
+    useEffect(() => {
+        if (!date) return;
+        const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+        if (lastDateRef.current === dateStr) return;
+        lastDateRef.current = dateStr;
+        setFreshSchedules(null);
+        base44.entities.Schedule.filter({
+            start_time: { $gte: `${dateStr}T00:00:00.000`, $lte: `${dateStr}T23:59:59.999` },
+            status: { $ne: 'cancelled' }
+        }).then(result => {
+            setFreshSchedules(Array.isArray(result) ? result : []);
+        }).catch(() => setFreshSchedules([]));
+    }, [date]);
 
     const warnings = useMemo(() => {
-        if (!date || !Array.isArray(schedules) || !Array.isArray(users)) return [];
+        const daySchedules_source = freshSchedules ?? schedules;
+        if (!date || !Array.isArray(daySchedules_source) || !Array.isArray(users)) return [];
 
         const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const dayLabels = {
@@ -16,10 +35,10 @@ export default function DailyConflictPanel({ schedules, users, date }) {
         const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
         const dayKey = dayNames[date.getDay()];
 
-        const daySchedules = schedules.filter(s =>
-            s.start_time?.slice(0, 10) === dateStr &&
-            s.status !== 'cancelled'
-        );
+        // If we have fresh DB data, use it directly; otherwise filter from prop
+        const daySchedules = freshSchedules
+            ? freshSchedules.filter(s => s.status !== 'cancelled')
+            : daySchedules_source.filter(s => s.start_time?.slice(0, 10) === dateStr && s.status !== 'cancelled');
 
         if (daySchedules.length === 0) return [];
 
@@ -89,16 +108,18 @@ export default function DailyConflictPanel({ schedules, users, date }) {
             });
 
             // 3. Overlapping services for same cleaner
-            // Only check overlap if ALL intervals have individual cleaner_schedule data
-            // (if any uses the general service time, the overlap check would be unreliable)
-            const allHaveIndividual = intervals.every(iv => iv.hasIndividualSchedule);
-            if (intervals.length > 1 && allHaveIndividual) {
-                for (let i = 0; i < intervals.length; i++) {
-                    for (let j = i + 1; j < intervals.length; j++) {
-                        const a = intervals[i];
-                        const b = intervals[j];
+            // Only check overlap using individual cleaner_schedule times (never fallback to general service times)
+            // Skip any interval that doesn't have its own individual schedule — can't reliably detect overlap
+            const individualIntervals = intervals.filter(iv => iv.hasIndividualSchedule);
+            if (individualIntervals.length > 1) {
+                for (let i = 0; i < individualIntervals.length; i++) {
+                    for (let j = i + 1; j < individualIntervals.length; j++) {
+                        const a = individualIntervals[i];
+                        const b = individualIntervals[j];
                         if (a.startTime && a.endTime && b.startTime && b.endTime) {
-                            if (a.startTime < b.endTime && a.endTime > b.startTime) {
+                            // Strict overlap: both start AND end must genuinely overlap (not just touch)
+                            if (a.startTime < b.endTime && a.endTime > b.startTime &&
+                                !(a.endTime <= b.startTime || b.endTime <= a.startTime)) {
                                 result.push({
                                     type: 'overlap',
                                     severity: 'red',
@@ -114,7 +135,7 @@ export default function DailyConflictPanel({ schedules, users, date }) {
         });
 
         return result;
-    }, [schedules, users, date]);
+    }, [schedules, users, date, freshSchedules]);
 
     if (warnings.length === 0) return null;
 
