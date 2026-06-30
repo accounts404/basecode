@@ -30,15 +30,25 @@ export default function DailyConflictPanel({ schedules, users, date }) {
         };
 
         // Agrupar servicios por limpiador
+        // IMPORTANTE: Siempre usar el start_time del schedule principal para extraer la hora
+        // porque los cleaner_schedules pueden tener fechas en UTC distintas al día local.
+        // Solo usamos cleaner_schedules si su fecha (slice 0-10) coincide con dateStr.
         const schedulesByUser = {};
         daySchedules.forEach(sched => {
+            const schedDateStr = sched.start_time?.slice(0, 10);
             (sched.cleaner_ids || []).forEach(cleanerId => {
                 if (!schedulesByUser[cleanerId]) schedulesByUser[cleanerId] = [];
 
-                // Obtener horario específico del limpiador si existe
+                // Usar cleaner_schedule solo si su fecha base coincide con el día
                 const cs = sched.cleaner_schedules?.find(c => c.cleaner_id === cleanerId);
-                const startStr = cs?.start_time?.slice(11, 16) || sched.start_time?.slice(11, 16);
-                const endStr = cs?.end_time?.slice(11, 16) || sched.end_time?.slice(11, 16);
+                const csDateMatches = cs?.start_time?.slice(0, 10) === schedDateStr;
+
+                const startStr = (cs && csDateMatches)
+                    ? cs.start_time.slice(11, 16)
+                    : sched.start_time?.slice(11, 16);
+                const endStr = (cs && csDateMatches)
+                    ? cs.end_time.slice(11, 16)
+                    : sched.end_time?.slice(11, 16);
 
                 schedulesByUser[cleanerId].push({
                     scheduleId: sched.id,
@@ -98,12 +108,15 @@ export default function DailyConflictPanel({ schedules, users, date }) {
             });
 
             // 3. Solapamiento entre servicios del mismo limpiador
+            // Solapamiento estricto: NO contar si uno termina exactamente cuando el otro empieza
             for (let i = 0; i < userSchedules.length; i++) {
                 for (let j = i + 1; j < userSchedules.length; j++) {
                     const a = userSchedules[i];
                     const b = userSchedules[j];
+                    // Ignorar si es el mismo servicio (duplicado por alguna razón)
+                    if (a.scheduleId === b.scheduleId) continue;
                     if (a.startMin === null || a.endMin === null || b.startMin === null || b.endMin === null) continue;
-                    // Solapamiento: a empieza antes de que b termine Y b empieza antes de que a termine
+                    // Solapamiento estricto: se solapan solo si hay minutos en común (no si solo se tocan en el límite)
                     if (a.startMin < b.endMin && b.startMin < a.endMin) {
                         result.push({
                             type: 'overlap',
