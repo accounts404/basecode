@@ -27,15 +27,21 @@ export default function DailyConflictPanel({ schedules, users, date }) {
 
         // Build a map: cleanerId -> list of {start, end, clientName}
         const cleanerIntervals = {};
+        // Helper: extract HH:MM from any ISO or "HH:MM" string
+        const toHHMM = (str) => {
+            if (!str) return '';
+            if (str.includes('T')) return str.slice(11, 16); // ISO datetime
+            if (str.match(/^\d{2}:\d{2}/)) return str.slice(0, 5); // already HH:MM
+            return '';
+        };
+
         daySchedules.forEach(s => {
             (s.cleaner_ids || []).forEach(cid => {
                 if (!cleanerIntervals[cid]) cleanerIntervals[cid] = [];
-                // Use individual cleaner schedule if available, else service times
-                const cs = s.cleaner_schedules?.find(c => c.cleaner_id === cid);
-                const startStr = cs?.start_time || s.start_time;
-                const endStr = cs?.end_time || s.end_time;
-                const startTime = startStr?.slice(11, 16) || '';
-                const endTime = endStr?.slice(11, 16) || '';
+                // ALWAYS prefer the individual cleaner_schedule over the service general times
+                const cs = (s.cleaner_schedules || []).find(c => c.cleaner_id === cid);
+                const startTime = cs ? toHHMM(cs.start_time) : toHHMM(s.start_time);
+                const endTime = cs ? toHHMM(cs.end_time) : toHHMM(s.end_time);
                 cleanerIntervals[cid].push({ startTime, endTime, clientName: s.client_name, scheduleId: s.id });
             });
         });
