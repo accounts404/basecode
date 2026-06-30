@@ -479,6 +479,32 @@ export default function CrearServicioForm({
 
     }, [schedule, isReadOnly]);
 
+    const availabilityWarnings = useMemo(() => {
+        if (isReadOnly || !formData.start_date || !formData.cleaner_ids.length) return [];
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayKey = dayNames[new Date(formData.start_date + 'T12:00:00').getDay()];
+        const dayLabels = { sunday: 'domingos', monday: 'lunes', tuesday: 'martes', wednesday: 'miércoles', thursday: 'jueves', friday: 'viernes', saturday: 'sábados' };
+
+        const warnings = [];
+        formData.cleaner_ids.forEach(cleanerId => {
+            const cleaner = allUsers.find(u => u.id === cleanerId);
+            if (!cleaner || !cleaner.availability) return;
+            const dayAvail = cleaner.availability[dayKey];
+            const name = cleaner.display_name || cleaner.invoice_name || cleaner.full_name;
+            if (!dayAvail || dayAvail.available === false) {
+                warnings.push({ cleanerId, name, type: 'day', message: `No disponible los ${dayLabels[dayKey]}` });
+                return;
+            }
+            if (dayAvail.end_time && formData.end_time && formData.end_time > dayAvail.end_time) {
+                warnings.push({ cleanerId, name, type: 'time', message: `Solo disponible hasta las ${dayAvail.end_time} — el servicio termina a las ${formData.end_time}` });
+            }
+            if (dayAvail.start_time && formData.start_time && formData.start_time < dayAvail.start_time) {
+                warnings.push({ cleanerId, name, type: 'time', message: `Solo disponible desde las ${dayAvail.start_time} — el servicio empieza a las ${formData.start_time}` });
+            }
+        });
+        return warnings;
+    }, [formData.cleaner_ids, formData.start_date, formData.start_time, formData.end_time, allUsers, isReadOnly]);
+
     const checkCleanerConflicts = useCallback(() => {
         if (!formData.start_date || !formData.start_time || !formData.end_time) {
             setCleanerConflicts(new Set());
@@ -1446,6 +1472,24 @@ export default function CrearServicioForm({
                                 )}
                                 <p className="text-sm text-gray-600">{formData.cleaner_ids.length} limpiador(es) seleccionado(s)</p>
                             </div>
+
+                            {availabilityWarnings.length > 0 && (
+                                <div className="rounded-xl border-2 border-red-400 bg-red-50 p-4 space-y-2">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                                        <span className="font-bold text-red-800 text-base">⚠️ Conflictos de Disponibilidad</span>
+                                    </div>
+                                    {availabilityWarnings.map((w, i) => (
+                                        <div key={i} className="flex items-start gap-2 bg-red-100 border border-red-300 rounded-lg px-3 py-2">
+                                            <AlertCircle className="w-4 h-4 text-red-700 mt-0.5 flex-shrink-0" />
+                                            <p className="text-sm text-red-900">
+                                                <strong>{w.name}:</strong> {w.message}
+                                            </p>
+                                        </div>
+                                    ))}
+                                    <p className="text-xs text-red-600 mt-1">Puedes continuar de todas formas, pero verifica la disponibilidad con el limpiador.</p>
+                                </div>
+                            )}
 
                             {formData.cleaner_ids.length > 0 && !isReadOnly && <CleanerTimesManager selectedCleaners={formData.cleaner_ids} users={allUsers} baseStartTime={formData.start_time} baseEndTime={formData.end_time} baseDate={formData.start_date} cleanerSchedules={cleanerSchedules} onCleanerSchedulesChange={handleCleanerSchedulesChange} isReadOnly={isReadOnly} />}
 
