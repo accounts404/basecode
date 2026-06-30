@@ -39,10 +39,10 @@ export default function DailyConflictPanel({ schedules, users, date }) {
             (s.cleaner_ids || []).forEach(cid => {
                 if (!cleanerIntervals[cid]) cleanerIntervals[cid] = [];
                 // ALWAYS prefer the individual cleaner_schedule over the service general times
-                const cs = (s.cleaner_schedules || []).find(c => c.cleaner_id === cid);
+                const cs = (s.cleaner_schedules || []).find(c => String(c.cleaner_id).trim() === String(cid).trim());
                 const startTime = cs ? toHHMM(cs.start_time) : toHHMM(s.start_time);
                 const endTime = cs ? toHHMM(cs.end_time) : toHHMM(s.end_time);
-                cleanerIntervals[cid].push({ startTime, endTime, clientName: s.client_name, scheduleId: s.id });
+                cleanerIntervals[cid].push({ startTime, endTime, clientName: s.client_name, scheduleId: s.id, hasIndividualSchedule: !!cs });
             });
         });
 
@@ -89,7 +89,10 @@ export default function DailyConflictPanel({ schedules, users, date }) {
             });
 
             // 3. Overlapping services for same cleaner
-            if (intervals.length > 1) {
+            // Only check overlap if ALL intervals have individual cleaner_schedule data
+            // (if any uses the general service time, the overlap check would be unreliable)
+            const allHaveIndividual = intervals.every(iv => iv.hasIndividualSchedule);
+            if (intervals.length > 1 && allHaveIndividual) {
                 for (let i = 0; i < intervals.length; i++) {
                     for (let j = i + 1; j < intervals.length; j++) {
                         const a = intervals[i];
