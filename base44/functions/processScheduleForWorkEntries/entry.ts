@@ -4,10 +4,8 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req).asServiceRole;
 
     try {
-        // Permitir llamadas internas (service role) o de usuarios autenticados
-        const authUser = await createClientFromRequest(req).auth.me().catch(() => null);
-        const isInternalCall = req.headers.get('x-internal-call') === 'true';
-        if (!authUser && !isInternalCall) {
+        const authUser = await createClientFromRequest(req).auth.me();
+        if (!authUser) {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
