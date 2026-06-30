@@ -64,7 +64,6 @@ import { Vehicle } from "@/entities/Vehicle";
 import { Task } from "@/entities/Task";
 
 import HorarioCalendario from "../components/horario/HorarioCalendario";
-import DailyConflictPanel from "../components/horario/DailyConflictPanel";
 // Lazy load de componentes pesados
 const HorarioEquiposView = lazy(() => import("../components/horario/HorarioEquiposView"));
 const HorarioColorView = lazy(() => import("../components/horario/HorarioColorView"));
@@ -1567,10 +1566,6 @@ export default function HorarioPage() {
                         </span>
                     ))}
                 </div>
-            )}
-
-            {user?.role === 'admin' && view === 'day' && (
-                <DailyConflictPanel schedules={schedules} users={users} date={date} />
             )}
 
             <div className="flex-grow overflow-hidden flex flex-col min-h-0">
