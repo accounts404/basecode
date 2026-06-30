@@ -1117,13 +1117,25 @@ export default function HorarioPage() {
 
     const unassignedCleanersForDate = useMemo(() => {
         if (!user || user.role !== 'admin' || view !== 'day') return [];
+
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayKey = dayNames[date.getDay()];
+
         const dateStr = format(date, 'yyyy-MM-dd');
         const assignedIds = new Set(
             schedules
                 .filter(s => s.start_time?.slice(0, 10) === dateStr && s.status !== 'cancelled')
                 .flatMap(s => s.cleaner_ids || [])
         );
-        return users.filter(u => u.role !== 'admin' && u.active !== false && !assignedIds.has(u.id));
+
+        return users.filter(u => {
+            if (u.role === 'admin' || u.active === false) return false;
+            // Si tiene disponibilidad configurada, respetar el día
+            if (u.availability && u.availability[dayKey]) {
+                if (u.availability[dayKey].available === false) return false;
+            }
+            return !assignedIds.has(u.id);
+        });
     }, [user, view, date, schedules, users]);
 
     const servicesForSelectedDateCount = React.useMemo(() => {
@@ -1550,7 +1562,7 @@ export default function HorarioPage() {
                             >
                                 {(cleaner.full_name || '?').charAt(0).toUpperCase()}
                             </span>
-                            {cleaner.full_name || cleaner.email || 'Sin nombre'}
+                            {cleaner.display_name || cleaner.full_name || cleaner.email || 'Sin nombre'}
                         </span>
                     ))}
                 </div>
