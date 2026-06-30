@@ -4,11 +4,6 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req).asServiceRole;
 
     try {
-        const authUser = await createClientFromRequest(req).auth.me();
-        if (!authUser) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
         const { scheduleId, mode = 'preview' } = await req.json();
 
         if (!scheduleId) {
