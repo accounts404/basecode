@@ -27,12 +27,15 @@ export default function DailyConflictPanel({ schedules, users, date }) {
 
         // Build a map: cleanerId -> list of {start, end, clientName}
         const cleanerIntervals = {};
-        // Helper: extract HH:MM from any ISO or "HH:MM" string
+        // Helper: extract HH:MM in LOCAL time from any ISO or "HH:MM" string
         const toHHMM = (str) => {
             if (!str) return '';
-            if (str.includes('T')) return str.slice(11, 16); // ISO datetime
-            if (str.match(/^\d{2}:\d{2}/)) return str.slice(0, 5); // already HH:MM
-            return '';
+            // If it's a plain HH:MM (no date part), return as-is
+            if (/^\d{2}:\d{2}/.test(str) && !str.includes('T') && !str.includes('-')) return str.slice(0, 5);
+            // Parse as Date and extract local hours/minutes
+            const d = new Date(str.endsWith('Z') ? str : str + 'Z');
+            if (isNaN(d.getTime())) return str.slice(11, 16) || '';
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         };
 
         daySchedules.forEach(s => {
