@@ -1,0 +1,75 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "entity_type": {
+      "type": "string",
+      "description": "Tipo de entidad modificada (Client, Schedule, Vehicle, User, etc.)"
+    },
+    "entity_id": {
+      "type": "string",
+      "description": "ID del registro modificado"
+    },
+    "entity_name": {
+      "type": "string",
+      "description": "Nombre descriptivo del registro (ej: nombre del cliente)"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "create",
+        "update",
+        "delete"
+      ],
+      "description": "Tipo de acci\u00f3n realizada"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "ID del usuario que realiz\u00f3 el cambio"
+    },
+    "user_name": {
+      "type": "string",
+      "description": "Nombre del usuario que realiz\u00f3 el cambio"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Email del usuario que realiz\u00f3 el cambio"
+    },
+    "changed_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Lista de campos que cambiaron"
+    },
+    "changes_detail": {
+      "type": "array",
+      "description": "Detalle de cada cambio con valor anterior y nuevo",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora del cambio"
+    }
+  },
+  "required": [
+    "entity_type",
+    "entity_id",
+    "action",
+    "timestamp"
+  ]
+}

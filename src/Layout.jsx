@@ -39,6 +39,7 @@ import {
   BookOpen,
   KeySquare,
   Bot,
+  Shield,
 } from "lucide-react";
 import {
   Sidebar,
@@ -86,14 +87,19 @@ const adminMenuItems = [
   { name: 'Gestión de Uniformes', path: 'GestionCamisas', icon: Shirt },
   { name: 'Historial Clientes', path: 'HistorialClientes', icon: History },
   { name: 'Asistente IA', path: 'AsistenteIA', icon: Bot },
+  { name: 'Auditoría', path: 'Auditoria', icon: Shield, ownerOnly: true },
   { name: 'Configuración', path: 'Configuracion', icon: Settings },
 ];
 
-const adminNavigation = adminMenuItems.map(item => ({
-  title: item.name,
-  url: createPageUrl(item.path),
-  icon: item.icon,
-}));
+const OWNER_EMAIL = 'accounts@redoakcleaning.com';
+
+const buildAdminNavigation = (userEmail) => adminMenuItems
+  .filter(item => !item.ownerOnly || userEmail === OWNER_EMAIL)
+  .map(item => ({
+    title: item.name,
+    url: createPageUrl(item.path),
+    icon: item.icon,
+  }));
 
 const cleanerNavigationItems = [
   {
@@ -350,7 +356,7 @@ function LayoutContent({ children, currentPageName }) {
   }
 
   // Si es admin, usar layout desktop con sidebar (código existente)
-  const navigation = adminNavigation;
+  const navigation = buildAdminNavigation(user?.email);
   const currentTheme = THEME_DEFINITIONS[theme] || THEME_DEFINITIONS.default;
   // const isUserActive = user.active !== false; // This line is no longer strictly necessary for admin view's rendering logic
 
