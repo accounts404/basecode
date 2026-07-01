@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
-import { Upload, X, Loader2, MessageSquare, Image } from 'lucide-react';
+import { Upload, X, Loader2, MessageSquare, ImageIcon } from 'lucide-react';
 import { Reorder } from "framer-motion"; // Added Reorder import
 
 export default function PhotoUploader({ uploadedUrls = [], onUrlsChange }) {
@@ -209,7 +209,7 @@ export default function PhotoUploader({ uploadedUrls = [], onUrlsChange }) {
 
             {normalizedPhotos.length === 0 && (
                 <div className="text-center py-8 px-4 border-2 border-dashed border-slate-300 rounded-lg bg-slate-50">
-                    <Image className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                    <ImageIcon className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                     <p className="text-sm text-slate-500">
                         No hay fotos subidas aún
                     </p>
