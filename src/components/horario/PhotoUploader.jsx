@@ -83,8 +83,7 @@ export default function PhotoUploader({ uploadedUrls = [], onUrlsChange }) {
         for (const file of files) {
             try {
                 const compressedFile = await compressImage(file);
-                const base64 = await toBase64(compressedFile);
-                const { file_url } = await base44.integrations.Core.UploadFile({ file: base64 });
+                const { file_url } = await base44.integrations.Core.UploadFile({ file: compressedFile });
                 if (file_url) {
                     currentPhotos.push({ url: file_url, comment: '' });
                 }
