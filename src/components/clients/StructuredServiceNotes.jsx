@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -67,13 +68,13 @@ export default function StructuredServiceNotes({
     onUpdate,
     isReadOnly = false 
 }) {
-    const [activeTab, setActiveTab] = useState(CLEANING_AREAS[0].key);
-
-    // Normalized notes derived from props — used for display only
+    // Initialize structured notes with empty objects if they don't exist
     const normalizedNotes = CLEANING_AREAS.reduce((acc, area) => {
         acc[area.key] = structuredNotes[area.key] || { notes: '', photos: [] };
         return acc;
     }, {});
+
+    const [activeTab, setActiveTab] = useState(CLEANING_AREAS[0].key);
 
     const updateAreaNotes = (areaKey, notes) => {
         const updated = {
@@ -87,15 +88,10 @@ export default function StructuredServiceNotes({
     };
 
     const updateAreaPhotos = (areaKey, photos) => {
-        // Use structuredNotes directly to avoid stale closure issues
-        const base = CLEANING_AREAS.reduce((acc, area) => {
-            acc[area.key] = structuredNotes[area.key] || { notes: '', photos: [] };
-            return acc;
-        }, {});
         const updated = {
-            ...base,
+            ...normalizedNotes,
             [areaKey]: {
-                ...base[areaKey],
+                ...normalizedNotes[areaKey],
                 photos: photos
             }
         };
