@@ -87,8 +87,8 @@ const adminMenuItems = [
   { name: 'Gestión de Uniformes', path: 'GestionCamisas', icon: Shirt },
   { name: 'Historial Clientes', path: 'HistorialClientes', icon: History },
   { name: 'Asistente IA', path: 'AsistenteIA', icon: Bot },
-  { name: 'Auditoría', path: 'Auditoria', icon: Shield, ownerOnly: true },
   { name: 'Configuración', path: 'Configuracion', icon: Settings },
+  { name: 'Auditoría', path: 'Auditoria', icon: Shield, ownerOnly: true },
 ];
 
 const OWNER_EMAIL = 'accounts@redoakcleaning.com';
