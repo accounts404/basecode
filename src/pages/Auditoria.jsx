@@ -186,6 +186,7 @@ export default function Auditoria() {
   const [filterUser, setFilterUser] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [filterSource, setFilterSource] = useState('manual');
   const [users, setUsers] = useState([]);
 
   const loadLogs = async () => {
@@ -224,6 +225,8 @@ export default function Auditoria() {
 
   const activeModuleDef = MODULES.find(m => m.key === activeModule);
 
+  const isSystemLog = (log) => log.user_id?.startsWith('service_') || (!log.user_id && !log.user_email);
+
   const filtered = logs.filter(log => {
     // Module filter
     if (activeModuleDef?.entities) {
@@ -231,6 +234,10 @@ export default function Auditoria() {
     } else if (activeModuleDef?.isOther) {
       if (KNOWN_ENTITIES.includes(log.entity_type)) return false;
     }
+
+    // Source filter
+    if (filterSource === 'manual' && isSystemLog(log)) return false;
+    if (filterSource === 'automatic' && !isSystemLog(log)) return false;
 
     if (filterAction !== 'all' && log.action !== filterAction) return false;
     if (filterUser !== 'all' && log.user_email !== filterUser) return false;
@@ -263,6 +270,7 @@ export default function Auditoria() {
     setSearchText('');
     setFilterAction('all');
     setFilterUser('all');
+    setFilterSource('manual');
     setDateFrom('');
     setDateTo('');
   };
@@ -321,7 +329,7 @@ export default function Auditoria() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div className="lg:col-span-2 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
@@ -331,6 +339,15 @@ export default function Auditoria() {
                 className="pl-9"
               />
             </div>
+
+            <Select value={filterSource} onValueChange={setFilterSource}>
+              <SelectTrigger><SelectValue placeholder="Origen" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los cambios</SelectItem>
+                <SelectItem value="manual">Solo manuales</SelectItem>
+                <SelectItem value="automatic">Solo automáticos</SelectItem>
+              </SelectContent>
+            </Select>
 
             <Select value={filterAction} onValueChange={setFilterAction}>
               <SelectTrigger><SelectValue placeholder="Acción" /></SelectTrigger>
