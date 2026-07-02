@@ -91,10 +91,13 @@ function AuditCard({ log }) {
   const action = ACTION_LABELS[log.action] || { label: log.action, color: 'bg-gray-100 text-gray-800' };
   const entityLabel = ENTITY_LABELS[log.entity_type] || log.entity_type;
   const ts = log.timestamp ? format(parseISO(log.timestamp), "HH:mm", { locale: es }) : '—';
-  const displayUser = log.user_name && log.user_name !== 'Desconocido' && log.user_name !== 'Admin'
-    ? log.user_name
-    : log.user_email || log.user_name || 'Desconocido';
-  const initials = displayUser.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('');
+  const isSystemAction = log.user_id?.startsWith('service_') || (!log.user_id && !log.user_email);
+  const displayUser = isSystemAction
+    ? 'Sistema (automático)'
+    : (log.user_name && log.user_name !== 'Desconocido' && log.user_name !== 'Admin')
+      ? log.user_name
+      : log.user_email || log.user_name || 'Desconocido';
+  const initials = isSystemAction ? '⚙' : displayUser.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('');
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden text-sm">
@@ -103,12 +106,12 @@ function AuditCard({ log }) {
         onClick={() => setExpanded(!expanded)}
       >
         {/* User avatar */}
-        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 text-xs font-bold text-slate-600">
-          {initials || <User className="w-3.5 h-3.5" />}
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${isSystemAction ? 'bg-blue-100 text-blue-600' : 'bg-slate-200 text-slate-600'}`}>
+          {isSystemAction ? '⚙' : (initials || <User className="w-3.5 h-3.5" />)}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold text-slate-800 text-sm">{displayUser}</span>
+            <span className={`font-semibold text-sm ${isSystemAction ? 'text-slate-400 italic' : 'text-slate-800'}`}>{displayUser}</span>
             <Badge className={`${action.color} text-xs`}>{action.label}</Badge>
             <Badge variant="outline" className="text-slate-600 text-xs">{entityLabel}</Badge>
             {log.entity_name && (
