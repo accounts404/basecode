@@ -283,7 +283,6 @@ export default function Auditoria() {
       <div className="flex gap-1.5 flex-wrap">
         {MODULES.map(mod => {
           const count = countForModule(mod);
-          if (count === 0 && mod.key !== 'all') return null;
           return (
             <button
               key={mod.key}
@@ -295,9 +294,11 @@ export default function Auditoria() {
               }`}
             >
               {mod.label}
-              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeModule === mod.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-              }`}>{count}</span>
+              {count > 0 && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                  activeModule === mod.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}>{count}</span>
+              )}
             </button>
           );
         })}
