@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Shield, Search, Filter, ChevronDown, ChevronUp, Calendar, User, Database, RefreshCw } from 'lucide-react';
 
-const OWNER_EMAIL = 'accounts@redoakcleaning.com';
+const OWNER_EMAIL = 'accounts@redoakcleaning.com.au';
 
 const ACTION_LABELS = {
   create: { label: 'Creado', color: 'bg-green-100 text-green-800' },

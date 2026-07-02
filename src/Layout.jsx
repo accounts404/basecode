@@ -91,7 +91,7 @@ const adminMenuItems = [
   { name: 'Auditoría', path: 'Auditoria', icon: Shield, ownerOnly: true },
 ];
 
-const OWNER_EMAIL = 'accounts@redoakcleaning.com';
+const OWNER_EMAIL = 'accounts@redoakcleaning.com.au';
 
 const buildAdminNavigation = (userEmail) => adminMenuItems
   .filter(item => !item.ownerOnly || userEmail === OWNER_EMAIL)
