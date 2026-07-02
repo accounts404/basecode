@@ -91,6 +91,10 @@ function AuditCard({ log }) {
   const action = ACTION_LABELS[log.action] || { label: log.action, color: 'bg-gray-100 text-gray-800' };
   const entityLabel = ENTITY_LABELS[log.entity_type] || log.entity_type;
   const ts = log.timestamp ? format(parseISO(log.timestamp), "HH:mm", { locale: es }) : '—';
+  const displayUser = log.user_name && log.user_name !== 'Desconocido' && log.user_name !== 'Admin'
+    ? log.user_name
+    : log.user_email || log.user_name || 'Desconocido';
+  const initials = displayUser.split(' ').slice(0, 2).map(w => w[0]?.toUpperCase() || '').join('');
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden text-sm">
@@ -98,16 +102,23 @@ function AuditCard({ log }) {
         className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors"
         onClick={() => setExpanded(!expanded)}
       >
+        {/* User avatar */}
+        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 text-xs font-bold text-slate-600">
+          {initials || <User className="w-3.5 h-3.5" />}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-slate-800 text-sm">{displayUser}</span>
             <Badge className={`${action.color} text-xs`}>{action.label}</Badge>
             <Badge variant="outline" className="text-slate-600 text-xs">{entityLabel}</Badge>
             {log.entity_name && (
-              <span className="font-medium text-slate-800 truncate">{log.entity_name}</span>
+              <span className="text-slate-600 truncate">— {log.entity_name}</span>
             )}
           </div>
-          <div className="flex flex-wrap gap-3 text-xs text-slate-400 mt-1">
-            <span className="flex items-center gap-1"><User className="w-3 h-3" />{log.user_name || 'Desconocido'}</span>
+          <div className="flex flex-wrap gap-3 text-xs text-slate-400 mt-0.5">
+            {log.user_email && log.user_name && log.user_name !== log.user_email && (
+              <span>{log.user_email}</span>
+            )}
             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{ts}</span>
             {log.changed_fields?.length > 0 && (
               <span className="flex items-center gap-1"><Database className="w-3 h-3" />{log.changed_fields.length} campo{log.changed_fields.length > 1 ? 's' : ''}</span>

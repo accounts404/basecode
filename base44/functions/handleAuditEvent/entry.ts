@@ -38,16 +38,19 @@ Deno.serve(async (req) => {
     const entity_id = event.entity_id;
     const action = event.type; // create, update, delete
 
-    // Try to get the user who made the change
-    let user_id = data?.created_by_id || '';
-    let user_name = 'Admin';
+    // Try to get the user who made the change.
+    // For updates/deletes, created_by_id is the original creator, not the modifier —
+    // so we try to resolve the user from both data and old_data, preferring the most recent.
+    const raw_user_id = data?.created_by_id || old_data?.created_by_id || '';
+    let user_id = raw_user_id;
+    let user_name = 'Desconocido';
     let user_email = '';
 
     if (user_id) {
       try {
         const users = await base44.asServiceRole.entities.User.filter({ id: user_id });
         if (users.length > 0) {
-          user_name = users[0].full_name || users[0].email || 'Admin';
+          user_name = users[0].full_name || users[0].email || 'Desconocido';
           user_email = users[0].email || '';
         }
       } catch (_) {}
