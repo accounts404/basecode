@@ -38,22 +38,36 @@ Deno.serve(async (req) => {
     const entity_id = event.entity_id;
     const action = event.type; // create, update, delete
 
-    // Try to get the user who made the change.
-    // For updates/deletes, created_by_id is the original creator, not the modifier —
-    // so we try to resolve the user from both data and old_data, preferring the most recent.
-    const raw_user_id = data?.created_by_id || old_data?.created_by_id || '';
-    let user_id = raw_user_id;
+    // Resolve the user who actually performed the action.
+    // For create: use created_by_id (the creator).
+    // For update/delete: use the authenticated session user (who triggered the change),
+    // NOT created_by_id which is the original creator of the record.
+    let user_id = '';
     let user_name = 'Desconocido';
     let user_email = '';
 
-    if (user_id) {
-      try {
-        const users = await base44.asServiceRole.entities.User.filter({ id: user_id });
-        if (users.length > 0) {
-          user_name = users[0].full_name || users[0].email || 'Desconocido';
-          user_email = users[0].email || '';
+    try {
+      const sessionUser = await base44.auth.me();
+      if (sessionUser && sessionUser.id) {
+        user_id = sessionUser.id;
+        user_name = sessionUser.full_name || sessionUser.email || 'Desconocido';
+        user_email = sessionUser.email || '';
+      }
+    } catch (_) {
+      // Fallback: for create events use created_by_id from data
+      if (action === 'create') {
+        const raw_user_id = data?.created_by_id || '';
+        if (raw_user_id) {
+          try {
+            const users = await base44.asServiceRole.entities.User.filter({ id: raw_user_id });
+            if (users.length > 0) {
+              user_id = raw_user_id;
+              user_name = users[0].full_name || users[0].email || 'Desconocido';
+              user_email = users[0].email || '';
+            }
+          } catch (_2) {}
         }
-      } catch (_) {}
+      }
     }
 
     const entity_name = getEntityName(entity_type, data || old_data);
