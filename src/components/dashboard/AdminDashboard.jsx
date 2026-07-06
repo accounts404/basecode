@@ -48,6 +48,8 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import ClientProfitabilityPanel from '@/components/dashboard/ClientProfitabilityPanel';
+import PendingInvoicesPanel from '@/components/dashboard/PendingInvoicesPanel';
 
 // Helper para parsear ISO strings como UTC
 const parseISOAsUTC = (isoString) => {
@@ -146,7 +148,12 @@ export default function AdminDashboard() {
 
         // Alertas
         alerts: [],
-        comparisonLabel: ''
+        comparisonLabel: '',
+
+        // Nuevas métricas
+        clientProfitability: [],
+        pendingInvoicesList: [],
+        totalPendingAmount: 0,
     });
 
     useEffect(() => {
@@ -560,6 +567,102 @@ export default function AdminDashboard() {
                 });
             }
 
+            // === RENTABILIDAD POR CLIENTE (mes actual + historial 6 meses) ===
+            const clientProfitabilityMap = {};
+
+            // Construir historial para los últimos 6 meses por cliente
+            for (let i = 5; i >= 0; i--) {
+                const mDate = subMonths(now, i);
+                const mStart = new Date(Date.UTC(mDate.getUTCFullYear(), mDate.getUTCMonth(), 1, 0, 0, 0));
+                const mEnd = new Date(Date.UTC(mDate.getUTCFullYear(), mDate.getUTCMonth() + 1, 0, 23, 59, 59));
+                const mLabel = format(mDate, 'MMM yy', { locale: es });
+                const isCurrentMonth = i === 0;
+
+                // Schedules facturados de ese mes
+                const mSchedules = allSchedules.filter(s => {
+                    if (!s.xero_invoiced || !s.start_time) return false;
+                    const d = parseISOAsUTC(s.start_time);
+                    return d && d >= mStart && d <= mEnd && (!trainingClient || s.client_id !== trainingClient.id);
+                });
+
+                // Work entries de ese mes
+                const mEntries = allWorkEntries.filter(e => {
+                    const d = parseISOAsUTC(e.work_date);
+                    return d && d >= mStart && d <= mEnd && (!trainingClient || e.client_id !== trainingClient.id);
+                });
+
+                // Agrupar ingresos por cliente
+                const mRevenueByClient = {};
+                mSchedules.forEach(s => {
+                    const client = clientsMap.get(s.client_id);
+                    if (!client) return;
+                    mRevenueByClient[s.client_id] = (mRevenueByClient[s.client_id] || 0) + calculateScheduleRevenue(s, client);
+                });
+
+                // Agrupar costos laborales por cliente
+                const mCostByClient = {};
+                const mHoursByClient = {};
+                mEntries.forEach(e => {
+                    mCostByClient[e.client_id] = (mCostByClient[e.client_id] || 0) + (e.total_amount || 0);
+                    mHoursByClient[e.client_id] = (mHoursByClient[e.client_id] || 0) + (e.hours || 0);
+                });
+
+                // Unir: solo clientes con ingreso > 0
+                const relevantClients = new Set([...Object.keys(mRevenueByClient)]);
+                relevantClients.forEach(clientId => {
+                    const client = clientsMap.get(clientId);
+                    if (!client) return;
+                    const rev = mRevenueByClient[clientId] || 0;
+                    const cost = mCostByClient[clientId] || 0;
+                    const hours = mHoursByClient[clientId] || 0;
+                    const margin = rev > 0 ? ((rev - cost) / rev) * 100 : 0;
+
+                    if (!clientProfitabilityMap[clientId]) {
+                        clientProfitabilityMap[clientId] = {
+                            id: clientId,
+                            name: client.name,
+                            revenue: 0,
+                            laborCost: 0,
+                            hours: 0,
+                            margin: 0,
+                            trend: 0,
+                            history: [],
+                        };
+                    }
+                    clientProfitabilityMap[clientId].history.push({ month: mLabel, revenue: rev, laborCost: cost, hours, margin });
+                    if (isCurrentMonth) {
+                        clientProfitabilityMap[clientId].revenue = rev;
+                        clientProfitabilityMap[clientId].laborCost = cost;
+                        clientProfitabilityMap[clientId].hours = hours;
+                        clientProfitabilityMap[clientId].margin = margin;
+                    }
+                });
+            }
+
+            // Calcular trend (margen mes actual - margen mes anterior) para cada cliente
+            Object.values(clientProfitabilityMap).forEach(cp => {
+                const hist = cp.history;
+                if (hist.length >= 2) {
+                    const lastTwo = hist.slice(-2);
+                    cp.trend = lastTwo[1].margin - lastTwo[0].margin;
+                }
+            });
+
+            const clientProfitability = Object.values(clientProfitabilityMap)
+                .filter(cp => cp.revenue > 0) // Solo clientes con ingreso este mes
+                .sort((a, b) => b.margin - a.margin);
+
+            // === FACTURAS PENDIENTES DEL MES ===
+            const pendingInvoicesList = allInvoices
+                .filter(i => i.status === 'submitted' || i.status === 'reviewed')
+                .sort((a, b) => {
+                    // Primero revisadas (más urgentes), luego enviadas
+                    if (a.status === 'reviewed' && b.status !== 'reviewed') return -1;
+                    if (b.status === 'reviewed' && a.status !== 'reviewed') return 1;
+                    return 0;
+                });
+            const totalPendingAmount = pendingInvoicesList.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+
             setDashboardData({
                 monthlyRevenue: parseFloat(monthlyRevenue.toFixed(0)),
                 monthlyHours: parseFloat(monthlyHours.toFixed(0)),
@@ -592,7 +695,10 @@ export default function AdminDashboard() {
                 availableVehicles,
                 totalVehicles,
                 alerts,
-                comparisonLabel
+                comparisonLabel,
+                clientProfitability,
+                pendingInvoicesList,
+                totalPendingAmount,
             });
         } catch (error) {
             console.error('Error loading dashboard data:', error);
@@ -816,6 +922,15 @@ export default function AdminDashboard() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* === RENTABILIDAD POR CLIENTE === */}
+                <ClientProfitabilityPanel clientProfitability={dashboardData.clientProfitability} />
+
+                {/* === FACTURAS PENDIENTES DEL MES === */}
+                <PendingInvoicesPanel
+                    pendingInvoicesList={dashboardData.pendingInvoicesList}
+                    totalPendingAmount={dashboardData.totalPendingAmount}
+                />
 
                 {/* === 2. ANÁLISIS DE CLIENTES === */}
                 <Card className="shadow-xl border-0">
