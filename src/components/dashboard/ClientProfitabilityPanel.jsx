@@ -112,12 +112,12 @@ export default function ClientProfitabilityPanel({ clientProfitability }) {
                                     onClick={() => setSelectedClient(client)}
                                     className={`w-full text-left flex items-center gap-3 p-3 rounded-xl border transition-all hover:shadow-md ${marginBg(client.margin)}`}
                                 >
-                                    {/* Margen grande */}
+                                    {/* Margen real grande */}
                                     <div className="flex-shrink-0 w-16 text-center">
                                         <span className={`text-xl font-bold ${marginColor(client.margin)}`}>
                                             {client.margin.toFixed(0)}%
                                         </span>
-                                        <p className="text-xs text-slate-500 mt-0.5">margen</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">real</p>
                                     </div>
 
                                     {/* Info cliente */}
@@ -128,10 +128,13 @@ export default function ClientProfitabilityPanel({ clientProfitability }) {
                                                 {client.margin >= 40 ? 'Excelente' : client.margin >= 25 ? 'Bueno' : client.margin >= 10 ? 'Regular' : 'Crítico'}
                                             </Badge>
                                         </div>
-                                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                                        <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
                                             <span>Ingreso: <span className="font-medium text-slate-700">${client.revenue.toFixed(0)}</span></span>
-                                            <span>Costo: <span className="font-medium text-slate-700">${client.laborCost.toFixed(0)}</span></span>
-                                            <span>{client.hours.toFixed(1)}h</span>
+                                            <span>Labor: <span className="font-medium text-slate-700">${client.laborCost.toFixed(0)}</span></span>
+                                            {client.distributedFixedCost > 0 && (
+                                                <span>Fijos: <span className="font-medium text-orange-600">${client.distributedFixedCost.toFixed(0)}</span></span>
+                                            )}
+                                            <span className="text-slate-400">{client.hours.toFixed(1)}h</span>
                                         </div>
                                     </div>
 
@@ -191,23 +194,42 @@ function ClientDetailModal({ client, onClose, avgMargin }) {
 
                 <div className="space-y-5 mt-2">
                     {/* KPIs */}
-                    <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-slate-50 rounded-xl p-4 text-center border">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-200">
                             <DollarSign className="w-4 h-4 mx-auto mb-1 text-emerald-600" />
-                            <p className="text-xs text-slate-500 mb-0.5">Ingreso este mes</p>
-                            <p className="text-xl font-bold text-slate-900">${client.revenue.toFixed(0)}</p>
+                            <p className="text-xs text-emerald-700 mb-0.5">Ingreso</p>
+                            <p className="text-lg font-bold text-emerald-900">${client.revenue.toFixed(0)}</p>
                         </div>
-                        <div className="bg-slate-50 rounded-xl p-4 text-center border">
-                            <Clock className="w-4 h-4 mx-auto mb-1 text-blue-600" />
-                            <p className="text-xs text-slate-500 mb-0.5">Costo laboral</p>
-                            <p className="text-xl font-bold text-slate-900">${client.laborCost.toFixed(0)}</p>
+                        <div className="bg-rose-50 rounded-xl p-3 text-center border border-rose-200">
+                            <Clock className="w-4 h-4 mx-auto mb-1 text-rose-600" />
+                            <p className="text-xs text-rose-700 mb-0.5">Costo laboral</p>
+                            <p className="text-lg font-bold text-rose-900">${client.laborCost.toFixed(0)}</p>
                         </div>
-                        <div className="bg-slate-50 rounded-xl p-4 text-center border">
-                            <Percent className="w-4 h-4 mx-auto mb-1 text-purple-600" />
-                            <p className="text-xs text-slate-500 mb-0.5">Horas trabajadas</p>
-                            <p className="text-xl font-bold text-slate-900">{client.hours.toFixed(1)}h</p>
+                        <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-200">
+                            <Percent className="w-4 h-4 mx-auto mb-1 text-orange-600" />
+                            <p className="text-xs text-orange-700 mb-0.5">Gastos fijos dist.</p>
+                            <p className="text-lg font-bold text-orange-900">${(client.distributedFixedCost || 0).toFixed(0)}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-xl p-3 text-center border">
+                            <Clock className="w-4 h-4 mx-auto mb-1 text-slate-500" />
+                            <p className="text-xs text-slate-500 mb-0.5">Horas</p>
+                            <p className="text-lg font-bold text-slate-900">{client.hours.toFixed(1)}h</p>
                         </div>
                     </div>
+
+                    {/* Comparación margen bruto vs real */}
+                    {client.grossMargin !== undefined && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-200">
+                                <p className="text-xs text-blue-700 mb-0.5">Margen bruto (sin fijos)</p>
+                                <p className={`text-2xl font-bold ${client.grossMargin >= 0 ? 'text-blue-800' : 'text-rose-800'}`}>{client.grossMargin.toFixed(1)}%</p>
+                            </div>
+                            <div className={`rounded-xl p-3 text-center border ${marginBg(client.margin)}`}>
+                                <p className={`text-xs mb-0.5 ${marginColor(client.margin)}`}>Margen real (con fijos)</p>
+                                <p className={`text-2xl font-bold ${marginColor(client.margin)}`}>{client.margin.toFixed(1)}%</p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Gráfico evolución margen */}
                     {chartData.length >= 2 ? (
@@ -280,16 +302,22 @@ function ClientDetailModal({ client, onClose, avgMargin }) {
                                         <tr className="bg-slate-50 border-b">
                                             <th className="text-left px-3 py-2 text-slate-600 font-medium">Mes</th>
                                             <th className="text-right px-3 py-2 text-slate-600 font-medium">Ingreso</th>
-                                            <th className="text-right px-3 py-2 text-slate-600 font-medium">Costo</th>
-                                            <th className="text-right px-3 py-2 text-slate-600 font-medium">Margen</th>
+                                            <th className="text-right px-3 py-2 text-slate-600 font-medium">Labor</th>
+                                            <th className="text-right px-3 py-2 text-orange-600 font-medium">Fijos</th>
+                                            <th className="text-right px-3 py-2 text-blue-600 font-medium">Bruto</th>
+                                            <th className="text-right px-3 py-2 text-slate-600 font-medium">Real</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {[...client.history].reverse().map((h, i) => (
                                             <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
-                                                <td className="px-3 py-2 text-slate-700">{h.month}</td>
-                                                <td className="px-3 py-2 text-right text-slate-900 font-medium">${h.revenue.toFixed(0)}</td>
-                                                <td className="px-3 py-2 text-right text-slate-600">${h.laborCost.toFixed(0)}</td>
+                                                <td className="px-3 py-2 text-slate-700 font-medium">{h.month}</td>
+                                                <td className="px-3 py-2 text-right text-emerald-700 font-medium">${h.revenue.toFixed(0)}</td>
+                                                <td className="px-3 py-2 text-right text-rose-600">${h.laborCost.toFixed(0)}</td>
+                                                <td className="px-3 py-2 text-right text-orange-600">${(h.fixedCost || 0).toFixed(0)}</td>
+                                                <td className={`px-3 py-2 text-right ${h.grossMargin >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
+                                                    {(h.grossMargin || 0).toFixed(1)}%
+                                                </td>
                                                 <td className={`px-3 py-2 text-right font-bold ${marginColor(h.margin)}`}>
                                                     {h.margin.toFixed(1)}%
                                                 </td>

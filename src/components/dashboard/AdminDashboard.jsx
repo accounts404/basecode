@@ -8,6 +8,7 @@ import { Invoice } from '@/entities/Invoice';
 import { ServiceReport } from '@/entities/ServiceReport';
 import { Vehicle } from '@/entities/Vehicle';
 import { Task } from '@/entities/Task';
+import { FixedCost } from '@/entities/FixedCost';
 // Removed MonthlyCleanerScore as it's no longer used
 import { format, startOfMonth, endOfMonth, subMonths, addDays, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -208,6 +209,7 @@ export default function AdminDashboard() {
                 allReports,
                 allVehicles,
                 allTasks,
+                allFixedCosts,
             ] = await Promise.all([
                 loadAllRecords(Client, '-created_date'),
                 loadAllRecords(User, '-created_date'),
@@ -217,6 +219,7 @@ export default function AdminDashboard() {
                 loadAllRecords(ServiceReport, '-created_date'),
                 loadAllRecords(Vehicle, '-created_date'),
                 loadAllRecords(Task, '-created_date'),
+                loadAllRecords(FixedCost, '-created_date'),
             ]);
             
             console.log('[AdminDashboard] ✅ Registros cargados:', {
@@ -567,10 +570,96 @@ export default function AdminDashboard() {
                 });
             }
 
-            // === RENTABILIDAD POR CLIENTE (mes actual + historial 6 meses) ===
+            // === RENTABILIDAD POR CLIENTE (mes actual + historial 6 meses) con gastos fijos distribuidos ===
+            // Misma lógica que RentabilityAnalysisTab: distribuye gastos fijos proporcionalmente por horas
+
             const clientProfitabilityMap = {};
 
-            // Construir historial para los últimos 6 meses por cliente
+            // Helper para calcular datos reales de un período
+            const calcMonthProfitability = (mStart, mEnd, mLabel) => {
+                const mPeriodKey = format(new Date(mStart.getTime() + 24 * 60 * 60 * 1000), 'yyyy-MM'); // día 1 del mes
+
+                // Gastos fijos del período (igual que loadMonthData en RentabilityAnalysisTab)
+                const fixedCostsForMonth = allFixedCosts.filter(fc => fc.period === mPeriodKey);
+                const fixedCostAmount = fixedCostsForMonth.length > 0 ? (fixedCostsForMonth[0].amount || 0) : 0;
+
+                // Schedules facturados del mes (excluyendo training y operational_cost)
+                const mSchedules = allSchedules.filter(s => {
+                    if (!s.xero_invoiced || !s.start_time) return false;
+                    const d = parseISOAsUTC(s.start_time);
+                    return d && d >= mStart && d <= mEnd;
+                });
+
+                // Work entries del mes
+                const mEntries = allWorkEntries.filter(e => {
+                    const d = parseISOAsUTC(e.work_date);
+                    return d && d >= mStart && d <= mEnd;
+                });
+
+                // Costo de entrenamiento del período
+                const trainingCostM = trainingClient
+                    ? mEntries.filter(e => e.client_id === trainingClient.id).reduce((s, e) => s + (e.total_amount || 0), 0)
+                    : 0;
+
+                // Costos operativos del período (clientes con client_type === 'operational_cost')
+                const operationalCostM = mEntries.reduce((sum, e) => {
+                    const c = clientsMap.get(e.client_id);
+                    return c?.client_type === 'operational_cost' ? sum + (e.total_amount || 0) : sum;
+                }, 0);
+
+                const totalFixedCosts = fixedCostAmount + trainingCostM + operationalCostM;
+
+                // Agrupar ingresos por cliente (excluyendo training y operational_cost)
+                const revenueByClient = {};
+                mSchedules.forEach(s => {
+                    const client = clientsMap.get(s.client_id);
+                    if (!client) return;
+                    if (trainingClient && s.client_id === trainingClient.id) return;
+                    if (client.client_type === 'operational_cost') return;
+                    revenueByClient[s.client_id] = (revenueByClient[s.client_id] || 0) + calculateScheduleRevenue(s, client);
+                });
+
+                // Agrupar costos laborales y horas por cliente (excluyendo training y operational_cost)
+                const costByClient = {};
+                const hoursByClient = {};
+                mEntries.forEach(e => {
+                    const c = clientsMap.get(e.client_id);
+                    if (!c) return;
+                    if (trainingClient && e.client_id === trainingClient.id) return;
+                    if (c.client_type === 'operational_cost') return;
+                    costByClient[e.client_id] = (costByClient[e.client_id] || 0) + (e.total_amount || 0);
+                    hoursByClient[e.client_id] = (hoursByClient[e.client_id] || 0) + (e.hours || 0);
+                });
+
+                // Total de horas productivas del período (para distribuir gastos fijos)
+                const totalPeriodHours = Object.values(hoursByClient).reduce((s, h) => s + h, 0);
+
+                // Calcular rentabilidad real por cliente
+                const result = {};
+                const relevantClients = new Set([...Object.keys(revenueByClient), ...Object.keys(costByClient)]);
+                relevantClients.forEach(clientId => {
+                    const client = clientsMap.get(clientId);
+                    if (!client) return;
+                    const rev = revenueByClient[clientId] || 0;
+                    const laborCost = costByClient[clientId] || 0;
+                    const hours = hoursByClient[clientId] || 0;
+
+                    // Distribución proporcional de gastos fijos (igual que processData en RentabilityAnalysisTab)
+                    const clientHourShare = totalPeriodHours > 0 ? hours / totalPeriodHours : 0;
+                    const distributedFixedCost = totalFixedCosts * clientHourShare;
+
+                    const grossMarginAmt = rev - laborCost;
+                    const realMargin = grossMarginAmt - distributedFixedCost;
+                    const realMarginPct = rev > 0 ? (realMargin / rev) * 100 : 0;
+                    const grossMarginPct = rev > 0 ? (grossMarginAmt / rev) * 100 : 0;
+
+                    result[clientId] = { rev, laborCost, hours, distributedFixedCost, grossMarginPct, realMarginPct, realMargin };
+                });
+
+                return result;
+            };
+
+            // Construir historial para los últimos 6 meses
             for (let i = 5; i >= 0; i--) {
                 const mDate = subMonths(now, i);
                 const mStart = new Date(Date.UTC(mDate.getUTCFullYear(), mDate.getUTCMonth(), 1, 0, 0, 0));
@@ -578,44 +667,11 @@ export default function AdminDashboard() {
                 const mLabel = format(mDate, 'MMM yy', { locale: es });
                 const isCurrentMonth = i === 0;
 
-                // Schedules facturados de ese mes
-                const mSchedules = allSchedules.filter(s => {
-                    if (!s.xero_invoiced || !s.start_time) return false;
-                    const d = parseISOAsUTC(s.start_time);
-                    return d && d >= mStart && d <= mEnd && (!trainingClient || s.client_id !== trainingClient.id);
-                });
+                const periodData = calcMonthProfitability(mStart, mEnd, mLabel);
 
-                // Work entries de ese mes
-                const mEntries = allWorkEntries.filter(e => {
-                    const d = parseISOAsUTC(e.work_date);
-                    return d && d >= mStart && d <= mEnd && (!trainingClient || e.client_id !== trainingClient.id);
-                });
-
-                // Agrupar ingresos por cliente
-                const mRevenueByClient = {};
-                mSchedules.forEach(s => {
-                    const client = clientsMap.get(s.client_id);
-                    if (!client) return;
-                    mRevenueByClient[s.client_id] = (mRevenueByClient[s.client_id] || 0) + calculateScheduleRevenue(s, client);
-                });
-
-                // Agrupar costos laborales por cliente
-                const mCostByClient = {};
-                const mHoursByClient = {};
-                mEntries.forEach(e => {
-                    mCostByClient[e.client_id] = (mCostByClient[e.client_id] || 0) + (e.total_amount || 0);
-                    mHoursByClient[e.client_id] = (mHoursByClient[e.client_id] || 0) + (e.hours || 0);
-                });
-
-                // Unir: solo clientes con ingreso > 0
-                const relevantClients = new Set([...Object.keys(mRevenueByClient)]);
-                relevantClients.forEach(clientId => {
+                Object.entries(periodData).forEach(([clientId, data]) => {
                     const client = clientsMap.get(clientId);
                     if (!client) return;
-                    const rev = mRevenueByClient[clientId] || 0;
-                    const cost = mCostByClient[clientId] || 0;
-                    const hours = mHoursByClient[clientId] || 0;
-                    const margin = rev > 0 ? ((rev - cost) / rev) * 100 : 0;
 
                     if (!clientProfitabilityMap[clientId]) {
                         clientProfitabilityMap[clientId] = {
@@ -624,22 +680,36 @@ export default function AdminDashboard() {
                             revenue: 0,
                             laborCost: 0,
                             hours: 0,
-                            margin: 0,
+                            distributedFixedCost: 0,
+                            margin: 0,   // margen real %
+                            grossMargin: 0, // margen bruto %
                             trend: 0,
                             history: [],
                         };
                     }
-                    clientProfitabilityMap[clientId].history.push({ month: mLabel, revenue: rev, laborCost: cost, hours, margin });
+
+                    clientProfitabilityMap[clientId].history.push({
+                        month: mLabel,
+                        revenue: data.rev,
+                        laborCost: data.laborCost,
+                        fixedCost: data.distributedFixedCost,
+                        hours: data.hours,
+                        margin: data.realMarginPct,       // margen real con gastos fijos
+                        grossMargin: data.grossMarginPct, // margen bruto sin gastos fijos
+                    });
+
                     if (isCurrentMonth) {
-                        clientProfitabilityMap[clientId].revenue = rev;
-                        clientProfitabilityMap[clientId].laborCost = cost;
-                        clientProfitabilityMap[clientId].hours = hours;
-                        clientProfitabilityMap[clientId].margin = margin;
+                        clientProfitabilityMap[clientId].revenue = data.rev;
+                        clientProfitabilityMap[clientId].laborCost = data.laborCost;
+                        clientProfitabilityMap[clientId].hours = data.hours;
+                        clientProfitabilityMap[clientId].distributedFixedCost = data.distributedFixedCost;
+                        clientProfitabilityMap[clientId].margin = data.realMarginPct;
+                        clientProfitabilityMap[clientId].grossMargin = data.grossMarginPct;
                     }
                 });
             }
 
-            // Calcular trend (margen mes actual - margen mes anterior) para cada cliente
+            // Calcular trend (margen real mes actual - mes anterior)
             Object.values(clientProfitabilityMap).forEach(cp => {
                 const hist = cp.history;
                 if (hist.length >= 2) {
@@ -649,7 +719,7 @@ export default function AdminDashboard() {
             });
 
             const clientProfitability = Object.values(clientProfitabilityMap)
-                .filter(cp => cp.revenue > 0) // Solo clientes con ingreso este mes
+                .filter(cp => cp.revenue > 0)
                 .sort((a, b) => b.margin - a.margin);
 
             // === FACTURAS PENDIENTES DEL MES ===
