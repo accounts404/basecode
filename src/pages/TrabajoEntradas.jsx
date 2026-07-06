@@ -139,7 +139,7 @@ export default function TrabajoEntradasPage() {
         const allUsers = Array.isArray(cleanersResult) ? cleanersResult : [];
         const clientsData = Array.isArray(clientsResult) ? clientsResult : [];
         
-        const cleanerUsers = allUsers.filter(user => user.role !== 'admin');
+        const cleanerUsers = allUsers.filter(user => user.role !== 'admin' && user.active !== false);
         setCleaners(cleanerUsers);
         setAllClients(clientsData.filter(c => c.active !== false));
 
