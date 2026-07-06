@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { base44 } from "@/api/base44Client";
 import { User } from "@/entities/User";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,9 @@ import {
     Dialog,
     DialogContent,
     DialogHeader,
-    DialogTitle
+    DialogTitle,
+    DialogDescription,
+    DialogFooter
 } from "@/components/ui/dialog";
 
 const daysOfWeek = {
@@ -538,7 +541,8 @@ export default function LimpiadoresPage() {
   const [editingRatesFor, setEditingRatesFor] = useState(null);
   const [isRateSheetOpen, setIsRateSheetOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showInactive, setShowInactive] = useState(false); // New state for showing inactive cleaners
+  const [showInactive, setShowInactive] = useState(false);
+  const [deactivateWarning, setDeactivateWarning] = useState(null); // { cleaner, upcomingSchedules }
 
   const loadAllRecords = async (entity, sortField = '-created_date') => {
     const BATCH_SIZE = 5000;
@@ -624,6 +628,38 @@ export default function LimpiadoresPage() {
 
   const handleToggleActive = async (cleaner) => {
     setNotification({ type: "", message: "" });
+
+    // Solo verificar si vamos a DESACTIVAR
+    if (cleaner.active !== false) {
+      try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayISO = today.toISOString();
+
+        const allSchedules = await base44.entities.Schedule.filter({
+          status: { $in: ['scheduled', 'in_progress'] }
+        });
+
+        const upcoming = allSchedules.filter(s => {
+          if (!s.cleaner_ids?.includes(cleaner.id)) return false;
+          const serviceDate = new Date(s.start_time);
+          serviceDate.setHours(0, 0, 0, 0);
+          return serviceDate >= today;
+        });
+
+        if (upcoming.length > 0) {
+          setDeactivateWarning({ cleaner, upcomingSchedules: upcoming });
+          return; // No desactivar todavía, mostrar alerta
+        }
+      } catch (err) {
+        console.error("Error verificando servicios futuros:", err);
+      }
+    }
+
+    await doToggleActive(cleaner);
+  };
+
+  const doToggleActive = async (cleaner) => {
     try {
       await User.update(cleaner.id, { active: !cleaner.active });
       setNotification({
@@ -992,6 +1028,50 @@ export default function LimpiadoresPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Diálogo de advertencia al desactivar limpiador con servicios futuros */}
+      <Dialog open={!!deactivateWarning} onOpenChange={(open) => !open && setDeactivateWarning(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-700">
+              <AlertCircle className="w-5 h-5" />
+              Limpiador con servicios asignados
+            </DialogTitle>
+            <DialogDescription>
+              <strong>{deactivateWarning?.cleaner?.full_name}</strong> tiene <strong>{deactivateWarning?.upcomingSchedules?.length}</strong> servicio(s) programado(s) para hoy o en el futuro. Desasigna este limpiador antes de desactivarlo para evitar conflictos.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-60 overflow-y-auto space-y-2 my-2">
+            {deactivateWarning?.upcomingSchedules?.map(s => (
+              <div key={s.id} className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                <p className="font-semibold text-slate-800">{s.client_name || 'Cliente sin nombre'}</p>
+                <p className="text-slate-600">{s.client_address || ''}</p>
+                <p className="text-amber-700 text-xs mt-1">
+                  {s.start_time ? format(new Date(s.start_time), "EEEE d 'de' MMMM yyyy 'a las' HH:mm", { locale: es }) : '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="flex gap-2 flex-col sm:flex-row">
+            <Button variant="outline" onClick={() => setDeactivateWarning(null)} className="flex-1">
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={async () => {
+                const cleaner = deactivateWarning.cleaner;
+                setDeactivateWarning(null);
+                await doToggleActive(cleaner);
+              }}
+            >
+              Desactivar de todas formas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Sheet open={isRateSheetOpen} onOpenChange={setIsRateSheetOpen}>
         <SheetContent className="sm:max-w-[600px]">
