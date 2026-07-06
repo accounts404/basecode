@@ -37,7 +37,6 @@ const ReportesServicio = React.lazy(() => import('./pages/ReportesServicio'));
 const RevisionPrecios = React.lazy(() => import('./pages/RevisionPrecios'));
 const ServiceItemsManagement = React.lazy(() => import('./pages/ServiceItemsManagement'));
 const ServicioActivo = React.lazy(() => import('./pages/ServicioActivo'));
-const TVDashboard = React.lazy(() => import('./pages/TVDashboard'));
 const TrabajoEntradas = React.lazy(() => import('./pages/TrabajoEntradas'));
 const Vehiculos = React.lazy(() => import('./pages/Vehiculos'));
 
@@ -77,7 +76,6 @@ export const PAGES = {
     "RevisionPrecios": RevisionPrecios,
     "ServiceItemsManagement": ServiceItemsManagement,
     "ServicioActivo": ServicioActivo,
-    "TVDashboard": TVDashboard,
     "TrabajoEntradas": TrabajoEntradas,
     "Vehiculos": Vehiculos,
 };

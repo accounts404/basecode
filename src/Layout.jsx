@@ -62,7 +62,6 @@ import CleanerMobileLayout from '@/components/layout/CleanerMobileLayout';
 
 const adminMenuItems = [
     { name: 'Dashboard', path: 'Dashboard', icon: BarChart },
-    { name: 'Dashboard TV', path: 'TVDashboard', icon: Activity },
     { name: 'Cotizaciones', path: 'Cotizaciones', icon: FileText },
     { name: 'Tareas', path: 'AdminTasksPanel', icon: ListChecks },
   { name: 'Horario', path: 'Horario', icon: Calendar },
@@ -300,10 +299,6 @@ function LayoutContent({ children, currentPageName }) {
     localStorage.clear();
     await base44.auth.logout();
   };
-
-  if (currentPageName === 'TVDashboard') {
-    return <div className="min-h-screen w-full">{children}</div>;
-  }
 
   if (isLoadingAuth) {
     return (
