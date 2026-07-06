@@ -575,13 +575,29 @@ export default function AdminDashboard() {
 
             const clientProfitabilityMap = {};
 
+            // Calcular promedio de gastos fijos de meses ya ingresados (hasta 6 meses atrás)
+            const fixedCostHistory = [];
+            for (let i = 6; i >= 1; i--) {
+                const mDate = subMonths(now, i);
+                const mKey = format(mDate, 'yyyy-MM');
+                const fcEntry = allFixedCosts.find(fc => fc.period === mKey);
+                if (fcEntry && fcEntry.amount > 0) {
+                    fixedCostHistory.push(fcEntry.amount);
+                }
+            }
+            const avgFixedCost = fixedCostHistory.length > 0
+                ? fixedCostHistory.reduce((s, v) => s + v, 0) / fixedCostHistory.length
+                : 0;
+
             // Helper para calcular datos reales de un período
             const calcMonthProfitability = (mStart, mEnd, mLabel) => {
                 const mPeriodKey = format(new Date(mStart.getTime() + 24 * 60 * 60 * 1000), 'yyyy-MM'); // día 1 del mes
 
-                // Gastos fijos del período (igual que loadMonthData en RentabilityAnalysisTab)
+                // Gastos fijos del período — si no están ingresados, usar promedio de meses anteriores
                 const fixedCostsForMonth = allFixedCosts.filter(fc => fc.period === mPeriodKey);
-                const fixedCostAmount = fixedCostsForMonth.length > 0 ? (fixedCostsForMonth[0].amount || 0) : 0;
+                const hasRealFixedCost = fixedCostsForMonth.length > 0 && fixedCostsForMonth[0].amount > 0;
+                const fixedCostAmount = hasRealFixedCost ? (fixedCostsForMonth[0].amount || 0) : avgFixedCost;
+                const isEstimatedFixed = !hasRealFixedCost && avgFixedCost > 0;
 
                 // Schedules facturados del mes (excluyendo training y operational_cost)
                 const mSchedules = allSchedules.filter(s => {
@@ -653,7 +669,7 @@ export default function AdminDashboard() {
                     const realMarginPct = rev > 0 ? (realMargin / rev) * 100 : 0;
                     const grossMarginPct = rev > 0 ? (grossMarginAmt / rev) * 100 : 0;
 
-                    result[clientId] = { rev, laborCost, hours, distributedFixedCost, grossMarginPct, realMarginPct, realMargin };
+                    result[clientId] = { rev, laborCost, hours, distributedFixedCost, grossMarginPct, realMarginPct, realMargin, isEstimatedFixed };
                 });
 
                 return result;
@@ -694,8 +710,9 @@ export default function AdminDashboard() {
                         laborCost: data.laborCost,
                         fixedCost: data.distributedFixedCost,
                         hours: data.hours,
-                        margin: data.realMarginPct,       // margen real con gastos fijos
-                        grossMargin: data.grossMarginPct, // margen bruto sin gastos fijos
+                        margin: data.realMarginPct,
+                        grossMargin: data.grossMarginPct,
+                        isEstimatedFixed: data.isEstimatedFixed,
                     });
 
                     if (isCurrentMonth) {
@@ -705,6 +722,7 @@ export default function AdminDashboard() {
                         clientProfitabilityMap[clientId].distributedFixedCost = data.distributedFixedCost;
                         clientProfitabilityMap[clientId].margin = data.realMarginPct;
                         clientProfitabilityMap[clientId].grossMargin = data.grossMarginPct;
+                        clientProfitabilityMap[clientId].isEstimatedFixed = data.isEstimatedFixed;
                     }
                 });
             }

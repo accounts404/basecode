@@ -7,7 +7,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     LineChart, Line, ReferenceLine, Legend
 } from 'recharts';
-import { TrendingUp, TrendingDown, ChevronRight, Search, X, DollarSign, Clock, Percent } from 'lucide-react';
+import { TrendingUp, TrendingDown, ChevronRight, Search, X, DollarSign, Clock, Percent, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 // Helper: color de margen
@@ -64,12 +64,18 @@ export default function ClientProfitabilityPanel({ clientProfitability }) {
             <Card className="shadow-xl border-0">
                 <CardHeader className="bg-gradient-to-r from-slate-50 to-emerald-50 border-b">
                     <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between">
-                        <CardTitle className="flex items-center gap-2 text-xl">
+                        <CardTitle className="flex items-center gap-2 text-xl flex-wrap gap-y-1">
                             <Percent className="w-6 h-6 text-emerald-600" />
                             Rentabilidad por Cliente
                             <Badge variant="outline" className="ml-2 text-xs font-normal">
                                 Promedio: <span className={`ml-1 font-bold ${marginColor(avgMargin)}`}>{avgMargin.toFixed(1)}%</span>
                             </Badge>
+                            {clientProfitability.some(c => c.isEstimatedFixed) && (
+                                <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 font-normal">
+                                    <Info className="w-3 h-3" />
+                                    Fijos estimados (promedio histórico)
+                                </span>
+                            )}
                         </CardTitle>
                         <div className="flex items-center gap-2 flex-wrap">
                             <div className="relative">
@@ -132,7 +138,10 @@ export default function ClientProfitabilityPanel({ clientProfitability }) {
                                             <span>Ingreso: <span className="font-medium text-slate-700">${client.revenue.toFixed(0)}</span></span>
                                             <span>Labor: <span className="font-medium text-slate-700">${client.laborCost.toFixed(0)}</span></span>
                                             {client.distributedFixedCost > 0 && (
-                                                <span>Fijos: <span className="font-medium text-orange-600">${client.distributedFixedCost.toFixed(0)}</span></span>
+                                                <span>
+                                                    Fijos: <span className="font-medium text-orange-600">${client.distributedFixedCost.toFixed(0)}</span>
+                                                    {client.isEstimatedFixed && <span className="text-amber-500 ml-0.5">~</span>}
+                                                </span>
                                             )}
                                             <span className="text-slate-400">{client.hours.toFixed(1)}h</span>
                                         </div>
@@ -207,7 +216,9 @@ function ClientDetailModal({ client, onClose, avgMargin }) {
                         </div>
                         <div className="bg-orange-50 rounded-xl p-3 text-center border border-orange-200">
                             <Percent className="w-4 h-4 mx-auto mb-1 text-orange-600" />
-                            <p className="text-xs text-orange-700 mb-0.5">Gastos fijos dist.</p>
+                            <p className="text-xs text-orange-700 mb-0.5">
+                                Gastos fijos dist.{client.isEstimatedFixed && <span className="ml-1 text-amber-500 font-bold">~est.</span>}
+                            </p>
                             <p className="text-lg font-bold text-orange-900">${(client.distributedFixedCost || 0).toFixed(0)}</p>
                         </div>
                         <div className="bg-slate-50 rounded-xl p-3 text-center border">
@@ -216,6 +227,14 @@ function ClientDetailModal({ client, onClose, avgMargin }) {
                             <p className="text-lg font-bold text-slate-900">{client.hours.toFixed(1)}h</p>
                         </div>
                     </div>
+
+                    {/* Aviso gastos estimados */}
+                    {client.isEstimatedFixed && (
+                        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                            <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
+                            <span>Los gastos fijos de este mes aún no fueron ingresados. Se está usando el <strong>promedio de los meses anteriores</strong> como estimación.</span>
+                        </div>
+                    )}
 
                     {/* Comparación margen bruto vs real */}
                     {client.grossMargin !== undefined && (
@@ -314,7 +333,9 @@ function ClientDetailModal({ client, onClose, avgMargin }) {
                                                 <td className="px-3 py-2 text-slate-700 font-medium">{h.month}</td>
                                                 <td className="px-3 py-2 text-right text-emerald-700 font-medium">${h.revenue.toFixed(0)}</td>
                                                 <td className="px-3 py-2 text-right text-rose-600">${h.laborCost.toFixed(0)}</td>
-                                                <td className="px-3 py-2 text-right text-orange-600">${(h.fixedCost || 0).toFixed(0)}</td>
+                                                <td className="px-3 py-2 text-right text-orange-600">
+                                                   ${(h.fixedCost || 0).toFixed(0)}{h.isEstimatedFixed && <span className="text-amber-400 ml-0.5 text-xs" title="Estimado">~</span>}
+                                                </td>
                                                 <td className={`px-3 py-2 text-right ${h.grossMargin >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
                                                     {(h.grossMargin || 0).toFixed(1)}%
                                                 </td>
