@@ -590,14 +590,21 @@ export default function AdminDashboard() {
                 : 0;
 
             // Helper para calcular datos reales de un período
-            const calcMonthProfitability = (mStart, mEnd, mLabel) => {
-                const mPeriodKey = format(new Date(mStart.getTime() + 24 * 60 * 60 * 1000), 'yyyy-MM'); // día 1 del mes
+            const calcMonthProfitability = (mStart, mEnd, mLabel, isCurrentPeriod = false) => {
+                const mPeriodKey = format(mStart, 'yyyy-MM');
 
                 // Gastos fijos del período — si no están ingresados, usar promedio de meses anteriores
                 const fixedCostsForMonth = allFixedCosts.filter(fc => fc.period === mPeriodKey);
                 const hasRealFixedCost = fixedCostsForMonth.length > 0 && fixedCostsForMonth[0].amount > 0;
-                const fixedCostAmount = hasRealFixedCost ? (fixedCostsForMonth[0].amount || 0) : avgFixedCost;
+                let fixedCostAmount = hasRealFixedCost ? (fixedCostsForMonth[0].amount || 0) : avgFixedCost;
                 const isEstimatedFixed = !hasRealFixedCost && avgFixedCost > 0;
+
+                // Para el mes actual, prorratear los fijos por los días transcurridos
+                if (isCurrentPeriod && fixedCostAmount > 0) {
+                    const totalDaysInMonth = new Date(Date.UTC(mStart.getUTCFullYear(), mStart.getUTCMonth() + 1, 0)).getUTCDate();
+                    const daysElapsed = now.getUTCDate();
+                    fixedCostAmount = fixedCostAmount * (daysElapsed / totalDaysInMonth);
+                }
 
                 // Schedules facturados del mes (excluyendo training y operational_cost)
                 const mSchedules = allSchedules.filter(s => {
@@ -683,7 +690,7 @@ export default function AdminDashboard() {
                 const mLabel = format(mDate, 'MMM yy', { locale: es });
                 const isCurrentMonth = i === 0;
 
-                const periodData = calcMonthProfitability(mStart, mEnd, mLabel);
+                const periodData = calcMonthProfitability(mStart, mEnd, mLabel, isCurrentMonth);
 
                 Object.entries(periodData).forEach(([clientId, data]) => {
                     const client = clientsMap.get(clientId);
