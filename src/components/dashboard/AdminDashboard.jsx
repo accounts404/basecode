@@ -145,7 +145,8 @@ export default function AdminDashboard() {
         totalVehicles: 0,
 
         // Alertas
-        alerts: []
+        alerts: [],
+        comparisonLabel: ''
     });
 
     useEffect(() => {
@@ -159,10 +160,11 @@ export default function AdminDashboard() {
 
             // Calculamos los rangos de fechas en UTC para consistencia
             const currentMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
-            const currentMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+            const currentMonthEnd = now; // hasta ahora (no fin de mes)
             const lastMonthNow = subMonths(now, 1);
             const lastMonthStart = new Date(Date.UTC(lastMonthNow.getUTCFullYear(), lastMonthNow.getUTCMonth(), 1, 0, 0, 0, 0));
-            const lastMonthEnd = new Date(Date.UTC(lastMonthNow.getUTCFullYear(), lastMonthNow.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+            // Mismo día del mes anterior al día actual (ej: si hoy es 7 julio → 7 junio 23:59:59)
+            const lastMonthEquivalentEnd = new Date(Date.UTC(lastMonthNow.getUTCFullYear(), lastMonthNow.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
 
             // Helper para cargar TODOS los registros con paginación
             const loadAllRecords = async (entity, sortField = '-created_date') => {
@@ -234,7 +236,7 @@ export default function AdminDashboard() {
 
             const lastMonthEntries = allWorkEntries.filter(e => {
                 const date = parseISOAsUTC(e.work_date);
-                return date && date >= lastMonthStart && date <= lastMonthEnd;
+                return date && date >= lastMonthStart && date <= lastMonthEquivalentEnd;
             });
 
             // Filtrar schedules facturados del mes actual
@@ -285,7 +287,7 @@ export default function AdminDashboard() {
                 .filter(s => {
                     if (!s.xero_invoiced || !s.start_time) return false;
                     const date = parseISOAsUTC(s.start_time);
-                    return date && date >= lastMonthStart && date <= lastMonthEnd;
+                    return date && date >= lastMonthStart && date <= lastMonthEquivalentEnd;
                 })
                 .reduce((sum, schedule) => {
                     const client = clientsMap.get(schedule.client_id);
@@ -299,6 +301,9 @@ export default function AdminDashboard() {
                 .filter(e => !trainingClient || e.client_id !== trainingClient.id)
                 .reduce((sum, e) => sum + (e.hours || 0), 0);
             const hoursChange = lastMonthHours > 0 ? ((monthlyHours - lastMonthHours) / lastMonthHours) * 100 : 0;
+            
+            // Etiqueta del período de comparación para mostrar en UI
+            const comparisonLabel = `vs ${format(lastMonthNow, 'MMM', { locale: es })} 1-${now.getUTCDate()}`;
 
             const activeClients = allClients.filter(c => c.active !== false).length;
             const activeCleaners = allUsers.filter(u => u.role !== 'admin' && u.active !== false).length;
@@ -586,7 +591,8 @@ export default function AdminDashboard() {
                 pendingTasks,
                 availableVehicles,
                 totalVehicles,
-                alerts
+                alerts,
+                comparisonLabel
             });
         } catch (error) {
             console.error('Error loading dashboard data:', error);
@@ -679,14 +685,14 @@ export default function AdminDashboard() {
                                         <>
                                             <TrendingUp className="w-4 h-4" />
                                             <span>+{dashboardData.revenueChange.toFixed(1)}%</span>
-                                        </>
-                                    ) : (
-                                        <>
+                                            </>
+                                            ) : (
+                                            <>
                                             <TrendingDown className="w-4 h-4" />
                                             <span>{dashboardData.revenueChange.toFixed(1)}%</span>
-                                        </>
-                                    )}
-                                    <span className="opacity-75">vs mes anterior</span>
+                                            </>
+                                            )}
+                                            <span className="opacity-75">{dashboardData.comparisonLabel}</span>
                                 </div>
                             </div>
                         </CardContent>
@@ -709,14 +715,14 @@ export default function AdminDashboard() {
                                         <>
                                             <TrendingUp className="w-4 h-4" />
                                             <span>+{dashboardData.hoursChange.toFixed(1)}%</span>
-                                        </>
-                                    ) : (
-                                        <>
+                                            </>
+                                            ) : (
+                                            <>
                                             <TrendingDown className="w-4 h-4" />
                                             <span>{dashboardData.hoursChange.toFixed(1)}%</span>
-                                        </>
-                                    )}
-                                    <span className="opacity-75">vs mes anterior</span>
+                                            </>
+                                            )}
+                                            <span className="opacity-75">{dashboardData.comparisonLabel}</span>
                                 </div>
                             </div>
                         </CardContent>
