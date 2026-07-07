@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, ChevronDown, ChevronUp, Search, CheckCircle, RefreshCw } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, Search, CheckCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,44 +12,56 @@ import { Card } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
 import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
-export default function ClientSummaryReportTab({ monthlySchedules, clients, usersMap, allWorkEntries, onRefresh }) {
+export default function ClientSummaryReportTab({ clients, usersMap, allWorkEntries, onRefresh }) {
     // Persistir fechas en localStorage
+    const today = new Date();
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
     const [startDate, setStartDate] = useState(() => {
         const saved = localStorage.getItem('clientSummary_startDate');
-        if (saved) {
-            return parseISO(saved);
-        }
-        
-        if (monthlySchedules.length > 0) {
-            const dateStr = extractDateOnly(monthlySchedules[0].start_time);
-            if (dateStr) {
-                const [year, month, day] = dateStr.split('-').map(Number);
-                return new Date(year, month - 1, day);
-            }
-        }
-        return new Date();
+        return saved ? parseISO(saved) : firstOfMonth;
     });
     
     const [endDate, setEndDate] = useState(() => {
         const saved = localStorage.getItem('clientSummary_endDate');
-        if (saved) {
-            return parseISO(saved);
-        }
-        
-        if (monthlySchedules.length > 0) {
-            const dateStr = extractDateOnly(monthlySchedules[monthlySchedules.length - 1].start_time);
-            if (dateStr) {
-                const [year, month, day] = dateStr.split('-').map(Number);
-                return new Date(year, month - 1, day);
-            }
-        }
-        return new Date();
+        return saved ? parseISO(saved) : today;
     });
+
+    const [schedules, setSchedules] = useState([]);
+    const [isLoadingSchedules, setIsLoadingSchedules] = useState(false);
     const [expandedClients, setExpandedClients] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [reviewedClients, setReviewedClients] = useState({});
     const [currentPeriod, setCurrentPeriod] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // Cargar schedules propios según rango de fechas
+    const fetchSchedules = async (start, end) => {
+        setIsLoadingSchedules(true);
+        try {
+            const startStr = format(start, 'yyyy-MM-dd');
+            const endStr = format(end, 'yyyy-MM-dd');
+            const data = await base44.entities.Schedule.filter({
+                start_time: {
+                    $gte: `${startStr}T00:00:00.000`,
+                    $lte: `${endStr}T23:59:59.999`,
+                }
+            }, '-start_time', 5000);
+            const active = (Array.isArray(data) ? data : []).filter(s => s.status !== 'cancelled');
+            setSchedules(active);
+        } catch (err) {
+            console.error('Error cargando schedules por cliente:', err);
+        } finally {
+            setIsLoadingSchedules(false);
+        }
+    };
+
+    // Cargar al montar y cuando cambian las fechas (solo al hacer click en Actualizar)
+    useEffect(() => {
+        if (clients.size > 0) {
+            fetchSchedules(startDate, endDate);
+        }
+    }, [clients]); // Solo al cargar clientes por primera vez
     
     // Guardar fechas en localStorage cuando cambien
     useEffect(() => {
@@ -93,8 +105,8 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
 
     // Filtrar servicios por rango de fechas y agrupar por cliente
     const clientReport = useMemo(() => {
-        const filtered = monthlySchedules.filter(service => {
-            return isDateInRange(service.start_time, startDate, endDate) && service.xero_invoiced === true;
+        const filtered = schedules.filter(service => {
+            return service.xero_invoiced === true;
         });
 
         // Agrupar por cliente
@@ -165,7 +177,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
 
         // Convertir a array y ordenar por nombre de cliente
         return Object.values(grouped).sort((a, b) => a.clientName.localeCompare(b.clientName));
-        }, [monthlySchedules, clients, startDate, endDate, allWorkEntries]);
+        }, [schedules, clients, allWorkEntries]);
 
         // Filtrar y ordenar clientes: no revisados primero, revisados al final
         const filteredClientReport = useMemo(() => {
@@ -241,8 +253,8 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
         let cashAmount = 0;
         let normalAmount = 0;
 
-        monthlySchedules.forEach(service => {
-            if (isDateInRange(service.start_time, startDate, endDate) && service.xero_invoiced === true) {
+        schedules.forEach(service => {
+            if (service.xero_invoiced === true) {
                 const client = clients.get(service.client_id);
 
                 // USAR FUNCIÓN UNIFICADA para calcular precio
@@ -269,7 +281,7 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
             totalHours: filteredClientReport.reduce((sum, client) => sum + client.totalHours, 0),
             clientCount: filteredClientReport.length
         };
-    }, [filteredClientReport, monthlySchedules, clients, startDate, endDate]);
+    }, [filteredClientReport, schedules, clients]);
 
     return (
         <div className="space-y-6">
@@ -330,11 +342,11 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                         <Button 
                             variant="outline" 
                             className="border-blue-600 text-blue-700 hover:bg-blue-50"
-                            disabled={isRefreshing}
+                            disabled={isRefreshing || isLoadingSchedules}
                             onClick={async () => {
                                 setIsRefreshing(true);
                                 try {
-                                    await onRefresh();
+                                    await fetchSchedules(startDate, endDate);
                                 } finally {
                                     setIsRefreshing(false);
                                 }
@@ -401,13 +413,20 @@ export default function ClientSummaryReportTab({ monthlySchedules, clients, user
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredClientReport.length === 0 ? (
+                            {isLoadingSchedules ? (
+                                <TableRow>
+                                    <TableCell colSpan="10" className="text-center py-12">
+                                        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+                                        <p className="text-slate-500 text-sm">Cargando datos...</p>
+                                    </TableCell>
+                                </TableRow>
+                            ) : filteredClientReport.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan="10" className="text-center py-12">
                                         <div className="flex flex-col items-center gap-3">
                                             <Search className="w-12 h-12 text-slate-300" />
                                             <p className="text-slate-600 font-medium">
-                                                {searchTerm ? `No se encontraron clientes con "${searchTerm}"` : 'No hay clientes en este período'}
+                                                {searchTerm ? `No se encontraron clientes con "${searchTerm}"` : 'No hay clientes facturados en este período'}
                                             </p>
                                         </div>
                                     </TableCell>
