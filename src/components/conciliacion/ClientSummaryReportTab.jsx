@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/card';
 import { base44 } from '@/api/base44Client';
 import { getPriceForSchedule, calculateGST, extractDateOnly, isDateInRange } from '@/components/utils/priceCalculations';
 
-export default function ClientSummaryReportTab({ clients, usersMap, allWorkEntries, onRefresh }) {
+export default function ClientSummaryReportTab({ clients, usersMap, onRefresh }) {
     // Persistir fechas en localStorage
     const today = new Date();
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -28,6 +28,7 @@ export default function ClientSummaryReportTab({ clients, usersMap, allWorkEntri
     });
 
     const [schedules, setSchedules] = useState([]);
+    const [localWorkEntries, setLocalWorkEntries] = useState([]);
     const [isLoadingSchedules, setIsLoadingSchedules] = useState(false);
     const [expandedClients, setExpandedClients] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
@@ -35,22 +36,34 @@ export default function ClientSummaryReportTab({ clients, usersMap, allWorkEntri
     const [currentPeriod, setCurrentPeriod] = useState('');
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // Cargar schedules propios según rango de fechas
+    // Cargar schedules y work entries propios según rango de fechas
     const fetchSchedules = async (start, end) => {
         setIsLoadingSchedules(true);
         try {
             const startStr = format(start, 'yyyy-MM-dd');
             const endStr = format(end, 'yyyy-MM-dd');
-            const data = await base44.entities.Schedule.filter({
-                start_time: {
-                    $gte: `${startStr}T00:00:00.000`,
-                    $lte: `${endStr}T23:59:59.999`,
-                }
-            }, '-start_time', 5000);
+
+            const [data, weData] = await Promise.all([
+                base44.entities.Schedule.filter({
+                    start_time: {
+                        $gte: `${startStr}T00:00:00.000`,
+                        $lte: `${endStr}T23:59:59.999`,
+                    }
+                }, '-start_time', 5000),
+                base44.entities.WorkEntry.list('-work_date', 5000)
+            ]);
+
             const active = (Array.isArray(data) ? data : []).filter(s => s.status !== 'cancelled');
             setSchedules(active);
+
+            // Filtrar work entries al rango de fechas seleccionado (client-side)
+            const filteredWE = (Array.isArray(weData) ? weData : []).filter(entry => {
+                if (!entry.work_date) return false;
+                return entry.work_date >= startStr && entry.work_date <= endStr;
+            });
+            setLocalWorkEntries(filteredWE);
         } catch (err) {
-            console.error('Error cargando schedules por cliente:', err);
+            console.error('Error cargando datos por cliente:', err);
         } finally {
             setIsLoadingSchedules(false);
         }
@@ -166,18 +179,13 @@ export default function ClientSummaryReportTab({ clients, usersMap, allWorkEntri
             });
 
             // Calcular horas de WorkEntries para este cliente en el mismo rango
-            if (allWorkEntries && Array.isArray(allWorkEntries)) {
-                const clientWorkEntries = allWorkEntries.filter(entry => 
-                    entry.client_id === clientId && 
-                    isDateInRange(entry.work_date, startDate, endDate)
-                );
-                group.totalWorkEntryHours = clientWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
-            }
+            const clientWorkEntries = localWorkEntries.filter(entry => entry.client_id === clientId);
+            group.totalWorkEntryHours = clientWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
         });
 
         // Convertir a array y ordenar por nombre de cliente
         return Object.values(grouped).sort((a, b) => a.clientName.localeCompare(b.clientName));
-        }, [schedules, clients, allWorkEntries]);
+        }, [schedules, clients, localWorkEntries]);
 
         // Filtrar y ordenar clientes: no revisados primero, revisados al final
         const filteredClientReport = useMemo(() => {
@@ -511,11 +519,8 @@ export default function ClientSummaryReportTab({ clients, usersMap, allWorkEntri
                                             }
 
                                             // Calcular horas de WorkEntry para este servicio específico
-                                            let serviceWorkEntryHours = 0;
-                                            if (allWorkEntries && Array.isArray(allWorkEntries)) {
-                                                const serviceWorkEntries = allWorkEntries.filter(entry => entry.schedule_id === service.id);
-                                                serviceWorkEntryHours = serviceWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
-                                            }
+                                            const serviceWorkEntries = localWorkEntries.filter(entry => entry.schedule_id === service.id);
+                                            const serviceWorkEntryHours = serviceWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
 
                                             const hoursMatch = Math.abs(serviceHours - serviceWorkEntryHours) < 0.01;
 
