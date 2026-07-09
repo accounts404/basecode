@@ -139,9 +139,13 @@ export default function TrabajoEntradasPage() {
         const allUsers = Array.isArray(cleanersResult) ? cleanersResult : [];
         const clientsData = Array.isArray(clientsResult) ? clientsResult : [];
         
+        // Para el dropdown de filtro: solo activos
         const cleanerUsers = allUsers.filter(user => user.role !== 'admin' && user.active !== false);
         setCleaners(cleanerUsers);
         setAllClients(clientsData.filter(c => c.active !== false));
+
+        // Para el mapeo de nombres: todos los limpiadores (activos e inactivos)
+        const allCleaners = allUsers.filter(user => user.role !== 'admin');
 
         const paidInvoices = (Array.isArray(invoicesResult) ? invoicesResult : []).filter(inv => inv.status === 'paid');
         const paidIds = new Set();
@@ -151,11 +155,12 @@ export default function TrabajoEntradasPage() {
         setPaidEntryIds(paidIds);
 
         const entriesWithCleanerInfo = entries.map(entry => {
-          const cleaner = cleanerUsers.find(c => c.id === entry.cleaner_id);
+          const cleaner = allCleaners.find(c => c.id === entry.cleaner_id);
           return {
             ...entry,
-            cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Usuario no encontrado',
-            cleaner_email: cleaner ? cleaner.email : ''
+            cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : (entry.cleaner_name || 'Desconocido'),
+            cleaner_email: cleaner ? cleaner.email : '',
+            cleaner_inactive: cleaner ? cleaner.active === false : false,
           };
         });
         
@@ -178,7 +183,8 @@ export default function TrabajoEntradasPage() {
     console.log('[TrabajoEntradas] 🔄 Fase 2: Background Sync (Datos históricos)...');
 
     const { minDateStr, cleanersResult } = cachedData;
-    const cleanerUsers = (cleanersResult || []).filter(u => u.role !== 'admin');
+    // Usar TODOS los limpiadores (activos e inactivos) para el mapeo de nombres histórico
+    const allCleanersForHistory = (cleanersResult || []).filter(u => u.role !== 'admin');
 
     Promise.all([
       loadAllRecords('WorkEntry', '-work_date', 10000, { work_date: { $lt: minDateStr } }),
@@ -198,11 +204,12 @@ export default function TrabajoEntradasPage() {
       // Añadir entradas antiguas procesadas
       if (olderEntries.length > 0) {
         const processed = olderEntries.map(entry => {
-          const cleaner = cleanerUsers.find(c => c.id === entry.cleaner_id);
+          const cleaner = allCleanersForHistory.find(c => c.id === entry.cleaner_id);
           return {
             ...entry,
-            cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : 'Usuario no encontrado',
-            cleaner_email: cleaner ? cleaner.email : ''
+            cleaner_name: cleaner ? (cleaner.invoice_name || cleaner.full_name) : (entry.cleaner_name || 'Desconocido'),
+            cleaner_email: cleaner ? cleaner.email : '',
+            cleaner_inactive: cleaner ? cleaner.active === false : false,
           };
         });
         setWorkEntries(prev => [...prev, ...processed]);
@@ -970,7 +977,12 @@ export default function TrabajoEntradasPage() {
                       <div className="flex items-center gap-4 flex-1 min-w-[200px]">
                         <UserIcon className="w-8 h-8 text-blue-600 flex-shrink-0" />
                         <div>
-                          <CardTitle className="text-lg font-semibold text-slate-900">{group.cleaner.name}</CardTitle>
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg font-semibold text-slate-900">{group.cleaner.name}</CardTitle>
+                            {group.entries[0]?.cleaner_inactive && (
+                              <Badge className="bg-slate-100 text-slate-500 text-xs">Inactivo</Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-slate-500 truncate">{group.cleaner.email}</p>
                         </div>
                       </div>
@@ -1239,7 +1251,12 @@ export default function TrabajoEntradasPage() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{entry.cleaner_name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{entry.cleaner_name}</p>
+                              {entry.cleaner_inactive && (
+                                <Badge className="bg-slate-100 text-slate-500 text-xs">Inactivo</Badge>
+                              )}
+                            </div>
                             <p className="text-sm text-slate-500">{entry.cleaner_email}</p>
                           </div>
                         </TableCell>
