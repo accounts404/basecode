@@ -192,11 +192,18 @@ export default function ClientesPage() {
     const handleSaveClient = async (e) => {
         e.preventDefault();
         try {
+            // Obtener el usuario actual para trazabilidad
+            const currentUser = await base44.auth.me();
+
             // Limpiar campos numéricos vacíos
             const cleanedFormData = {
                 ...formData,
                 num_bedrooms: formData.num_bedrooms === '' ? null : formData.num_bedrooms,
                 num_bathrooms: formData.num_bathrooms === '' ? null : formData.num_bathrooms,
+                last_updated_by_id: currentUser?.id || '',
+                last_updated_by_name: currentUser?.full_name || currentUser?.email || '',
+                last_updated_by_email: currentUser?.email || '',
+                last_updated_at: new Date().toISOString(),
             };
 
             if (editingClient) {

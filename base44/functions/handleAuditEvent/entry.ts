@@ -5,7 +5,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 // returns the service account, NOT the real user who made the change.
 // We must resolve the acting user from entity data fields instead.
 
-const SKIP_FIELDS = ['photo_urls', 'access_photos', 'default_photo_urls', 'structured_service_notes', 'clock_in_data', 'price_history', 'reconciliation_items', 'cleaner_schedules', 'updated_date', 'created_date', 'created_by_id'];
+const SKIP_FIELDS = ['photo_urls', 'access_photos', 'default_photo_urls', 'structured_service_notes', 'clock_in_data', 'price_history', 'reconciliation_items', 'cleaner_schedules', 'updated_date', 'created_date', 'created_by_id', 'last_updated_by_id', 'last_updated_by_name', 'last_updated_by_email', 'last_updated_at'];
 
 function summarizeValue(val) {
   if (val === null || val === undefined) return '(vacío)';
@@ -71,34 +71,40 @@ Deno.serve(async (req) => {
 
     const currentData = data || old_data;
 
-    // Priority order of user-id fields to check in entity data
-    const userIdCandidates = [
-      currentData?.last_modified_by_id,
-      currentData?.modified_by_id,
-      action === 'create' ? currentData?.created_by_id : null,
-      action !== 'create' ? (data?.created_by_id || old_data?.created_by_id) : null,
-      currentData?.created_by_user_id,
-      currentData?.awarded_by_admin,
-      currentData?.registered_by_admin,
-      currentData?.reviewed_by_admin,
-      currentData?.issued_by_admin,
-    ].filter(Boolean);
-
-    let resolvedUser = null;
-    for (const candidateId of userIdCandidates) {
-      resolvedUser = await resolveUser(base44, candidateId);
-      if (resolvedUser) break;
-    }
-
-    if (resolvedUser) {
-      user_id = resolvedUser.user_id;
-      user_name = resolvedUser.user_name;
-      user_email = resolvedUser.user_email;
+    // For update/delete: prefer the explicit last_updated_by_* fields (set by frontend before saving)
+    // These are the most reliable because they're written by the authenticated user session on the client side.
+    if ((action === 'update' || action === 'delete') && data?.last_updated_by_id) {
+      user_id = data.last_updated_by_id;
+      user_name = data.last_updated_by_name || data.last_updated_by_email || 'Desconocido';
+      user_email = data.last_updated_by_email || '';
     } else {
-      // Could not resolve user — mark as system/unknown
-      user_id = 'service_unknown';
-      user_name = 'Sistema (automático)';
-      user_email = '';
+      // Fallback: resolve from other user-id fields in entity data
+      const userIdCandidates = [
+        action === 'create' ? currentData?.created_by_id : null,
+        currentData?.last_modified_by_id,
+        currentData?.modified_by_id,
+        currentData?.created_by_user_id,
+        currentData?.awarded_by_admin,
+        currentData?.registered_by_admin,
+        currentData?.reviewed_by_admin,
+        currentData?.issued_by_admin,
+      ].filter(Boolean);
+
+      let resolvedUser = null;
+      for (const candidateId of userIdCandidates) {
+        resolvedUser = await resolveUser(base44, candidateId);
+        if (resolvedUser) break;
+      }
+
+      if (resolvedUser) {
+        user_id = resolvedUser.user_id;
+        user_name = resolvedUser.user_name;
+        user_email = resolvedUser.user_email;
+      } else {
+        user_id = 'service_unknown';
+        user_name = 'Sistema (automático)';
+        user_email = '';
+      }
     }
 
     const entity_name = getEntityName(entity_type, currentData);
