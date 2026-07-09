@@ -32,27 +32,33 @@
     "end_date": {
       "type": "string",
       "format": "date",
-      "description": "Fecha en que el cliente dej\u00f3 de ser cliente"
+      "description": "Fecha en que el cliente dej\u00f3 de ser cliente (para calcular promedio de permanencia)"
     },
     "funding_document_url": {
-      "type": "string"
+      "type": "string",
+      "description": "URL del documento soporte (PDF) del cliente con financiamiento especial"
     },
     "funding_document_start_date": {
       "type": "string",
-      "format": "date"
+      "format": "date",
+      "description": "Fecha de inicio de vigencia del documento soporte"
     },
     "funding_document_end_date": {
       "type": "string",
-      "format": "date"
+      "format": "date",
+      "description": "Fecha de vencimiento del documento soporte"
     },
     "mobile_number": {
-      "type": "string"
+      "type": "string",
+      "description": "N\u00famero de tel\u00e9fono principal del cliente"
     },
     "secondary_mobile_number": {
-      "type": "string"
+      "type": "string",
+      "description": "N\u00famero de tel\u00e9fono secundario"
     },
     "address": {
-      "type": "string"
+      "type": "string",
+      "description": "Direcci\u00f3n del cliente"
     },
     "property_type": {
       "type": "string",
@@ -61,7 +67,8 @@
         "townhouse",
         "unit",
         "apartment"
-      ]
+      ],
+      "description": "Tipo de propiedad"
     },
     "property_stories": {
       "type": "string",
@@ -70,16 +77,20 @@
         "double_storey",
         "triple_storey",
         "other"
-      ]
+      ],
+      "description": "N\u00famero de plantas"
     },
     "num_bedrooms": {
-      "type": "number"
+      "type": "number",
+      "description": "N\u00famero de habitaciones"
     },
     "num_bathrooms": {
-      "type": "number"
+      "type": "number",
+      "description": "N\u00famero de ba\u00f1os"
     },
     "email": {
-      "type": "string"
+      "type": "string",
+      "description": "Email del cliente"
     },
     "active": {
       "type": "boolean",
@@ -93,13 +104,16 @@
         "every_3_weeks",
         "monthly",
         "one_off"
-      ]
+      ],
+      "description": "Frecuencia del servicio"
     },
     "current_service_price": {
-      "type": "number"
+      "type": "number",
+      "description": "Precio actual del servicio en AUD"
     },
     "service_hours": {
-      "type": "number"
+      "type": "number",
+      "description": "Horas por servicio"
     },
     "gst_type": {
       "type": "string",
@@ -628,23 +642,6 @@
           "service_description"
         ]
       }
-    },
-    "last_updated_by_id": {
-      "type": "string",
-      "description": "ID del usuario que realiz\u00f3 la \u00faltima modificaci\u00f3n del registro"
-    },
-    "last_updated_by_name": {
-      "type": "string",
-      "description": "Nombre del usuario que realiz\u00f3 la \u00faltima modificaci\u00f3n"
-    },
-    "last_updated_by_email": {
-      "type": "string",
-      "description": "Email del usuario que realiz\u00f3 la \u00faltima modificaci\u00f3n"
-    },
-    "last_updated_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Fecha y hora de la \u00faltima modificaci\u00f3n"
     }
   },
   "required": [
