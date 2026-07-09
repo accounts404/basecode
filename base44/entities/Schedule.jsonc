@@ -24,12 +24,12 @@
     "start_time": {
       "type": "string",
       "format": "date-time",
-      "description": "Fecha y hora de inicio general del servicio"
+      "description": "Fecha y hora de inicio general del servicio (para compatibilidad y vista de calendario)"
     },
     "end_time": {
       "type": "string",
       "format": "date-time",
-      "description": "Fecha y hora de finalizaci\u00f3n general del servicio"
+      "description": "Fecha y hora de finalizaci\u00f3n general del servicio (para compatibilidad y vista de calendario)"
     },
     "cleaner_schedules": {
       "type": "array",
@@ -58,7 +58,7 @@
     },
     "color": {
       "type": "string",
-      "description": "C\u00f3digo de color para el bloque en el calendario"
+      "description": "C\u00f3digo de color (ej. #ff0000) para el bloque de la cita en el calendario"
     },
     "status": {
       "type": "string",
@@ -113,7 +113,7 @@
     },
     "billed_price_snapshot": {
       "type": "number",
-      "description": "INMUTABLE: Precio base del servicio en el momento de facturaci\u00f3n (sin GST)."
+      "description": "INMUTABLE: Precio base del servicio en el momento de facturaci\u00f3n (sin GST). Este valor NO cambia aunque el precio del cliente se actualice posteriormente."
     },
     "billed_gst_type_snapshot": {
       "type": "string",
@@ -122,7 +122,7 @@
         "exclusive",
         "no_tax"
       ],
-      "description": "INMUTABLE: Tipo de GST aplicado en el momento de facturaci\u00f3n."
+      "description": "INMUTABLE: Tipo de GST aplicado en el momento de facturaci\u00f3n. Este valor NO cambia aunque la configuraci\u00f3n del cliente se actualice posteriormente."
     },
     "billed_payment_method_snapshot": {
       "type": "string",
@@ -134,12 +134,12 @@
         "stripe",
         "other"
       ],
-      "description": "INMUTABLE: M\u00e9todo de pago del cliente en el momento de facturaci\u00f3n."
+      "description": "INMUTABLE: M\u00e9todo de pago del cliente en el momento de facturaci\u00f3n. Este valor NO cambia aunque el cliente cambie su m\u00e9todo de pago posteriormente."
     },
     "billed_at": {
       "type": "string",
       "format": "date-time",
-      "description": "Fecha y hora cuando el servicio fue marcado como facturado"
+      "description": "Fecha y hora cuando el servicio fue marcado como facturado y se tom\u00f3 la 'fotograf\u00eda' del precio"
     },
     "photo_urls": {
       "type": "array",
@@ -147,10 +147,12 @@
         "type": "object",
         "properties": {
           "url": {
-            "type": "string"
+            "type": "string",
+            "description": "URL de la foto"
           },
           "comment": {
-            "type": "string"
+            "type": "string",
+            "description": "Comentario descriptivo de la foto"
           }
         },
         "required": [
@@ -161,15 +163,15 @@
     },
     "notes_public": {
       "type": "string",
-      "description": "Notas combinadas visibles para los limpiadores"
+      "description": "Notas combinadas visibles para los limpiadores: incluye notas por defecto del cliente + notas espec\u00edficas del servicio"
     },
     "service_specific_notes": {
       "type": "string",
-      "description": "Notas espec\u00edficas solo para este servicio/d\u00eda"
+      "description": "Notas espec\u00edficas solo para este servicio/d\u00eda (se combinan con las notas por defecto del cliente)"
     },
     "structured_service_notes": {
       "type": "object",
-      "description": "Notas de servicio estructuradas por \u00e1rea.",
+      "description": "Notas de servicio estructuradas por \u00e1rea, copiadas desde el cliente al crear el servicio.",
       "properties": {
         "dusting_wiping_tidyup": {
           "type": "object",
@@ -334,21 +336,26 @@
         "type": "object",
         "properties": {
           "cleaner_id": {
-            "type": "string"
+            "type": "string",
+            "description": "ID del limpiador"
           },
           "clock_in_time": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Fecha y hora del clock-in"
           },
           "clock_out_time": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Fecha y hora del clock-out"
           },
           "clock_in_location": {
-            "type": "string"
+            "type": "string",
+            "description": "Coordenadas GPS del clock-in (formato: 'latitude,longitude')"
           },
           "clock_out_location": {
-            "type": "string"
+            "type": "string",
+            "description": "Coordenadas GPS del clock-out (formato: 'latitude,longitude')"
           }
         },
         "required": [
@@ -366,11 +373,11 @@
         "every_4_weeks",
         "monthly"
       ],
-      "description": "Regla de recurrencia"
+      "description": "Regla de recurrencia (ej. 'weekly', 'fortnightly', 'every_3_weeks', 'every_4_weeks', 'monthly')"
     },
     "recurrence_id": {
       "type": "string",
-      "description": "ID \u00fanico para agrupar todas las citas de una misma serie recurrente"
+      "description": "Un ID \u00fanico para agrupar todas las citas de una misma serie recurrente"
     },
     "on_my_way_sent_at": {
       "type": "string",
@@ -381,23 +388,6 @@
       "type": "string",
       "format": "date-time",
       "description": "Fecha y hora en que se envi\u00f3 la notificaci\u00f3n de recordatorio de servicio."
-    },
-    "last_updated_by_id": {
-      "type": "string",
-      "description": "ID del usuario que realiz\u00f3 la \u00faltima modificaci\u00f3n"
-    },
-    "last_updated_by_name": {
-      "type": "string",
-      "description": "Nombre del usuario que realiz\u00f3 la \u00faltima modificaci\u00f3n"
-    },
-    "last_updated_by_email": {
-      "type": "string",
-      "description": "Email del usuario que realiz\u00f3 la \u00faltima modificaci\u00f3n"
-    },
-    "last_updated_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Fecha y hora de la \u00faltima modificaci\u00f3n"
     }
   },
   "required": [

@@ -71,9 +71,9 @@ Deno.serve(async (req) => {
 
     const currentData = data || old_data;
 
-    // For update/delete/create: prefer the explicit last_updated_by_* fields (set by frontend before saving).
+    // For update/delete: prefer the explicit last_updated_by_* fields (set by frontend before saving)
     // These are the most reliable because they're written by the authenticated user session on the client side.
-    if (data?.last_updated_by_id) {
+    if ((action === 'update' || action === 'delete') && data?.last_updated_by_id) {
       user_id = data.last_updated_by_id;
       user_name = data.last_updated_by_name || data.last_updated_by_email || 'Desconocido';
       user_email = data.last_updated_by_email || '';

@@ -941,14 +941,6 @@ export default function HorarioPage() {
         return mostExperiencedCleaner.color || '#3b82f6';
     }, [users]);
 
-    // Helper para obtener campos de trazabilidad del usuario actual
-    const getAuditFields = () => ({
-        last_updated_by_id: user?.id || '',
-        last_updated_by_name: user?.full_name || user?.email || '',
-        last_updated_by_email: user?.email || '',
-        last_updated_at: new Date().toISOString(),
-    });
-
     const handleSaveService = async (serviceData, updateScope) => {
         if (isCleanerView) return;
 
@@ -959,10 +951,6 @@ export default function HorarioPage() {
             if (serviceData.cleaner_ids && serviceData.cleaner_ids.length > 0) {
                 serviceData.color = getColorFromMostExperiencedCleaner(serviceData.cleaner_ids);
             }
-
-            // Inyectar trazabilidad del usuario actual
-            const auditFields = getAuditFields();
-            serviceData = { ...serviceData, ...auditFields };
 
             let savedServiceId = null;
             let savedServiceObj = null;
@@ -1066,7 +1054,7 @@ export default function HorarioPage() {
 
         try {
             // 2. Sincronización en background sin bloquear UI
-            await Schedule.update(eventId, { start_time: startStr, end_time: endStr, ...getAuditFields() });
+            await Schedule.update(eventId, { start_time: startStr, end_time: endStr });
         } catch (error) {
             console.error('[Horario] Error al redimensionar:', error);
             setError(`Error al guardar tamaño: ${error.message}`);
@@ -1103,7 +1091,7 @@ export default function HorarioPage() {
 
         try {
             // 2. Sincronización en background sin bloquear UI
-            await Schedule.update(eventId, { ...updatePayload, ...getAuditFields() });
+            await Schedule.update(eventId, updatePayload);
         } catch (error) {
             console.error('[Horario] Error al mover:', error);
             setError(`Error al guardar movimiento: ${error.message}`);
