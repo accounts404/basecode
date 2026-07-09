@@ -192,7 +192,7 @@ export default function Auditoria() {
   const loadLogs = async () => {
     setLoading(true);
     try {
-      const allLogs = await base44.entities.AuditLog.list('-timestamp', 500);
+      const allLogs = await base44.entities.AuditLog.list('-timestamp', 2000);
       setLogs(allLogs);
       const uniqueUsers = {};
       allLogs.forEach(l => {
