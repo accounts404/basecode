@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { format, parseISO, addDays, subDays } from 'date-fns';
+import { format, addDays, subDays } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { es } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -51,31 +52,27 @@ const ENTITY_LABELS = {
   ServiceRate: 'Tarifa de Servicio', ClientPriceReviewList: 'Revisión de Precios',
 };
 
-// Melbourne is UTC+10 (AEST) or UTC+11 (AEDT). Use Intl to get the correct offset.
 function toMelbourneDate(isoString) {
   if (!isoString) return null;
-  const d = new Date(isoString);
-  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  return formatInTimeZone(new Date(isoString), TZ, 'yyyy-MM-dd');
 }
 
 function toMelbourneTime(isoString) {
   if (!isoString) return '—';
-  const d = new Date(isoString);
-  return new Intl.DateTimeFormat('en-AU', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  return formatInTimeZone(new Date(isoString), TZ, 'HH:mm');
 }
 
 function getTodayMelbourne() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  return formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
 }
 
 function toMelbourneDateLabel(dateStr) {
   const today = getTodayMelbourne();
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const yesterday = format(subDays(new Date(y, m - 1, d + 1), 2), 'yyyy-MM-dd');
+  const yesterday = formatInTimeZone(subDays(new Date(), 1), TZ, 'yyyy-MM-dd');
   if (dateStr === today) return 'Hoy';
   if (dateStr === yesterday) return 'Ayer';
-  const dt = new Date(y, m - 1, d);
-  return format(dt, "EEEE d 'de' MMMM yyyy", { locale: es });
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return format(new Date(y, m - 1, d), "EEEE d 'de' MMMM yyyy", { locale: es });
 }
 
 function AuditCard({ log }) {
@@ -153,7 +150,7 @@ export default function Auditoria() {
 
   // Date navigation — default to today in Melbourne
   const todayMelbourne = getTodayMelbourne();
-  const [selectedDate, setSelectedDate] = useState(todayMelbourne);
+  const [selectedDate, setSelectedDate] = useState(() => getTodayMelbourne());
 
   const loadLogs = async () => {
     setLoading(true);
