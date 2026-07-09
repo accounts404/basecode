@@ -193,10 +193,12 @@ export default function ClientesPage() {
         e.preventDefault();
         try {
             // Limpiar campos numéricos vacíos
+            const currentUser = await base44.auth.me();
             const cleanedFormData = {
                 ...formData,
                 num_bedrooms: formData.num_bedrooms === '' ? null : formData.num_bedrooms,
                 num_bathrooms: formData.num_bathrooms === '' ? null : formData.num_bathrooms,
+                last_modified_by_id: currentUser?.id,
             };
 
             if (editingClient) {

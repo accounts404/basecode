@@ -1,9 +1,16 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 // This function is called by entity automations to record audit logs.
-// It receives the automation payload and fetches user info to enrich the log.
 
-const SKIP_FIELDS = ['photo_urls', 'access_photos', 'default_photo_urls', 'structured_service_notes', 'clock_in_data', 'price_history', 'reconciliation_items', 'cleaner_schedules', 'updated_date', 'created_date', 'created_by_id'];
+const SKIP_FIELDS = ['photo_urls', 'access_photos', 'default_photo_urls', 'structured_service_notes', 'clock_in_data', 'price_history', 'reconciliation_items', 'cleaner_schedules', 'updated_date', 'created_date', 'created_by_id', 'last_modified_by_id'];
+
+// Known service-role / automation user IDs — not real admin users
+const SERVICE_ROLE_PREFIXES = ['service_', 'system_', 'automation_'];
+
+function isServiceRoleId(id) {
+  if (!id) return true;
+  return SERVICE_ROLE_PREFIXES.some(prefix => id.startsWith(prefix));
+}
 
 function summarizeValue(val) {
   if (val === null || val === undefined) return '(vacío)';
@@ -26,6 +33,35 @@ function getEntityName(entity_type, data) {
   }
 }
 
+async function resolveUser(base44, data, action) {
+  // Priority 1: last_modified_by_id — set explicitly by the frontend on every update/create.
+  // Priority 2: created_by_id — set by the platform on creates; for updates it's the original creator.
+  // We NEVER rely on auth.me() in an automation context because that always resolves to
+  // the app's service-role token, not the actual end-user who triggered the change.
+
+  const candidateId = data?.last_modified_by_id || data?.created_by_id;
+
+  if (candidateId && !isServiceRoleId(candidateId)) {
+    try {
+      const users = await base44.asServiceRole.entities.User.filter({ id: candidateId });
+      if (users.length > 0) {
+        return {
+          user_id: candidateId,
+          user_name: users[0].full_name || users[0].email || 'Desconocido',
+          user_email: users[0].email || '',
+        };
+      }
+    } catch (_) {}
+  }
+
+  // Fallback: mark as system/automatic
+  return {
+    user_id: 'service_automation',
+    user_name: 'Sistema (automático)',
+    user_email: '',
+  };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -38,37 +74,7 @@ Deno.serve(async (req) => {
     const entity_id = event.entity_id;
     const action = event.type; // create, update, delete
 
-    // Resolve the user who actually performed the action.
-    // For create: use created_by_id (the creator).
-    // For update/delete: use the authenticated session user (who triggered the change),
-    // NOT created_by_id which is the original creator of the record.
-    let user_id = '';
-    let user_name = 'Desconocido';
-    let user_email = '';
-
-    try {
-      const sessionUser = await base44.auth.me();
-      if (sessionUser && sessionUser.id) {
-        user_id = sessionUser.id;
-        user_name = sessionUser.full_name || sessionUser.email || 'Desconocido';
-        user_email = sessionUser.email || '';
-      }
-    } catch (_) {
-      // Fallback: for create events use created_by_id from data
-      if (action === 'create') {
-        const raw_user_id = data?.created_by_id || '';
-        if (raw_user_id) {
-          try {
-            const users = await base44.asServiceRole.entities.User.filter({ id: raw_user_id });
-            if (users.length > 0) {
-              user_id = raw_user_id;
-              user_name = users[0].full_name || users[0].email || 'Desconocido';
-              user_email = users[0].email || '';
-            }
-          } catch (_2) {}
-        }
-      }
-    }
+    const { user_id, user_name, user_email } = await resolveUser(base44, data || old_data, action);
 
     const entity_name = getEntityName(entity_type, data || old_data);
 

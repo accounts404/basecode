@@ -956,6 +956,9 @@ export default function HorarioPage() {
             let savedServiceObj = null;
 
             // 1. GUARDADO PRINCIPAL (Bloquea ~1 seg para confirmar red y base de datos)
+            // Attach who is making this change so the audit automation can read it
+            const serviceDataWithActor = { ...serviceData, last_modified_by_id: user?.id };
+
             if (!isNewService) {
                 originalCleanerSchedules = selectedEvent.cleaner_schedules || [];
                 const originalRecurrenceRule = selectedEvent.recurrence_rule || 'none';
@@ -963,22 +966,22 @@ export default function HorarioPage() {
 
                 if (originalRecurrenceRule !== newRecurrenceRule) {
                     const { data: modResult } = await modificarRecurrencia({
-                        scheduleId: selectedEvent.id, updatedData: serviceData, updateScope, originalRecurrenceRule
+                        scheduleId: selectedEvent.id, updatedData: serviceDataWithActor, updateScope, originalRecurrenceRule
                     });
                     if (!modResult.success) throw new Error(modResult.error);
                     savedServiceId = selectedEvent.id;
-                    savedServiceObj = { ...selectedEvent, ...serviceData };
+                    savedServiceObj = { ...selectedEvent, ...serviceDataWithActor };
                 } else if (updateScope === 'this_and_future' && selectedEvent.recurrence_id) {
-                    await Schedule.update(selectedEvent.id, serviceData);
+                    await Schedule.update(selectedEvent.id, serviceDataWithActor);
                     savedServiceId = selectedEvent.id;
-                    savedServiceObj = { ...selectedEvent, ...serviceData };
+                    savedServiceObj = { ...selectedEvent, ...serviceDataWithActor };
                 } else {
-                    await Schedule.update(selectedEvent.id, serviceData);
+                    await Schedule.update(selectedEvent.id, serviceDataWithActor);
                     savedServiceId = selectedEvent.id;
-                    savedServiceObj = { ...selectedEvent, ...serviceData };
+                    savedServiceObj = { ...selectedEvent, ...serviceDataWithActor };
                 }
             } else {
-                const newService = await Schedule.create(serviceData);
+                const newService = await Schedule.create(serviceDataWithActor);
                 savedServiceId = newService.id;
                 savedServiceObj = newService;
             }
@@ -1054,7 +1057,7 @@ export default function HorarioPage() {
 
         try {
             // 2. Sincronización en background sin bloquear UI
-            await Schedule.update(eventId, { start_time: startStr, end_time: endStr });
+            await Schedule.update(eventId, { start_time: startStr, end_time: endStr, last_modified_by_id: user?.id });
         } catch (error) {
             console.error('[Horario] Error al redimensionar:', error);
             setError(`Error al guardar tamaño: ${error.message}`);
@@ -1091,7 +1094,7 @@ export default function HorarioPage() {
 
         try {
             // 2. Sincronización en background sin bloquear UI
-            await Schedule.update(eventId, updatePayload);
+            await Schedule.update(eventId, { ...updatePayload, last_modified_by_id: user?.id });
         } catch (error) {
             console.error('[Horario] Error al mover:', error);
             setError(`Error al guardar movimiento: ${error.message}`);
