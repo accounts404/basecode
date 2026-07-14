@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import SimulatedErrorOverlay, { SIMULATE_ERROR } from "@/components/utils/SimulatedErrorOverlay";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from "@/api/base44Client";
 import { loadAllRecords } from "@/api/entities";
@@ -687,6 +688,8 @@ export default function TrabajoEntradasPage() {
     }
     return stats;
   };
+
+  if (SIMULATE_ERROR) return <SimulatedErrorOverlay pageName="Entradas de Trabajo" />;
 
   if (loading) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 md:p-8">
