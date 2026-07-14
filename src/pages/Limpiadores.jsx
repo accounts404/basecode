@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import SimulatedErrorOverlay, { SIMULATE_ERROR } from "@/components/utils/SimulatedErrorOverlay";
 import { base44 } from "@/api/base44Client";
 import { User } from "@/entities/User";
 import { Card, CardContent } from "@/components/ui/card";
@@ -812,8 +811,6 @@ export default function LimpiadoresPage() {
     const next = addYears(new Date(today.getFullYear(), birth.getMonth(), birth.getDate()), today > new Date(today.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0);
     return differenceInDays(next, today) <= 30;
   }).length;
-
-  if (SIMULATE_ERROR) return <SimulatedErrorOverlay pageName="Limpiadores" />;
 
   if (loading) return <div className="p-8">Cargando...</div>;
   if (user?.role !== 'admin') return <div className="p-8">Acceso denegado.</div>;

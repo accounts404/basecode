@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import SimulatedErrorOverlay, { SIMULATE_ERROR } from "@/components/utils/SimulatedErrorOverlay";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Client } from '@/entities/Client';
 import { base44 } from '@/api/base44Client';
@@ -290,8 +289,6 @@ export default function ClientesPage() {
     const inactiveCount = clients.filter(c => c.active === false).length;
     const specialCount = clients.filter(c => FUNDED_CLIENT_TYPES.includes(c.client_type)).length;
     const accessCount = clients.filter(c => c.has_access).length;
-
-    if (SIMULATE_ERROR) return <SimulatedErrorOverlay pageName="Clientes" />;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 md:p-8">

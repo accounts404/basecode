@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
-import SimulatedErrorOverlay, { SIMULATE_ERROR } from "@/components/utils/SimulatedErrorOverlay";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createPageUrl } from '@/utils';
 import { base44 } from '@/api/base44Client';
@@ -1301,11 +1300,6 @@ export default function HorarioPage() {
                 </div>
             </div>
         );
-    }
-
-    // Simulación de error solo para admin, no afecta a limpiadores
-    if (SIMULATE_ERROR && user?.role === 'admin') {
-        return <SimulatedErrorOverlay pageName="Horario de Servicios" />;
     }
 
     return (
