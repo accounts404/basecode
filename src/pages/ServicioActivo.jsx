@@ -478,11 +478,11 @@ export default function ServicioActivoPage() {
                                     {activeService.client_name}
                                 </h1>
                                 <button
-                                    onClick={() => openInMaps(clientInfo?.address || activeService.client_address)}
+                                    onClick={() => openInMaps(activeService.client_address)}
                                     className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors group"
                                 >
                                     <MapPin className="w-5 h-5" />
-                                    <span className="text-sm underline">{clientInfo?.address || activeService.client_address}</span>
+                                    <span className="text-sm underline">{activeService.client_address}</span>
                                     <Navigation className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                 </button>
                             </div>

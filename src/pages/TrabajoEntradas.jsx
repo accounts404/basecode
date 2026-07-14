@@ -120,12 +120,11 @@ export default function TrabajoEntradasPage() {
     return { currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult, minDateStr };
   };
 
-  const { data: cachedData, refetch, isError, error: queryError } = useQuery({
+  const { data: cachedData, refetch } = useQuery({
     queryKey: ['trabajoEntradasGlobal_Fase1'],
     queryFn: fetchHeavyData,
     staleTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
-    retry: 2,
   });
 
   // 2. Sincronización con el estado local (Mantiene vivas las Actualizaciones Optimistas)
@@ -688,18 +687,6 @@ export default function TrabajoEntradasPage() {
     }
     return stats;
   };
-
-  if (isError) return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 md:p-8 flex items-center justify-center">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center space-y-4">
-        <AlertCircle className="w-14 h-14 text-red-400 mx-auto" />
-        <h2 className="text-xl font-bold text-slate-800">Error al cargar los datos</h2>
-        <p className="text-slate-500 text-sm">No se pudieron cargar las entradas de trabajo. Verifica tu conexión e intenta de nuevo.</p>
-        {queryError?.message && <p className="text-xs text-red-500 bg-red-50 rounded-lg p-2 font-mono">{queryError.message}</p>}
-        <Button onClick={() => refetch()} className="w-full">Reintentar</Button>
-      </div>
-    </div>
-  );
 
   if (loading) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 md:p-8">

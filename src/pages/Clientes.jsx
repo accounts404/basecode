@@ -108,12 +108,11 @@ export default function ClientesPage() {
         return allRecords;
     };
 
-    const { data: clients = [], isLoading: queryLoading, isError: queryError, error: queryErrorObj, refetch: refetchClients } = useQuery({
+    const { data: clients = [], isLoading: queryLoading } = useQuery({
         queryKey: ['clients'],
         queryFn: () => loadAllRecords(Client),
         refetchOnWindowFocus: false,
         staleTime: 60000,
-        retry: 2,
     });
 
     // Memoize handleEdit to make it stable for useEffect dependencies
@@ -290,18 +289,6 @@ export default function ClientesPage() {
     const inactiveCount = clients.filter(c => c.active === false).length;
     const specialCount = clients.filter(c => FUNDED_CLIENT_TYPES.includes(c.client_type)).length;
     const accessCount = clients.filter(c => c.has_access).length;
-
-    if (queryError) return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 md:p-8 flex items-center justify-center">
-            <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center space-y-4">
-                <AlertTriangle className="w-14 h-14 text-red-400 mx-auto" />
-                <h2 className="text-xl font-bold text-slate-800">Error al cargar los clientes</h2>
-                <p className="text-slate-500 text-sm">No se pudieron cargar los datos. Verifica tu conexión e intenta de nuevo.</p>
-                {queryErrorObj?.message && <p className="text-xs text-red-500 bg-red-50 rounded-lg p-2 font-mono">{queryErrorObj.message}</p>}
-                <Button onClick={() => refetchClients()} className="w-full">Reintentar</Button>
-            </div>
-        </div>
-    );
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6 md:p-8">
