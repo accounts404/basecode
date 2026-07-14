@@ -1302,6 +1302,20 @@ export default function HorarioPage() {
         );
     }
 
+    if (error && !initialLoadComplete && user?.role === 'admin') {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-6">
+                <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center space-y-4">
+                    <AlertTriangle className="w-14 h-14 text-red-400 mx-auto" />
+                    <h2 className="text-xl font-bold text-slate-800">Error al cargar el horario</h2>
+                    <p className="text-slate-500 text-sm">No se pudieron cargar los datos. Verifica tu conexión e intenta de nuevo.</p>
+                    <p className="text-xs text-red-500 bg-red-50 rounded-lg p-2 font-mono">{error}</p>
+                    <Button onClick={() => { setError(''); loadInitialData(); }} className="w-full">Reintentar</Button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: currentTheme.colors.background }}>
             <Toaster />
