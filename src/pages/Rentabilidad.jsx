@@ -33,24 +33,20 @@ export default function RentabilidadPage() {
 
     const queryClient = useQueryClient();
 
-    const loadAllRecords = async (entity, sortField = '-created_date', maxLimit = 10000) => {
+    const loadAllRecords = async (entity, sortField = '-created_date') => {
         const BATCH_SIZE = 500;
         let allRecords = [];
         let skip = 0;
-        let hasMore = true;
 
-        while (hasMore && allRecords.length < maxLimit) {
+        while (true) {
             const batch = await entity.list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
             allRecords = [...allRecords, ...batchArray];
-            if (batchArray.length < BATCH_SIZE) {
-                hasMore = false;
-            } else {
-                skip += BATCH_SIZE;
-            }
+            if (batchArray.length < BATCH_SIZE) break;
+            skip += BATCH_SIZE;
         }
 
-        return allRecords.slice(0, maxLimit);
+        return allRecords;
     };
 
     const { data: rentabilidadData, isLoading: isLoadingQuery, isError: isQueryError } = useQuery({

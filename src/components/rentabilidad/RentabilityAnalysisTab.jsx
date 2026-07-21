@@ -270,12 +270,16 @@ export default function RentabilityAnalysisTab({
             // CRÍTICO: Usar el valor correcto de gastos fijos
             const totalFixedCostsWithTraining = currentFixedCosts + trainingAmount + periodOperationalCost;
 
-            const totalPeriodHours = Object.values(clientData)
-                .filter(c => {
-                    const client = clientMap.get(c.clientId);
+            // CRÍTICO: El denominador para distribuir gastos fijos debe ser el TOTAL de horas
+            // trabajadas en el período (todas las WorkEntries, sin entrenamiento ni operacionales).
+            // Usar clientData aquí sub-contaría al excluir clientes sin servicios facturados.
+            const totalPeriodHours = periodWorkEntries
+                .filter(e => {
+                    if (e.client_id === trainingClientId) return false;
+                    const client = clientMap.get(e.client_id);
                     return client?.client_type !== 'operational_cost';
                 })
-                .reduce((sum, c) => sum + c.totalHours, 0);
+                .reduce((sum, e) => sum + (e.hours || 0), 0);
 
             // Super por hora: base = TODAS las work entries del período (sin exclusiones)
             // CRÍTICO: usar e.total_amount solamente (igual que periodSuperData useMemo)
