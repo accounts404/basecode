@@ -112,10 +112,10 @@ export default function TrabajoEntradasPage() {
 
     const [currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult] = await Promise.all([
       base44.auth.me(),
-      loadAllRecords('WorkEntry', '-work_date', 5000, { work_date: { $gte: minDateStr } }),
-      loadAllRecords('User', '-created_date', 2000),
-      loadAllRecords('Client', '-created_date', 2000),
-      loadAllRecords('Invoice', '-created_date', 5000, { created_date: { $gte: minDateStr } })
+      loadAllRecords('WorkEntry', '-work_date', { work_date: { $gte: minDateStr } }),
+      loadAllRecords('User', '-created_date'),
+      loadAllRecords('Client', '-created_date'),
+      loadAllRecords('Invoice', '-created_date', { created_date: { $gte: minDateStr } })
     ]);
     return { currentUser, entriesResult, cleanersResult, clientsResult, invoicesResult, minDateStr };
   };
@@ -187,8 +187,8 @@ export default function TrabajoEntradasPage() {
     const allCleanersForHistory = (cleanersResult || []).filter(u => u.role !== 'admin');
 
     Promise.all([
-      loadAllRecords('WorkEntry', '-work_date', 10000, { work_date: { $lt: minDateStr } }),
-      loadAllRecords('Invoice', '-created_date', 10000, { created_date: { $lt: minDateStr } })
+      loadAllRecords('WorkEntry', '-work_date', { work_date: { $lt: minDateStr } }),
+      loadAllRecords('Invoice', '-created_date', { created_date: { $lt: minDateStr } })
     ]).then(([olderEntries, olderInvoices]) => {
       // Añadir IDs de facturas pagadas antiguas
       if (olderInvoices.length > 0) {

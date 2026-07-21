@@ -18,13 +18,12 @@ export const User = base44.auth;
  * @param {object|null} filterObj - Filtro opcional para usar .filter() en vez de .list()
  * @returns {Promise<Array>}
  */
-export const loadAllRecords = async (entityName, sortField = '-created_date', maxLimit = 10000, filterObj = null) => {
+export const loadAllRecords = async (entityName, sortField = '-created_date', filterObj = null) => {
   const BATCH_SIZE = 500;
   let allRecords = [];
   let skip = 0;
-  let hasMore = true;
 
-  while (hasMore && allRecords.length < maxLimit) {
+  while (true) {
     let batch;
     if (filterObj) {
       batch = await base44.entities[entityName].filter(filterObj, sortField, BATCH_SIZE, skip);
@@ -33,12 +32,9 @@ export const loadAllRecords = async (entityName, sortField = '-created_date', ma
     }
     const batchArray = Array.isArray(batch) ? batch : [];
     allRecords = [...allRecords, ...batchArray];
-    if (batchArray.length < BATCH_SIZE) {
-      hasMore = false;
-    } else {
-      skip += BATCH_SIZE;
-    }
+    if (batchArray.length < BATCH_SIZE) break;
+    skip += BATCH_SIZE;
   }
 
-  return allRecords.slice(0, maxLimit);
+  return allRecords;
 };
