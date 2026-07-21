@@ -14,7 +14,6 @@ export const User = base44.auth;
  *
  * @param {string} entityName - Nombre de la entidad (ej: 'WorkEntry')
  * @param {string} sortField - Campo de ordenamiento (ej: '-work_date')
- * @param {number} maxLimit - Límite máximo de seguridad (default: 10000)
  * @param {object|null} filterObj - Filtro opcional para usar .filter() en vez de .list()
  * @returns {Promise<Array>}
  */
