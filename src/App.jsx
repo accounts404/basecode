@@ -52,8 +52,6 @@ const PageLoader = <ServerRestartingScreen />;
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, isAuthenticated, navigateToLogin } = useAuth();
 
-  return <ServerRestartingScreen />;
-
   if (isLoadingPublicSettings || isLoadingAuth) {
     return <ServerRestartingScreen />;
   }
