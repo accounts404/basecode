@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
                     period: `${workDateStr.slice(0, 7)}-${wday <= 15 ? '1st' : '2nd'}`,
                     invoiced: false,
                     schedule_id: scheduleId,
+                    is_leader_bonus: individualSchedule?.is_leader_bonus === true,
                 });
             }
 
