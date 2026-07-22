@@ -61,7 +61,7 @@ export default function RentabilidadPage() {
         queryFn: async () => {
             const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData] = await Promise.all([
                 loadAllRecords(Client, '-created_date'),
-                loadAllRecords(WorkEntry, '-work_date'),
+                loadAllRecords(WorkEntry, '-created_date'),
                 loadAllRecords(PricingThreshold, '-created_date'),
                 loadAllRecords(Schedule, '-start_time'),
                 loadAllRecords(FixedCost, '-created_date'),
