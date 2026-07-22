@@ -67,6 +67,10 @@ export default function CleanerTimesManager({
         onCleanerSchedulesChange(schedules);
     }, [selectedCleaners, baseDate, onCleanerSchedulesChange, baseStartTime, baseEndTime]);
 
+    // Ref para acceder a cleanerSchedules en la inicialización sin añadirlo a deps del efecto
+    const cleanerSchedulesRef = useRef(cleanerSchedules);
+    cleanerSchedulesRef.current = cleanerSchedules;
+
     // 1. Initialize individual times with proper dependency tracking
     useEffect(() => {
         // Check if cleaners have actually changed
@@ -74,8 +78,7 @@ export default function CleanerTimesManager({
         
         // Only initialize if:
         // - We haven't initialized yet, OR
-        // - The selected cleaners have changed, OR  
-        // - Base times have changed significantly
+        // - The selected cleaners have changed
         if (!hasInitializedRef.current || cleanersChanged) {
             const initialTimes = {};
             const initialBonusFlags = {};
@@ -85,7 +88,8 @@ export default function CleanerTimesManager({
             if (!isNaN(baseStart.getTime()) && !isNaN(baseEnd.getTime())) {
                 selectedCleaners.forEach(cleanerId => {
                     const cleanerIdStr = String(cleanerId);
-                    const existingSchedule = cleanerSchedules?.find(cs => String(cs.cleaner_id) === cleanerIdStr);
+                    // Usar ref para leer cleanerSchedules sin re-trigger del efecto
+                    const existingSchedule = cleanerSchedulesRef.current?.find(cs => String(cs.cleaner_id) === cleanerIdStr);
                     if (existingSchedule) {
                         initialTimes[cleanerIdStr] = {
                             start_time: format(parseISO(existingSchedule.start_time), 'HH:mm'),
@@ -110,7 +114,9 @@ export default function CleanerTimesManager({
             hasInitializedRef.current = true;
             lastSelectedCleanersRef.current = [...selectedCleaners];
         }
-    }, [selectedCleaners, baseStartTime, baseEndTime, baseDate, cleanerSchedules, calculateAndDispatchSchedules]);
+    // cleanerSchedules se lee via ref para no re-disparar la inicialización cuando el padre re-renderiza
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedCleaners, baseStartTime, baseEndTime, baseDate, calculateAndDispatchSchedules]);
 
     // 2. ELIMINAMOS COMPLETAMENTE EL useEffect DE SINCRONIZACIÓN
     // Este useEffect causaba el bucle infinito, ya no es necesario
