@@ -482,22 +482,16 @@ export default function HorarioPage() {
     // Helper para cargar TODOS los registros con paginación automática
     const loadAllRecords = async (entityName, sortField = '-created_date') => {
         const { base44 } = await import('@/api/base44Client');
-        const BATCH_SIZE = 5000;
+        const BATCH_SIZE = 500;
         let allRecords = [];
         let skip = 0;
-        let hasMore = true;
 
-        while (hasMore) {
+        while (true) {
             const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
-
             allRecords = [...allRecords, ...batchArray];
-
-            if (batchArray.length < BATCH_SIZE) {
-                hasMore = false;
-            } else {
-                skip += BATCH_SIZE;
-            }
+            if (batchArray.length < BATCH_SIZE) break;
+            skip += BATCH_SIZE;
         }
 
         return allRecords;

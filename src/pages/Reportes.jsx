@@ -63,20 +63,8 @@ export default function ReportesPage() {
   const queryClient = useQueryClient();
 
   const loadAllRecords = async (entityName, sortField = '-created_date') => {
-    const { base44 } = await import('@/api/base44Client');
-    const BATCH_SIZE = 500;
-    let allRecords = [];
-    let skip = 0;
-
-    while (true) {
-      const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
-      const batchArray = Array.isArray(batch) ? batch : [];
-      allRecords = [...allRecords, ...batchArray];
-      if (batchArray.length < BATCH_SIZE) break;
-      skip += BATCH_SIZE;
-    }
-
-    return allRecords;
+    const { loadAllRecords: loadAll } = await import('@/api/entities');
+    return loadAll(entityName, sortField);
   };
 
   const { data: reportesData, isLoading: isLoadingQuery } = useQuery({
