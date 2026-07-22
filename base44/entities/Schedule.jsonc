@@ -46,6 +46,11 @@
           "end_time": {
             "type": "string",
             "format": "date-time"
+          },
+          "is_leader_bonus": {
+            "type": "boolean",
+            "default": false,
+            "description": "Indica que este limpiador tiene un bono de l\u00edder pendiente de ajuste"
           }
         },
         "required": [
