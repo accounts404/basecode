@@ -775,6 +775,37 @@ export default function CrearServicioForm({
                 }
             }
 
+            // Si el servicio ya está completado y hay cleaner_schedules con is_leader_bonus,
+            // actualizar las WorkEntries existentes para marcar el bonus
+            if (!isNewService && schedule?.id && serviceData.cleaner_schedules) {
+                const bonusCleanerIds = serviceData.cleaner_schedules
+                    .filter(cs => cs.is_leader_bonus)
+                    .map(cs => cs.cleaner_id);
+
+                if (bonusCleanerIds.length > 0) {
+                    try {
+                        const { WorkEntry } = await import('@/entities/WorkEntry');
+                        const existingEntries = await WorkEntry.filter({ schedule_id: schedule.id });
+                        await Promise.all(
+                            existingEntries
+                                .filter(we => bonusCleanerIds.includes(we.cleaner_id))
+                                .map(we => WorkEntry.update(we.id, { is_leader_bonus: true }))
+                        );
+                        // También limpiar el flag en entradas que ya no tienen bonus
+                        const nonBonusCleanerIds = serviceData.cleaner_schedules
+                            .filter(cs => !cs.is_leader_bonus)
+                            .map(cs => cs.cleaner_id);
+                        await Promise.all(
+                            existingEntries
+                                .filter(we => nonBonusCleanerIds.includes(we.cleaner_id) && we.is_leader_bonus)
+                                .map(we => WorkEntry.update(we.id, { is_leader_bonus: false }))
+                        );
+                    } catch (bonusError) {
+                        console.warn('[CrearServicioForm] Error actualizando is_leader_bonus en WorkEntries:', bonusError);
+                    }
+                }
+            }
+
             let finalUpdateScope;
 
             if (isNewService) {

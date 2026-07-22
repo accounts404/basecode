@@ -67,6 +67,11 @@
       "type": "string",
       "description": "ID del Schedule (horario) del cual se origin\u00f3 esta entrada, si aplica."
     },
+    "is_leader_bonus": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica que este limpiador tiene un bono extra pendiente de aplicar (ej: $1 por ser l\u00edder). Requiere ajuste manual del monto."
+    },
     "modified_by_cleaner": {
       "type": "boolean",
       "default": false,

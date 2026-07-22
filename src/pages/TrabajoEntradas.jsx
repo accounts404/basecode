@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea"; // Unused but keeping for now if not explicitly removed
-import { Clock, User as UserIcon, Calendar, DollarSign, Edit, Trash2, AlertCircle, CheckCircle, Save, TrendingUp, Briefcase, ClipboardCheck, ChevronDown, ChevronUp, Search, X, AlertTriangle, Loader2, Lock } from "lucide-react";
+import { Clock, User as UserIcon, Calendar, DollarSign, Edit, Trash2, AlertCircle, CheckCircle, Save, TrendingUp, Briefcase, ClipboardCheck, ChevronDown, ChevronUp, Search, X, AlertTriangle, Loader2, Lock, Star } from "lucide-react";
 import { format } from "date-fns"; // Removed startOfMonth, endOfMonth, startOfDay, endOfDay as they are unused
 import { es } from "date-fns/locale";
 import PeriodSelector from "../components/reports/PeriodSelector";
@@ -1068,26 +1068,35 @@ export default function TrabajoEntradasPage() {
                                 </TableCell>
                                 <TableCell className="font-medium">{entry.client_name}</TableCell>
                                 <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    <Badge className={`${activityColors[entry.activity]} border-0`}>
-                                      {activityLabels[entry.activity] || entry.activity}
-                                      {entry.activity === 'otros' && entry.other_activity && `: ${entry.other_activity}`}
-                                    </Badge>
-                                    {/* Indicador de modificación */}
-                                    {entry.modified_by_cleaner && (
-                                      <div className="relative group">
-                                        <AlertTriangle className="w-4 h-4 text-amber-500 cursor-help" />
-                                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
-                                          Modificado por limpiador
-                                          {entry.last_modified_at && (
-                                            <div className="text-amber-200">
-                                              {format(new Date(entry.last_modified_at), "d MMM yyyy 'a las' HH:mm", { locale: es })}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                 <div className="flex items-center gap-2">
+                                   <Badge className={`${activityColors[entry.activity]} border-0`}>
+                                     {activityLabels[entry.activity] || entry.activity}
+                                     {entry.activity === 'otros' && entry.other_activity && `: ${entry.other_activity}`}
+                                   </Badge>
+                                   {/* Indicador de bonus de líder */}
+                                   {entry.is_leader_bonus && (
+                                     <div className="relative group">
+                                       <Star className="w-4 h-4 fill-amber-400 text-amber-500 cursor-help" />
+                                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                                         ⭐ Bonus de Líder — ajustar monto
+                                       </div>
+                                     </div>
+                                   )}
+                                   {/* Indicador de modificación */}
+                                   {entry.modified_by_cleaner && (
+                                     <div className="relative group">
+                                       <AlertTriangle className="w-4 h-4 text-amber-500 cursor-help" />
+                                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                                         Modificado por limpiador
+                                         {entry.last_modified_at && (
+                                           <div className="text-amber-200">
+                                             {format(new Date(entry.last_modified_at), "d MMM yyyy 'a las' HH:mm", { locale: es })}
+                                           </div>
+                                         )}
+                                       </div>
+                                     </div>
+                                   )}
+                                 </div>
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-1">
@@ -1152,18 +1161,24 @@ export default function TrabajoEntradasPage() {
                                 <p className="text-sm text-slate-600">
                                 {format(new Date(entry.work_date + 'T12:00:00'), "d MMM yyyy", { locale: es })}
                                 </p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <Badge className={`${activityColors[entry.activity]} border-0`}>
-                                    {activityLabels[entry.activity] || entry.activity}
-                                    {entry.activity === 'otros' && entry.other_activity && `: ${entry.other_activity}`}
-                                  </Badge>
-                                  {entry.modified_by_cleaner && (
-                                    <div className="flex items-center gap-1">
-                                      <AlertTriangle className="w-4 h-4 text-amber-500" />
-                                      <span className="text-xs text-amber-600">Modificado</span>
-                                    </div>
-                                  )}
-                                </div>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                   <Badge className={`${activityColors[entry.activity]} border-0`}>
+                                     {activityLabels[entry.activity] || entry.activity}
+                                     {entry.activity === 'otros' && entry.other_activity && `: ${entry.other_activity}`}
+                                   </Badge>
+                                   {entry.is_leader_bonus && (
+                                     <div className="flex items-center gap-1 bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">
+                                       <Star className="w-3 h-3 fill-amber-500" />
+                                       <span className="text-xs font-semibold">Bonus</span>
+                                     </div>
+                                   )}
+                                   {entry.modified_by_cleaner && (
+                                     <div className="flex items-center gap-1">
+                                       <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                       <span className="text-xs text-amber-600">Modificado</span>
+                                     </div>
+                                   )}
+                                 </div>
                               </div>
                               <div className="text-right">
                                 <p className="font-semibold text-lg text-green-600">
@@ -1262,26 +1277,35 @@ export default function TrabajoEntradasPage() {
                         </TableCell>
                         <TableCell className="font-medium">{entry.client_name}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Badge className={`${activityColors[entry.activity]} border-0`}>
-                              {activityLabels[entry.activity] || entry.activity}
-                              {entry.activity === 'otros' && entry.other_activity && `: ${entry.other_activity}`}
-                            </Badge>
-                            {/* Indicador de modificación */}
-                            {entry.modified_by_cleaner && (
-                              <div className="relative group">
-                                <AlertTriangle className="w-4 h-4 text-amber-500 cursor-help" />
-                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
-                                  Modificado por limpiador
-                                  {entry.last_modified_at && (
-                                    <div className="text-amber-200">
-                                      {format(new Date(entry.last_modified_at), "d MMM yyyy 'a las' HH:mm", { locale: es })}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                         <div className="flex items-center gap-2">
+                           <Badge className={`${activityColors[entry.activity]} border-0`}>
+                             {activityLabels[entry.activity] || entry.activity}
+                             {entry.activity === 'otros' && entry.other_activity && `: ${entry.other_activity}`}
+                           </Badge>
+                           {/* Indicador de bonus de líder */}
+                           {entry.is_leader_bonus && (
+                             <div className="relative group">
+                               <Star className="w-4 h-4 fill-amber-400 text-amber-500 cursor-help" />
+                               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                                 ⭐ Bonus de Líder — ajustar monto
+                               </div>
+                             </div>
+                           )}
+                           {/* Indicador de modificación */}
+                           {entry.modified_by_cleaner && (
+                             <div className="relative group">
+                               <AlertTriangle className="w-4 h-4 text-amber-500 cursor-help" />
+                               <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50">
+                                 Modificado por limpiador
+                                 {entry.last_modified_at && (
+                                   <div className="text-amber-200">
+                                     {format(new Date(entry.last_modified_at), "d MMM yyyy 'a las' HH:mm", { locale: es })}
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
+                           )}
+                         </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -1347,11 +1371,18 @@ export default function TrabajoEntradasPage() {
                         <p className="text-sm text-slate-500">
                            {format(new Date(entry.work_date + 'T12:00:00'), "d MMM yyyy", { locale: es })}
                          </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <Badge className={`${activityColors[entry.activity]} border-0`}>
                             {activityLabels[entry.activity] || entry.activity}
                             {entry.activity === 'otros' && entry.other_activity && `: ${entry.other_activity}`}
                           </Badge>
+                          {/* Indicador de bonus de líder en móvil */}
+                          {entry.is_leader_bonus && (
+                            <div className="flex items-center gap-1 bg-amber-100 text-amber-700 rounded-full px-2 py-0.5">
+                              <Star className="w-3 h-3 fill-amber-500" />
+                              <span className="text-xs font-semibold">Bonus</span>
+                            </div>
+                          )}
                           {/* Indicador de modificación en móvil */}
                           {entry.modified_by_cleaner && (
                             <div className="flex items-center gap-1">

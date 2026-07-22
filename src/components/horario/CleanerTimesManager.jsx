@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Users, Copy, RotateCcw, Edit, EyeOff, X, Check } from 'lucide-react';
+import { Clock, Users, Copy, RotateCcw, Edit, EyeOff, X, Check, Star } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
 export default function CleanerTimesManager({ 
@@ -18,6 +18,7 @@ export default function CleanerTimesManager({
     isReadOnly = false 
 }) {
     const [individualCleanerTimes, setIndividualCleanerTimes] = useState({});
+    const [leaderBonusFlags, setLeaderBonusFlags] = useState({});
     const [isEditingAll, setIsEditingAll] = useState(false);
     
     // Use ref to track if we've already initialized to prevent unnecessary re-initializations
@@ -25,7 +26,7 @@ export default function CleanerTimesManager({
     const lastSelectedCleanersRef = useRef([]);
 
     // Helper to calculate and dispatch schedules to parent
-    const calculateAndDispatchSchedules = useCallback((currentIndividualTimes) => {
+    const calculateAndDispatchSchedules = useCallback((currentIndividualTimes, currentBonusFlags) => {
         if (!selectedCleaners || selectedCleaners.length === 0) {
             onCleanerSchedulesChange([]);
             return;
@@ -58,7 +59,8 @@ export default function CleanerTimesManager({
             return {
                 cleaner_id: cleanerIdStr,
                 start_time: `${baseDate}T${startTimeStr}:00.000`,
-                end_time: `${baseDate}T${endTimeStr}:00.000`
+                end_time: `${baseDate}T${endTimeStr}:00.000`,
+                is_leader_bonus: (currentBonusFlags || {})[cleanerIdStr] || false,
             };
         }).filter(Boolean);
 
@@ -76,6 +78,7 @@ export default function CleanerTimesManager({
         // - Base times have changed significantly
         if (!hasInitializedRef.current || cleanersChanged) {
             const initialTimes = {};
+            const initialBonusFlags = {};
             const baseStart = new Date(`${baseDate}T${baseStartTime}`);
             const baseEnd = new Date(`${baseDate}T${baseEndTime}`);
 
@@ -88,17 +91,20 @@ export default function CleanerTimesManager({
                             start_time: format(parseISO(existingSchedule.start_time), 'HH:mm'),
                             end_time: format(parseISO(existingSchedule.end_time), 'HH:mm'),
                         };
+                        initialBonusFlags[cleanerIdStr] = existingSchedule.is_leader_bonus || false;
                     } else {
                         initialTimes[cleanerIdStr] = {
                             start_time: format(baseStart, 'HH:mm'),
                             end_time: format(baseEnd, 'HH:mm'),
                         };
+                        initialBonusFlags[cleanerIdStr] = false;
                     }
                 });
             }
             
             setIndividualCleanerTimes(initialTimes);
-            calculateAndDispatchSchedules(initialTimes);
+            setLeaderBonusFlags(initialBonusFlags);
+            calculateAndDispatchSchedules(initialTimes, initialBonusFlags);
             
             // Mark as initialized and update refs
             hasInitializedRef.current = true;
@@ -120,10 +126,19 @@ export default function CleanerTimesManager({
                     [field]: value,
                 },
             };
-            calculateAndDispatchSchedules(newTimes);
+            calculateAndDispatchSchedules(newTimes, leaderBonusFlags);
             return newTimes;
         });
-    }, [calculateAndDispatchSchedules]);
+    }, [calculateAndDispatchSchedules, leaderBonusFlags]);
+
+    const handleLeaderBonusToggle = useCallback((cleanerId) => {
+        const cleanerIdStr = String(cleanerId);
+        setLeaderBonusFlags(prev => {
+            const newFlags = { ...prev, [cleanerIdStr]: !prev[cleanerIdStr] };
+            calculateAndDispatchSchedules(individualCleanerTimes, newFlags);
+            return newFlags;
+        });
+    }, [calculateAndDispatchSchedules, individualCleanerTimes]);
 
     const copyTimesToAll = useCallback((sourceCleanerId) => {
         const sourceCleanerIdStr = String(sourceCleanerId);
@@ -138,10 +153,10 @@ export default function CleanerTimesManager({
                     newTimes[targetCleanerIdStr] = { ...sourceTimes };
                 }
             });
-            calculateAndDispatchSchedules(newTimes);
+            calculateAndDispatchSchedules(newTimes, leaderBonusFlags);
             return newTimes;
         });
-    }, [individualCleanerTimes, selectedCleaners, calculateAndDispatchSchedules]);
+    }, [individualCleanerTimes, selectedCleaners, calculateAndDispatchSchedules, leaderBonusFlags]);
 
     const resetToBaseTimes = useCallback(() => {
         setIndividualCleanerTimes(prev => {
@@ -155,10 +170,10 @@ export default function CleanerTimesManager({
                     end_time: format(baseEnd, 'HH:mm')
                 };
             });
-            calculateAndDispatchSchedules(newTimes);
+            calculateAndDispatchSchedules(newTimes, leaderBonusFlags);
             return newTimes;
         });
-    }, [selectedCleaners, baseStartTime, baseEndTime, baseDate, calculateAndDispatchSchedules]);
+    }, [selectedCleaners, baseStartTime, baseEndTime, baseDate, calculateAndDispatchSchedules, leaderBonusFlags]);
 
     const getCleanerName = (cleanerId) => {
         const cleaner = users.find(u => String(u.id) === String(cleanerId));
@@ -218,9 +233,18 @@ export default function CleanerTimesManager({
                             const cleanerIdStr = String(cleanerId);
                             const cleanerTimes = individualCleanerTimes[cleanerIdStr] || { start_time: baseStartTime, end_time: baseEndTime };
                             const hours = calculateHours(cleanerTimes.start_time, cleanerTimes.end_time);
+                            const hasBonus = leaderBonusFlags[cleanerIdStr] || false;
                             return (
                                 <div key={cleanerIdStr} className="flex justify-between items-center">
-                                    <span className="text-slate-800 font-medium">{getCleanerName(cleanerIdStr)}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-slate-800 font-medium">{getCleanerName(cleanerIdStr)}</span>
+                                        {hasBonus && (
+                                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                                Bonus
+                                            </span>
+                                        )}
+                                    </div>
                                     <span className="text-slate-600 font-mono bg-white px-2 py-1 rounded">
                                         {cleanerTimes.start_time} - {cleanerTimes.end_time} ({hours})
                                     </span>
@@ -283,8 +307,9 @@ export default function CleanerTimesManager({
                     const cleanerTimes = individualCleanerTimes[cleanerIdStr] || { start_time: baseStartTime, end_time: baseEndTime };
                     const hours = calculateHours(cleanerTimes.start_time, cleanerTimes.end_time);
                     
+                    const hasBonus = leaderBonusFlags[cleanerIdStr] || false;
                     return (
-                        <div key={cleanerIdStr} className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <div key={cleanerIdStr} className={`border rounded-lg p-4 ${hasBonus ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -309,7 +334,7 @@ export default function CleanerTimesManager({
                                 </Button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4 mb-4">
                                 <div className="space-y-2">
                                     <Label htmlFor={`start-${cleanerIdStr}`} className="text-sm font-medium">
                                         Hora de Inicio
@@ -335,6 +360,28 @@ export default function CleanerTimesManager({
                                     />
                                 </div>
                             </div>
+
+                            {/* Bonus de líder */}
+                            <button
+                                type="button"
+                                onClick={() => handleLeaderBonusToggle(cleanerIdStr)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border-2 transition-all ${
+                                    hasBonus
+                                        ? 'bg-amber-100 border-amber-400 text-amber-800'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-amber-300 hover:bg-amber-50'
+                                }`}
+                            >
+                                <Star className={`w-4 h-4 flex-shrink-0 ${hasBonus ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
+                                <div className="text-left">
+                                    <p className="text-sm font-semibold">Bonus de Líder</p>
+                                    <p className="text-xs opacity-75">
+                                        {hasBonus ? '✅ Marcado — esta entrada requiere ajuste de monto' : 'Sin bonus especial'}
+                                    </p>
+                                </div>
+                                {hasBonus && (
+                                    <span className="ml-auto text-xs font-bold bg-amber-500 text-white px-2 py-0.5 rounded-full">ACTIVO</span>
+                                )}
+                            </button>
                         </div>
                     );
                 })}
