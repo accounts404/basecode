@@ -35,13 +35,20 @@ export default function RentabilidadPage() {
 
     const loadAllRecords = async (entity, sortField = '-created_date') => {
         const BATCH_SIZE = 500;
+        const seenIds = new Set();
         let allRecords = [];
         let skip = 0;
 
         while (true) {
             const batch = await entity.list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
-            allRecords = [...allRecords, ...batchArray];
+            // Deduplicar por ID para evitar duplicados por orden inestable en paginación
+            for (const record of batchArray) {
+                if (!seenIds.has(record.id)) {
+                    seenIds.add(record.id);
+                    allRecords.push(record);
+                }
+            }
             if (batchArray.length < BATCH_SIZE) break;
             skip += BATCH_SIZE;
         }
