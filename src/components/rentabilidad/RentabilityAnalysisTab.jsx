@@ -1497,10 +1497,10 @@ export default function RentabilityAnalysisTab({
                                                                                 </TableRow>
                                                                             </TableHeader>
                                                                             <TableBody>
-                                                                                {clientSchedules.map((schedule) => {
-                                                                                    const priceData = getPriceForSchedule(schedule, client);
-                                                                                    const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
-                                                                                    const serviceHours = (() => {
+                                                                                {[...clientSchedules].sort((a, b) => new Date(b.start_time) - new Date(a.start_time)).map((schedule) => {
+                                                                                   const priceData = getPriceForSchedule(schedule, client);
+                                                                                   const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
+                                                                                   const serviceHours = (() => {
                                                                                         if (schedule.cleaner_schedules && Array.isArray(schedule.cleaner_schedules)) {
                                                                                             return schedule.cleaner_schedules.reduce((total, cs) => {
                                                                                                 const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
@@ -1520,11 +1520,22 @@ export default function RentabilityAnalysisTab({
                                                                                     const [year, month, day] = serviceDate.split('-');
                                                                                     const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 
-                                                                                    return (
+                                                                                    // Formatear horas en timezone Melbourne (AEST/AEDT)
+                                                                                    const fmtMelb = (dtStr) => {
+                                                                                        const d = new Date(dtStr.endsWith('Z') ? dtStr : `${dtStr}Z`);
+                                                                                        return d.toLocaleTimeString('en-AU', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hour12: false });
+                                                                                    };
+                                                                                    // Usar la fecha local Melbourne para mostrar el día correcto
+                                                                                    const melbDateStr = new Date(schedule.start_time.endsWith('Z') ? schedule.start_time : `${schedule.start_time}Z`)
+                                                                                        .toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' }); // en-CA = yyyy-MM-dd
+                                                                                    const [my, mm, md] = melbDateStr.split('-');
+                                                                                    const melbLocalDate = new Date(parseInt(my), parseInt(mm) - 1, parseInt(md));
+
+                                                                                   return (
                                                                                        <TableRow key={schedule.id} className="text-xs hover:bg-slate-50">
-                                                                                           <TableCell>{format(localDate, 'd MMM yyyy', { locale: es })}</TableCell>
+                                                                                           <TableCell>{format(melbLocalDate, 'd MMM yyyy', { locale: es })}</TableCell>
                                                                                            <TableCell className="text-slate-600">
-                                                                                               {format(new Date(schedule.start_time), 'HH:mm')} - {format(new Date(schedule.end_time), 'HH:mm')}
+                                                                                               {fmtMelb(schedule.start_time)} - {fmtMelb(schedule.end_time)}
                                                                                            </TableCell>
                                                                                             <TableCell className="text-slate-700">{schedule.cleaner_ids?.length || 0}</TableCell>
                                                                                             <TableCell className="text-right font-bold text-green-700">${netIncome.toFixed(2)}</TableCell>
@@ -1573,7 +1584,7 @@ export default function RentabilityAnalysisTab({
                                                                                 </TableRow>
                                                                             </TableHeader>
                                                                             <TableBody>
-                                                                                {clientWorkEntries.map((we) => {
+                                                                                {[...clientWorkEntries].sort((a, b) => b.work_date.localeCompare(a.work_date) || (a.cleaner_name || '').localeCompare(b.cleaner_name || '')).map((we) => {
                                                                                     // Extraer solo la fecha y parsear en hora local (evitar desfase UTC)
                                                                                     const workDateOnly = extractDateOnly(we.work_date);
                                                                                     const [year, month, day] = workDateOnly.split('-');
