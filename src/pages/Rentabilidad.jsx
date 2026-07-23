@@ -63,7 +63,7 @@ export default function RentabilidadPage() {
                 loadAllRecords(Client, '-created_date'),
                 loadAllRecords(WorkEntry, '-created_date'),
                 loadAllRecords(PricingThreshold, '-created_date'),
-                loadAllRecords(Schedule, '-start_time'),
+                loadAllRecords(Schedule, '-created_date'),
                 loadAllRecords(FixedCost, '-created_date'),
             ]);
 
