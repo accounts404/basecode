@@ -482,19 +482,24 @@ export default function RentabilityAnalysisTab({
                 const { base: netIncome } = calculateGST(priceData.rawAmount, priceData.gstType);
                 
                 // Calcular costo laboral proporcional para este servicio
+                // Calcular horas desde el string local directamente (sin agregar Z)
+                const parseLocalDt = (dtStr) => {
+                    // "2026-06-25T14:15:00.000" → parse as local time
+                    const clean = dtStr.replace('Z','');
+                    const [datePart, timePart] = clean.split('T');
+                    const [y,mo,d] = datePart.split('-').map(Number);
+                    const [h,mi,s] = (timePart||'00:00:00').split(':').map(Number);
+                    return new Date(y, mo-1, d, h, mi, s||0);
+                };
                 const serviceHours = (() => {
-                    if (schedule.cleaner_schedules && Array.isArray(schedule.cleaner_schedules)) {
-                        return schedule.cleaner_schedules.reduce((total, cs) => {
-                            const start = new Date(cs.start_time.endsWith('Z') ? cs.start_time : `${cs.start_time}Z`);
-                            const end = new Date(cs.end_time.endsWith('Z') ? cs.end_time : `${cs.end_time}Z`);
-                            return total + ((end - start) / (1000 * 60 * 60));
-                        }, 0);
-                    } else {
-                        const start = new Date(schedule.start_time.endsWith('Z') ? schedule.start_time : `${schedule.start_time}Z`);
-                        const end = new Date(schedule.end_time.endsWith('Z') ? schedule.end_time : `${schedule.end_time}Z`);
-                        return (end - start) / (1000 * 60 * 60);
-                    }
-                })();
+                     if (schedule.cleaner_schedules && Array.isArray(schedule.cleaner_schedules)) {
+                         return schedule.cleaner_schedules.reduce((total, cs) => {
+                             return total + ((parseLocalDt(cs.end_time) - parseLocalDt(cs.start_time)) / (1000 * 60 * 60));
+                         }, 0);
+                     } else {
+                         return (parseLocalDt(schedule.end_time) - parseLocalDt(schedule.start_time)) / (1000 * 60 * 60);
+                     }
+                 })();
                 
                 const serviceLaborCost = client.totalHours > 0 ? (serviceHours / client.totalHours) * client.totalLaborCost : 0;
                 const serviceMargin = netIncome - serviceLaborCost;
@@ -1520,22 +1525,22 @@ export default function RentabilityAnalysisTab({
                                                                                     const [year, month, day] = serviceDate.split('-');
                                                                                     const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
 
-                                                                                    // Formatear horas en timezone Melbourne (AEST/AEDT)
-                                                                                    const fmtMelb = (dtStr) => {
-                                                                                        const d = new Date(dtStr.endsWith('Z') ? dtStr : `${dtStr}Z`);
-                                                                                        return d.toLocaleTimeString('en-AU', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hour12: false });
+                                                                                    // Los start_time/end_time están almacenados en hora local (sin Z),
+                                                                                    // leer la hora directamente del string para evitar conversión UTC
+                                                                                    const fmtLocalTime = (dtStr) => {
+                                                                                        // dtStr format: "2026-06-25T14:15:00.000" — hora ya en Melbourne
+                                                                                        const timePart = dtStr.substring(11, 16); // "14:15"
+                                                                                        return timePart;
                                                                                     };
-                                                                                    // Usar la fecha local Melbourne para mostrar el día correcto
-                                                                                    const melbDateStr = new Date(schedule.start_time.endsWith('Z') ? schedule.start_time : `${schedule.start_time}Z`)
-                                                                                        .toLocaleDateString('en-CA', { timeZone: 'Australia/Melbourne' }); // en-CA = yyyy-MM-dd
-                                                                                    const [my, mm, md] = melbDateStr.split('-');
+                                                                                    // Usar la fecha directamente del string (ya en hora local)
+                                                                                    const [my, mm, md] = schedule.start_time.substring(0, 10).split('-');
                                                                                     const melbLocalDate = new Date(parseInt(my), parseInt(mm) - 1, parseInt(md));
 
                                                                                    return (
                                                                                        <TableRow key={schedule.id} className="text-xs hover:bg-slate-50">
                                                                                            <TableCell>{format(melbLocalDate, 'd MMM yyyy', { locale: es })}</TableCell>
                                                                                            <TableCell className="text-slate-600">
-                                                                                               {fmtMelb(schedule.start_time)} - {fmtMelb(schedule.end_time)}
+                                                                                               {fmtLocalTime(schedule.start_time)} - {fmtLocalTime(schedule.end_time)}
                                                                                            </TableCell>
                                                                                             <TableCell className="text-slate-700">{schedule.cleaner_ids?.length || 0}</TableCell>
                                                                                             <TableCell className="text-right font-bold text-green-700">${netIncome.toFixed(2)}</TableCell>
