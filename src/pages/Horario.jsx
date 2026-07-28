@@ -479,19 +479,42 @@ export default function HorarioPage() {
         }
     }, [user, loadRequiredKeysForDate, loadVehicleAndTeamForDate]);
 
-    // Helper para cargar TODOS los registros con paginación automática
+    // Helper para cargar TODOS los registros con paginación automática y throttling
     const loadAllRecords = async (entityName, sortField = '-created_date') => {
         const { base44 } = await import('@/api/base44Client');
         const BATCH_SIZE = 500;
+        const DELAY_MS = 200; // pausa entre páginas para no saturar el rate limit
         let allRecords = [];
         let skip = 0;
+        const seen = new Set();
+
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+        const fetchWithRetry = async (attempt = 0) => {
+            try {
+                return await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+            } catch (err) {
+                if (err?.message?.includes('429') && attempt < 3) {
+                    await sleep(2000 * (attempt + 1));
+                    return fetchWithRetry(attempt + 1);
+                }
+                throw err;
+            }
+        };
 
         while (true) {
-            const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+            const batch = await fetchWithRetry();
             const batchArray = Array.isArray(batch) ? batch : [];
-            allRecords = [...allRecords, ...batchArray];
+            // deduplicar por id
+            for (const record of batchArray) {
+                if (record.id && !seen.has(record.id)) {
+                    seen.add(record.id);
+                    allRecords.push(record);
+                }
+            }
             if (batchArray.length < BATCH_SIZE) break;
             skip += BATCH_SIZE;
+            await sleep(DELAY_MS);
         }
 
         return allRecords;
@@ -1237,11 +1260,9 @@ export default function HorarioPage() {
             pollingRef.current = null;
         }
 
-        // Solo hacer polling para limpiadores — admins usan refresh manual para evitar exceso de tráfico
-        if (user?.role === 'admin') return;
-
-        const pollingInterval = 30000;
-        console.log(`[Horario] 🔄 Polling limpiador cada ${pollingInterval/1000}s`);
+        // Admin: polling cada 2 minutos. Limpiador: cada 30s
+        const pollingInterval = user?.role === 'admin' ? 120000 : 30000;
+        console.log(`[Horario] 🔄 Polling cada ${pollingInterval/1000}s`);
 
         pollingRef.current = setInterval(async () => {
             if (navigationInProgressRef.current || clockInProcessingRef.current) {
@@ -1249,7 +1270,12 @@ export default function HorarioPage() {
                 return;
             }
             try {
-                await loadCleanerSpecificData(currentDateRef.current, true);
+                if (user?.role === 'admin') {
+                    const allSchedules = await loadAllRecords('Schedule', '-start_time');
+                    setSchedules(allSchedules);
+                } else {
+                    await loadCleanerSpecificData(currentDateRef.current, true);
+                }
             } catch (error) {
                 console.error('[Horario] ❌ Error en polling:', error);
             }
