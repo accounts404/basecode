@@ -479,6 +479,24 @@ export default function HorarioPage() {
         }
     }, [user, loadRequiredKeysForDate, loadVehicleAndTeamForDate]);
 
+    // Helper para ejecutar una request con retry automático en caso de 429
+    const fetchWithRetry = async (fn, maxRetries = 3) => {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                return await fn();
+            } catch (err) {
+                const is429 = err?.message?.includes('429') || err?.message?.includes('traffic volume') || err?.status === 429;
+                if (is429 && attempt < maxRetries) {
+                    const waitMs = (attempt + 1) * 25000; // 25s, 50s, 75s
+                    console.warn(`[Horario] 429 recibido, esperando ${waitMs/1000}s antes de reintentar...`);
+                    await new Promise(r => setTimeout(r, waitMs));
+                } else {
+                    throw err;
+                }
+            }
+        }
+    };
+
     // Helper para cargar registros con paginación automática
     const loadAllRecords = async (entityName, sortField = '-created_date') => {
         const { base44 } = await import('@/api/base44Client');
@@ -487,11 +505,12 @@ export default function HorarioPage() {
         let skip = 0;
 
         while (true) {
-            const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+            const batch = await fetchWithRetry(() => base44.entities[entityName].list(sortField, BATCH_SIZE, skip));
             const batchArray = Array.isArray(batch) ? batch : [];
             allRecords = [...allRecords, ...batchArray];
             if (batchArray.length < BATCH_SIZE) break;
             skip += BATCH_SIZE;
+            await new Promise(r => setTimeout(r, 500));
         }
 
         return allRecords;
@@ -517,18 +536,17 @@ export default function HorarioPage() {
         let skip = 0;
 
         while (true) {
-            const batch = await base44.entities.Schedule.filter(
+            const batch = await fetchWithRetry(() => base44.entities.Schedule.filter(
                 { start_time: { $gte: startStr, $lte: endStr } },
                 '-start_time',
                 BATCH_SIZE,
                 skip
-            );
+            ));
             const batchArray = Array.isArray(batch) ? batch : [];
             allRecords = [...allRecords, ...batchArray];
             if (batchArray.length < BATCH_SIZE) break;
             skip += BATCH_SIZE;
-            // Pausa entre páginas para evitar rate limit
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 500));
         }
 
         return allRecords;
@@ -542,21 +560,21 @@ export default function HorarioPage() {
               logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
               if (currentUser.role === 'admin') {
-                  // CRÍTICO: Obtener TODOS los registros con paginación automática
+                  // Carga secuencial para no saturar el rate limit
                   logger.info('Horario', 'Iniciando carga paginada de datos...');
 
-                  const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
-                      loadAllRecords('User', '-created_date'),
-                      loadAdminSchedules(),
-                      loadAllRecords('Task', '-created_date'),
-                      loadAllRecords('DailyTeamAssignment', '-date')
-                  ]);
-
+                  const cachedUsers = await loadAllRecords('User', '-created_date');
                   setUsers(cachedUsers);
+
+                  const cachedSchedules = await loadAdminSchedules();
                   setSchedules(cachedSchedules);
+                  setLoading(false); // mostrar UI mientras siguen cargando tasks/assignments
+
+                  const cachedTasks = await loadAllRecords('Task', '-created_date');
                   setTasks(cachedTasks);
+
+                  const cachedAssignments = await loadAllRecords('DailyTeamAssignment', '-date');
                   setDailyTeamAssignments(cachedAssignments);
-                  setLoading(false);
                   setInitialLoadComplete(true);
 
                   logger.info('Horario', 'Admin - Datos cargados', { 
