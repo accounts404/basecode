@@ -479,7 +479,7 @@ export default function HorarioPage() {
         }
     }, [user, loadRequiredKeysForDate, loadVehicleAndTeamForDate]);
 
-    // Helper para cargar TODOS los registros con paginación automática
+    // Helper para cargar registros con paginación automática
     const loadAllRecords = async (entityName, sortField = '-created_date') => {
         const { base44 } = await import('@/api/base44Client');
         const BATCH_SIZE = 500;
@@ -488,6 +488,41 @@ export default function HorarioPage() {
 
         while (true) {
             const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            allRecords = [...allRecords, ...batchArray];
+            if (batchArray.length < BATCH_SIZE) break;
+            skip += BATCH_SIZE;
+        }
+
+        return allRecords;
+    };
+
+    // Carga de Schedules para admin: solo rango relevante (3 meses atrás - 6 meses adelante)
+    const loadAdminSchedules = async () => {
+        const { base44 } = await import('@/api/base44Client');
+        const now = new Date();
+        const pastDate = new Date(now);
+        pastDate.setMonth(pastDate.getMonth() - 3);
+        const futureDate = new Date(now);
+        futureDate.setMonth(futureDate.getMonth() + 6);
+
+        const pad = (n) => String(n).padStart(2, '0');
+        const toISOStr = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T00:00:00.000`;
+
+        const startStr = toISOStr(pastDate);
+        const endStr = toISOStr(futureDate);
+
+        const BATCH_SIZE = 500;
+        let allRecords = [];
+        let skip = 0;
+
+        while (true) {
+            const batch = await base44.entities.Schedule.filter(
+                { start_time: { $gte: startStr, $lte: endStr } },
+                '-start_time',
+                BATCH_SIZE,
+                skip
+            );
             const batchArray = Array.isArray(batch) ? batch : [];
             allRecords = [...allRecords, ...batchArray];
             if (batchArray.length < BATCH_SIZE) break;
@@ -510,7 +545,7 @@ export default function HorarioPage() {
 
                   const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
                       loadAllRecords('User', '-created_date'),
-                      loadAllRecords('Schedule', '-start_time'),
+                      loadAdminSchedules(),
                       loadAllRecords('Task', '-created_date'),
                       loadAllRecords('DailyTeamAssignment', '-date')
                   ]);
@@ -616,7 +651,7 @@ export default function HorarioPage() {
         try {
             if (user.role === 'admin') {
                 const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                    loadAllRecords('Schedule', '-start_time'),
+                    loadAdminSchedules(),
                     loadAllRecords('Task', '-created_date'),
                     loadAllRecords('DailyTeamAssignment', '-date')
                 ]);
@@ -643,7 +678,7 @@ export default function HorarioPage() {
                   logger.info('Horario', 'Iniciando refresh con paginación...');
 
                   const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                      loadAllRecords('Schedule', '-start_time'),
+                      loadAdminSchedules(),
                       loadAllRecords('Task', '-created_date'),
                       loadAllRecords('DailyTeamAssignment', '-date')
                   ]);
@@ -1015,7 +1050,7 @@ export default function HorarioPage() {
 
                     // B. Sincronización silenciosa final
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        loadAllRecords('Schedule', '-start_time'),
+                        loadAdminSchedules(),
                         loadAllRecords('Task', '-created_date'),
                         loadAllRecords('DailyTeamAssignment', '-date')
                     ]);
@@ -1262,7 +1297,7 @@ export default function HorarioPage() {
                 if (user?.role === 'admin') {
                     // Obtener TODOS los registros con paginación automática
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        loadAllRecords('Schedule', '-start_time'),
+                        loadAdminSchedules(),
                         loadAllRecords('Task', '-created_date'),
                         loadAllRecords('DailyTeamAssignment', '-date')
                     ]);
