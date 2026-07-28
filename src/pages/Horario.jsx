@@ -615,9 +615,14 @@ export default function HorarioPage() {
         if (!user) return;
         try {
             if (user.role === 'admin') {
-                // Solo recargar Schedule para no exceder límite de tráfico
-                const allSchedules = await loadAllRecords('Schedule', '-start_time');
+                const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                    loadAllRecords('Schedule', '-start_time'),
+                    loadAllRecords('Task', '-created_date'),
+                    loadAllRecords('DailyTeamAssignment', '-date')
+                ]);
                 setSchedules(allSchedules);
+                setTasks(allTasks);
+                setDailyTeamAssignments(allAssignments);
             } else {
                 await loadCleanerSpecificData(date, true);
             }
@@ -1008,9 +1013,15 @@ export default function HorarioPage() {
                         }
                     }
 
-                    // B. Sincronización silenciosa: solo recargar Schedule para reflejar recurrencias generadas
-                    const allSchedules = await loadAllRecords('Schedule', '-start_time');
+                    // B. Sincronización silenciosa final
+                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                        loadAllRecords('Schedule', '-start_time'),
+                        loadAllRecords('Task', '-created_date'),
+                        loadAllRecords('DailyTeamAssignment', '-date')
+                    ]);
                     setSchedules(allSchedules);
+                    setTasks(allTasks);
+                    setDailyTeamAssignments(allAssignments);
 
                 } catch (bgError) {
                     console.error('[Horario] Error en background tasks:', bgError);
@@ -1237,19 +1248,30 @@ export default function HorarioPage() {
             pollingRef.current = null;
         }
 
-        // Solo hacer polling para limpiadores — admins usan refresh manual para evitar exceso de tráfico
-        if (user?.role === 'admin') return;
+        const pollingInterval = user?.role === 'admin' ? 30000 : 15000;
 
-        const pollingInterval = 30000;
-        console.log(`[Horario] 🔄 Polling limpiador cada ${pollingInterval/1000}s`);
+        console.log(`[Horario] 🔄 Polling cada ${pollingInterval/1000}s`);
 
         pollingRef.current = setInterval(async () => {
             if (navigationInProgressRef.current || clockInProcessingRef.current) {
                 console.log('[Horario] 🚫 Operación en progreso, saltando polling...');
                 return;
             }
+
             try {
-                await loadCleanerSpecificData(currentDateRef.current, true);
+                if (user?.role === 'admin') {
+                    // Obtener TODOS los registros con paginación automática
+                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                        loadAllRecords('Schedule', '-start_time'),
+                        loadAllRecords('Task', '-created_date'),
+                        loadAllRecords('DailyTeamAssignment', '-date')
+                    ]);
+                    setSchedules(allSchedules);
+                    setTasks(allTasks);
+                    setDailyTeamAssignments(allAssignments);
+                } else {
+                    await loadCleanerSpecificData(currentDateRef.current, true);
+                }
             } catch (error) {
                 console.error('[Horario] ❌ Error en polling:', error);
             }
