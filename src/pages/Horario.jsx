@@ -583,15 +583,26 @@ export default function HorarioPage() {
                   const cachedTasks = Array.isArray(recentTasks) ? recentTasks : [];
                   setTasks(cachedTasks);
 
-                  const cachedAssignments = await loadAllRecords('DailyTeamAssignment', '-date');
-                  setDailyTeamAssignments(cachedAssignments);
+                  // Solo cargar assignments recientes (1 mes atrás - 3 meses adelante)
+                  const { base44: b44a } = await import('@/api/base44Client');
+                  const assignPast = new Date(); assignPast.setMonth(assignPast.getMonth() - 1);
+                  const assignFuture = new Date(); assignFuture.setMonth(assignFuture.getMonth() + 3);
+                  const assignPastStr = assignPast.toISOString().slice(0, 10);
+                  const assignFutureStr = assignFuture.toISOString().slice(0, 10);
+                  const recentAssignments = await fetchWithRetry(() =>
+                      b44a.entities.DailyTeamAssignment.filter(
+                          { date: { $gte: assignPastStr, $lte: assignFutureStr } },
+                          '-date', 500, 0
+                      )
+                  ).catch(() => []);
+                  setDailyTeamAssignments(Array.isArray(recentAssignments) ? recentAssignments : []);
                   setInitialLoadComplete(true);
 
                   logger.info('Horario', 'Admin - Datos cargados', { 
                       users: cachedUsers?.length || 0, 
                       schedules: cachedSchedules?.length || 0,
                       tasks: cachedTasks?.length || 0,
-                      assignments: cachedAssignments?.length || 0
+                      assignments: recentAssignments?.length || 0
                   });
             } else {
                 logger.debug('Horario', 'Limpiador detectado, cargando desde caché local');
