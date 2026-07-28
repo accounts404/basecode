@@ -497,14 +497,14 @@ export default function HorarioPage() {
         return allRecords;
     };
 
-    // Carga de Schedules para admin: solo rango relevante (3 meses atrás - 6 meses adelante)
+    // Carga de Schedules para admin: rango reducido (1 mes atrás - 3 meses adelante)
     const loadAdminSchedules = async () => {
         const { base44 } = await import('@/api/base44Client');
         const now = new Date();
         const pastDate = new Date(now);
-        pastDate.setMonth(pastDate.getMonth() - 3);
+        pastDate.setMonth(pastDate.getMonth() - 1);
         const futureDate = new Date(now);
-        futureDate.setMonth(futureDate.getMonth() + 6);
+        futureDate.setMonth(futureDate.getMonth() + 3);
 
         const pad = (n) => String(n).padStart(2, '0');
         const toISOStr = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T00:00:00.000`;
@@ -527,6 +527,8 @@ export default function HorarioPage() {
             allRecords = [...allRecords, ...batchArray];
             if (batchArray.length < BATCH_SIZE) break;
             skip += BATCH_SIZE;
+            // Pausa entre páginas para evitar rate limit
+            await new Promise(r => setTimeout(r, 300));
         }
 
         return allRecords;
