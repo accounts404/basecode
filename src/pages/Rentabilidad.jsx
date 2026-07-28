@@ -59,16 +59,13 @@ export default function RentabilidadPage() {
     const { data: rentabilidadData, isLoading: isLoadingQuery, isError: isQueryError } = useQuery({
         queryKey: ['rentabilidadGlobal'],
         queryFn: async () => {
-            // Cargar secuencialmente para no exceder el límite de tráfico de la plataforma
-            const clientsData = await loadAllRecords(Client, '-created_date');
-            await new Promise(r => setTimeout(r, 300));
-            const workEntriesData = await loadAllRecords(WorkEntry, '-created_date');
-            await new Promise(r => setTimeout(r, 300));
-            const thresholdsData = await loadAllRecords(PricingThreshold, '-created_date');
-            await new Promise(r => setTimeout(r, 300));
-            const schedulesData = await loadAllRecords(Schedule, '-created_date');
-            await new Promise(r => setTimeout(r, 300));
-            const fixedCostsData = await loadAllRecords(FixedCost, '-created_date');
+            const [clientsData, workEntriesData, thresholdsData, schedulesData, fixedCostsData] = await Promise.all([
+                loadAllRecords(Client, '-created_date'),
+                loadAllRecords(WorkEntry, '-created_date'),
+                loadAllRecords(PricingThreshold, '-created_date'),
+                loadAllRecords(Schedule, '-created_date'),
+                loadAllRecords(FixedCost, '-created_date'),
+            ]);
 
             const filteredWorkEntries = (workEntriesData || []).filter(e => !isExcludedMonth(e.work_date));
             const filteredSchedules = (schedulesData || []).filter(s => !isExcludedMonth(s.start_time));
