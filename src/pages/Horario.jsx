@@ -528,34 +528,18 @@ export default function HorarioPage() {
               logger.info('Horario', 'Usuario cargado', { userId: currentUser.id, role: currentUser.role });
 
               if (currentUser.role === 'admin') {
+                  // CRÍTICO: Obtener TODOS los registros con paginación automática
                   logger.info('Horario', 'Iniciando carga paginada de datos...');
 
-                  // Rango relevante: 3 meses atrás + 2 meses adelante (evita cargar historial completo)
-                  const rangeStart = subMonths(new Date(), 3);
-                  const rangeEnd = addMonths(new Date(), 2);
-                  const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01T00:00:00.000`;
-                  const endStr = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth()+1).padStart(2,'0')}-28T23:59:59.999`;
-
-                  // Cargar de forma secuencial con pausa para no saturar rate limit
-                  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-                  const cachedUsers = await loadAllRecords('User', '-created_date');
-                  await sleep(300);
-
-                  // Schedules: solo rango relevante (una sola request en lugar de ~22)
-                  const cachedSchedules = await Schedule.filter({
-                      start_time: { $gte: startStr, $lte: endStr }
-                  }, '-start_time', 500);
-                  await sleep(300);
-
-                  // Tasks: solo las recientes/activas
-                  const cachedTasks = await loadAllRecords('Task', '-created_date');
-                  await sleep(300);
-
-                  const cachedAssignments = await loadAllRecords('DailyTeamAssignment', '-date');
+                  const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
+                      loadAllRecords('User', '-created_date'),
+                      loadAllRecords('Schedule', '-start_time'),
+                      loadAllRecords('Task', '-created_date'),
+                      loadAllRecords('DailyTeamAssignment', '-date')
+                  ]);
 
                   setUsers(cachedUsers);
-                  setSchedules(Array.isArray(cachedSchedules) ? cachedSchedules : []);
+                  setSchedules(cachedSchedules);
                   setTasks(cachedTasks);
                   setDailyTeamAssignments(cachedAssignments);
                   setLoading(false);
@@ -684,22 +668,16 @@ export default function HorarioPage() {
 
           try {
               if (user.role === 'admin') {
-                  logger.info('Horario', 'Iniciando refresh...');
+                  // CRÍTICO: Obtener TODOS los registros con paginación automática
+                  logger.info('Horario', 'Iniciando refresh con paginación...');
 
-                  const rangeStart = subMonths(new Date(), 3);
-                  const rangeEnd = addMonths(new Date(), 2);
-                  const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01T00:00:00.000`;
-                  const endStr = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth()+1).padStart(2,'0')}-28T23:59:59.999`;
-
-                  const allSchedules = await Schedule.filter({
-                      start_time: { $gte: startStr, $lte: endStr }
-                  }, '-start_time', 500);
-                  const [allTasks, allAssignments] = await Promise.all([
+                  const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                      loadAllRecords('Schedule', '-start_time'),
                       loadAllRecords('Task', '-created_date'),
                       loadAllRecords('DailyTeamAssignment', '-date')
                   ]);
 
-                  setSchedules(Array.isArray(allSchedules) ? allSchedules : []);
+                  setSchedules(allSchedules);
                   setTasks(allTasks);
                   setDailyTeamAssignments(allAssignments);
 
