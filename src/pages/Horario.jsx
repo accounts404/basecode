@@ -570,7 +570,17 @@ export default function HorarioPage() {
                   setSchedules(cachedSchedules);
                   setLoading(false); // mostrar UI mientras siguen cargando tasks/assignments
 
-                  const cachedTasks = await loadAllRecords('Task', '-created_date');
+                  // Solo cargar tareas recientes (últimos 2 meses) para no saturar el rate limit
+                  const { base44: b44 } = await import('@/api/base44Client');
+                  const twoMonthsAgo = new Date();
+                  twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+                  const twoMonthsAgoStr = twoMonthsAgo.toISOString().slice(0, 10);
+                  const recentTasks = await fetchWithRetry(() =>
+                      b44.entities.Task.filter({ due_date: { $gte: twoMonthsAgoStr } }, '-created_date', 500, 0)
+                  ).catch(() =>
+                      fetchWithRetry(() => b44.entities.Task.list('-created_date', 500, 0))
+                  );
+                  const cachedTasks = Array.isArray(recentTasks) ? recentTasks : [];
                   setTasks(cachedTasks);
 
                   const cachedAssignments = await loadAllRecords('DailyTeamAssignment', '-date');
