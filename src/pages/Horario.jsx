@@ -638,20 +638,9 @@ export default function HorarioPage() {
         if (!user) return;
         try {
             if (user.role === 'admin') {
-                // Rango relevante: 3 meses atrás + 2 meses adelante
-                const rangeStart = subMonths(new Date(), 3);
-                const rangeEnd = addMonths(new Date(), 2);
-                const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01T00:00:00.000`;
-                const endStr = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth()+1).padStart(2,'0')}-28T23:59:59.999`;
-                const updated = await Schedule.filter({
-                    start_time: { $gte: startStr, $lte: endStr }
-                }, '-start_time', 500);
-                if (Array.isArray(updated)) {
-                    setSchedules(prev => {
-                        const outside = prev.filter(s => s.start_time < startStr || s.start_time > endStr);
-                        return [...outside, ...updated];
-                    });
-                }
+                // Solo recargar Schedule para no exceder límite de tráfico
+                const allSchedules = await loadAllRecords('Schedule', '-start_time');
+                setSchedules(allSchedules);
             } else {
                 await loadCleanerSpecificData(date, true);
             }
@@ -1282,27 +1271,8 @@ export default function HorarioPage() {
             }
             try {
                 if (user?.role === 'admin') {
-                    // Solo traer 3 meses atrás + 2 meses adelante para no saturar el API
-                    const rangeStart = subMonths(new Date(), 3);
-                    const rangeEnd = addMonths(new Date(), 2);
-                    const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01T00:00:00.000`;
-                    const endStr = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth()+1).padStart(2,'0')}-28T23:59:59.999`;
-                    const updated = await Schedule.filter({
-                        start_time: { $gte: startStr, $lte: endStr }
-                    }, '-start_time', 500);
-                    if (Array.isArray(updated) && updated.length > 0) {
-                        // Merge: reemplazar los schedules del rango y mantener los del historial
-                        setSchedules(prev => {
-                            const updatedIds = new Set(updated.map(s => s.id));
-                            const outside = prev.filter(s => {
-                                const t = s.start_time;
-                                return t < startStr || t > endStr;
-                            });
-                            // también quitar los que fueron borrados del rango
-                            const inRange = updated;
-                            return [...outside, ...inRange];
-                        });
-                    }
+                    const allSchedules = await loadAllRecords('Schedule', '-start_time');
+                    setSchedules(allSchedules);
                 } else {
                     await loadCleanerSpecificData(currentDateRef.current, true);
                 }
