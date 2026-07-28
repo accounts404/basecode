@@ -33,7 +33,7 @@ export default function NotificationBell({ userId, userRole }) {
     if (userRole !== 'admin' || !userId) return;
 
     loadNotifications();
-    const interval = setInterval(loadNotifications, 120000); // cada 2 minutos
+    const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
   }, [userId, userRole]);
 
