@@ -1048,6 +1048,16 @@ export default function HorarioPage() {
                         }
                     }
 
+                    // B. Sincronización silenciosa final
+                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                        loadAdminSchedules(),
+                        loadAllRecords('Task', '-created_date'),
+                        loadAllRecords('DailyTeamAssignment', '-date')
+                    ]);
+                    setSchedules(allSchedules);
+                    setTasks(allTasks);
+                    setDailyTeamAssignments(allAssignments);
+
                 } catch (bgError) {
                     console.error('[Horario] Error en background tasks:', bgError);
                 }
@@ -1265,25 +1275,42 @@ export default function HorarioPage() {
         }
     };
 
-    // Solo polling para limpiadores (clock-in/out crítico). Admins usan el botón de refresh manual.
     useEffect(() => {
-        if (!initialLoadComplete || user?.role === 'admin') return;
+        if (!initialLoadComplete) return;
 
         if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
         }
 
-        console.log('[Horario] 🔄 Polling limpiador cada 15s');
+        const pollingInterval = user?.role === 'admin' ? 30000 : 15000;
+
+        console.log(`[Horario] 🔄 Polling cada ${pollingInterval/1000}s`);
 
         pollingRef.current = setInterval(async () => {
-            if (navigationInProgressRef.current || clockInProcessingRef.current) return;
+            if (navigationInProgressRef.current || clockInProcessingRef.current) {
+                console.log('[Horario] 🚫 Operación en progreso, saltando polling...');
+                return;
+            }
+
             try {
-                await loadCleanerSpecificData(currentDateRef.current, true);
+                if (user?.role === 'admin') {
+                    // Obtener TODOS los registros con paginación automática
+                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                        loadAdminSchedules(),
+                        loadAllRecords('Task', '-created_date'),
+                        loadAllRecords('DailyTeamAssignment', '-date')
+                    ]);
+                    setSchedules(allSchedules);
+                    setTasks(allTasks);
+                    setDailyTeamAssignments(allAssignments);
+                } else {
+                    await loadCleanerSpecificData(currentDateRef.current, true);
+                }
             } catch (error) {
                 console.error('[Horario] ❌ Error en polling:', error);
             }
-        }, 15000);
+        }, pollingInterval);
 
         return () => {
             if (pollingRef.current) {
@@ -1340,7 +1367,9 @@ export default function HorarioPage() {
                                     <h1 className="text-lg font-bold text-slate-900 leading-tight">Horario de Servicios</h1>
                                     <p className="text-xs text-slate-400 capitalize hidden sm:block">{format(date, "EEEE, d 'de' MMMM yyyy", { locale: es })}</p>
                                 </div>
-
+                                {!loading && (
+                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Actualizándose automáticamente"></span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button
