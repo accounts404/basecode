@@ -146,9 +146,7 @@ export default function ThemeProvider({ children }) {
   };
 
   useEffect(() => {
-    // Pequeño delay para no competir con la carga inicial de datos de Horario
-    const timer = setTimeout(() => loadThemeSettings(), 3000);
-    return () => clearTimeout(timer);
+    loadThemeSettings();
   }, []);
 
   const refreshTheme = () => {

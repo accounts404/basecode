@@ -32,12 +32,9 @@ export default function NotificationBell({ userId, userRole }) {
   useEffect(() => {
     if (userRole !== 'admin' || !userId) return;
 
-    // Delay inicial para no competir con la carga de datos de Horario
-    const timer = setTimeout(() => {
-      loadNotifications();
-    }, 5000);
-    const interval = setInterval(loadNotifications, 60000); // cada 60s en lugar de 30s
-    return () => { clearTimeout(timer); clearInterval(interval); };
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000);
+    return () => clearInterval(interval);
   }, [userId, userRole]);
 
   // PROTECTION: Don't render if not admin
