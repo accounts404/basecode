@@ -479,30 +479,45 @@ export default function HorarioPage() {
         }
     }, [user, loadRequiredKeysForDate, loadVehicleAndTeamForDate]);
 
-    // Helper para cargar registros con límites seguros para evitar rate limits
+    // Helper para cargar TODOS los registros con paginación automática
     const loadAllRecords = async (entityName, sortField = '-created_date') => {
         const { base44 } = await import('@/api/base44Client');
+        const BATCH_SIZE = 500;
+        let allRecords = [];
+        let skip = 0;
 
-        // Schedules: filtrar por rango de 9 meses para limitar volumen
+        // Para Schedules del admin, limitar a rango de 9 meses (3 pasados + 6 futuros) para evitar rate limits
         if (entityName === 'Schedule') {
             const now = new Date();
             const rangeStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
             const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 6, 1);
             const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01T00:00:00.000`;
             const endStr = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth()+1).padStart(2,'0')}-01T00:00:00.000`;
-            // Una sola página de 500 — suficiente para el rango de 9 meses
-            const batch = await base44.entities.Schedule.filter(
-                { start_time: { $gte: startStr, $lte: endStr } },
-                sortField,
-                500,
-                0
-            );
-            return Array.isArray(batch) ? batch : [];
+
+            while (true) {
+                const batch = await base44.entities.Schedule.filter(
+                    { start_time: { $gte: startStr, $lte: endStr } },
+                    sortField,
+                    BATCH_SIZE,
+                    skip
+                );
+                const batchArray = Array.isArray(batch) ? batch : [];
+                allRecords = [...allRecords, ...batchArray];
+                if (batchArray.length < BATCH_SIZE) break;
+                skip += BATCH_SIZE;
+            }
+            return allRecords;
         }
 
-        // Para otras entidades (Task, DailyTeamAssignment, User): solo una página de 500
-        const batch = await base44.entities[entityName].list(sortField, 500, 0);
-        return Array.isArray(batch) ? batch : [];
+        while (true) {
+            const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            allRecords = [...allRecords, ...batchArray];
+            if (batchArray.length < BATCH_SIZE) break;
+            skip += BATCH_SIZE;
+        }
+
+        return allRecords;
     };
 
     const loadInitialData = async () => {
