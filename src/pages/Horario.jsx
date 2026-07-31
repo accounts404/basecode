@@ -486,29 +486,6 @@ export default function HorarioPage() {
         let allRecords = [];
         let skip = 0;
 
-        // Para Schedules del admin, limitar a rango de 9 meses (3 pasados + 6 futuros) para evitar rate limits
-        if (entityName === 'Schedule') {
-            const now = new Date();
-            const rangeStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-            const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 6, 1);
-            const startStr = `${rangeStart.getFullYear()}-${String(rangeStart.getMonth()+1).padStart(2,'0')}-01T00:00:00.000`;
-            const endStr = `${rangeEnd.getFullYear()}-${String(rangeEnd.getMonth()+1).padStart(2,'0')}-01T00:00:00.000`;
-
-            while (true) {
-                const batch = await base44.entities.Schedule.filter(
-                    { start_time: { $gte: startStr, $lte: endStr } },
-                    sortField,
-                    BATCH_SIZE,
-                    skip
-                );
-                const batchArray = Array.isArray(batch) ? batch : [];
-                allRecords = [...allRecords, ...batchArray];
-                if (batchArray.length < BATCH_SIZE) break;
-                skip += BATCH_SIZE;
-            }
-            return allRecords;
-        }
-
         while (true) {
             const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
