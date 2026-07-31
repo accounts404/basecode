@@ -479,13 +479,12 @@ export default function HorarioPage() {
         }
     }, [user, loadRequiredKeysForDate, loadVehicleAndTeamForDate]);
 
-    // Helper para cargar TODOS los registros con paginación automática
+    // Helper para cargar registros paginados (sin filtro de fecha)
     const loadAllRecords = async (entityName, sortField = '-created_date') => {
         const { base44 } = await import('@/api/base44Client');
         const BATCH_SIZE = 500;
         let allRecords = [];
         let skip = 0;
-
         while (true) {
             const batch = await base44.entities[entityName].list(sortField, BATCH_SIZE, skip);
             const batchArray = Array.isArray(batch) ? batch : [];
@@ -493,8 +492,24 @@ export default function HorarioPage() {
             if (batchArray.length < BATCH_SIZE) break;
             skip += BATCH_SIZE;
         }
-
         return allRecords;
+    };
+
+    // Carga de Schedules filtrada por rango (±1 mes desde la fecha activa)
+    const loadSchedulesForDateRange = async (centerDate) => {
+        const d = centerDate || new Date();
+        // 1 mes atrás y 1 mes adelante
+        const from = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+        const to = new Date(d.getFullYear(), d.getMonth() + 2, 0, 23, 59, 59);
+
+        const pad = (n) => String(n).padStart(2, '0');
+        const startStr = `${from.getFullYear()}-${pad(from.getMonth()+1)}-${pad(from.getDate())}T00:00:00.000`;
+        const endStr   = `${to.getFullYear()}-${pad(to.getMonth()+1)}-${pad(to.getDate())}T23:59:59.999`;
+
+        const result = await Schedule.filter({
+            start_time: { $gte: startStr, $lte: endStr }
+        }, '-start_time', 1000);
+        return Array.isArray(result) ? result : [];
     };
 
     const loadInitialData = async () => {
@@ -510,7 +525,7 @@ export default function HorarioPage() {
 
                   const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
                       loadAllRecords('User', '-created_date'),
-                      loadAllRecords('Schedule', '-start_time'),
+                      loadSchedulesForDateRange(new Date()),
                       loadAllRecords('Task', '-created_date'),
                       loadAllRecords('DailyTeamAssignment', '-date')
                   ]);
@@ -570,7 +585,11 @@ export default function HorarioPage() {
     };
 
     useEffect(() => {
-        if (user && user.role !== 'admin' && initialLoadComplete && !loadingRef.current && !navigationInProgressRef.current && !clockInProcessingRef.current) {
+        if (!user || !initialLoadComplete) return;
+        if (user.role === 'admin') {
+            // Recargar schedules si el admin navega fuera del rango cargado
+            loadSchedulesForDateRange(date).then(setSchedules).catch(console.error);
+        } else if (!loadingRef.current && !navigationInProgressRef.current && !clockInProcessingRef.current) {
             console.log('[Horario] 📅 Fecha cambiada, actualizando datos...');
             loadCleanerSpecificData(date, false);
         }
@@ -616,7 +635,7 @@ export default function HorarioPage() {
         try {
             if (user.role === 'admin') {
                 const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                    loadAllRecords('Schedule', '-start_time'),
+                    loadSchedulesForDateRange(currentDateRef.current),
                     loadAllRecords('Task', '-created_date'),
                     loadAllRecords('DailyTeamAssignment', '-date')
                 ]);
@@ -643,7 +662,7 @@ export default function HorarioPage() {
                   logger.info('Horario', 'Iniciando refresh con paginación...');
 
                   const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                      loadAllRecords('Schedule', '-start_time'),
+                      loadSchedulesForDateRange(date),
                       loadAllRecords('Task', '-created_date'),
                       loadAllRecords('DailyTeamAssignment', '-date')
                   ]);
@@ -1015,7 +1034,7 @@ export default function HorarioPage() {
 
                     // B. Sincronización silenciosa final
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        loadAllRecords('Schedule', '-start_time'),
+                        loadSchedulesForDateRange(currentDateRef.current),
                         loadAllRecords('Task', '-created_date'),
                         loadAllRecords('DailyTeamAssignment', '-date')
                     ]);
@@ -1260,9 +1279,8 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    // Obtener TODOS los registros con paginación automática
                     const [allSchedules, allTasks, allAssignments] = await Promise.all([
-                        loadAllRecords('Schedule', '-start_time'),
+                        loadSchedulesForDateRange(currentDateRef.current),
                         loadAllRecords('Task', '-created_date'),
                         loadAllRecords('DailyTeamAssignment', '-date')
                     ]);
