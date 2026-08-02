@@ -495,7 +495,7 @@ export default function HorarioPage() {
         return allRecords;
     };
 
-    // Carga de Schedules filtrada por rango (±1 mes desde la fecha activa)
+    // Carga de Schedules filtrada por rango (±1 mes desde la fecha activa) con paginación completa
     const loadSchedulesForDateRange = async (centerDate) => {
         const d = centerDate || new Date();
         // 1 mes atrás y 1 mes adelante
@@ -506,10 +506,28 @@ export default function HorarioPage() {
         const startStr = `${from.getFullYear()}-${pad(from.getMonth()+1)}-${pad(from.getDate())}T00:00:00.000`;
         const endStr   = `${to.getFullYear()}-${pad(to.getMonth()+1)}-${pad(to.getDate())}T23:59:59.999`;
 
-        const result = await Schedule.filter({
-            start_time: { $gte: startStr, $lte: endStr }
-        }, '-start_time', 1000);
-        return Array.isArray(result) ? result : [];
+        const filterObj = { start_time: { $gte: startStr, $lte: endStr } };
+        const BATCH_SIZE = 500;
+        let allRecords = [];
+        let seenIds = new Set();
+        let skip = 0;
+        // Orden estable por -created_date para evitar saltos en la paginación
+        while (true) {
+            const batch = await Schedule.filter(filterObj, '-created_date', BATCH_SIZE, skip);
+            const batchArray = Array.isArray(batch) ? batch : [];
+            // Deduplicar por id por si la paginación es inestable
+            for (const rec of batchArray) {
+                if (!seenIds.has(rec.id)) {
+                    seenIds.add(rec.id);
+                    allRecords.push(rec);
+                }
+            }
+            if (batchArray.length < BATCH_SIZE) break;
+            skip += BATCH_SIZE;
+            // Salvaguarda: si llevamos más de 5000 registros, parar
+            if (allRecords.length > 5000) break;
+        }
+        return allRecords;
     };
 
     const loadInitialData = async () => {
