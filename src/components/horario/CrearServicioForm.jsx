@@ -706,6 +706,39 @@ export default function CrearServicioForm({
             return;
         }
 
+        // ===== Parche A: validaciones anti-duplicidad y cliente activo =====
+        if (selectedClient.active === false) {
+            setError('El cliente está INACTIVO. Reactívalo en la sección Clientes antes de crear servicios.');
+            setSaving(false);
+            return;
+        }
+
+        if (isNewService && formData.recurrence_rule && formData.recurrence_rule !== 'none') {
+            try {
+                const existingForClient = await Schedule.list('-start_time', 500);
+                const conflicting = existingForClient.find(
+                    (s) =>
+                        s.client_id === selectedClient.id &&
+                        s.recurrence_rule === formData.recurrence_rule &&
+                        s.status !== 'cancelled' &&
+                        s.id !== schedule?.id
+                );
+                if (conflicting) {
+                    const label = getServiceFrequencyLabel(formData.recurrence_rule);
+                    const serieId = (conflicting.recurrence_id || conflicting.id || '').slice(0, 8);
+                    setError(
+                        `Este cliente ya tiene una serie recurrente ${label} activa (serie #${serieId}). ` +
+                        `Edita esa serie en lugar de crear una nueva.`
+                    );
+                    setSaving(false);
+                    return;
+                }
+            } catch (checkErr) {
+                console.warn('[CrearServicioForm] No se pudo verificar duplicidad de series:', checkErr);
+            }
+        }
+        // ===== Fin Parche A =====
+
         try {
             // MODIFICADO: `structured_service_notes` eliminado del payload. `client_address` es de formData.
             const serviceData = {

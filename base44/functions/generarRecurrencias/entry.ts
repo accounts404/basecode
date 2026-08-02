@@ -200,6 +200,49 @@ Deno.serve(async (req) => {
             });
         }
 
+        // ===== Parche H: Validar cliente activo =====
+        let cliente = null;
+        try {
+            cliente = await base44.asServiceRole.entities.Client.get(citaOriginal.client_id);
+        } catch (clientErr) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: `No se pudo verificar el estado del cliente: ${clientErr.message || clientErr}`
+            }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (!cliente) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Cliente no encontrado. No se generan recurrencias.'
+            }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (cliente.active === false) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: `El cliente "${cliente.name}" está INACTIVO. No se generan recurrencias.`
+            }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        }
+
+        // ===== Defensa en profundidad: bloquear series duplicadas (mismo client_id + regla) =====
+        const recurrenceId = citaOriginal.recurrence_id || citaOriginal.id;
+        const otherSeries = await base44.asServiceRole.entities.Schedule.filter({
+            client_id: citaOriginal.client_id,
+            recurrence_rule: citaOriginal.recurrence_rule,
+        });
+        const conflictingSerie = (otherSeries || []).find(
+            (s) =>
+                s.id !== citaOriginal.id &&
+                s.recurrence_id !== recurrenceId &&
+                s.status !== 'cancelled'
+        );
+        if (conflictingSerie) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: `Ya existe otra serie recurrente ${citaOriginal.recurrence_rule} para este cliente (serie ${(conflictingSerie.recurrence_id || conflictingSerie.id || '').slice(0, 8)}). Edita esa serie en lugar de crear una nueva.`
+            }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        }
+        // ===== Fin Parche H =====
+
         // Generar recurrencias
         const resultado = await generarSiguientesCitas(base44, citaOriginal, validatedMonths);
         
