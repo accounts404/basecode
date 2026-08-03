@@ -13,9 +13,30 @@ function summarizeValue(val) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+
+    // Protección anti-falsificación: solo admin autenticado o llamada de sistema (CRON_API_KEY)
+    const providedApiKey = req.headers.get('api_key');
+    const expectedApiKey = Deno.env.get('CRON_API_KEY');
+    const isSystemCall = !!(providedApiKey && expectedApiKey && providedApiKey === expectedApiKey);
+
+    let authUser = null;
+    try {
+      authUser = await base44.auth.me();
+    } catch (_) {}
+
+    if (!isSystemCall && (!authUser || authUser.role !== 'admin')) {
+      return Response.json({ error: 'Unauthorized: solo administradores o sistema' }, { status: 401 });
+    }
+
     const payload = await req.json();
 
     const { entity_type, entity_id, entity_name, action, user_id, user_name, user_email, data, old_data, changed_fields } = payload;
+
+    // Si la llamada la hace un admin autenticado, sobreescribimos su identidad con la real
+    // para evitar falsificación. En llamadas de sistema (automatizaciones), confiamos en el payload.
+    const finalUserId = authUser ? authUser.id : (user_id || 'system');
+    const finalUserName = authUser ? (authUser.full_name || authUser.email || 'Admin') : (user_name || 'Sistema');
+    const finalUserEmail = authUser ? (authUser.email || '') : (user_email || '');
 
     if (!entity_type || !entity_id || !action) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 });
@@ -48,9 +69,9 @@ Deno.serve(async (req) => {
       entity_id,
       entity_name: entity_name || entity_id,
       action,
-      user_id: user_id || '',
-      user_name: user_name || 'Sistema',
-      user_email: user_email || '',
+      user_id: finalUserId,
+      user_name: finalUserName,
+      user_email: finalUserEmail,
       changed_fields: relevantFields,
       changes_detail: changesDetail,
       timestamp: new Date().toISOString(),

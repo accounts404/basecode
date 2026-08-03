@@ -20,30 +20,46 @@ Deno.serve(async (req) => {
 
         const priorityLabel = priorityLabels[report.priority] || "🟡 Media";
 
-        const emailSubject = `[${priorityLabel}] Reporte de Servicio - ${client_name}`;
+        // Sanitización anti HTML spoofing / XSS: escapar todo contenido que viene del cliente/app
+        const escapeHtml = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&')
+                .replace(/</g, '<')
+                .replace(/>/g, '>')
+                .replace(/"/g, '"')
+                .replace(/'/g, '&#039;');
+        };
+        const safeClientName = escapeHtml(client_name);
+        const safeCleanerName = escapeHtml(cleaner_name);
+        const safeServiceDate = escapeHtml(service_date);
+        const safeReportNotes = escapeHtml(report.report_notes);
+        const safeReportId = escapeHtml(report.schedule_id);
+
+        const emailSubject = `[${priorityLabel}] Reporte de Servicio - ${safeClientName}`;
         
         const emailBody = `
 <h2>🚨 Nuevo Reporte de Servicio</h2>
 
 <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
     <h3>📋 Detalles del Servicio</h3>
-    <p><strong>Cliente:</strong> ${client_name}</p>
-    <p><strong>Limpiador:</strong> ${cleaner_name}</p>
-    <p><strong>Fecha del Servicio:</strong> ${service_date}</p>
+    <p><strong>Cliente:</strong> ${safeClientName}</p>
+    <p><strong>Limpiador:</strong> ${safeCleanerName}</p>
+    <p><strong>Fecha del Servicio:</strong> ${safeServiceDate}</p>
     <p><strong>Prioridad:</strong> ${priorityLabel}</p>
 </div>
 
 <div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 4px solid #ffc107;">
     <h3>📝 Descripción del Problema</h3>
-    <p style="white-space: pre-wrap;">${report.report_notes}</p>
+    <p style="white-space: pre-wrap;">${safeReportNotes}</p>
 </div>
 
 ${report.report_photos && report.report_photos.length > 0 ? `
 <div style="background: #e7f3ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
     <h3>📸 Fotos Adjuntas</h3>
     ${report.report_photos.map((photo, index) => `
-        <p><a href="${photo.url}" target="_blank">Ver Foto ${index + 1}</a>
-        ${photo.comment ? `- ${photo.comment}` : ''}</p>
+        <p><a href="${escapeHtml(photo.url)}" target="_blank" rel="noopener noreferrer">Ver Foto ${index + 1}</a>
+        ${photo.comment ? `- ${escapeHtml(photo.comment)}` : ''}</p>
     `).join('')}
 </div>
 ` : ''}
@@ -51,13 +67,13 @@ ${report.report_photos && report.report_photos.length > 0 ? `
 <div style="background: #d1ecf1; padding: 20px; border-radius: 8px; margin: 20px 0;">
     <h3>⚡ Acción Requerida</h3>
     <p>Este reporte requiere tu atención. Revisa los detalles y toma las acciones necesarias.</p>
-    <p><a href="${base44.platformUrl || 'https://app.base44.com'}" target="_blank" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ver en la Plataforma</a></p>
+    <p><a href="${escapeHtml(base44.platformUrl || 'https://app.base44.com')}" target="_blank" rel="noopener noreferrer" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ver en la Plataforma</a></p>
 </div>
 
 <hr style="margin: 30px 0;">
 <p style="color: #666; font-size: 12px;">
     Este reporte fue generado automáticamente por RedOak Cleaning Solutions.<br>
-    ID del Reporte: ${report.schedule_id}<br>
+    ID del Reporte: ${safeReportId}<br>
     Fecha de Generación: ${new Date().toLocaleString('es-ES', { timeZone: 'Australia/Sydney' })}
 </p>
         `;

@@ -96,6 +96,12 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
 
+        // Protección: solo administradores pueden modificar series recurrentes
+        const user = await base44.auth.me();
+        if (!user || user.role !== 'admin') {
+            return Response.json({ success: false, error: 'Unauthorized: Solo administradores' }, { status: 401 });
+        }
+
         const requestData = await req.json();
         const { scheduleId, updateScope, updatedData } = requestData;
 

@@ -4,6 +4,15 @@ Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
         
+        // Protección: solo administradores pueden crear notificaciones de tareas
+        const user = await base44.auth.me();
+        if (!user || user.role !== 'admin') {
+            return new Response(JSON.stringify({ success: false, error: 'Unauthorized: Solo administradores' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
         const { taskId, assigneeIds, notificationType, message } = await req.json();
         
         if (!taskId || !assigneeIds || assigneeIds.length === 0 || !notificationType || !message) {
