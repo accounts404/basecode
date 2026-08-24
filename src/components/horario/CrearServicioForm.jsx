@@ -716,18 +716,30 @@ export default function CrearServicioForm({
         if (isNewService && formData.recurrence_rule && formData.recurrence_rule !== 'none') {
             try {
                 const existingForClient = await Schedule.list('-start_time', 500);
+                // "Hoy" en hora Melbourne como ISO naive (sin Z) — los start_time de la BD
+                // se guardan en hora local Melbourne, así comparables lexicográficamente.
+                const melbourneToday = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: 'Australia/Melbourne',
+                    year: 'numeric', month: '2-digit', day: '2-digit'
+                }).format(new Date());
+                const todayStrMelbourne = `${melbourneToday}T00:00:00.000`;
+                // Solo bloquea si existe una serie REAL (con recurrence_id) que tenga al menos
+                // una ocurrencia FUTURA (>= hoy) no cancelada — series históricas ya agotadas
+                // no deben impedir reactivar la recurrencia del cliente.
                 const conflicting = existingForClient.find(
                     (s) =>
                         s.client_id === selectedClient.id &&
                         s.recurrence_rule === formData.recurrence_rule &&
                         s.status !== 'cancelled' &&
-                        s.id !== schedule?.id
+                        s.id !== schedule?.id &&
+                        (s.recurrence_id || '') !== '' &&
+                        (s.start_time || '') >= todayStrMelbourne
                 );
                 if (conflicting) {
                     const label = getServiceFrequencyLabel(formData.recurrence_rule);
-                    const serieId = (conflicting.recurrence_id || conflicting.id || '').slice(0, 8);
+                    const serieId = (conflicting.recurrence_id || '').slice(0, 8);
                     setError(
-                        `Este cliente ya tiene una serie recurrente ${label} activa (serie #${serieId}). ` +
+                        `Este cliente ya tiene una serie recurrente ${label} ACTIVA con servicios futuros (serie #${serieId}). ` +
                         `Edita esa serie en lugar de crear una nueva.`
                     );
                     setSaving(false);
