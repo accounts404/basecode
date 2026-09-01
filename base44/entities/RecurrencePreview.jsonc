@@ -1,0 +1,125 @@
+{
+  "name": "RecurrencePreview",
+  "type": "object",
+  "properties": {
+    "period": {
+      "type": "string",
+      "description": "Per\u00edodo de la vista previa (yyyy-MM)"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora en que el cron gener\u00f3 la vista previa"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "expired",
+        "failed"
+      ],
+      "default": "pending",
+      "description": "Estado de la vista previa: pending=esperando aprobaci\u00f3n, approved=ejecutada, expired=reemplazada por una m\u00e1s reciente, failed=error al ejecutar"
+    },
+    "preview_items": {
+      "type": "array",
+      "description": "Lista de series recurrentes que necesitan extensi\u00f3n",
+      "items": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "recurrence_id": {
+            "type": "string"
+          },
+          "recurrence_rule": {
+            "type": "string"
+          },
+          "last_service_date": {
+            "type": "string"
+          },
+          "new_dates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fechas (yyyy-MM-dd) de los nuevos servicios que se crear\u00e1n"
+          },
+          "count": {
+            "type": "number"
+          },
+          "cleaner_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "recurrence_id",
+          "count"
+        ]
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "Resumen de la vista previa",
+      "properties": {
+        "total_series_to_extend": {
+          "type": "number"
+        },
+        "total_new_services": {
+          "type": "number"
+        },
+        "skipped_abandoned": {
+          "type": "number"
+        },
+        "skipped_inactive": {
+          "type": "number"
+        },
+        "already_ok": {
+          "type": "number"
+        }
+      }
+    },
+    "approved_by": {
+      "type": "string",
+      "description": "ID del admin que aprob\u00f3 la vista previa"
+    },
+    "approved_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora de aprobaci\u00f3n"
+    },
+    "execution_result": {
+      "type": "object",
+      "description": "Resultado de la ejecuci\u00f3n tras aprobaci\u00f3n",
+      "properties": {
+        "created_count": {
+          "type": "number"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "email_sent": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica si se envi\u00f3 el correo mensual de notificaci\u00f3n"
+    }
+  },
+  "required": [
+    "period",
+    "generated_at",
+    "status"
+  ]
+}

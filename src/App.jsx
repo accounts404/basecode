@@ -14,6 +14,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 const Casuales = React.lazy(() => import('./pages/Casuales'));
 const AsistenteIA = React.lazy(() => import('./pages/AsistenteIA'));
 const Auditoria = React.lazy(() => import('./pages/Auditoria'));
+const RecurrenciasPreview = React.lazy(() => import('./pages/RecurrenciasPreview'));
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -60,6 +61,7 @@ const AuthenticatedApp = () => {
           <Route path="/Casuales" element={<Casuales />} />
           <Route path="/AsistenteIA" element={<AsistenteIA />} />
           <Route path="/Auditoria" element={<Auditoria />} />
+          <Route path="/RecurrenciasPreview" element={<RecurrenciasPreview />} />
           <Route path="*" element={<PageNotFound />} />
         </Routes>
       </Suspense>
