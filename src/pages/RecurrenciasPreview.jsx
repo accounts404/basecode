@@ -148,7 +148,7 @@ export default function RecurrenciasPreview() {
   };
 
   const handleRestoreApply = async () => {
-    if (!confirm('¿Restaurar a "completed" los servicios cancelados por error que ya fueron trabajados/facturados?')) return;
+    if (!confirm('¿Restaurar al estado original todos los servicios cancelados por el bug del 1-Sep? Pasados con trabajo → completed, pasados sin trabajo → scheduled, futuros → scheduled. Se registrará auditoría.')) return;
     setRestoreLoading(true);
     setRestoreResult(null);
     try {
@@ -425,38 +425,70 @@ export default function RecurrenciasPreview() {
                     {restoreLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
                     Simular (dry-run)
                   </Button>
-                  {restoreDryRun && restoreDryRun.to_restore > 0 && (
+                  {restoreDryRun && restoreDryRun.incident_cancelled > 0 && (
                     <Button onClick={handleRestoreApply} disabled={restoreLoading} className="bg-amber-600 hover:bg-amber-700 text-white">
-                      <RotateCcw className="w-4 h-4 mr-2" /> Restaurar {restoreDryRun.to_restore} servicios
+                      <RotateCcw className="w-4 h-4 mr-2" /> Restaurar {restoreDryRun.incident_cancelled} servicios
                     </Button>
                   )}
                 </div>
 
                 {restoreDryRun && (
-                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 text-sm">
-                    <p className="font-medium text-slate-700 mb-2">
-                      Cancelados totales: {restoreDryRun.total_cancelled} · A restaurar (trabajados/facturados): {restoreDryRun.to_restore}
-                    </p>
-                    {restoreDryRun.sample?.length > 0 && (
+                  <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 text-sm space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div><p className="text-xs text-slate-500">Cancelados totales</p><p className="text-lg font-bold text-slate-700">{restoreDryRun.total_cancelled}</p></div>
+                      <div><p className="text-xs text-slate-500">Del incidente (1-Sep)</p><p className="text-lg font-bold text-amber-700">{restoreDryRun.incident_cancelled}</p></div>
+                      <div><p className="text-xs text-slate-500">A 'completed'</p><p className="text-lg font-bold text-green-700">{restoreDryRun.by_status?.completed ?? 0}</p></div>
+                      <div><p className="text-xs text-slate-500">A 'scheduled'</p><p className="text-lg font-bold text-blue-700">{restoreDryRun.by_status?.scheduled ?? 0}</p></div>
+                    </div>
+                    {restoreDryRun.by_client?.length > 0 && (
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead className="text-slate-500"><tr>
-                            <th className="text-left px-2 py-1">Cliente</th><th className="text-left px-2 py-1">Fecha</th>
-                            <th className="text-left px-2 py-1">Clock-in</th><th className="text-left px-2 py-1">Facturado</th>
+                            <th className="text-left px-2 py-1">Cliente</th>
+                            <th className="text-left px-2 py-1">A completed</th>
+                            <th className="text-left px-2 py-1">A scheduled</th>
+                            <th className="text-left px-2 py-1">Total</th>
                           </tr></thead>
                           <tbody className="divide-y divide-slate-100">
-                            {restoreDryRun.sample.map((s) => (
-                              <tr key={s.id}>
-                                <td className="px-2 py-1 font-medium">{s.client_name}</td>
-                                <td className="px-2 py-1">{s.start_time?.slice(0,10)}</td>
-                                <td className="px-2 py-1">{s.has_clock_in ? '✓' : '—'}</td>
-                                <td className="px-2 py-1">{s.xero_invoiced ? '✓' : (s.billed_at ? '✓' : '—')}</td>
+                            {restoreDryRun.by_client.map((c) => (
+                              <tr key={c.client_name}>
+                                <td className="px-2 py-1 font-medium">{c.client_name}</td>
+                                <td className="px-2 py-1 text-green-700">{c.completed}</td>
+                                <td className="px-2 py-1 text-blue-700">{c.scheduled}</td>
+                                <td className="px-2 py-1 font-semibold">{c.total}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
-                        {restoreDryRun.to_restore > 20 && <p className="text-xs text-slate-400 mt-2">Mostrando 20 de {restoreDryRun.to_restore}.</p>}
                       </div>
+                    )}
+                    {restoreDryRun.sample?.length > 0 && (
+                      <details className="text-xs">
+                        <summary className="cursor-pointer text-slate-500 hover:text-slate-700">Ver muestra de servicios ({restoreDryRun.sample.length})</summary>
+                        <div className="overflow-x-auto mt-2">
+                          <table className="w-full text-xs">
+                            <thead className="text-slate-500"><tr>
+                              <th className="text-left px-2 py-1">Cliente</th>
+                              <th className="text-left px-2 py-1">Fecha</th>
+                              <th className="text-left px-2 py-1">Futuro</th>
+                              <th className="text-left px-2 py-1">Evidencia</th>
+                              <th className="text-left px-2 py-1">Propuesto</th>
+                            </tr></thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {restoreDryRun.sample.map((s) => (
+                                <tr key={s.id}>
+                                  <td className="px-2 py-1 font-medium">{s.client_name}</td>
+                                  <td className="px-2 py-1">{s.start_time?.slice(0,10)}</td>
+                                  <td className="px-2 py-1">{s.is_future ? 'Sí' : 'No'}</td>
+                                  <td className="px-2 py-1">{s.has_evidence ? '✓' : '—'}</td>
+                                  <td className="px-2 py-1 font-semibold">{s.proposed}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {restoreDryRun.incident_cancelled > 25 && <p className="text-xs text-slate-400 mt-1">Mostrando 25 de {restoreDryRun.incident_cancelled}.</p>}
+                        </div>
+                      </details>
                     )}
                   </div>
                 )}
