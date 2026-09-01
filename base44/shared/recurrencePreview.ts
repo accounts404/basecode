@@ -33,6 +33,21 @@ async function loadAll(base44, entityName, sortField, batchSize) {
     return acc;
 }
 
+// Paginated filtered load — reduces read volume by querying only matching records.
+async function loadAllFiltered(base44, entityName, query, sortField, batchSize) {
+    const acc = [];
+    let skip = 0;
+    let safety = 1000;
+    while (safety-- > 0) {
+        const batch = await base44.asServiceRole.entities[entityName].filter(query, sortField, batchSize, skip);
+        if (!batch || batch.length === 0) break;
+        acc.push(...batch);
+        if (batch.length < batchSize) break;
+        skip += batchSize;
+    }
+    return acc;
+}
+
 // Compute the preview of services that WOULD be created for each active recurring series.
 // Read-only: no writes. Returns { preview_items, summary }.
 export async function computePreview(base44, log) {
@@ -47,14 +62,23 @@ export async function computePreview(base44, log) {
     const activeUserIds = new Set(
         allUsers.filter((u) => u.role !== 'admin' && u.active !== false).map((u) => u.id)
     );
-    const allSchedules = await loadAll(base44, 'Schedule', '-start_time', 5000);
+    // OPTIMIZACIÓN: cargar solo servicios NO cancelados desde hace 90 días.
+    // Las series cuyo último servicio es >90 días sin servicios futuros son "abandonadas"
+    // (umbral 60 días) y se descartan de todos modos, así que no necesitamos sus datos.
+    const sinceDate = formatLocalISO(addDays(today, -90));
+    const recentSchedules = await loadAllFiltered(
+        base44,
+        'Schedule',
+        { start_time: { $gte: sinceDate }, status: { $ne: 'cancelled' } },
+        '-start_time',
+        500
+    );
 
-    const recurringSchedules = allSchedules.filter(
+    const recurringSchedules = recentSchedules.filter(
         (s) =>
             s.recurrence_id &&
             s.recurrence_rule &&
             s.recurrence_rule !== 'none' &&
-            s.status !== 'cancelled' &&
             activeClientIds.has(s.client_id)
     );
 
