@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  CalendarClock, CheckCircle, Clock, Loader2, AlertTriangle, RefreshCw, History, Play, Shield, RotateCcw, ChevronDown, ChevronRight, Search, UserCheck,
+  CalendarClock, CheckCircle, Clock, Loader2, AlertTriangle, RefreshCw, History, Play, Shield, RotateCcw, ChevronDown, ChevronRight, Search, UserCheck, XCircle,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -98,6 +98,23 @@ export default function RecurrenciasPreview() {
     }
   };
 
+  const handleSkipItem = async (recurrenceId, clientName) => {
+    if (!pendingPreview) return;
+    if (!confirm(`¿Omitir la serie de "${clientName}"? No se crearán los servicios futuros de esta serie en esta vista previa.`)) return;
+    setApplyingItem(recurrenceId);
+    setResult(null);
+    try {
+      const res = await applyRecurrencePreview({ previewId: pendingPreview.id, recurrenceId, mode: 'skip' });
+      const data = res.data || res;
+      setResult({ ok: true, message: data.message || 'Serie omitida' });
+      await loadPreviews();
+    } catch (e) {
+      setResult({ ok: false, message: e.response?.data?.error || e.message || 'Error al omitir' });
+    } finally {
+      setApplyingItem(null);
+    }
+  };
+
   const handleApproveAll = async () => {
     if (!pendingPreview) return;
     const pendingItems = (pendingPreview.preview_items || []).filter((it) => (it.item_status || 'pending') !== 'applied');
@@ -148,8 +165,9 @@ export default function RecurrenciasPreview() {
   const renderPreviewTable = (p) => {
     const items = p.preview_items || [];
     const isExpanded = expanded === p.id;
-    const pendingItems = items.filter((it) => (it.item_status || 'pending') !== 'applied');
+    const pendingItems = items.filter((it) => (it.item_status || 'pending') === 'pending');
     const appliedItems = items.filter((it) => (it.item_status || 'pending') === 'applied');
+    const skippedItems = items.filter((it) => (it.item_status || 'pending') === 'skipped');
     const summary = p.summary || {};
     const pastChanges = summary.past_changes ?? 0;
     const futureChanges = summary.future_changes ?? summary.total_new_services ?? 0;
@@ -213,7 +231,7 @@ export default function RecurrenciasPreview() {
                   className="text-slate-600"
                 >
                   {isExpanded ? <ChevronDown className="w-4 h-4 mr-1" /> : <ChevronRight className="w-4 h-4 mr-1" />}
-                  {isExpanded ? 'Ocultar detalle' : `Ver detalle (${items.length} series · ${appliedItems.length} aprobadas · ${pendingItems.length} pendientes)`}
+                  {isExpanded ? 'Ocultar detalle' : `Ver detalle (${items.length} series · ${appliedItems.length} aprobadas · ${skippedItems.length} omitidas · ${pendingItems.length} pendientes)`}
                 </Button>
                 <div className="text-xs text-slate-500">
                   {appliedItems.length}/{items.length} series aprobadas
@@ -251,7 +269,9 @@ export default function RecurrenciasPreview() {
                             <td className="px-3 py-2 text-slate-600">{it.last_service_date}</td>
                             <td className="px-3 py-2"><Badge variant="secondary">{it.count}</Badge></td>
                             <td className="px-3 py-2 text-xs text-slate-500">
-                              {(it.new_dates || []).slice(0, 5).join(', ')}{it.new_dates.length > 5 ? `… (+${it.new_dates.length - 5})` : ''}
+                              <div className="max-h-24 overflow-y-auto whitespace-normal leading-relaxed pr-1">
+                                {(it.new_dates || []).join(', ')}
+                              </div>
                             </td>
                             <td className="px-3 py-2">
                               <Badge variant="outline" className={ITEM_STATUS_STYLES[itemStatus]}>
@@ -262,16 +282,29 @@ export default function RecurrenciasPreview() {
                             <td className="px-3 py-2">
                               {isApplied ? (
                                 <span className="text-xs text-green-700 inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Creada</span>
+                              ) : itemStatus === 'skipped' ? (
+                                <span className="text-xs text-slate-500 inline-flex items-center gap-1"><XCircle className="w-3 h-3" /> Omitida</span>
                               ) : (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleApproveItem(it.recurrence_id, it.client_name)}
-                                  disabled={applyingItem === it.recurrence_id}
-                                  className="bg-green-600 hover:bg-green-700 text-white h-8"
-                                >
-                                  {applyingItem === it.recurrence_id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
-                                  Aprobar
-                                </Button>
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApproveItem(it.recurrence_id, it.client_name)}
+                                    disabled={applyingItem === it.recurrence_id}
+                                    className="bg-green-600 hover:bg-green-700 text-white h-8"
+                                  >
+                                    {applyingItem === it.recurrence_id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
+                                    Aprobar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleSkipItem(it.recurrence_id, it.client_name)}
+                                    disabled={applyingItem === it.recurrence_id}
+                                    className="h-8 text-red-600 border-red-200 hover:bg-red-50"
+                                  >
+                                    Omitir
+                                  </Button>
+                                </div>
                               )}
                             </td>
                           </tr>

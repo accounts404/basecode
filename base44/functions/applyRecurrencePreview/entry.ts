@@ -63,7 +63,7 @@ export default async function(req) {
             return Response.json({ success: false, error: 'Unauthorized: Solo administradores' }, { status: 403 });
         }
 
-        const { previewId, recurrenceId } = await req.json();
+        const { previewId, recurrenceId, mode } = await req.json();
         if (!previewId) {
             return Response.json({ success: false, error: 'Se requiere previewId' }, { status: 400 });
         }
@@ -78,11 +78,28 @@ export default async function(req) {
         }
 
         const items = Array.isArray(preview.preview_items) ? preview.preview_items : [];
-        // If recurrenceId given, only process that one (and only if not yet applied).
-        // If omitted, process all items not yet applied (backward-compatible "apply all").
+
+        // SKIP mode: mark a single series as skipped (no services created, won't be extended this cycle).
+        if (mode === 'skip') {
+            if (!recurrenceId) {
+                return Response.json({ success: false, error: 'Se requiere recurrenceId para omitir' }, { status: 400 });
+            }
+            const now = new Date().toISOString();
+            const updatedItems = items.map((it) =>
+                it.recurrence_id === recurrenceId ? { ...it, item_status: 'skipped', applied_at: now } : it
+            );
+            const allDone = updatedItems.every((it) => ['applied', 'skipped'].includes(it.item_status || 'pending'));
+            await base44.asServiceRole.entities.RecurrencePreview.update(preview.id, {
+                preview_items: updatedItems,
+                ...(allDone ? { status: 'approved', approved_by: user.id, approved_at: now } : {}),
+            });
+            return Response.json({ success: true, message: 'Serie omitida. No se crearán servicios para esta serie.', skipped: recurrenceId });
+        }
+
+        // APPLY mode: only process items still pending (skip 'applied' and 'skipped').
         const targetItems = recurrenceId
-            ? items.filter((it) => it.recurrence_id === recurrenceId && (it.item_status || 'pending') !== 'applied')
-            : items.filter((it) => (it.item_status || 'pending') !== 'applied');
+            ? items.filter((it) => it.recurrence_id === recurrenceId && (it.item_status || 'pending') === 'pending')
+            : items.filter((it) => (it.item_status || 'pending') === 'pending');
 
         if (targetItems.length === 0) {
             return Response.json({ success: false, error: 'No hay series pendientes para aplicar con ese criterio.' }, { status: 400 });
@@ -192,7 +209,7 @@ export default async function(req) {
                 applied_count: r.created,
             };
         });
-        const allApplied = updatedItems.every((it) => (it.item_status || 'pending') === 'applied');
+        const allApplied = updatedItems.every((it) => ['applied', 'skipped'].includes(it.item_status || 'pending'));
         const updatePatch = {
             preview_items: updatedItems,
             execution_result: {
