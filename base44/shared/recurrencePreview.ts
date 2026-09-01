@@ -62,6 +62,7 @@ export async function computePreview(base44, log) {
     const activeUserIds = new Set(
         allUsers.filter((u) => u.role !== 'admin' && u.active !== false).map((u) => u.id)
     );
+    const usersById = new Map(allUsers.map((u) => [u.id, u]));
     // OPTIMIZACIÓN: cargar solo servicios NO cancelados desde hace 90 días.
     // Las series cuyo último servicio es >90 días sin servicios futuros son "abandonadas"
     // (umbral 60 días) y se descartan de todos modos, así que no necesitamos sus datos.
@@ -130,6 +131,10 @@ export async function computePreview(base44, log) {
 
         if (newDates.length === 0) { already_ok++; continue; }
 
+        const cleanerNames = activeCleaners
+            .map((id) => usersById.get(id)?.full_name)
+            .filter(Boolean);
+
         preview_items.push({
             client_id: lastService.client_id,
             client_name: lastService.client_name || clientsById.get(lastService.client_id)?.name || '—',
@@ -139,6 +144,8 @@ export async function computePreview(base44, log) {
             new_dates: newDates,
             count: newDates.length,
             cleaner_ids: activeCleaners,
+            cleaner_names: cleanerNames,
+            item_status: 'pending',
         });
         total_new_services += newDates.length;
     }
@@ -146,11 +153,14 @@ export async function computePreview(base44, log) {
     const summary = {
         total_series_to_extend: preview_items.length,
         total_new_services,
+        // El cron NUNCA propone cambios en el pasado: todas las new_dates son > hoy.
+        past_changes: 0,
+        future_changes: total_new_services,
         skipped_abandoned,
         skipped_inactive,
         already_ok,
     };
-    log(`📊 Vista previa: ${preview_items.length} series a extender, ${total_new_services} servicios nuevos, ${already_ok} ya OK, ${skipped_abandoned} abandonadas, ${skipped_inactive} inactivas.`);
+    log(`📊 Vista previa: ${preview_items.length} series a extender, ${total_new_services} servicios nuevos (pasado: 0), ${already_ok} ya OK, ${skipped_abandoned} abandonadas, ${skipped_inactive} inactivas.`);
     return { preview_items, summary };
 }
 

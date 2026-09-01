@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  CalendarClock, CheckCircle, Clock, Loader2, AlertTriangle, RefreshCw, History, Play, Shield, RotateCcw, ChevronDown, ChevronRight, Search,
+  CalendarClock, CheckCircle, Clock, Loader2, AlertTriangle, RefreshCw, History, Play, Shield, RotateCcw, ChevronDown, ChevronRight, Search, UserCheck,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -24,11 +24,19 @@ const STATUS_STYLES = {
   failed: 'bg-red-100 text-red-800 border-red-200',
 };
 
+const ITEM_STATUS_LABELS = { pending: 'Pendiente', applied: 'Creada', skipped: 'Omitida' };
+const ITEM_STATUS_STYLES = {
+  pending: 'bg-amber-100 text-amber-800 border-amber-200',
+  applied: 'bg-green-100 text-green-800 border-green-200',
+  skipped: 'bg-slate-100 text-slate-600 border-slate-200',
+};
+
 export default function RecurrenciasPreview() {
   const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [applying, setApplying] = useState(false);
+  const [applyingItem, setApplyingItem] = useState(null);
+  const [applyingAll, setApplyingAll] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [result, setResult] = useState(null);
 
@@ -54,25 +62,8 @@ export default function RecurrenciasPreview() {
 
   useEffect(() => { loadPreviews(); }, [loadPreviews]);
 
-  const pendingPreview = previews.find((p) => p.status === 'pending');
-  const historyPreviews = previews.filter((p) => p.status !== 'pending');
-
-  const handleApply = async () => {
-    if (!pendingPreview) return;
-    if (!confirm('¿Aprobar y ejecutar la vista previa? Se crearán los servicios recurrentes futuros listados.')) return;
-    setApplying(true);
-    setResult(null);
-    try {
-      const res = await applyRecurrencePreview({ previewId: pendingPreview.id });
-      const data = res.data || res;
-      setResult({ ok: true, message: data.message || 'Aplicado', created: data.created_count, errors: data.errors || [] });
-      await loadPreviews();
-    } catch (e) {
-      setResult({ ok: false, message: e.response?.data?.error || e.message || 'Error al aplicar' });
-    } finally {
-      setApplying(false);
-    }
-  };
+  const pendingPreview = previews.find((p) => p.status === 'pending' || p.status === 'approved');
+  const historyPreviews = previews.filter((p) => p.status !== 'pending' && p.status !== 'approved');
 
   const handleGenerate = async () => {
     if (!confirm('¿Generar la vista previa de recurrencias ahora? Se enviará un correo al administrador con el resumen. No se crearán ni cancelarán servicios.')) return;
@@ -87,6 +78,42 @@ export default function RecurrenciasPreview() {
       setResult({ ok: false, message: e.response?.data?.error || e.message || 'Error al generar' });
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleApproveItem = async (recurrenceId, clientName) => {
+    if (!pendingPreview) return;
+    if (!confirm(`¿Aprobar y crear los servicios futuros de la serie de "${clientName}"? Esto solo crea servicios nuevos (todos futuros). No modifica ni cancela servicios pasados.`)) return;
+    setApplyingItem(recurrenceId);
+    setResult(null);
+    try {
+      const res = await applyRecurrencePreview({ previewId: pendingPreview.id, recurrenceId });
+      const data = res.data || res;
+      setResult({ ok: true, message: data.message || 'Serie aprobada', created: data.created_count, errors: data.errors || [] });
+      await loadPreviews();
+    } catch (e) {
+      setResult({ ok: false, message: e.response?.data?.error || e.message || 'Error al aprobar la serie' });
+    } finally {
+      setApplyingItem(null);
+    }
+  };
+
+  const handleApproveAll = async () => {
+    if (!pendingPreview) return;
+    const pendingItems = (pendingPreview.preview_items || []).filter((it) => (it.item_status || 'pending') !== 'applied');
+    if (pendingItems.length === 0) { setResult({ ok: true, message: 'Todas las series ya fueron aprobadas.' }); return; }
+    if (!confirm(`¿Aprobar y crear los servicios futuros de TODAS las series pendientes (${pendingItems.length})? Solo crea servicios futuros; no toca el pasado.`)) return;
+    setApplyingAll(true);
+    setResult(null);
+    try {
+      const res = await applyRecurrencePreview({ previewId: pendingPreview.id });
+      const data = res.data || res;
+      setResult({ ok: true, message: data.message || 'Aplicado', created: data.created_count, errors: data.errors || [] });
+      await loadPreviews();
+    } catch (e) {
+      setResult({ ok: false, message: e.response?.data?.error || e.message || 'Error al aplicar' });
+    } finally {
+      setApplyingAll(false);
     }
   };
 
@@ -121,6 +148,12 @@ export default function RecurrenciasPreview() {
   const renderPreviewTable = (p) => {
     const items = p.preview_items || [];
     const isExpanded = expanded === p.id;
+    const pendingItems = items.filter((it) => (it.item_status || 'pending') !== 'applied');
+    const appliedItems = items.filter((it) => (it.item_status || 'pending') === 'applied');
+    const summary = p.summary || {};
+    const pastChanges = summary.past_changes ?? 0;
+    const futureChanges = summary.future_changes ?? summary.total_new_services ?? 0;
+
     return (
       <Card className="border-slate-200">
         <CardHeader>
@@ -147,12 +180,23 @@ export default function RecurrenciasPreview() {
         </CardHeader>
         <CardContent>
           {/* Summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
-            <StatBox label="Series a extender" value={p.summary?.total_series_to_extend ?? 0} accent="blue" />
-            <StatBox label="Servicios nuevos" value={p.summary?.total_new_services ?? 0} accent="green" />
-            <StatBox label="Ya al día" value={p.summary?.already_ok ?? 0} />
-            <StatBox label="Abandonadas" value={p.summary?.skipped_abandoned ?? 0} />
-            <StatBox label="Limpiadores inactivos" value={p.summary?.skipped_inactive ?? 0} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <StatBox label="Series a extender" value={summary.total_series_to_extend ?? 0} accent="blue" />
+            <StatBox label="Cambios a futuro" value={futureChanges} accent="green" />
+            <StatBox label="Cambios en pasado" value={pastChanges} accent={pastChanges === 0 ? 'green' : 'red'} />
+            <StatBox label="Servicios nuevos" value={summary.total_new_services ?? 0} accent="green" />
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-5">
+            <StatBox label="Ya al día" value={summary.already_ok ?? 0} />
+            <StatBox label="Abandonadas" value={summary.skipped_abandoned ?? 0} />
+            <StatBox label="Limpiadores inactivos" value={summary.skipped_inactive ?? 0} />
+          </div>
+
+          <div className={`rounded-lg border p-3 mb-4 text-sm flex items-center gap-2 ${pastChanges === 0 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+            {pastChanges === 0 ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+            <span>
+              <strong>Cambios en el pasado: {pastChanges}.</strong> El cron nunca modifica ni cancela servicios pasados; solo propone crear servicios futuros. Cada serie se aprueba manualmente.
+            </span>
           </div>
 
           {items.length === 0 ? (
@@ -161,15 +205,20 @@ export default function RecurrenciasPreview() {
             </div>
           ) : (
             <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setExpanded(isExpanded ? null : p.id)}
-                className="mb-3 text-slate-600"
-              >
-                {isExpanded ? <ChevronDown className="w-4 h-4 mr-1" /> : <ChevronRight className="w-4 h-4 mr-1" />}
-                {isExpanded ? 'Ocultar detalle' : `Ver detalle (${items.length} series)`}
-              </Button>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setExpanded(isExpanded ? null : p.id)}
+                  className="text-slate-600"
+                >
+                  {isExpanded ? <ChevronDown className="w-4 h-4 mr-1" /> : <ChevronRight className="w-4 h-4 mr-1" />}
+                  {isExpanded ? 'Ocultar detalle' : `Ver detalle (${items.length} series · ${appliedItems.length} aprobadas · ${pendingItems.length} pendientes)`}
+                </Button>
+                <div className="text-xs text-slate-500">
+                  {appliedItems.length}/{items.length} series aprobadas
+                </div>
+              </div>
 
               {isExpanded && (
                 <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -178,48 +227,81 @@ export default function RecurrenciasPreview() {
                       <tr>
                         <th className="text-left px-3 py-2 font-medium">Cliente</th>
                         <th className="text-left px-3 py-2 font-medium">Frecuencia</th>
+                        <th className="text-left px-3 py-2 font-medium">Limpiadores</th>
                         <th className="text-left px-3 py-2 font-medium">Último servicio</th>
                         <th className="text-left px-3 py-2 font-medium">A crear</th>
                         <th className="text-left px-3 py-2 font-medium">Próximas fechas</th>
+                        <th className="text-left px-3 py-2 font-medium">Estado</th>
+                        <th className="text-left px-3 py-2 font-medium">Acción</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {items.map((it, i) => (
-                        <tr key={i} className="hover:bg-slate-50">
-                          <td className="px-3 py-2 font-medium text-slate-800">{it.client_name}</td>
-                          <td className="px-3 py-2">{RULE_LABELS[it.recurrence_rule] || it.recurrence_rule}</td>
-                          <td className="px-3 py-2 text-slate-600">{it.last_service_date}</td>
-                          <td className="px-3 py-2"><Badge variant="secondary">{it.count}</Badge></td>
-                          <td className="px-3 py-2 text-xs text-slate-500">
-                            {(it.new_dates || []).slice(0, 5).join(', ')}{it.new_dates.length > 5 ? `… (+${it.new_dates.length - 5})` : ''}
-                          </td>
-                        </tr>
-                      ))}
+                      {items.map((it, i) => {
+                        const itemStatus = it.item_status || 'pending';
+                        const isApplied = itemStatus === 'applied';
+                        return (
+                          <tr key={i} className={`hover:bg-slate-50 ${isApplied ? 'bg-green-50/40' : ''}`}>
+                            <td className="px-3 py-2 font-medium text-slate-800">{it.client_name}</td>
+                            <td className="px-3 py-2">{RULE_LABELS[it.recurrence_rule] || it.recurrence_rule}</td>
+                            <td className="px-3 py-2 text-xs text-slate-600">
+                              {(it.cleaner_names || []).length > 0 ? (
+                                <span className="inline-flex items-center gap-1"><UserCheck className="w-3 h-3" />{it.cleaner_names.join(', ')}</span>
+                              ) : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">{it.last_service_date}</td>
+                            <td className="px-3 py-2"><Badge variant="secondary">{it.count}</Badge></td>
+                            <td className="px-3 py-2 text-xs text-slate-500">
+                              {(it.new_dates || []).slice(0, 5).join(', ')}{it.new_dates.length > 5 ? `… (+${it.new_dates.length - 5})` : ''}
+                            </td>
+                            <td className="px-3 py-2">
+                              <Badge variant="outline" className={ITEM_STATUS_STYLES[itemStatus]}>
+                                {ITEM_STATUS_LABELS[itemStatus]}
+                                {isApplied && it.applied_count != null && ` · ${it.applied_count}`}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2">
+                              {isApplied ? (
+                                <span className="text-xs text-green-700 inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Creada</span>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleApproveItem(it.recurrence_id, it.client_name)}
+                                  disabled={applyingItem === it.recurrence_id}
+                                  className="bg-green-600 hover:bg-green-700 text-white h-8"
+                                >
+                                  {applyingItem === it.recurrence_id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
+                                  Aprobar
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
 
-              {p.status === 'pending' && (
-                <div className="mt-5 flex items-center gap-3">
+              {pendingItems.length > 0 && (
+                <div className="mt-5 flex items-center gap-3 flex-wrap">
                   <Button
-                    onClick={handleApply}
-                    disabled={applying}
+                    onClick={handleApproveAll}
+                    disabled={applyingAll}
                     className="bg-green-600 hover:bg-green-700 text-white"
                   >
-                    {applying ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-                    Aprobar y ejecutar
+                    {applyingAll ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+                    Aprobar todo ({pendingItems.length} pendientes)
                   </Button>
                   <span className="text-xs text-slate-500">
-                    Se crearán {p.summary?.total_new_services ?? 0} servicios futuros. No se cancela nada.
+                    Crea {pendingItems.reduce((a, it) => a + (it.count || 0), 0)} servicios futuros. No toca el pasado ni cancela nada.
                   </span>
                 </div>
               )}
 
-              {p.status === 'approved' && p.execution_result && (
+              {appliedItems.length > 0 && p.execution_result && (
                 <div className="mt-4 text-sm bg-slate-50 rounded-lg p-3 border border-slate-200">
-                  <span className="font-medium text-slate-700">Resultado de ejecución:</span>{' '}
-                  {p.execution_result.created_count} servicios creados
+                  <span className="font-medium text-slate-700">Servicios creados hasta ahora:</span>{' '}
+                  {p.execution_result.created_count ?? appliedItems.reduce((a, it) => a + (it.applied_count || 0), 0)}
                   {p.execution_result.errors?.length > 0 && (
                     <span className="text-red-600"> · {p.execution_result.errors.length} errores</span>
                   )}
@@ -241,7 +323,7 @@ export default function RecurrenciasPreview() {
             Recurrencias (Aprobación)
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            El cron mensual genera una vista previa de extensiones. Aprobala aquí para crear los servicios futuros. No se cancela nada automáticamente.
+            El cron del día 1 de cada mes genera una vista previa de extensiones. Aprobá cada serie manualmente. Solo se crean servicios futuros; el pasado no se modifica.
           </p>
         </div>
         <div className="flex gap-2">
@@ -283,7 +365,7 @@ export default function RecurrenciasPreview() {
             <Card className="border-slate-200">
               <CardContent className="py-10 text-center text-slate-500">
                 <Clock className="w-10 h-10 mx-auto mb-3 text-slate-300" />
-                <p>No hay vista previa pendiente. El próximo cron (1 del mes) generará una nueva.</p>
+                <p>No hay vista previa pendiente. El próximo cron (1 del mes) generará una nueva, o pulsá "Generar vista previa ahora".</p>
               </CardContent>
             </Card>
           )}
@@ -387,7 +469,7 @@ export default function RecurrenciasPreview() {
 }
 
 function StatBox({ label, value, accent }) {
-  const color = accent === 'blue' ? 'text-blue-700' : accent === 'green' ? 'text-green-700' : 'text-slate-700';
+  const color = accent === 'blue' ? 'text-blue-700' : accent === 'green' ? 'text-green-700' : accent === 'red' ? 'text-red-700' : 'text-slate-700';
   return (
     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
       <p className="text-xs text-slate-500">{label}</p>

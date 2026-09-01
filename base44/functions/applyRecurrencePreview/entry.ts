@@ -63,7 +63,7 @@ export default async function(req) {
             return Response.json({ success: false, error: 'Unauthorized: Solo administradores' }, { status: 403 });
         }
 
-        const { previewId } = await req.json();
+        const { previewId, recurrenceId } = await req.json();
         if (!previewId) {
             return Response.json({ success: false, error: 'Se requiere previewId' }, { status: 400 });
         }
@@ -72,18 +72,23 @@ export default async function(req) {
         if (!preview) {
             return Response.json({ success: false, error: 'Vista previa no encontrada' }, { status: 404 });
         }
-        if (preview.status !== 'pending') {
-            return Response.json({ success: false, error: `La vista previa no está pendiente (estado: ${preview.status})` }, { status: 400 });
+        // Allow applying while pending or partially approved. Reject expired/failed.
+        if (preview.status === 'expired' || preview.status === 'failed') {
+            return Response.json({ success: false, error: `La vista previa no está disponible (estado: ${preview.status})` }, { status: 400 });
         }
 
-        console.log(`[applyRecurrencePreview] Aplicando vista previa ${previewId} (${preview.preview_items?.length} series).`);
+        const items = Array.isArray(preview.preview_items) ? preview.preview_items : [];
+        // If recurrenceId given, only process that one (and only if not yet applied).
+        // If omitted, process all items not yet applied (backward-compatible "apply all").
+        const targetItems = recurrenceId
+            ? items.filter((it) => it.recurrence_id === recurrenceId && (it.item_status || 'pending') !== 'applied')
+            : items.filter((it) => (it.item_status || 'pending') !== 'applied');
 
-        // Mark as approved immediately to prevent double execution
-        await base44.asServiceRole.entities.RecurrencePreview.update(preview.id, {
-            status: 'approved',
-            approved_by: user.id,
-            approved_at: new Date().toISOString(),
-        });
+        if (targetItems.length === 0) {
+            return Response.json({ success: false, error: 'No hay series pendientes para aplicar con ese criterio.' }, { status: 400 });
+        }
+
+        console.log(`[applyRecurrencePreview] Aplicando ${targetItems.length} serie(s) de vista previa ${previewId}${recurrenceId ? ` (recurrence_id=${recurrenceId})` : ''}.`);
 
         // Load fresh data for execution (clients/users for active checks)
         const allClients = await loadAll(base44, 'Client', '-created_date', 500);
@@ -96,45 +101,51 @@ export default async function(req) {
         const today = new Date();
         const targetDate = addMonths(today, 6);
 
-        let createdCount = 0;
-        const errors = [];
+        const perItemResults = {}; // recurrence_id -> { created, errors }
+        let totalCreated = 0;
+        const allErrors = [];
         const buffer = [];
 
         const flushBuffer = async () => {
             if (buffer.length === 0) return;
             try {
                 const created = await base44.asServiceRole.entities.Schedule.bulkCreate(buffer.splice(0, buffer.length));
-                createdCount += (created || []).length;
+                totalCreated += (created || []).length;
             } catch (e) {
-                errors.push({ error: e.message });
+                allErrors.push({ error: e.message });
             }
             await sleep(CREATION_SLEEP_MS);
         };
 
-        for (const item of preview.preview_items) {
+        for (const item of targetItems) {
+            const itemResult = { created: 0, errors: [] };
             try {
-                // Re-fetch the series' last service to build from fresh data
                 const seriesSchedules = await base44.asServiceRole.entities.Schedule.filter({ recurrence_id: item.recurrence_id });
                 if (!seriesSchedules || seriesSchedules.length === 0) {
-                    errors.push({ recurrence_id: item.recurrence_id, error: 'serie no encontrada' });
+                    itemResult.errors.push('serie no encontrada');
+                    perItemResults[item.recurrence_id] = itemResult;
                     continue;
                 }
                 const lastService = seriesSchedules.reduce(
                     (max, x) => (!max || new Date(x.start_time) > new Date(max.start_time) ? x : max),
                     null
                 );
-                if (!lastService) continue;
+                if (!lastService) {
+                    perItemResults[item.recurrence_id] = itemResult;
+                    continue;
+                }
 
-                // Re-validate active cleaners and client at execution time
                 const cleanerIds = lastService.cleaner_ids || [];
                 const activeCleaners = cleanerIds.filter((id) => activeUserIds.has(id));
                 if (activeCleaners.length === 0) {
                     console.log(`[applyRecurrencePreview] Serie ${item.recurrence_id}: limpiadores inactivos, saltando.`);
+                    perItemResults[item.recurrence_id] = itemResult;
                     continue;
                 }
                 const clientFresh = clientsById.get(lastService.client_id);
                 if (!clientFresh || clientFresh.active === false) {
                     console.log(`[applyRecurrencePreview] Serie ${item.recurrence_id}: cliente inactivo, saltando.`);
+                    perItemResults[item.recurrence_id] = itemResult;
                     continue;
                 }
 
@@ -155,27 +166,60 @@ export default async function(req) {
 
                     buffer.push(buildNewService(lastService, nextStart, nextEnd, activeCleaners, clientFresh));
                     occupiedDays.add(dayISO);
+                    itemResult.created += 1;
 
                     if (buffer.length >= CREATION_BATCH) {
                         await flushBuffer();
                     }
                 }
             } catch (err) {
-                errors.push({ recurrence_id: item.recurrence_id, error: err.message });
+                itemResult.errors.push(err.message);
+                allErrors.push({ recurrence_id: item.recurrence_id, error: err.message });
             }
+            perItemResults[item.recurrence_id] = itemResult;
         }
         await flushBuffer();
 
-        await base44.asServiceRole.entities.RecurrencePreview.update(preview.id, {
-            execution_result: { created_count: createdCount, errors },
+        // Update items: mark applied ones with count + timestamp.
+        const now = new Date().toISOString();
+        const updatedItems = items.map((it) => {
+            const r = perItemResults[it.recurrence_id];
+            if (!r) return it;
+            return {
+                ...it,
+                item_status: 'applied',
+                applied_at: now,
+                applied_count: r.created,
+            };
         });
+        const allApplied = updatedItems.every((it) => (it.item_status || 'pending') === 'applied');
+        const updatePatch = {
+            preview_items: updatedItems,
+            execution_result: {
+                created_count: totalCreated,
+                errors: allErrors,
+            },
+        };
+        if (allApplied) {
+            updatePatch.status = 'approved';
+            updatePatch.approved_by = user.id;
+            updatePatch.approved_at = now;
+        } else if (preview.status === 'pending') {
+            // Keep pending until at least the first apply happens; once partial, leave pending.
+        }
+        await base44.asServiceRole.entities.RecurrencePreview.update(preview.id, updatePatch);
 
-        console.log(`[applyRecurrencePreview] ✅ Creados: ${createdCount}. Errores: ${errors.length}.`);
+        const appliedNow = targetItems.map((it) => perItemResults[it.recurrence_id]).filter(Boolean);
+        const createdNow = appliedNow.reduce((a, r) => a + (r.created || 0), 0);
+        console.log(`[applyRecurrencePreview] ✅ Creados ahora: ${createdNow}. Errores: ${allErrors.length}.`);
         return Response.json({
             success: true,
-            message: `Recurrencias aplicadas. ${createdCount} servicios creados.`,
-            created_count: createdCount,
-            errors,
+            message: recurrenceId
+                ? `Serie aprobada. ${createdNow} servicios creados.`
+                : `Recurrencias aplicadas. ${createdNow} servicios creados.`,
+            created_count: createdNow,
+            errors: allErrors,
+            all_applied: allApplied,
         });
     } catch (error) {
         console.error('[applyRecurrencePreview] Error:', error);

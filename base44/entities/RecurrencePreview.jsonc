@@ -20,7 +20,7 @@
         "failed"
       ],
       "default": "pending",
-      "description": "Estado de la vista previa: pending=esperando aprobaci\u00f3n, approved=ejecutada, expired=reemplazada por una m\u00e1s reciente, failed=error al ejecutar"
+      "description": "Estado de la vista previa: pending=esperando aprobaci\u00f3n, approved=todas las series aplicadas, expired=reemplazada por una m\u00e1s reciente, failed=error al ejecutar"
     },
     "preview_items": {
       "type": "array",
@@ -48,7 +48,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fechas (yyyy-MM-dd) de los nuevos servicios que se crear\u00e1n"
+            "description": "Fechas (yyyy-MM-dd) de los nuevos servicios que se crear\u00e1n. Todas son futuras (>= hoy)."
           },
           "count": {
             "type": "number"
@@ -58,6 +58,32 @@
             "items": {
               "type": "string"
             }
+          },
+          "cleaner_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Nombres de los limpiadores asignados a esta serie"
+          },
+          "item_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "applied",
+              "skipped"
+            ],
+            "default": "pending",
+            "description": "Estado de aprobaci\u00f3n individual: pending=esperando, applied=creado por el admin, skipped=omitido"
+          },
+          "applied_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora en que esta serie fue aprobada y aplicada"
+          },
+          "applied_count": {
+            "type": "number",
+            "description": "Cantidad de servicios efectivamente creados al aplicar esta serie"
           }
         },
         "required": [
@@ -75,6 +101,14 @@
         },
         "total_new_services": {
           "type": "number"
+        },
+        "past_changes": {
+          "type": "number",
+          "description": "Cambios propuestos sobre servicios pasados. Siempre debe ser 0 (el cron nunca modifica el pasado)."
+        },
+        "future_changes": {
+          "type": "number",
+          "description": "Cambios propuestos sobre servicios futuros (servicios nuevos a crear)."
         },
         "skipped_abandoned": {
           "type": "number"
