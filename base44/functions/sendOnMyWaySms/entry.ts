@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.0';
-import Twilio from 'npm:twilio@5.2.0';
+import { sendTwilioSms } from '../../shared/twilioSms.ts';
 
 // Función para formatear números australianos al formato internacional
 const formatAustralianPhoneNumber = (phoneNumber) => {
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
             console.log(`Secondary phone: ${clientData.secondary_mobile_number}, Formatted: ${formattedSecondaryNumber}`);
         }
 
-        // 5. Obtener credenciales de Twilio
+        // 5. Verificar que Twilio esté configurado
         const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
         const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
         const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
@@ -124,8 +124,6 @@ Deno.serve(async (req) => {
                 headers: { 'Content-Type': 'application/json' } 
             });
         }
-
-        const twilioClient = new Twilio(accountSid, authToken);
 
         // 6. Construir el mensaje reemplazando variables
         const cleanerName = callingUser.invoice_name || callingUser.full_name;
@@ -151,11 +149,7 @@ Deno.serve(async (req) => {
 
         // Enviar al número principal
         try {
-            const message = await twilioClient.messages.create({
-                body: messageBody,
-                from: twilioPhone,
-                to: formattedPhoneNumber
-            });
+            const message = await sendTwilioSms(formattedPhoneNumber, messageBody);
             messageSids.push(message.sid);
             phonesUsed.push(formattedPhoneNumber);
             console.log(`SMS enviado exitosamente al número principal. SID: ${message.sid}`);
@@ -167,11 +161,7 @@ Deno.serve(async (req) => {
         // Enviar al número secundario si existe
         if (formattedSecondaryNumber) {
             try {
-                const secondaryMessage = await twilioClient.messages.create({
-                    body: messageBody,
-                    from: twilioPhone,
-                    to: formattedSecondaryNumber
-                });
+                const secondaryMessage = await sendTwilioSms(formattedSecondaryNumber, messageBody);
                 messageSids.push(secondaryMessage.sid);
                 phonesUsed.push(formattedSecondaryNumber);
                 console.log(`SMS enviado exitosamente al número secundario. SID: ${secondaryMessage.sid}`);
@@ -215,21 +205,6 @@ Deno.serve(async (req) => {
 
     } catch (error) {
         console.error('Error sending "On my way" SMS:', error);
-        
-        // Manejar errores específicos de Twilio
-        if (error.code) {
-            let errorMessage = `Twilio Error (${error.code}): ${error.message}`;
-            if (error.code === 21211) {
-                errorMessage = 'Invalid phone number format. Please check the client\'s mobile number.';
-            } else if (error.code === 21614) {
-                errorMessage = 'Invalid sender phone number. Please check Twilio configuration.';
-            }
-            
-            return new Response(JSON.stringify({ error: errorMessage }), { 
-                status: 400, 
-                headers: { 'Content-Type': 'application/json' } 
-            });
-        }
         
         const errorMessage = error.message || 'An internal error occurred.';
         return new Response(JSON.stringify({ error: errorMessage }), { 

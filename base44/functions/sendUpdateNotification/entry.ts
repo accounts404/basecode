@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.7.0';
-import Twilio from 'npm:twilio@5.2.0';
+import { sendTwilioSms } from '../../shared/twilioSms.ts';
 import { DateTime } from 'npm:luxon@3.4.4';
 
 // Función para formatear números australianos
@@ -76,12 +76,7 @@ Deno.serve(async (req) => {
             .replace(/\{service_date\}/g, serviceDateTime.toFormat('dd/MM/yy'))
             .replace(/\{service_time\}/g, serviceDateTime.toFormat('h:mm a'));
 
-        const twilioClient = new Twilio(accountSid, authToken);
-        const message = await twilioClient.messages.create({
-            body: messageBody,
-            from: twilioPhone,
-            to: phoneNumber
-        });
+        const message = await sendTwilioSms(phoneNumber, messageBody);
 
         // 5. Opcional: Registrar que se envió una notificación de actualización
         // (No se implementa aquí para permitir múltiples envíos si es necesario)

@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.20';
-import Twilio from 'npm:twilio@5.2.0';
+import { sendTwilioSms } from '../../shared/twilioSms.ts';
 import { DateTime } from 'npm:luxon@3.4.4';
 
 const formatAustralianPhoneNumber = (phoneNumber) => {
@@ -196,7 +196,6 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Twilio not configured.' }, { status: 500 });
         }
 
-        const twilioClient = new Twilio(accountSid, authToken);
         const defaultTemplate = `Hi {client_name}, your cleaning service is scheduled for {service_date} at {service_time}. Call 0491829501 for any changes. Redoak Cleaning.`;
         const messageTemplate = adminUser.sms_templates?.service_reminder || defaultTemplate;
 
@@ -234,9 +233,9 @@ Deno.serve(async (req) => {
                 .replace(/\{service_date\}/g, serviceMelbourneTime.toFormat('dd/MM/yy'))
                 .replace(/\{service_time\}/g, serviceMelbourneTime.toFormat('h:mm a'));
 
-            const smsTasks = [twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: phoneNumber })];
+            const smsTasks = [sendTwilioSms(phoneNumber, messageBody)];
             if (secondaryPhoneNumber) {
-                smsTasks.push(twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: secondaryPhoneNumber }));
+                smsTasks.push(sendTwilioSms(secondaryPhoneNumber, messageBody));
             }
 
             const smsResults = await Promise.allSettled(smsTasks);

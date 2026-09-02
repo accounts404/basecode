@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
-import Twilio from 'npm:twilio@5.2.0';
+import { sendTwilioSms } from '../../shared/twilioSms.ts';
 
 const formatAustralianPhoneNumber = (phoneNumber) => {
     if (!phoneNumber) return null;
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
             return Response.json({ error: `Invalid phone number format: ${clientData.mobile_number}` }, { status: 400 });
         }
 
-        // Twilio credentials
+        // Verificar que Twilio esté configurado
         const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
         const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
         const twilioPhone = Deno.env.get('TWILIO_PHONE_NUMBER');
@@ -85,13 +85,12 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Twilio service is not configured.' }, { status: 500 });
         }
 
-        const twilioClient = new Twilio(accountSid, authToken);
         const messageSids = [];
         const phonesUsed = [];
         const errors = [];
 
         try {
-            const msg = await twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: formattedPhoneNumber });
+            const msg = await sendTwilioSms(formattedPhoneNumber, messageBody);
             messageSids.push(msg.sid);
             phonesUsed.push(formattedPhoneNumber);
         } catch (err) {
@@ -100,7 +99,7 @@ Deno.serve(async (req) => {
 
         if (formattedSecondaryNumber) {
             try {
-                const msg2 = await twilioClient.messages.create({ body: messageBody, from: twilioPhone, to: formattedSecondaryNumber });
+                const msg2 = await sendTwilioSms(formattedSecondaryNumber, messageBody);
                 messageSids.push(msg2.sid);
                 phonesUsed.push(formattedSecondaryNumber);
             } catch (err) {
