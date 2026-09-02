@@ -5,7 +5,7 @@ import '@/index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   // <React.StrictMode>
-  <div className="min-h-screen w-full bg-white" />
+  <App />
   // </React.StrictMode>,
 )
 
@@ -17,3 +17,6 @@ if (import.meta.hot) {
     window.parent?.postMessage({ type: 'sandbox:afterUpdate' }, '*');
   });
 }
+
+
+
