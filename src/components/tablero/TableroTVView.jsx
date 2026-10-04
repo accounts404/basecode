@@ -27,6 +27,7 @@ export default function TableroTVView() {
   const [notices, setNotices] = useState([]);
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [nameMap, setNameMap] = useState({});
 
   const load = async () => {
     try {
@@ -39,8 +40,26 @@ export default function TableroTVView() {
     }
   };
 
+  const loadCleaners = async () => {
+    try {
+      const users = await base44.entities.User.list('-full_name', 500);
+      const map = {};
+      (users || []).filter(u => u.role !== 'admin').forEach(u => {
+        const short = u.display_name || u.full_name;
+        if (short) {
+          if (u.full_name) map[u.full_name] = short;
+          if (u.display_name) map[u.display_name] = short;
+        }
+      });
+      setNameMap(map);
+    } catch (e) {
+      console.warn('No se pudo cargar mapa de nombres cortos:', e);
+    }
+  };
+
   useEffect(() => {
     load();
+    loadCleaners();
     const refresh = setInterval(load, REFRESH_MS);
     const clock = setInterval(() => setNow(new Date()), 1000);
     // Suscripción en tiempo real: refresca el tablero apenas cambian los avisos
@@ -56,6 +75,12 @@ export default function TableroTVView() {
       if (unsubscribe) unsubscribe();
     };
   }, []);
+
+  const resolveName = (n) => {
+    if (n.target === 'all') return n.target_name || 'Todos';
+    const stored = n.target_name || '';
+    return nameMap[stored] || stored;
+  };
 
   const dayNotices = useMemo(
     () => notices.filter(n => n.type === 'day' && isVigente(n)),
@@ -117,13 +142,13 @@ export default function TableroTVView() {
             ) : specificNotices.length === 0 ? (
               <div className="col-span-2 text-center text-slate-400 py-10">No hay notas del día para limpiadores.</div>
             ) : (
-              specificNotices.slice(0, 10).map((n, i) => <NoticeCard key={n.id} notice={n} index={i} />)
+              specificNotices.slice(0, 10).map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i} />)
             )}
           </div>
 
           {allNotices.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {allNotices.slice(0, 2).map((n, i) => <NoticeCard key={n.id} notice={n} index={i} />)}
+              {allNotices.slice(0, 2).map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i} />)}
             </div>
           )}
         </main>

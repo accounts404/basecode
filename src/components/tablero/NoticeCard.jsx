@@ -1,7 +1,7 @@
 import React from 'react';
 
 export default function NoticeCard({ notice, index = 0, variant = 'day' }) {
-  const name = notice.target_name || 'Todos';
+  const name = notice._displayName || notice.target_name || 'Todos';
   const initial = (name || '?').charAt(0).toUpperCase();
 
   const isHigh = notice.priority === 'high';
