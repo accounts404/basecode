@@ -105,7 +105,7 @@ export default function TableroAdminPanel() {
           <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
             className="w-full h-10 rounded-md border border-input bg-background px-3 mt-1">
             <option value="day">Nota del día</option>
-            <option value="office">Aviso de oficina (rotativo)</option>
+            <option value="office">Aviso de oficina (permanente)</option>
           </select>
         </div>
         <div>
@@ -142,6 +142,11 @@ export default function TableroAdminPanel() {
           <Textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
             placeholder="Ej: Revisar el vehículo antes de salir. Sacar la basura del área de suministros."
             rows={3} />
+          {form.type === 'office' && (
+            <p className="text-xs text-blue-600 mt-1.5">
+              Los avisos de oficina se muestran siempre en el tablero (no rotan). Déjalo sin fecha de vigencia para que sea permanente.
+            </p>
+          )}
         </div>
         <div>
           <Label>Vigente hasta (opcional)</Label>
