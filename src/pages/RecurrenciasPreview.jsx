@@ -40,6 +40,15 @@ export default function RecurrenciasPreview() {
   const [expanded, setExpanded] = useState(null);
   const [result, setResult] = useState(null);
 
+  // Auto-expandir la vista previa pendiente para ver las series a crear por defecto
+  const [autoExpanded, setAutoExpanded] = useState(false);
+  useEffect(() => {
+    if (pendingPreview && !autoExpanded) {
+      setExpanded(pendingPreview.id);
+      setAutoExpanded(true);
+    }
+  }, [pendingPreview, autoExpanded]);
+
   // Restore wrongly cancelled
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreDryRun, setRestoreDryRun] = useState(null);
