@@ -124,32 +124,14 @@ export default async function(req) {
         });
         log(`📝 Vista previa guardada con id ${preview.id} (${preview_items.length} series, ${summary.total_new_services} servicios).`);
 
-        // Enviar el correo mensual (siempre, incluso si no hay cambios)
-        let emailOk = false;
-        try {
-            const html = buildEmailHtml(period, summary, preview_items);
-            const subject = preview_items.length > 0
-                ? `[RedOak] Vista previa de recurrencias ${period} — ${summary.total_new_services} servicios pendientes de aprobación`
-                : `[RedOak] Vista previa de recurrencias ${period} — Sin cambios pendientes`;
-            await base44.asServiceRole.integrations.Core.SendEmail({
-                to: OWNER_EMAIL,
-                subject,
-                body: html,
-            });
-            emailOk = true;
-            await base44.asServiceRole.entities.RecurrencePreview.update(preview.id, { email_sent: true });
-            log('✅ Correo mensual enviado.');
-        } catch (emailErr) {
-            log(`⚠️ Error enviando correo: ${emailErr.message}`);
-        }
-
+        // No se envía correo: la vista previa se revisa directamente en pantalla.
         return Response.json({
             success: true,
             message: 'Vista previa generada. Esperando aprobación del admin.',
             preview_id: preview.id,
             preview_items: preview_items.length,
             summary,
-            email_sent: emailOk,
+            email_sent: false,
         });
     } catch (error) {
         log(`❌ Error fatal: ${error.message}`);

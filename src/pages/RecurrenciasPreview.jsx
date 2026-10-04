@@ -75,13 +75,13 @@ export default function RecurrenciasPreview() {
   const historyPreviews = previews.filter((p) => p.status !== 'pending' && p.status !== 'approved');
 
   const handleGenerate = async () => {
-    if (!confirm('¿Generar la vista previa de recurrencias ahora? Se enviará un correo al administrador con el resumen. No se crearán ni cancelarán servicios.')) return;
+    if (!confirm('¿Generar la vista previa de recurrencias ahora? No se crearán ni cancelarán servicios; solo se calcula lo pendiente de aprobar.')) return;
     setGenerating(true);
     setResult(null);
     try {
       const res = await extendRecurringSchedules({});
       const data = res.data || res;
-      setResult({ ok: true, message: `Vista previa generada: ${data.preview_items || 0} series, ${data.summary?.total_new_services ?? 0} servicios. Correo enviado: ${data.email_sent ? 'sí' : 'no'}.` });
+      setResult({ ok: true, message: `Vista previa generada: ${data.preview_items || 0} series, ${data.summary?.total_new_services ?? 0} servicios pendientes de aprobación.` });
       await loadPreviews();
     } catch (e) {
       setResult({ ok: false, message: e.response?.data?.error || e.message || 'Error al generar' });
@@ -201,7 +201,6 @@ export default function RecurrenciasPreview() {
                 {p.status === 'expired' && <History className="w-3 h-3 mr-1" />}
                 {p.status}
               </Badge>
-              {p.email_sent && <Badge variant="secondary" className="text-xs">📧 Correo enviado</Badge>}
             </div>
           </div>
         </CardHeader>
