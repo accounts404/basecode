@@ -1,0 +1,65 @@
+{
+  "name": "BoardNotice",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "day",
+        "office"
+      ],
+      "default": "day",
+      "description": "Tipo de aviso: day=nota del d\u00eda para limpiador/equipo/todos, office=aviso rotativo de oficina"
+    },
+    "target": {
+      "type": "string",
+      "enum": [
+        "cleaner",
+        "team",
+        "all"
+      ],
+      "default": "all",
+      "description": "Destinatario: cleaner=limpiador espec\u00edfico, team=equipo, all=todos"
+    },
+    "target_name": {
+      "type": "string",
+      "description": "Nombre del destinatario (limpiador, equipo o 'Todos')"
+    },
+    "title": {
+      "type": "string",
+      "description": "T\u00edtulo corto del aviso (opcional)"
+    },
+    "body": {
+      "type": "string",
+      "description": "Contenido del aviso"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "high"
+      ],
+      "default": "normal",
+      "description": "Prioridad del aviso"
+    },
+    "display_until": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha hasta la que el aviso sigue vigente (opcional). Si pasa, ya no se muestra en el tablero."
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Si el aviso est\u00e1 activo y visible en el tablero"
+    },
+    "created_by_user_name": {
+      "type": "string",
+      "description": "Nombre del admin que cre\u00f3 el aviso"
+    }
+  },
+  "required": [
+    "type",
+    "target",
+    "body"
+  ]
+}

@@ -40,6 +40,7 @@ import {
   KeySquare,
   Bot,
   Shield,
+  Monitor,
 } from "lucide-react";
 import {
   Sidebar,
@@ -89,6 +90,7 @@ const adminMenuItems = [
   { name: 'Configuración', path: 'Configuracion', icon: Settings },
   { name: 'Recurrencias (Aprobación)', path: 'RecurrenciasPreview', icon: CalendarClock, ownerOnly: true },
   { name: 'Auditoría', path: 'Auditoria', icon: Shield, ownerOnly: true },
+  { name: 'Tablero TV', path: 'TableroTV', icon: Monitor },
 ];
 
 const OWNER_EMAIL = 'accounts@redoakcleaning.com.au';
