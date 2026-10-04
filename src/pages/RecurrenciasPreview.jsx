@@ -40,15 +40,6 @@ export default function RecurrenciasPreview() {
   const [expanded, setExpanded] = useState(null);
   const [result, setResult] = useState(null);
 
-  // Auto-expandir la vista previa pendiente para ver las series a crear por defecto
-  const [autoExpanded, setAutoExpanded] = useState(false);
-  useEffect(() => {
-    if (pendingPreview && !autoExpanded) {
-      setExpanded(pendingPreview.id);
-      setAutoExpanded(true);
-    }
-  }, [pendingPreview, autoExpanded]);
-
   // Restore wrongly cancelled
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreDryRun, setRestoreDryRun] = useState(null);
@@ -73,6 +64,15 @@ export default function RecurrenciasPreview() {
 
   const pendingPreview = previews.find((p) => p.status === 'pending' || p.status === 'approved');
   const historyPreviews = previews.filter((p) => p.status !== 'pending' && p.status !== 'approved');
+
+  // Auto-expandir la vista previa pendiente para ver las series a crear por defecto
+  const [autoExpanded, setAutoExpanded] = useState(false);
+  useEffect(() => {
+    if (pendingPreview && !autoExpanded) {
+      setExpanded(pendingPreview.id);
+      setAutoExpanded(true);
+    }
+  }, [pendingPreview, autoExpanded]);
 
   const handleGenerate = async () => {
     if (!confirm('¿Generar la vista previa de recurrencias ahora? No se crearán ni cancelarán servicios; solo se calcula lo pendiente de aprobar.')) return;
