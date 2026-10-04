@@ -67,7 +67,7 @@ export default function TableroAdminPanel() {
         .filter(u => u.role !== 'admin' && u.active !== false)
         .map(u => ({
           id: u.id,
-          name: u.full_name || u.display_name || 'Sin nombre',
+          name: u.display_name || u.full_name || 'Sin nombre',
           kind: u.employee_type === 'permanent' ? 'Planta' : 'Casual',
         }))
         .filter(u => u.name && u.name !== 'Sin nombre')
