@@ -28,6 +28,7 @@ export default function TableroTVView() {
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [nameMap, setNameMap] = useState({});
+  const [teamMembersMap, setTeamMembersMap] = useState({});
 
   const load = async () => {
     try {
@@ -57,6 +58,24 @@ export default function TableroTVView() {
     }
   };
 
+  const loadTeams = async () => {
+    try {
+      const assignments = await base44.entities.DailyTeamAssignment.list('-date', 100);
+      const today = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
+      const map = {};
+      (assignments || [])
+        .filter(t => t.date && t.date >= today && t.status !== 'cancelled')
+        .forEach(t => {
+          const key = t.team_name || (t.team_members_names && t.team_members_names.length ? `Equipo ${t.team_members_names[0]}` : 'Equipo');
+          const members = (t.team_members_names || []).map(m => nameMap[m] || m);
+          if (members.length) map[key] = members;
+        });
+      setTeamMembersMap(map);
+    } catch (e) {
+      console.warn('No se pudo cargar miembros de equipos:', e);
+    }
+  };
+
   useEffect(() => {
     load();
     loadCleaners();
@@ -76,9 +95,18 @@ export default function TableroTVView() {
     };
   }, []);
 
+  // Carga los miembros de equipos una vez disponibles los nombres cortos
+  useEffect(() => {
+    if (Object.keys(nameMap).length) loadTeams();
+  }, [nameMap]);
+
   const resolveName = (n) => {
     if (n.target === 'all') return n.target_name || 'Todos';
     const stored = n.target_name || '';
+    if (n.target === 'team') {
+      const members = teamMembersMap[stored];
+      return members && members.length ? members.join(' · ') : stored;
+    }
     return nameMap[stored] || stored;
   };
 
