@@ -197,11 +197,14 @@ export default function TableroTVView() {
               <div className="text-center text-slate-400 py-10">Sin avisos de oficina.</div>
             ) : (
               officeNotices.map((n, i) => (
-                <div key={n.id} className="tv-slideup rounded-[18px] bg-white border border-[#dbe5f1] shadow-[0_5px_14px_rgba(37,99,235,0.06)] p-4 flex flex-col gap-2"
+                <div key={n.id} className="tv-slideup relative rounded-[18px] bg-white border border-[#dbe5f1] shadow-[0_5px_14px_rgba(37,99,235,0.06)] overflow-hidden flex flex-col"
                   style={{ animationDelay: `${0.45 + i * 0.12}s` }}>
-                  {n.title && <div className="text-sm font-bold text-[#1d4fd1] truncate">{n.title}</div>}
-                  <div className="overflow-hidden">
-                    <p className="text-[#1e3a5f] text-[15px] leading-snug whitespace-pre-wrap">{n.body}</p>
+                  <div className="h-1 w-full" style={{ background: BRAND }} />
+                  <div className="p-4 flex flex-col gap-2">
+                    {n.title && <div className="text-sm font-bold text-[#173e9e] truncate">{n.title}</div>}
+                    <div className="overflow-hidden">
+                      <p className="text-[#1e3a5f] text-[15px] leading-relaxed whitespace-pre-wrap">{n.body}</p>
+                    </div>
                   </div>
                 </div>
               ))
