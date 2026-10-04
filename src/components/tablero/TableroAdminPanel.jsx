@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { formatInTimeZone } from 'date-fns-tz';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Trash2, Plus, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Trash2, Plus, Eye, EyeOff, RefreshCw, Users, UserCheck } from 'lucide-react';
 
 const EMPTY = {
   type: 'day',
@@ -26,11 +27,21 @@ function isVigente(n) {
   return true;
 }
 
+function todayMelbourne() {
+  try {
+    return formatInTimeZone(new Date(), 'Australia/Melbourne', 'yyyy-MM-dd');
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 export default function TableroAdminPanel() {
   const [notices, setNotices] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [cleaners, setCleaners] = useState([]);
+  const [teams, setTeams] = useState([]);
 
   const load = async () => {
     try {
@@ -43,11 +54,66 @@ export default function TableroAdminPanel() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  const loadRecipients = async () => {
+    try {
+      const [users, casuals, assignments] = await Promise.all([
+        base44.entities.User.list('-full_name', 500).catch(() => []),
+        base44.entities.CasualCleaner.list('-created_date', 500).catch(() => []),
+        base44.entities.DailyTeamAssignment.list('-date', 100).catch(() => []),
+      ]);
+
+      // Limpiadores activos: usuarios no-admin activos (planta + casuales con cuenta)
+      const activeUsers = (users || [])
+        .filter(u => u.role !== 'admin' && u.active !== false)
+        .map(u => ({
+          id: u.id,
+          name: u.full_name || u.display_name || 'Sin nombre',
+          kind: u.employee_type === 'permanent' ? 'Planta' : 'Casual',
+        }))
+        .filter(u => u.name && u.name !== 'Sin nombre')
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      // Casuales del pipeline de reclutamiento (sin cuenta, activos)
+      const activeCasuals = (casuals || [])
+        .filter(c => c.is_active !== false && c.status !== 'descartado')
+        .map(c => ({
+          id: c.id,
+          name: c.full_name || 'Sin nombre',
+          kind: 'Casual (pipeline)',
+        }))
+        .filter(c => c.name && c.name !== 'Sin nombre')
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      setCleaners([...activeUsers, ...activeCasuals]);
+
+      // Equipos: asignaciones de hoy en adelante no canceladas, con nombre
+      const today = todayMelbourne();
+      const activeTeams = (assignments || [])
+        .filter(t => t.date && t.date >= today && t.status !== 'cancelled' && (t.team_name || (t.team_members_names && t.team_members_names.length)))
+        .map(t => ({
+          id: t.id,
+          name: t.team_name || (t.team_members_names && t.team_members_names.length ? `Equipo ${t.team_members_names[0]}` : 'Equipo'),
+          date: t.date,
+          members: t.team_members_names || [],
+        }));
+      setTeams(activeTeams);
+    } catch (e) {
+      console.error('Error cargando destinatarios:', e);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    loadRecipients();
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
     if (!form.body.trim()) return;
+    if (form.target !== 'all' && !form.target_name.trim()) {
+      alert('Selecciona un destinatario de la lista.');
+      return;
+    }
     setSaving(true);
     try {
       await base44.entities.BoardNotice.create({
@@ -96,7 +162,7 @@ export default function TableroAdminPanel() {
           <h1 className="text-2xl font-bold text-slate-900">Tablero TV</h1>
           <p className="text-slate-500 text-sm">Crea y gestiona los avisos que se muestran en el televisor de la oficina.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={load}><RefreshCw className="w-4 h-4" /> Refrescar</Button>
+        <Button variant="outline" size="sm" onClick={() => { load(); loadRecipients(); }}><RefreshCw className="w-4 h-4" /> Refrescar</Button>
       </div>
 
       <form onSubmit={submit} className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -110,18 +176,56 @@ export default function TableroAdminPanel() {
         </div>
         <div>
           <Label>Destinatario</Label>
-          <select value={form.target} onChange={e => setForm(f => ({ ...f, target: e.target.value, target_name: e.target.value === 'all' ? 'Todos' : f.target_name }))}
+          <select value={form.target} onChange={e => setForm(f => ({ ...f, target: e.target.value, target_name: e.target.value === 'all' ? 'Todos' : '' }))}
             className="w-full h-10 rounded-md border border-input bg-background px-3 mt-1">
             <option value="all">Todos</option>
             <option value="cleaner">Limpiador específico</option>
             <option value="team">Equipo</option>
           </select>
         </div>
-        {form.target !== 'all' && (
+        {form.target === 'cleaner' && (
           <div className="md:col-span-2">
-            <Label>Nombre del {form.target === 'cleaner' ? 'limpiador' : 'equipo'}</Label>
-            <Input value={form.target_name} onChange={e => setForm(f => ({ ...f, target_name: e.target.value }))}
-              placeholder={form.target === 'cleaner' ? 'Ej: Daniel' : 'Ej: Equipo Norte'} />
+            <Label>
+              <span className="inline-flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5" /> Limpiador activo</span>
+            </Label>
+            <select value={form.target_name} onChange={e => setForm(f => ({ ...f, target_name: e.target.value }))}
+              className="w-full h-10 rounded-md border border-input bg-background px-3 mt-1">
+              <option value="">— Selecciona un limpiador —</option>
+              {cleaners.length > 0 && (
+                <optgroup label="Planta y casuales con cuenta">
+                  {cleaners.filter(c => c.kind !== 'Casual (pipeline)').map(c => (
+                    <option key={`u-${c.id}`} value={c.name}>{c.name} · {c.kind}</option>
+                  ))}
+                </optgroup>
+              )}
+              {cleaners.filter(c => c.kind === 'Casual (pipeline)').length > 0 && (
+                <optgroup label="Casuales (pipeline)">
+                  {cleaners.filter(c => c.kind === 'Casual (pipeline)').map(c => (
+                    <option key={`c-${c.id}`} value={c.name}>{c.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            {cleaners.length === 0 && (
+              <p className="text-xs text-slate-400 mt-1">Cargando limpiadores activos…</p>
+            )}
+          </div>
+        )}
+        {form.target === 'team' && (
+          <div className="md:col-span-2">
+            <Label>
+              <span className="inline-flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Equipo (asignaciones actuales)</span>
+            </Label>
+            <select value={form.target_name} onChange={e => setForm(f => ({ ...f, target_name: e.target.value }))}
+              className="w-full h-10 rounded-md border border-input bg-background px-3 mt-1">
+              <option value="">— Selecciona un equipo —</option>
+              {teams.map(t => (
+                <option key={t.id} value={t.name}>{t.name} · {t.date}{t.members.length ? ` (${t.members.join(', ')})` : ''}</option>
+              ))}
+            </select>
+            {teams.length === 0 && (
+              <p className="text-xs text-slate-400 mt-1">No hay equipos asignados para hoy o fechas futuras.</p>
+            )}
           </div>
         )}
         <div>

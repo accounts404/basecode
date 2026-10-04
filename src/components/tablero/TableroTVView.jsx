@@ -43,7 +43,18 @@ export default function TableroTVView() {
     load();
     const refresh = setInterval(load, REFRESH_MS);
     const clock = setInterval(() => setNow(new Date()), 1000);
-    return () => { clearInterval(refresh); clearInterval(clock); };
+    // Suscripción en tiempo real: refresca el tablero apenas cambian los avisos
+    let unsubscribe = null;
+    try {
+      unsubscribe = base44.entities.BoardNotice.subscribe(() => { load(); });
+    } catch (e) {
+      console.warn('Suscripción realtime no disponible, usando polling:', e);
+    }
+    return () => {
+      clearInterval(refresh);
+      clearInterval(clock);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const dayNotices = useMemo(
