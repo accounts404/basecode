@@ -81,7 +81,6 @@ export default function TableroTVView() {
     loadCleaners();
     const refresh = setInterval(load, REFRESH_MS);
     const clock = setInterval(() => setNow(new Date()), 1000);
-    // Suscripción en tiempo real: refresca el tablero apenas cambian los avisos
     let unsubscribe = null;
     try {
       unsubscribe = base44.entities.BoardNotice.subscribe(() => { load(); });
@@ -95,7 +94,6 @@ export default function TableroTVView() {
     };
   }, []);
 
-  // Carga los miembros de equipos una vez disponibles los nombres cortos
   useEffect(() => {
     if (Object.keys(nameMap).length) loadTeams();
   }, [nameMap]);
@@ -110,28 +108,16 @@ export default function TableroTVView() {
     return nameMap[stored] || stored;
   };
 
-  const dayNotices = useMemo(
-    () => notices.filter(n => n.type === 'day' && isVigente(n)),
-    [notices]
-  );
-  const allNotices = useMemo(
-    () => dayNotices.filter(n => n.target === 'all'),
-    [dayNotices]
-  );
-  const specificNotices = useMemo(
-    () => dayNotices.filter(n => n.target !== 'all'),
-    [dayNotices]
-  );
-  const officeNotices = useMemo(
-    () => notices.filter(n => n.type === 'office' && isVigente(n)),
-    [notices]
-  );
+  const dayNotices = useMemo(() => notices.filter(n => n.type === 'day' && isVigente(n)), [notices]);
+  const allNotices = useMemo(() => dayNotices.filter(n => n.target === 'all'), [dayNotices]);
+  const specificNotices = useMemo(() => dayNotices.filter(n => n.target !== 'all'), [dayNotices]);
+  const officeNotices = useMemo(() => notices.filter(n => n.type === 'office' && isVigente(n)), [notices]);
 
   const dateStr = formatInTimeZone(now, TZ, 'EEEE, d MMMM yyyy');
   const timeStr = formatInTimeZone(now, TZ, 'HH:mm');
 
   return (
-    <div className="tv-board bg-white text-[#0f1f3a] h-screen w-full overflow-hidden flex flex-col p-5 lg:p-7 relative">
+    <div className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 xl:h-screen xl:overflow-hidden relative">
       <style>{`
         @keyframes tv-enter { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
         @keyframes tv-slideup { 0% { opacity:0; transform:translateY(22px) } 100% { opacity:1; transform:translateY(0) } }
@@ -140,14 +126,13 @@ export default function TableroTVView() {
         .tv-slideup { animation: tv-slideup 1s cubic-bezier(.22,.7,.2,1) both; }
         .tv-glow { animation: tv-glow 4s ease-in-out infinite; }
 
-        /* Tabla profesional de avisos de oficina */
-        .tv-table { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+        .tv-table { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; width: 100%; }
         .tv-table-scroll { scrollbar-width: thin; scrollbar-color: #b9cbe4 transparent; }
         .tv-table-scroll::-webkit-scrollbar { width: 8px; }
         .tv-table-scroll::-webkit-scrollbar-thumb { background: #b9cbe4; border-radius: 8px; }
         .tv-th {
-          padding: 14px 18px;
-          font-size: 14px;
+          padding: clamp(10px, 1.4vw, 14px) clamp(12px, 1.4vw, 18px);
+          font-size: clamp(12px, 1.2vw, 14px);
           font-weight: 800;
           letter-spacing: 0.08em;
           text-transform: uppercase;
@@ -161,16 +146,16 @@ export default function TableroTVView() {
         .tv-row:nth-child(even) { background-color: #ffffff; }
         .tv-row:hover { background-color: #eaf2ff; }
         .tv-cell {
-          padding: 16px 18px;
+          padding: clamp(12px, 1.5vw, 16px) clamp(12px, 1.4vw, 18px);
           vertical-align: top;
           border-bottom: 1px solid #e4ebf5;
-          font-size: 16px;
+          font-size: clamp(14px, 1.4vw, 16px);
           line-height: 1.5;
           color: #1e3a5f;
         }
         .tv-cell-title {
           font-weight: 700;
-          font-size: 17px;
+          font-size: clamp(15px, 1.5vw, 17px);
           color: #0f1f3a;
           line-height: 1.3;
         }
@@ -179,7 +164,7 @@ export default function TableroTVView() {
           margin: 0;
           white-space: pre-wrap;
           word-break: break-word;
-          font-size: 16px;
+          font-size: clamp(14px, 1.4vw, 16px);
           line-height: 1.55;
           color: #1e3a5f;
         }
@@ -192,29 +177,30 @@ export default function TableroTVView() {
       `}</style>
 
       {/* Mast */}
-      <header className="tv-enter relative h-[140px] lg:h-[180px] rounded-[28px] overflow-hidden flex items-stretch shadow-[0_18px_38px_rgba(37,99,235,0.22)]"
-        style={{ background: `linear-gradient(115deg, ${BRAND_DEEP} 0%, ${BRAND_DARK} 68%, ${BRAND} 100%)` }}>
+      <header className="tv-enter relative rounded-[20px] sm:rounded-[24px] lg:rounded-[28px] overflow-hidden flex items-stretch shadow-[0_18px_38px_rgba(37,99,235,0.22)]"
+        style={{ background: `linear-gradient(115deg, ${BRAND_DEEP} 0%, ${BRAND_DARK} 68%, ${BRAND} 100%)`, minHeight: 'clamp(96px, 16vh, 180px)' }}>
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(255,255,255,0.25), transparent 55%)' }} />
-        <div className="relative z-10 w-full px-6 lg:px-10 py-6 flex items-center gap-6">
-          <div className="hidden lg:flex flex-shrink-0 items-center justify-center bg-white/95 rounded-2xl p-3 h-[120px] w-[120px] shadow-lg">
+        <div className="relative z-10 w-full px-4 sm:px-6 lg:px-10 py-4 sm:py-6 flex items-center gap-4 sm:gap-6">
+          <div className="hidden sm:flex flex-shrink-0 items-center justify-center bg-white/95 rounded-2xl p-2 sm:p-3 shadow-lg"
+            style={{ height: 'clamp(64px, 12vh, 120px)', width: 'clamp(64px, 12vh, 120px)' }}>
             <img src={LOGO} alt="RedOak Cleaning" className="max-w-full max-h-full object-contain" />
           </div>
           <div className="flex-1 flex flex-col justify-center min-w-0">
-            <div className="text-white/90 text-sm lg:text-lg font-semibold tracking-wide uppercase">{dateStr}</div>
-            <div className="text-white text-5xl lg:text-7xl font-bold leading-none mt-1">{timeStr}</div>
-            <div className="text-white/70 text-xs lg:text-sm mt-2">Tablero del día · RedOak Cleaning</div>
+            <div className="text-white/90 font-semibold tracking-wide uppercase truncate" style={{ fontSize: 'clamp(0.7rem, 1.6vw, 1.125rem)' }}>{dateStr}</div>
+            <div className="text-white font-bold leading-none mt-1 tabular-nums" style={{ fontSize: 'clamp(2.25rem, 9vw, 4.5rem)' }}>{timeStr}</div>
+            <div className="text-white/70 mt-1 sm:mt-2" style={{ fontSize: 'clamp(0.65rem, 1.4vw, 0.9rem)' }}>Tablero del día · RedOak Cleaning</div>
           </div>
           <div className="relative z-10 self-end hidden lg:flex">
-            <div className="tv-glow h-[120px] w-2.5 rounded-r-lg" style={{ background: '#93c5fd' }} />
+            <div className="tv-glow rounded-r-lg" style={{ height: 'clamp(64px, 12vh, 120px)', width: '10px', background: '#93c5fd' }} />
           </div>
         </div>
       </header>
 
       {/* Layout */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_440px] gap-5 lg:gap-7 mt-5 min-h-0">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] gap-4 lg:gap-6 mt-4 lg:mt-5 xl:flex-1 xl:min-h-0">
         {/* Main: cards */}
-        <main className="min-w-0 flex flex-col gap-5 min-h-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 content-start overflow-auto">
+        <main className="min-w-0 flex flex-col gap-4 lg:gap-5 min-h-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 content-start xl:overflow-y-auto xl:flex-1 xl:pr-1">
             {loading ? (
               <div className="col-span-2 text-center text-slate-400 py-10">Cargando avisos…</div>
             ) : specificNotices.length === 0 ? (
@@ -225,26 +211,26 @@ export default function TableroTVView() {
           </div>
 
           {allNotices.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
               {allNotices.slice(0, 2).map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i} />)}
             </div>
           )}
         </main>
 
         {/* Rail: office — avisos permanentes en formato tabla */}
-        <aside className="hidden lg:flex flex-col border border-[#cdd9e8] rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0">
-          <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-[#173e9e] to-[#2563eb]">
-            <div className="h-[52px] w-[52px] flex-shrink-0 flex items-center justify-center bg-white rounded-xl shadow-sm">
+        <aside className="flex flex-col border border-[#cdd9e8] rounded-[20px] sm:rounded-[24px] lg:rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0 max-h-[55vh] xl:max-h-none">
+          <div className="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 bg-gradient-to-r from-[#173e9e] to-[#2563eb]">
+            <div className="h-[44px] w-[44px] sm:h-[52px] sm:w-[52px] flex-shrink-0 flex items-center justify-center bg-white rounded-xl shadow-sm">
               <img src={LOGO} alt="" className="max-w-full max-h-full object-contain p-1" />
             </div>
             <div className="min-w-0">
-              <div className="text-lg font-bold text-white leading-tight tracking-wide">Avisos de la oficina</div>
-              <div className="text-xs text-blue-100">Información permanente · Léela todos los días</div>
+              <div className="font-bold text-white leading-tight tracking-wide" style={{ fontSize: 'clamp(1rem, 1.8vw, 1.25rem)' }}>Avisos de la oficina</div>
+              <div className="text-blue-100" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.8rem)' }}>Información permanente · Léela todos los días</div>
             </div>
           </div>
 
           <div className="tv-table-scroll flex-1 overflow-y-auto">
-            <table className="tv-table w-full border-collapse">
+            <table className="tv-table">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-[#eef3fb]">
                   <th className="tv-th text-left" style={{ width: '34%' }}>Título</th>
@@ -259,12 +245,8 @@ export default function TableroTVView() {
                 ) : (
                   officeNotices.map((n, i) => (
                     <tr key={n.id} className="tv-row tv-slideup" style={{ animationDelay: `${0.4 + i * 0.1}s` }}>
-                      <td className="tv-cell tv-cell-title">
-                        {n.title || 'Aviso'}
-                      </td>
-                      <td className="tv-cell tv-cell-body">
-                        <p className="tv-msg">{n.body}</p>
-                      </td>
+                      <td className="tv-cell tv-cell-title">{n.title || 'Aviso'}</td>
+                      <td className="tv-cell tv-cell-body"><p className="tv-msg">{n.body}</p></td>
                     </tr>
                   ))
                 )}
