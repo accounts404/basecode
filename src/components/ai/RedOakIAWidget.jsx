@@ -109,8 +109,8 @@ export default function RedOakIAWidget() {
 
   return (
     <>
-      {/* Floating button */}
-      {!open && (
+      {/* Floating button — oculto para no tapar contenido; el chat sigue accesible desde la página Asistente IA */}
+      {!open && false && (
         <button
           onClick={() => { setOpen(true); setMinimized(false); }}
           className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-2xl text-white font-semibold text-sm transition-all hover:scale-105 active:scale-95"
