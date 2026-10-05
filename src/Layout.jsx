@@ -88,7 +88,7 @@ const adminMenuItems = [
   { name: 'Historial Clientes', path: 'HistorialClientes', icon: History },
   { name: 'Asistente IA', path: 'AsistenteIA', icon: Bot },
   { name: 'Configuración', path: 'Configuracion', icon: Settings },
-  { name: 'Recurrencias (Aprobación)', path: 'RecurrenciasPreview', icon: CalendarClock, ownerOnly: true },
+  { name: 'Recurrencias (Aprobación)', path: 'RecurrenciasPreview', icon: CalendarClock },
   { name: 'Auditoría', path: 'Auditoria', icon: Shield, ownerOnly: true },
   { name: 'Tablero TV', path: 'TableroTV', icon: Monitor },
 ];
