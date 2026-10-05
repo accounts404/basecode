@@ -244,11 +244,8 @@ export default function TableroAdminPanel() {
         <div className="md:col-span-2">
           <Label>Mensaje</Label>
           <Textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-            placeholder={"Ej (viñetas, una por línea):\n- Cliente Pérez: revisar cocina\n- Cliente Gómez: llevar toallas extra\n- Cliente Ruiz: confirmar acceso"}
-            rows={4} />
-          <p className="text-xs text-slate-500 mt-1.5">
-            Tip: escribe cada punto en una línea que empiece con <code className="bg-slate-100 px-1 rounded">-</code>, <code className="bg-slate-100 px-1 rounded">•</code> o <code className="bg-slate-100 px-1 rounded">*</code> y se mostrará como viñeta. Así puedes agrupar varios clientes del mismo equipo en un solo aviso.
-          </p>
+            placeholder="Ej: Revisar el vehículo antes de salir. Sacar la basura del área de suministros."
+            rows={3} />
           {form.type === 'office' && (
             <p className="text-xs text-blue-600 mt-1.5">
               Los avisos de oficina se muestran siempre en el tablero (no rotan). Déjalo sin fecha de vigencia para que sea permanente.
