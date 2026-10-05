@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatInTimeZone } from 'date-fns-tz';
 import NoticeCard from './NoticeCard';
+import NoticeBody from './NoticeBody';
 
 const LOGO = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png";
 const TZ = 'Australia/Melbourne';
@@ -189,6 +190,26 @@ export default function TableroTVView() {
           color: #94a3b8;
           font-size: 15px;
         }
+        /* Viñetas para avisos con varios puntos */
+        .tv-bullets { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+        .tv-bullet-item { display: flex; align-items: flex-start; gap: 12px; }
+        .tv-bullet-dot {
+          flex-shrink: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 22px; height: 22px;
+          border-radius: 999px;
+          background: #2563eb;
+          color: #ffffff;
+          font-size: 18px;
+          font-weight: 700;
+          line-height: 1;
+          margin-top: 2px;
+        }
+        .tv-bullet-text { flex: 1; font-size: 16px; line-height: 1.55; color: #1e3a5f; }
+        .tv-paragraph { margin: 0; font-size: 16px; line-height: 1.55; color: #1e3a5f; }
+        .tv-space { height: 10px; }
       `}</style>
 
       {/* Mast */}
@@ -263,7 +284,7 @@ export default function TableroTVView() {
                         {n.title || 'Aviso'}
                       </td>
                       <td className="tv-cell tv-cell-body">
-                        <p className="tv-msg">{n.body}</p>
+                        <NoticeBody text={n.body} />
                       </td>
                     </tr>
                   ))

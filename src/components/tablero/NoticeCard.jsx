@@ -1,4 +1,5 @@
 import React from 'react';
+import NoticeBody from './NoticeBody';
 
 const BRAND = '#2563eb';
 const BRAND_DEEP = '#173e9e';
@@ -57,9 +58,7 @@ export default function NoticeCard({ notice, index = 0 }) {
 
       {/* Cuerpo del mensaje */}
       <div className="flex-1 px-5 py-4 min-h-[120px]">
-        <p className="text-[#1e3a5f] text-[17px] leading-relaxed whitespace-pre-wrap break-words">
-          {notice.body}
-        </p>
+        <NoticeBody text={notice.body} />
       </div>
     </article>
   );
