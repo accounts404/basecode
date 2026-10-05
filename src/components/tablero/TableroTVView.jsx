@@ -139,6 +139,56 @@ export default function TableroTVView() {
         .tv-enter { animation: tv-enter .7s cubic-bezier(.2,.75,.25,1) both; }
         .tv-slideup { animation: tv-slideup 1s cubic-bezier(.22,.7,.2,1) both; }
         .tv-glow { animation: tv-glow 4s ease-in-out infinite; }
+
+        /* Tabla profesional de avisos de oficina */
+        .tv-table { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+        .tv-table-scroll { scrollbar-width: thin; scrollbar-color: #b9cbe4 transparent; }
+        .tv-table-scroll::-webkit-scrollbar { width: 8px; }
+        .tv-table-scroll::-webkit-scrollbar-thumb { background: #b9cbe4; border-radius: 8px; }
+        .tv-th {
+          padding: 14px 18px;
+          font-size: 14px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #173e9e;
+          border-bottom: 2px solid #c5d6ee;
+          text-align: left;
+          white-space: nowrap;
+        }
+        .tv-row { transition: background-color .2s ease; }
+        .tv-row:nth-child(odd)  { background-color: #f7faff; }
+        .tv-row:nth-child(even) { background-color: #ffffff; }
+        .tv-row:hover { background-color: #eaf2ff; }
+        .tv-cell {
+          padding: 16px 18px;
+          vertical-align: top;
+          border-bottom: 1px solid #e4ebf5;
+          font-size: 16px;
+          line-height: 1.5;
+          color: #1e3a5f;
+        }
+        .tv-cell-title {
+          font-weight: 700;
+          font-size: 17px;
+          color: #0f1f3a;
+          line-height: 1.3;
+        }
+        .tv-cell-body { max-width: 0; }
+        .tv-msg {
+          margin: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+          font-size: 16px;
+          line-height: 1.55;
+          color: #1e3a5f;
+        }
+        .tv-empty {
+          padding: 32px;
+          text-align: center;
+          color: #94a3b8;
+          font-size: 15px;
+        }
       `}</style>
 
       {/* Mast */}
@@ -181,34 +231,45 @@ export default function TableroTVView() {
           )}
         </main>
 
-        {/* Rail: office — avisos permanentes siempre visibles */}
-        <aside className="hidden lg:flex flex-col border border-[#cdd9e8] rounded-[26px] bg-[#f5f8ff] shadow-[0_12px_30px_rgba(37,99,235,0.10)] p-5 min-h-0 overflow-hidden">
-          <div className="flex items-center gap-3 pb-4 border-b-2 border-[#2563eb]/20">
-            <div className="h-[64px] w-[64px] flex-shrink-0 flex items-center justify-center bg-white rounded-2xl border border-[#cdd9e8] shadow-sm">
-              <img src={LOGO} alt="" className="max-w-full max-h-full object-contain p-1.5" />
+        {/* Rail: office — avisos permanentes en formato tabla */}
+        <aside className="hidden lg:flex flex-col border border-[#cdd9e8] rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0">
+          <div className="flex items-center gap-3 px-5 py-4 bg-gradient-to-r from-[#173e9e] to-[#2563eb]">
+            <div className="h-[52px] w-[52px] flex-shrink-0 flex items-center justify-center bg-white rounded-xl shadow-sm">
+              <img src={LOGO} alt="" className="max-w-full max-h-full object-contain p-1" />
             </div>
             <div className="min-w-0">
-              <div className="text-lg font-bold text-[#173e9e] leading-tight">Avisos de la oficina</div>
-              <div className="text-xs text-slate-500">Información permanente · Léela todos los días</div>
+              <div className="text-lg font-bold text-white leading-tight tracking-wide">Avisos de la oficina</div>
+              <div className="text-xs text-blue-100">Información permanente · Léela todos los días</div>
             </div>
           </div>
-          <div className="mt-4 flex flex-col gap-3 flex-1 overflow-y-auto pr-1">
-            {officeNotices.length === 0 ? (
-              <div className="text-center text-slate-400 py-10">Sin avisos de oficina.</div>
-            ) : (
-              officeNotices.map((n, i) => (
-                <div key={n.id} className="tv-slideup relative rounded-[18px] bg-white border border-[#dbe5f1] shadow-[0_5px_14px_rgba(37,99,235,0.06)] overflow-hidden flex flex-col"
-                  style={{ animationDelay: `${0.45 + i * 0.12}s` }}>
-                  <div className="h-1 w-full" style={{ background: BRAND }} />
-                  <div className="p-4 flex flex-col gap-2">
-                    {n.title && <div className="text-sm font-bold text-[#173e9e] truncate">{n.title}</div>}
-                    <div className="overflow-hidden">
-                      <p className="text-[#1e3a5f] text-[15px] leading-relaxed whitespace-pre-wrap">{n.body}</p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+
+          <div className="tv-table-scroll flex-1 overflow-y-auto">
+            <table className="tv-table w-full border-collapse">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#eef3fb]">
+                  <th className="tv-th text-left" style={{ width: '34%' }}>Título</th>
+                  <th className="tv-th text-left">Mensaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {officeNotices.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="tv-empty">Sin avisos de oficina.</td>
+                  </tr>
+                ) : (
+                  officeNotices.map((n, i) => (
+                    <tr key={n.id} className="tv-row tv-slideup" style={{ animationDelay: `${0.4 + i * 0.1}s` }}>
+                      <td className="tv-cell tv-cell-title">
+                        {n.title || 'Aviso'}
+                      </td>
+                      <td className="tv-cell tv-cell-body">
+                        <p className="tv-msg">{n.body}</p>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </aside>
       </div>
