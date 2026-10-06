@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatInTimeZone } from 'date-fns-tz';
 import NoticeCard from './NoticeCard';
+import { getDailyPhrase } from './motivationalPhrases';
 
 const LOGO = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png";
 const TZ = 'Australia/Melbourne';
@@ -115,6 +116,7 @@ export default function TableroTVView() {
 
   const dateStr = formatInTimeZone(now, TZ, 'EEEE, d MMMM yyyy');
   const timeStr = formatInTimeZone(now, TZ, 'HH:mm');
+  const phrase = useMemo(() => getDailyPhrase(now), [dateStr]);
 
   return (
     <div className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 xl:h-screen xl:overflow-hidden relative">
@@ -174,6 +176,8 @@ export default function TableroTVView() {
           color: #94a3b8;
           font-size: 15px;
         }
+        .tv-phrase { text-shadow: 0 1px 2px rgba(7, 23, 64, 0.35); }
+        .tv-phrase-text { text-wrap: balance; }
       `}</style>
 
       {/* Mast */}
@@ -187,7 +191,13 @@ export default function TableroTVView() {
           </div>
           <div className="flex-1 flex flex-col justify-center min-w-0">
             <div className="text-white/90 font-semibold tracking-wide uppercase truncate" style={{ fontSize: 'clamp(0.7rem, 1.6vw, 1.125rem)' }}>{dateStr}</div>
-            <div className="text-white font-bold leading-none mt-1 tabular-nums" style={{ fontSize: 'clamp(2.25rem, 9vw, 4.5rem)' }}>{timeStr}</div>
+            <div className="flex items-end gap-3 sm:gap-5 mt-1 flex-wrap">
+              <div className="text-white font-bold leading-none tabular-nums" style={{ fontSize: 'clamp(2.25rem, 9vw, 4.5rem)' }}>{timeStr}</div>
+              <div className="tv-phrase flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2 max-w-[min(60ch,52vw)]">
+                <span className="tv-phrase-bar flex-shrink-0 rounded-full" style={{ width: '4px', height: 'clamp(28px, 5vh, 52px)', background: '#93c5fd' }} />
+                <p className="tv-phrase-text italic text-blue-50 leading-snug" style={{ fontSize: 'clamp(0.8rem, 1.7vw, 1.15rem)' }}>"{phrase}"</p>
+              </div>
+            </div>
             <div className="text-white/70 mt-1 sm:mt-2" style={{ fontSize: 'clamp(0.65rem, 1.4vw, 0.9rem)' }}>Tablero del día · RedOak Cleaning</div>
           </div>
           <div className="relative z-10 self-end hidden lg:flex">
