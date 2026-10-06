@@ -119,7 +119,7 @@ export default function TableroTVView() {
   const phrase = useMemo(() => getDailyPhrase(now), [dateStr]);
 
   return (
-    <div className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 xl:h-screen xl:overflow-hidden relative">
+    <div className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 lg:h-[100dvh] lg:overflow-hidden relative">
       <style>{`
         @keyframes tv-enter { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
         @keyframes tv-slideup { 0% { opacity:0; transform:translateY(22px) } 100% { opacity:1; transform:translateY(0) } }
@@ -207,28 +207,25 @@ export default function TableroTVView() {
       </header>
 
       {/* Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] gap-4 lg:gap-6 mt-4 lg:mt-5 xl:flex-1 xl:min-h-0">
-        {/* Main: cards */}
-        <main className="min-w-0 flex flex-col gap-4 lg:gap-5 min-h-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 content-start xl:overflow-y-auto xl:flex-1 xl:pr-1">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-4 lg:gap-6 mt-4 lg:mt-5 lg:flex-1 lg:min-h-0">
+        {/* Main: cards — zona única con scroll interno */}
+        <main className="min-w-0 flex flex-col min-h-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 content-start lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
             {loading ? (
               <div className="col-span-2 text-center text-slate-400 py-10">Cargando avisos…</div>
-            ) : specificNotices.length === 0 ? (
+            ) : (specificNotices.length === 0 && allNotices.length === 0) ? (
               <div className="col-span-2 text-center text-slate-400 py-10">No hay notas del día para limpiadores.</div>
             ) : (
-              specificNotices.slice(0, 10).map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i} />)
+              <>
+                {specificNotices.map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i} />)}
+                {allNotices.map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i + specificNotices.length} />)}
+              </>
             )}
           </div>
-
-          {allNotices.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5">
-              {allNotices.slice(0, 2).map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i} />)}
-            </div>
-          )}
         </main>
 
         {/* Rail: office — avisos permanentes en formato tabla */}
-        <aside className="flex flex-col border border-[#cdd9e8] rounded-[20px] sm:rounded-[24px] lg:rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0 max-h-[55vh] xl:max-h-none">
+        <aside className="flex flex-col border border-[#cdd9e8] rounded-[20px] sm:rounded-[24px] lg:rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0 max-h-[55vh] lg:max-h-none">
           <div className="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 bg-gradient-to-r from-[#173e9e] to-[#2563eb]">
             <div className="h-[44px] w-[44px] sm:h-[52px] sm:w-[52px] flex-shrink-0 flex items-center justify-center bg-white rounded-xl shadow-sm">
               <img src={LOGO} alt="" className="max-w-full max-h-full object-contain p-1" />
