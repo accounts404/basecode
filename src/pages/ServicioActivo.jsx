@@ -444,7 +444,7 @@ export default function ServicioActivoPage() {
     const defaultClientPhotos = getDefaultClientPhotos();
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4 pb-48">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-3 sm:p-4">
             <div className="max-w-2xl mx-auto space-y-4">
                 {error && (
                     <Alert variant="destructive" className="border-2">
@@ -948,9 +948,8 @@ export default function ServicioActivoPage() {
                     </Card>
                 )}
 
-                {/* Botones de Acción Estilo "Dock" Nativo con Safe-Area Fix */}
-            <div className="fixed bottom-0 left-0 right-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.15)] z-[200]">
-                <div className="max-w-2xl mx-auto flex flex-col gap-3">
+                {/* Botones de Acción al final del contenido (en flujo, no fijos) */}
+            <div className="max-w-2xl mx-auto flex flex-col gap-3 pb-8">
                     <Button
                         onClick={() => setShowReportDialog(true)}
                         disabled={clockingOut}
@@ -977,7 +976,6 @@ export default function ServicioActivoPage() {
                             </>
                         )}
                     </Button>
-                </div>
             </div>
             </div>
 
