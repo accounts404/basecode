@@ -949,16 +949,15 @@ export default function ServicioActivoPage() {
                 )}
 
                 {/* Botones de Acción Estilo "Dock" Nativo con Safe-Area Fix */}
-            <div className="fixed bottom-0 left-0 right-0 px-4 pt-4 pb-8 sm:pb-6 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.15)] z-[100]">
+            <div className="fixed bottom-0 left-0 right-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.15)] z-[200]">
                 <div className="max-w-2xl mx-auto flex flex-col gap-3">
                     <Button
                         onClick={() => setShowReportDialog(true)}
-                        variant="outline"
                         disabled={clockingOut}
-                        className="w-full h-12 text-sm sm:text-base font-semibold border-2 border-amber-500 text-amber-700 hover:bg-amber-50 bg-white"
+                        className="w-full h-14 sm:h-16 text-sm sm:text-base font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg border-0 transition-all"
                     >
-                        <AlertTriangle className="w-5 h-5 mr-2" />
-                        Reportar un Problema
+                        <AlertTriangle className="w-6 h-6 mr-2" />
+                        Reportar un Problema al Admin
                     </Button>
                     
                     <Button
