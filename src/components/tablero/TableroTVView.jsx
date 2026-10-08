@@ -56,14 +56,17 @@ export default function TableroTVView() {
       });
       setNameMap(map);
       const isProperName = (s) => !!s && /\s/.test(s.trim());
-      const byId = {};
-      (users || []).forEach(u => {
-        if (!u.id) return;
-        // Preferir full_name (nombre de facturación); si no existe, usar display_name
-        // solo cuando parezca un nombre real (con espacio), no un handle de usuario.
+      const pickName = (u) => {
+        const fn = (u.full_name || '').trim();
         const dn = (u.display_name || '').trim();
-        byId[u.id] = u.full_name || (isProperName(dn) ? dn : '');
-      });
+        // Usar el primero que parezca un nombre real (con espacio); si ninguno lo es,
+        // devolver lo que exista (mantiene handles solo como último recurso).
+        if (isProperName(fn)) return fn;
+        if (isProperName(dn)) return dn;
+        return fn || dn;
+      };
+      const byId = {};
+      (users || []).forEach(u => { if (u.id) byId[u.id] = pickName(u); });
       setUserById(byId);
     } catch (e) {
       console.warn('No se pudo cargar mapa de nombres cortos:', e);
