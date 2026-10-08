@@ -252,9 +252,13 @@ export default function TableroAdminPanel() {
             <select value={form.target_name} onChange={e => setForm(f => ({ ...f, target_name: e.target.value }))}
               className="w-full h-10 rounded-md border border-input bg-background px-3 mt-1">
               <option value="">— Selecciona un equipo —</option>
-              {teams.map(t => (
-                <option key={t.id} value={t.name}>{t.name} · {t.date}{t.members.length ? ` (${t.members.join(', ')})` : ''}</option>
-              ))}
+              {teams.map(t => {
+                const memberLabel = t.members.length ? t.members.join(', ') : '';
+                const valueLabel = t.name + (memberLabel ? ` · ${memberLabel}` : '');
+                return (
+                  <option key={t.id} value={valueLabel}>{valueLabel} · {t.date}</option>
+                );
+              })}
             </select>
             {teams.length === 0 && (
               <p className="text-xs text-slate-400 mt-1">No hay equipos asignados para hoy o fechas futuras.</p>
