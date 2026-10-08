@@ -72,13 +72,13 @@ export default function TableroTVView() {
         .map(t => {
           // Resolver nombres de facturación desde los IDs de los miembros
           const ids = t.team_member_ids || [];
-          const fromIds = ids.map(id => userById[id]).filter(Boolean);
+          const fromIds = ids.map(id => userById[id]).filter(Boolean).map(s => s.trim());
           const members = fromIds.length
             ? fromIds
-            : (t.team_members_names || []).map(m => nameMap[m] || m);
-          const firstRaw = (t.team_members_names && t.team_members_names[0]) || '';
+            : (t.team_members_names || []).map(m => (nameMap[m] || m).trim());
+          const firstRaw = ((t.team_members_names && t.team_members_names[0]) || '').trim();
           const firstDisplay = firstRaw ? (nameMap[firstRaw] || firstRaw) : '';
-          const key = t.team_name || (firstDisplay ? `Equipo ${firstDisplay}` : 'Equipo');
+          const key = (t.team_name || (firstDisplay ? `Equipo ${firstDisplay}` : 'Equipo')).trim();
           return { key, members, firstRaw, firstDisplay };
         })
         .filter(t => t.members.length);
@@ -114,15 +114,16 @@ export default function TableroTVView() {
     if (n.target === 'all') return n.target_name || 'Todos';
     const stored = n.target_name || '';
     if (n.target === 'team') {
+      const s = stored.trim();
       // Coincidencia exacta por key
-      let team = teams.find(t => t.key === stored);
+      let team = teams.find(t => t.key === s);
       // Coincidencia por prefijo (el valor guardado puede traer miembros anexos)
-      if (!team) team = teams.find(t => stored.startsWith(t.key));
+      if (!team) team = teams.find(t => s.startsWith(t.key) || t.key.startsWith(s));
       // Coincidencia por nombre del primer miembro dentro del valor guardado
       if (!team) {
         team = teams.find(t =>
-          (t.firstRaw && stored.includes(t.firstRaw)) ||
-          (t.firstDisplay && stored.includes(t.firstDisplay))
+          (t.firstRaw && s.includes(t.firstRaw)) ||
+          (t.firstDisplay && s.includes(t.firstDisplay))
         );
       }
       if (team && team.members.length) return team.members.join(' · ');
