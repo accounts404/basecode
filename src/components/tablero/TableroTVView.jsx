@@ -55,8 +55,15 @@ export default function TableroTVView() {
         }
       });
       setNameMap(map);
+      const isProperName = (s) => !!s && /\s/.test(s.trim());
       const byId = {};
-      (users || []).forEach(u => { if (u.id) byId[u.id] = u.full_name || u.display_name || ''; });
+      (users || []).forEach(u => {
+        if (!u.id) return;
+        // Preferir full_name (nombre de facturación); si no existe, usar display_name
+        // solo cuando parezca un nombre real (con espacio), no un handle de usuario.
+        const dn = (u.display_name || '').trim();
+        byId[u.id] = u.full_name || (isProperName(dn) ? dn : '');
+      });
       setUserById(byId);
     } catch (e) {
       console.warn('No se pudo cargar mapa de nombres cortos:', e);
@@ -70,16 +77,19 @@ export default function TableroTVView() {
       const list = (assignments || [])
         .filter(t => t.date && t.date >= today && t.status !== 'cancelled')
         .map(t => {
-          // Resolver nombres de facturación desde los IDs de los miembros
+          // Resolver nombres desde los IDs, con respaldo en team_members_names por índice
           const ids = t.team_member_ids || [];
-          const fromIds = ids.map(id => userById[id]).filter(Boolean).map(s => s.trim());
-          const members = fromIds.length
-            ? fromIds
-            : (t.team_members_names || []).map(m => (nameMap[m] || m).trim());
+          const rawNames = (t.team_members_names || []).map(m => m.trim());
+          const members = ids.map((id, i) => {
+            const nice = (userById[id] || '').trim();
+            if (nice) return nice;
+            return rawNames[i] || '';
+          }).filter(Boolean);
+          const finalMembers = members.length ? members : rawNames;
           const firstRaw = ((t.team_members_names && t.team_members_names[0]) || '').trim();
           const firstDisplay = firstRaw ? (nameMap[firstRaw] || firstRaw) : '';
           const key = (t.team_name || (firstDisplay ? `Equipo ${firstDisplay}` : 'Equipo')).trim();
-          return { key, members, firstRaw, firstDisplay };
+          return { key, members: finalMembers, firstRaw, firstDisplay };
         })
         .filter(t => t.members.length);
       setTeams(list);
