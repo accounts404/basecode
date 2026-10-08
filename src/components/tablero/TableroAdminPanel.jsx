@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Trash2, Plus, Eye, EyeOff, RefreshCw, Users, UserCheck } from 'lucide-react';
+import { Trash2, Plus, Eye, EyeOff, RefreshCw, Users, UserCheck, Pencil, X } from 'lucide-react';
 
 const EMPTY = {
   type: 'day',
@@ -42,6 +42,7 @@ export default function TableroAdminPanel() {
   const [loading, setLoading] = useState(true);
   const [cleaners, setCleaners] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [editingId, setEditingId] = useState(null);
 
   const load = async () => {
     try {
@@ -116,7 +117,7 @@ export default function TableroAdminPanel() {
     }
     setSaving(true);
     try {
-      await base44.entities.BoardNotice.create({
+      const payload = {
         type: form.type,
         target: form.target,
         target_name: form.target === 'all' ? 'Todos' : form.target_name.trim(),
@@ -124,16 +125,40 @@ export default function TableroAdminPanel() {
         body: form.body.trim(),
         priority: form.priority,
         display_until: form.display_until || null,
-        active: true,
-      });
+      };
+      if (editingId) {
+        await base44.entities.BoardNotice.update(editingId, payload);
+        setEditingId(null);
+      } else {
+        await base44.entities.BoardNotice.create({ ...payload, active: true });
+      }
       setForm(EMPTY);
       await load();
     } catch (err) {
-      console.error('Error creando aviso:', err);
-      alert('No se pudo crear el aviso: ' + (err.message || 'error'));
+      console.error('Error guardando aviso:', err);
+      alert('No se pudo guardar el aviso: ' + (err.message || 'error'));
     } finally {
       setSaving(false);
     }
+  };
+
+  const startEdit = (n) => {
+    setEditingId(n.id);
+    setForm({
+      type: n.type || 'day',
+      target: n.target || 'all',
+      target_name: n.target_name || (n.target === 'all' ? 'Todos' : ''),
+      title: n.title || '',
+      body: n.body || '',
+      priority: n.priority || 'normal',
+      display_until: n.display_until || '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm(EMPTY);
   };
 
   const remove = async (id) => {
@@ -165,7 +190,15 @@ export default function TableroAdminPanel() {
         <Button variant="outline" size="sm" onClick={() => { load(); loadRecipients(); }}><RefreshCw className="w-4 h-4" /> Refrescar</Button>
       </div>
 
-      <form onSubmit={submit} className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form onSubmit={submit} className={`bg-white rounded-2xl border p-5 mb-6 grid grid-cols-1 md:grid-cols-2 gap-4 ${editingId ? 'border-blue-400 shadow-lg' : 'border-slate-200'}`}>
+        <div className="md:col-span-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-700">{editingId ? 'Editando aviso' : 'Nuevo aviso'}</h2>
+          {editingId && (
+            <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
+              <X className="w-4 h-4" /> Cancelar edición
+            </Button>
+          )}
+        </div>
         <div>
           <Label>Tipo</Label>
           <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
@@ -258,7 +291,7 @@ export default function TableroAdminPanel() {
         </div>
         <div className="flex items-end">
           <Button type="submit" disabled={saving || !form.body.trim()} className="w-full">
-            <Plus className="w-4 h-4" /> {saving ? 'Guardando…' : 'Publicar aviso'}
+            {editingId ? <><Pencil className="w-4 h-4" /> {saving ? 'Guardando…' : 'Guardar cambios'}</> : <><Plus className="w-4 h-4" /> {saving ? 'Guardando…' : 'Publicar aviso'}</>}
           </Button>
         </div>
       </form>
@@ -286,6 +319,9 @@ export default function TableroAdminPanel() {
                 {n.display_until && <div className="text-xs text-slate-400 mt-1">Vigente hasta: {n.display_until}</div>}
               </div>
               <div className="flex gap-1">
+                <Button variant="ghost" size="sm" onClick={() => startEdit(n)} title="Editar">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => toggleActive(n)} title={n.active ? 'Ocultar' : 'Mostrar'}>
                   {n.active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </Button>
