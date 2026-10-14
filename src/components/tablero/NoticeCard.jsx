@@ -21,46 +21,66 @@ export default function NoticeCard({ notice, index = 0 }) {
 
   return (
     <article
-      className="tv-notice relative flex flex-col rounded-3xl bg-white border shadow-[0_10px_28px_rgba(15,31,58,0.10)] overflow-hidden tv-enter"
+      className="tv-notice relative flex flex-col rounded-2xl bg-white border overflow-hidden"
       style={{
-        animationDelay: `${index * 0.08}s`,
+        animationDelay: `${index * 0.06}s`,
         borderColor: isHigh ? '#fca5a5' : '#d8e1ee',
+        boxShadow: '0 6px 18px rgba(15,31,58,0.08)',
       }}
     >
       {/* Barra de acento superior */}
-      <div className="h-1.5 w-full" style={{ background: accent }} />
+      <div className="tv-notice-bar w-full flex-shrink-0" style={{ background: accent, height: 'clamp(3px, 0.7cqh, 6px)' }} />
 
-      {/* Encabezado: destinatario + prioridad */}
-      <div className="flex items-center gap-4 px-5 py-4 bg-[#f5f8ff] border-b border-[#e3ebf7]">
+      {/* Encabezado compacto */}
+      <div className="tv-notice-head flex items-center gap-2 px-3 py-2 bg-[#f5f8ff] border-b border-[#e3ebf7] flex-shrink-0">
         <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-white font-bold text-xl shadow-sm"
-          style={{ background: `linear-gradient(135deg, ${accent}, ${isHigh ? '#b91c1c' : BRAND_DEEP})` }}
+          className="rounded-xl flex items-center justify-center flex-shrink-0 text-white font-bold shadow-sm"
+          style={{
+            background: `linear-gradient(135deg, ${accent}, ${isHigh ? '#b91c1c' : BRAND_DEEP})`,
+            width: 'clamp(26px, 4.5cqw, 40px)',
+            height: 'clamp(26px, 4.5cqw, 40px)',
+            fontSize: 'clamp(0.7rem, 1.6cqw, 1.05rem)',
+          }}
         >
           {initial}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{audience}</div>
-          <div className="text-lg font-bold text-[#0f1f3a] leading-tight truncate">{name}</div>
+          <div className="font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: 'clamp(0.5rem, 1cqw, 0.65rem)' }}>{audience}</div>
+          <div className="font-bold text-[#0f1f3a] leading-tight truncate" style={{ fontSize: 'clamp(0.7rem, 1.7cqw, 1rem)' }}>{name}</div>
           {notice.title && (
-            <div className="text-sm text-slate-500 truncate mt-0.5">{notice.title}</div>
+            <div className="text-slate-500 truncate" style={{ fontSize: 'clamp(0.55rem, 1.2cqw, 0.75rem)' }}>{notice.title}</div>
           )}
         </div>
         {isHigh && (
           <span
-            className="text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full text-white flex-shrink-0"
-            style={{ background: DANGER }}
+            className="font-bold uppercase tracking-wide rounded-full text-white flex-shrink-0"
+            style={{ background: DANGER, fontSize: 'clamp(0.45rem, 0.9cqw, 0.6rem)', padding: '2px 6px' }}
           >
             Urgente
           </span>
         )}
       </div>
 
-      {/* Cuerpo del mensaje */}
-      <div className="flex-1 px-5 py-4 min-h-[120px]">
-        <p className="text-[#1e3a5f] text-[17px] leading-relaxed whitespace-pre-wrap break-words">
+      {/* Cuerpo: se ajusta al alto disponible; el texto se encoge con cqw/cqh */}
+      <div className="tv-notice-body flex-1 min-h-0 overflow-hidden px-3 py-2">
+        <p
+          className="text-[#1e3a5f] whitespace-pre-wrap"
+          style={{
+            fontSize: 'clamp(0.58rem, min(2.6cqw, 4cqh), 1.05rem)',
+            lineHeight: 1.3,
+            overflowWrap: 'anywhere',
+            margin: 0,
+          }}
+        >
           {notice.body}
         </p>
       </div>
+
+      <style>{`
+        .tv-notice { container-type: size; height: 100%; min-height: 0; }
+        @keyframes tv-enter { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+        .tv-notice { animation: tv-enter .5s ease-out both; }
+      `}</style>
     </article>
   );
 }
