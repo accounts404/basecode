@@ -38,6 +38,21 @@ export default function TableroTVView() {
   // Auto-scroll para TV: mueve el contenido lentamente, pausa al final y vuelve arriba.
   const mainScrollRef = useRef(null);
   const officeScrollRef = useRef(null);
+  const boardRef = useRef(null);
+
+  // Busca el contenedor scrollable más cercano al tablero (kiosk overlay o área de contenido).
+  // Si no hay ninguno, devuelve null para usar window.
+  const findScrollContainer = () => {
+    let el = boardRef.current && boardRef.current.parentElement;
+    while (el) {
+      const style = window.getComputedStyle(el);
+      const ov = (style.overflowY || '').toLowerCase();
+      const canScroll = (ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight + 1;
+      if (canScroll) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
 
   useEffect(() => {
     const SCROLL_STEP = 1;        // px por tick
@@ -47,30 +62,50 @@ export default function TableroTVView() {
     const READING_PAUSE_MS = 1800;
 
     const setupWindowAutoScroll = () => {
+      // Contenedor real de scroll: el overlay kiosk (fixed, overflow-y-auto) o el área
+      // de contenido del layout; si no se encuentra, se usa window.
+      let container = findScrollContainer();
+      const containerValid = (el) => {
+        if (!el || !el.parentElement) return false;
+        const ov = (window.getComputedStyle(el).overflowY || '').toLowerCase();
+        return (ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight + 1;
+      };
+      const ensure = () => {
+        if (containerValid(container)) return container;
+        container = findScrollContainer();
+        return container;
+      };
       let paused = false;
       let bottomPauseUntil = 0;
       let topPauseUntil = 0;
       let readingPauseUntil = 0;
       let stepCount = 0;
 
+      const getMax = () => container
+        ? container.scrollHeight - container.clientHeight
+        : (document.documentElement.scrollHeight || 0) - window.innerHeight;
+      const getTop = () => container ? container.scrollTop : (window.scrollY || window.pageYOffset);
+      const setTop = (t) => { if (container) container.scrollTop = t; else window.scrollTo({ top: t, behavior: 'auto' }); };
+
       const tick = () => {
         if (paused) return;
         const now = Date.now();
         if (now < topPauseUntil) return;
-        const max = (document.documentElement.scrollHeight || 0) - window.innerHeight;
+        ensure();
+        const max = getMax();
         if (max <= 1) return; // no hay nada que desplazar
-        const scrollTop = window.scrollY || window.pageYOffset;
+        const scrollTop = getTop();
         if (scrollTop >= max - 1) {
           if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
           if (now < bottomPauseUntil) return;
-          window.scrollTo({ top: 0, behavior: 'auto' });
+          setTop(0);
           bottomPauseUntil = 0;
           topPauseUntil = now + PAUSE_MS;
           stepCount = 0;
           return;
         }
         if (now < readingPauseUntil) return;
-        window.scrollTo({ top: scrollTop + SCROLL_STEP, behavior: 'auto' });
+        setTop(scrollTop + SCROLL_STEP);
         stepCount += 1;
         if (stepCount >= READING_STEPS) {
           stepCount = 0;
@@ -312,7 +347,7 @@ export default function TableroTVView() {
   const phrase = useMemo(() => getDailyPhrase(now), [dateStr]);
 
   return (
-    <div className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 relative">
+    <div ref={boardRef} className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 relative">
       <style>{`
         @keyframes tv-enter { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
         @keyframes tv-slideup { 0% { opacity:0; transform:translateY(22px) } 100% { opacity:1; transform:translateY(0) } }

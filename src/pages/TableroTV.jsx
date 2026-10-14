@@ -62,7 +62,7 @@ export default function TableroTV() {
   // Modo pantalla completa: overlay que cubre TODO (menú lateral incluido)
   if (kiosk) {
     return (
-      <div className="fixed inset-0 z-[100000] bg-white overflow-hidden">
+      <div className="fixed inset-0 z-[100000] bg-white overflow-y-auto">
         <TableroTVView />
         <button
           onClick={exitKiosk}
