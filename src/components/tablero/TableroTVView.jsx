@@ -138,6 +138,17 @@ export default function TableroTVView() {
     return null;
   };
 
+  // Extrae solo los nombres de limpiadores de un target_name de equipo
+  // Formato guardado: "Equipo <lider> · <nombre1, nombre2, ...>"
+  const extractMembers = (target_name) => {
+    let s = (target_name || '').trim().replace(/^Equipo\s*:?\s*/i, '');
+    const idx = s.indexOf(' · ');
+    if (idx >= 0) {
+      return s.slice(idx + 3).split(',').map(x => x.trim()).filter(Boolean);
+    }
+    return s ? [s] : ['—'];
+  };
+
   const dayNotices = useMemo(() => notices.filter(n => n.type === 'day' && isVigente(n)), [notices]);
   const allNotices = useMemo(() => dayNotices.filter(n => n.target === 'all'), [dayNotices]);
   const targetedNotices = useMemo(() => dayNotices.filter(n => n.target !== 'all'), [dayNotices]);
@@ -149,9 +160,12 @@ export default function TableroTVView() {
       const team = matchTeam(n);
       const key = team ? team.key : (n.target_name || 'Sin equipo asignado');
       if (!map.has(key)) {
+        const members = team
+          ? team.members
+          : (n.target === 'team' ? extractMembers(n.target_name) : [n.target_name || '—']);
         map.set(key, {
           key,
-          members: team ? team.members : [n.target_name || '—'],
+          members,
           notes: [],
         });
       }
