@@ -30,7 +30,10 @@ export default function TableroTVView() {
   const [loading, setLoading] = useState(true);
   const [nameMap, setNameMap] = useState({});
   const [userById, setUserById] = useState({});
+  const [billingNameMap, setBillingNameMap] = useState({});
+  const [handleToBilling, setHandleToBilling] = useState({});
   const [teams, setTeams] = useState([]);
+  const cleanersRef = useRef([]);
 
   // Auto-scroll para TV: mueve el contenido lentamente, pausa al final y vuelve arriba.
   const mainScrollRef = useRef(null);
@@ -106,6 +109,7 @@ export default function TableroTVView() {
         }
       });
       setNameMap(map);
+      cleanersRef.current = users || [];
       const isProperName = (s) => !!s && /\s/.test(s.trim());
       const pickName = (u) => {
         const fn = (u.full_name || '').trim();
@@ -124,6 +128,28 @@ export default function TableroTVView() {
     }
   };
 
+  // Carga el nombre de facturación real de cada limpiador (WorkEntry.cleaner_name),
+  // que es el nombre que se usa en horarios y facturas, no el handle de correo.
+  const loadBillingNames = async () => {
+    try {
+      const page = await base44.entities.WorkEntry.filter(
+        {},
+        { sort: '-created_date', limit: 300 }
+      );
+      const items = (page && page.items) ? page.items : (page || []);
+      const map = {};
+      (items || []).forEach((e) => {
+        const name = (e.cleaner_name || '').trim();
+        if (e.cleaner_id && name && !map[e.cleaner_id]) {
+          map[e.cleaner_id] = name;
+        }
+      });
+      setBillingNameMap(map);
+    } catch (e) {
+      console.warn('No se pudo cargar nombres de facturación:', e);
+    }
+  };
+
   const loadTeams = async () => {
     try {
       const assignments = await base44.entities.DailyTeamAssignment.list('-date', 100);
@@ -134,14 +160,22 @@ export default function TableroTVView() {
           // Resolver nombres desde los IDs, con respaldo en team_members_names por índice
           const ids = t.team_member_ids || [];
           const rawNames = (t.team_members_names || []).map(m => m.trim());
-          const members = ids.map((id, i) => {
+          const resolveMember = (id, i) => {
+            const billing = (billingNameMap[id] || '').trim();
+            if (billing) return billing;
             const nice = (userById[id] || '').trim();
             if (nice) return nice;
             return rawNames[i] || '';
-          }).filter(Boolean);
+          };
+          const members = ids.map(resolveMember).filter(Boolean);
           const finalMembers = members.length ? members : rawNames;
+          const firstId = ids[0];
           const firstRaw = ((t.team_members_names && t.team_members_names[0]) || '').trim();
-          const firstDisplay = firstRaw ? (nameMap[firstRaw] || firstRaw) : '';
+          const firstDisplay =
+            (firstId && (billingNameMap[firstId] || '').trim()) ||
+            (firstId && (userById[firstId] || '').trim()) ||
+            firstRaw ||
+            (nameMap[firstRaw] || '');
           const key = (t.team_name || (firstDisplay ? `Equipo ${firstDisplay}` : 'Equipo')).trim();
           return { key, members: finalMembers, firstRaw, firstDisplay };
         })
@@ -155,6 +189,7 @@ export default function TableroTVView() {
   useEffect(() => {
     load();
     loadCleaners();
+    loadBillingNames();
     const refresh = setInterval(load, REFRESH_MS);
     const clock = setInterval(() => setNow(new Date()), 1000);
     let unsubscribe = null;
@@ -171,8 +206,18 @@ export default function TableroTVView() {
   }, []);
 
   useEffect(() => {
-    if (Object.keys(userById).length) loadTeams();
-  }, [userById]);
+    if (Object.keys(userById).length || Object.keys(billingNameMap).length) loadTeams();
+    // Construir mapa handle/nombre -> nombre de facturación para avisos individuales
+    const map = {};
+    (cleanersRef.current || []).forEach((u) => {
+      const billing = (billingNameMap[u.id] || '').trim();
+      if (!billing) return;
+      const names = [u.full_name, u.display_name].filter(Boolean).map(s => s.trim());
+      names.forEach((n) => { if (n && n !== billing) map[n] = billing; });
+    });
+    setHandleToBilling(map);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userById, billingNameMap]);
 
   const resolveName = (n) => {
     if (n.target === 'all') return n.target_name || 'Todos';
@@ -193,7 +238,7 @@ export default function TableroTVView() {
       if (team && team.members.length) return team.members.join(' · ');
       return stored;
     }
-    return nameMap[stored] || stored;
+    return handleToBilling[stored] || nameMap[stored] || stored;
   };
 
   const dayNotices = useMemo(() => notices.filter(n => n.type === 'day' && isVigente(n)), [notices]);
