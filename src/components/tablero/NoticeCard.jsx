@@ -13,7 +13,8 @@ const AUDIENCE_LABEL = {
 };
 
 export default function NoticeCard({ notice, index = 0 }) {
-  const name = notice._displayName || notice.target_name || 'Todos';
+  const rawName = notice._displayName || notice.target_name || 'Todos';
+  const name = rawName.includes(' · ') ? rawName.split(' · ').pop().trim() : rawName;
   const initial = (name || '?').charAt(0).toUpperCase();
   const isHigh = notice.priority === 'high';
   const accent = isHigh ? DANGER : BRAND;
