@@ -190,10 +190,8 @@ export default function TableroTVView() {
           (t.firstDisplay && s.includes(t.firstDisplay))
         );
       }
-      if (team) return team.key;
-      // Si no se encontró el equipo, usar la parte inicial del valor guardado (el nombre del equipo)
-      const head = s.split(' · ')[0].trim();
-      return head || stored;
+      if (team && team.members.length) return team.members.join(' · ');
+      return stored;
     }
     return nameMap[stored] || stored;
   };
