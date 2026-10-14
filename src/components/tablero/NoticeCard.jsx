@@ -40,9 +40,9 @@ export default function NoticeCard({ notice, index = 0 }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{audience}</div>
-          <div className="text-lg font-bold text-[#0f1f3a] leading-tight truncate">{name}</div>
+          <div className="text-lg font-bold text-[#0f1f3a] leading-tight break-words">{name}</div>
           {notice.title && (
-            <div className="text-sm text-slate-500 truncate mt-0.5">{notice.title}</div>
+            <div className="text-sm text-slate-500 break-words mt-0.5">{notice.title}</div>
           )}
         </div>
         {isHigh && (
