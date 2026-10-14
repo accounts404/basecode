@@ -55,8 +55,8 @@ export default function NoticeCard({ notice, index = 0 }) {
         )}
       </div>
 
-      {/* Cuerpo del mensaje */}
-      <div className="flex-1 px-5 py-4 min-h-[120px]">
+      {/* Cuerpo del mensaje — se adapta al contenido (mucho o poco) */}
+      <div className="px-5 py-4">
         <p className="text-[#1e3a5f] text-[17px] leading-relaxed whitespace-pre-wrap break-words">
           {notice.body}
         </p>

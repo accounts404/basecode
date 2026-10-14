@@ -246,7 +246,7 @@ export default function TableroTVView() {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-4 lg:gap-6 mt-4 lg:mt-5 lg:flex-1 lg:min-h-0">
         {/* Main: cards — zona única con scroll interno */}
         <main className="min-w-0 flex flex-col min-h-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 content-start lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 content-start items-start lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
             {loading ? (
               <div className="col-span-2 text-center text-slate-400 py-10">Cargando avisos…</div>
             ) : (specificNotices.length === 0 && allNotices.length === 0) ? (
