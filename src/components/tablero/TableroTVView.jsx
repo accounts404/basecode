@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatInTimeZone } from 'date-fns-tz';
 import NoticeCard from './NoticeCard';
@@ -31,6 +31,57 @@ export default function TableroTVView() {
   const [nameMap, setNameMap] = useState({});
   const [userById, setUserById] = useState({});
   const [teams, setTeams] = useState([]);
+
+  // Auto-scroll para TV: mueve el contenido lentamente, pausa al final y vuelve arriba.
+  const mainScrollRef = useRef(null);
+  const officeScrollRef = useRef(null);
+
+  useEffect(() => {
+    const SCROLL_STEP = 1;       // px por tick
+    const TICK_MS = 45;           // velocidad (ms entre pasos) ~22 px/s
+    const PAUSE_MS = 3000;        // pausa arriba y abajo
+
+    const setupAutoScroll = (el) => {
+      if (!el) return null;
+      let paused = false;
+      let bottomPauseUntil = 0;
+      let topPauseUntil = 0;
+
+      const tick = () => {
+        if (paused) return;
+        const now = Date.now();
+        if (now < topPauseUntil) return;
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        const max = scrollHeight - clientHeight;
+        if (max <= 1) return; // no hay nada que desplazar
+        if (scrollTop >= max - 1) {
+          if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
+          if (now < bottomPauseUntil) return;
+          el.scrollTo({ top: 0, behavior: 'auto' });
+          bottomPauseUntil = 0;
+          topPauseUntil = now + PAUSE_MS;
+          return;
+        }
+        el.scrollTo({ top: scrollTop + SCROLL_STEP, behavior: 'auto' });
+      };
+
+      const id = setInterval(tick, TICK_MS);
+      const onEnter = () => { paused = true; };
+      const onLeave = () => { paused = false; };
+      el.addEventListener('mouseenter', onEnter);
+      el.addEventListener('mouseleave', onLeave);
+      return () => {
+        clearInterval(id);
+        el.removeEventListener('mouseenter', onEnter);
+        el.removeEventListener('mouseleave', onLeave);
+      };
+    };
+
+    const cleanups = [mainScrollRef.current, officeScrollRef.current]
+      .map(setupAutoScroll)
+      .filter(Boolean);
+    return () => cleanups.forEach((c) => c && c());
+  }, [notices, teams]);
 
   const load = async () => {
     try {
@@ -246,7 +297,7 @@ export default function TableroTVView() {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-4 lg:gap-6 mt-4 lg:mt-5 lg:flex-1 lg:min-h-0">
         {/* Main: cards — zona única con scroll interno */}
         <main className="min-w-0 flex flex-col min-h-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 content-start items-start lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
+          <div ref={mainScrollRef} className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 content-start items-start lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
             {loading ? (
               <div className="col-span-2 text-center text-slate-400 py-10">Cargando avisos…</div>
             ) : (specificNotices.length === 0 && allNotices.length === 0) ? (
@@ -272,7 +323,7 @@ export default function TableroTVView() {
             </div>
           </div>
 
-          <div className="tv-table-scroll flex-1 overflow-y-auto">
+          <div ref={officeScrollRef} className="tv-table-scroll flex-1 overflow-y-auto">
             <table className="tv-table">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-[#eef3fb]">
