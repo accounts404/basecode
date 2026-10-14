@@ -40,15 +40,19 @@ export default function TableroTVView() {
   const officeScrollRef = useRef(null);
 
   useEffect(() => {
-    const SCROLL_STEP = 1;       // px por tick
-    const TICK_MS = 45;           // velocidad (ms entre pasos) ~22 px/s
-    const PAUSE_MS = 3000;        // pausa arriba y abajo
+    const SCROLL_STEP = 1;        // px por tick
+    const TICK_MS = 60;           // velocidad (ms entre pasos) ~16 px/s
+    const PAUSE_MS = 3500;        // pausa larga arriba y abajo
+    const READING_STEPS = 22;     // cada cuántos pasos hace una micro-pausa de lectura
+    const READING_PAUSE_MS = 1800;
 
     const setupAutoScroll = (el) => {
       if (!el) return null;
       let paused = false;
       let bottomPauseUntil = 0;
       let topPauseUntil = 0;
+      let readingPauseUntil = 0;
+      let stepCount = 0;
 
       const tick = () => {
         if (paused) return;
@@ -63,9 +67,16 @@ export default function TableroTVView() {
           el.scrollTo({ top: 0, behavior: 'auto' });
           bottomPauseUntil = 0;
           topPauseUntil = now + PAUSE_MS;
+          stepCount = 0;
           return;
         }
+        if (now < readingPauseUntil) return;
         el.scrollTo({ top: scrollTop + SCROLL_STEP, behavior: 'auto' });
+        stepCount += 1;
+        if (stepCount >= READING_STEPS) {
+          stepCount = 0;
+          readingPauseUntil = now + READING_PAUSE_MS;
+        }
       };
 
       const id = setInterval(tick, TICK_MS);
@@ -342,7 +353,7 @@ export default function TableroTVView() {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-4 lg:gap-6 mt-4 lg:mt-5 lg:flex-1 lg:min-h-0">
         {/* Main: cards — zona única con scroll interno */}
         <main className="min-w-0 flex flex-col min-h-0">
-          <div ref={mainScrollRef} className="columns-1 sm:columns-2 gap-4 lg:gap-5 lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
+          <div ref={mainScrollRef} className="flex flex-col gap-4 lg:gap-5 lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
             {loading ? (
               <div className="col-span-2 text-center text-slate-400 py-10">Cargando avisos…</div>
             ) : (specificNotices.length === 0 && allNotices.length === 0) ? (
