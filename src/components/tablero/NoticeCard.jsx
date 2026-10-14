@@ -48,7 +48,7 @@ export default function NoticeCard({ notice, index = 0 }) {
           <div className="font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: 'clamp(0.5rem, 1cqw, 0.65rem)' }}>{audience}</div>
           <div className="font-bold text-[#0f1f3a] leading-tight truncate" style={{ fontSize: 'clamp(0.7rem, 1.7cqw, 1rem)' }}>{name}</div>
           {notice.title && (
-            <div className="text-slate-500 truncate" style={{ fontSize: 'clamp(0.55rem, 1.2cqw, 0.75rem)' }}>{notice.title}</div>
+            <div className="font-bold text-[#0f1f3a] truncate" style={{ fontSize: 'clamp(0.72rem, 1.9cqw, 1.15rem)' }}>{notice.title}</div>
           )}
         </div>
         {isHigh && (
@@ -66,7 +66,7 @@ export default function NoticeCard({ notice, index = 0 }) {
         <p
           className="text-[#1e3a5f] whitespace-pre-wrap"
           style={{
-            fontSize: 'clamp(0.58rem, min(2.6cqw, 4cqh), 1.05rem)',
+            fontSize: 'clamp(0.72rem, min(3.1cqw, 5cqh), 1.35rem)',
             lineHeight: 1.3,
             overflowWrap: 'anywhere',
             margin: 0,
