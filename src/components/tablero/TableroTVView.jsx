@@ -1,12 +1,17 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatInTimeZone } from 'date-fns-tz';
+import NoticeCard from './NoticeCard';
 import { getDailyPhrase } from './motivationalPhrases';
 
 const LOGO = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png";
-const BG = "https://media.base44.com/images/public/688d6a9b330ea09f97a21af4/109c6fa5d_generated_fbb237cc.jpg";
 const TZ = 'Australia/Melbourne';
 const REFRESH_MS = 30000;
+
+// Colores de marca RedOak
+const BRAND = '#2563eb';
+const BRAND_DARK = '#1d4fd1';
+const BRAND_DEEP = '#173e9e';
 
 function isVigente(n) {
   if (!n.active) return false;
@@ -19,91 +24,13 @@ function isVigente(n) {
   return true;
 }
 
-const norm = (s) => (s || '').trim().toLowerCase();
-
 export default function TableroTVView() {
   const [notices, setNotices] = useState([]);
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [nameMap, setNameMap] = useState({});
   const [userById, setUserById] = useState({});
-  const [billingNameMap, setBillingNameMap] = useState({});
-  const [handleToBilling, setHandleToBilling] = useState({});
   const [teams, setTeams] = useState([]);
-  const [departures, setDepartures] = useState({});
-  const cleanersRef = useRef([]);
-  const boardRef = useRef(null);
-
-  // Busca el contenedor scrollable más cercano al tablero (kiosk overlay o área de contenido).
-  const findScrollContainer = () => {
-    let el = boardRef.current && boardRef.current.parentElement;
-    while (el) {
-      const style = window.getComputedStyle(el);
-      const ov = (style.overflowY || '').toLowerCase();
-      const canScroll = (ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight + 1;
-      if (canScroll) return el;
-      el = el.parentElement;
-    }
-    return null;
-  };
-
-  // Auto-scroll pausado para TV: recorre toda la página lentamente para que las
-  // notas extensas sean completamente legibles, y reanuda tras interacción manual.
-  useEffect(() => {
-    const SCROLL_STEP = 1;
-    const TICK_MS = 60;
-    const PAUSE_MS = 3500;
-    const READING_STEPS = 22;
-    const READING_PAUSE_MS = 1800;
-
-    let container = findScrollContainer();
-    const containerValid = (el) => {
-      if (!el || !el.parentElement) return false;
-      const ov = (window.getComputedStyle(el).overflowY || '').toLowerCase();
-      return (ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight + 1;
-    };
-    const ensure = () => { if (containerValid(container)) return container; container = findScrollContainer(); return container; };
-    let paused = false;
-    let bottomPauseUntil = 0;
-    let topPauseUntil = 0;
-    let readingPauseUntil = 0;
-    let stepCount = 0;
-
-    const getMax = () => container
-      ? container.scrollHeight - container.clientHeight
-      : (document.documentElement.scrollHeight || 0) - window.innerHeight;
-    const getTop = () => container ? container.scrollTop : (window.scrollY || window.pageYOffset);
-    const setTop = (t) => { if (container) container.scrollTop = t; else window.scrollTo({ top: t, behavior: 'auto' }); };
-
-    const tick = () => {
-      if (paused) return;
-      const now = Date.now();
-      if (now < topPauseUntil) return;
-      ensure();
-      const max = getMax();
-      if (max <= 1) return;
-      const scrollTop = getTop();
-      if (scrollTop >= max - 1) {
-        if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
-        if (now < bottomPauseUntil) return;
-        setTop(0);
-        bottomPauseUntil = 0;
-        topPauseUntil = now + PAUSE_MS;
-        stepCount = 0;
-        return;
-      }
-      if (now < readingPauseUntil) return;
-      setTop(scrollTop + SCROLL_STEP);
-      stepCount += 1;
-      if (stepCount >= READING_STEPS) { stepCount = 0; readingPauseUntil = now + READING_PAUSE_MS; }
-    };
-
-    const id = setInterval(tick, TICK_MS);
-    let resumeTimer = null;
-    const onWheel = () => { paused = true; if (resumeTimer) clearTimeout(resumeTimer); resumeTimer = setTimeout(() => { paused = false; }, 4000); };
-    window.addEventListener('wheel', onWheel, { passive: true });
-    return () => { clearInterval(id); if (resumeTimer) clearTimeout(resumeTimer); window.removeEventListener('wheel', onWheel); };
-  }, [notices, teams]);
 
   const load = async () => {
     try {
@@ -128,11 +55,12 @@ export default function TableroTVView() {
         }
       });
       setNameMap(map);
-      cleanersRef.current = users || [];
       const isProperName = (s) => !!s && /\s/.test(s.trim());
       const pickName = (u) => {
         const fn = (u.full_name || '').trim();
         const dn = (u.display_name || '').trim();
+        // Usar el primero que parezca un nombre real (con espacio); si ninguno lo es,
+        // devolver lo que exista (mantiene handles solo como último recurso).
         if (isProperName(fn)) return fn;
         if (isProperName(dn)) return dn;
         return fn || dn;
@@ -145,21 +73,6 @@ export default function TableroTVView() {
     }
   };
 
-  const loadBillingNames = async () => {
-    try {
-      const page = await base44.entities.WorkEntry.filter({}, { sort: '-created_date', limit: 300 });
-      const items = (page && page.items) ? page.items : (page || []);
-      const map = {};
-      (items || []).forEach((e) => {
-        const name = (e.cleaner_name || '').trim();
-        if (e.cleaner_id && name && !map[e.cleaner_id]) map[e.cleaner_id] = name;
-      });
-      setBillingNameMap(map);
-    } catch (e) {
-      console.warn('No se pudo cargar nombres de facturación:', e);
-    }
-  };
-
   const loadTeams = async () => {
     try {
       const assignments = await base44.entities.DailyTeamAssignment.list('-date', 100);
@@ -167,26 +80,19 @@ export default function TableroTVView() {
       const list = (assignments || [])
         .filter(t => t.date && t.date >= today && t.status !== 'cancelled')
         .map(t => {
+          // Resolver nombres desde los IDs, con respaldo en team_members_names por índice
           const ids = t.team_member_ids || [];
           const rawNames = (t.team_members_names || []).map(m => m.trim());
-          const resolveMember = (id, i) => {
-            const billing = (billingNameMap[id] || '').trim();
-            if (billing) return billing;
+          const members = ids.map((id, i) => {
             const nice = (userById[id] || '').trim();
             if (nice) return nice;
             return rawNames[i] || '';
-          };
-          const members = ids.map(resolveMember).filter(Boolean);
+          }).filter(Boolean);
           const finalMembers = members.length ? members : rawNames;
-          const firstId = ids[0];
           const firstRaw = ((t.team_members_names && t.team_members_names[0]) || '').trim();
-          const firstDisplay =
-            (firstId && (billingNameMap[firstId] || '').trim()) ||
-            (firstId && (userById[firstId] || '').trim()) ||
-            firstRaw ||
-            (nameMap[firstRaw] || '');
+          const firstDisplay = firstRaw ? (nameMap[firstRaw] || firstRaw) : '';
           const key = (t.team_name || (firstDisplay ? `Equipo ${firstDisplay}` : 'Equipo')).trim();
-          return { key, members: finalMembers, ids, firstRaw, firstDisplay };
+          return { key, members: finalMembers, firstRaw, firstDisplay };
         })
         .filter(t => t.members.length);
       setTeams(list);
@@ -195,36 +101,9 @@ export default function TableroTVView() {
     }
   };
 
-  // Hora de salida de cada equipo = primer servicio del día de cualquiera de sus miembros.
-  const loadDepartures = async () => {
-    try {
-      const t = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
-      const startISO = `${t}T00:00:00`;
-      const endISO = `${t}T23:59:59`;
-      const page = await base44.entities.Schedule.filter(
-        { start_time: { $gte: startISO, $lt: endISO }, status: { $ne: 'cancelled' } },
-        { sort: 'start_time', limit: 500 }
-      );
-      const items = (page && page.items) ? page.items : (page || []);
-      const cleanerTime = {};
-      (items || []).forEach(s => {
-        if (!s.start_time) return;
-        const hhmm = formatInTimeZone(new Date(s.start_time), TZ, 'HH:mm');
-        (s.cleaner_ids || []).forEach(id => {
-          if (!cleanerTime[id] || hhmm < cleanerTime[id]) cleanerTime[id] = hhmm;
-        });
-      });
-      setDepartures(cleanerTime);
-    } catch (e) {
-      console.warn('No se pudieron cargar horarios de salida:', e);
-    }
-  };
-
   useEffect(() => {
     load();
     loadCleaners();
-    loadBillingNames();
-    loadDepartures();
     const refresh = setInterval(load, REFRESH_MS);
     const clock = setInterval(() => setNow(new Date()), 1000);
     let unsubscribe = null;
@@ -241,227 +120,184 @@ export default function TableroTVView() {
   }, []);
 
   useEffect(() => {
-    if (Object.keys(userById).length || Object.keys(billingNameMap).length) loadTeams();
-    const map = {};
-    (cleanersRef.current || []).forEach((u) => {
-      const billing = (billingNameMap[u.id] || '').trim();
-      if (!billing) return;
-      const names = [u.full_name, u.display_name].filter(Boolean).map(s => s.trim());
-      names.forEach((n) => { if (n && n !== billing) map[n] = billing; });
-    });
-    setHandleToBilling(map);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userById, billingNameMap]);
+    if (Object.keys(userById).length) loadTeams();
+  }, [userById]);
 
   const resolveName = (n) => {
     if (n.target === 'all') return n.target_name || 'Todos';
     const stored = n.target_name || '';
     if (n.target === 'team') {
       const s = stored.trim();
+      // Coincidencia exacta por key
       let team = teams.find(t => t.key === s);
+      // Coincidencia por prefijo (el valor guardado puede traer miembros anexos)
       if (!team) team = teams.find(t => s.startsWith(t.key) || t.key.startsWith(s));
+      // Coincidencia por nombre del primer miembro dentro del valor guardado
       if (!team) {
-        team = teams.find(t => (t.firstRaw && s.includes(t.firstRaw)) || (t.firstDisplay && s.includes(t.firstDisplay)));
+        team = teams.find(t =>
+          (t.firstRaw && s.includes(t.firstRaw)) ||
+          (t.firstDisplay && s.includes(t.firstDisplay))
+        );
       }
       if (team && team.members.length) return team.members.join(' · ');
       return stored;
     }
-    return handleToBilling[stored] || nameMap[stored] || stored;
+    return nameMap[stored] || stored;
   };
 
   const dayNotices = useMemo(() => notices.filter(n => n.type === 'day' && isVigente(n)), [notices]);
+  const allNotices = useMemo(() => dayNotices.filter(n => n.target === 'all'), [dayNotices]);
+  const specificNotices = useMemo(() => dayNotices.filter(n => n.target !== 'all'), [dayNotices]);
   const officeNotices = useMemo(() => notices.filter(n => n.type === 'office' && isVigente(n)), [notices]);
-
-  const noticesForTeam = (team) => {
-    const out = [];
-    const memberSet = new Set(team.members.map(norm));
-    dayNotices.forEach(n => {
-      if (n.target === 'all') { out.push(n); return; }
-      if (n.target === 'team') {
-        const s = (n.target_name || '').trim();
-        if (team.key === s || s.startsWith(team.key) || team.key.startsWith(s) ||
-            (team.firstRaw && s.includes(team.firstRaw)) ||
-            (team.firstDisplay && s.includes(team.firstDisplay))) {
-          out.push(n);
-        }
-        return;
-      }
-      if (n.target === 'cleaner') {
-        if (memberSet.has(norm(resolveName(n)))) out.push(n);
-      }
-    });
-    return out.sort((a, b) => (b.priority === 'high' ? 1 : 0) - (a.priority === 'high' ? 1 : 0));
-  };
-
-  const labelFor = (n, team) => {
-    if (n.target === 'all') return 'Todos';
-    if (n.target === 'team') return team.key;
-    return resolveName(n);
-  };
-
-  const teamDeparture = (team) => {
-    const times = (team.ids || []).map(id => departures[id]).filter(Boolean);
-    if (!times.length) return '';
-    return [...times].sort()[0];
-  };
 
   const dateStr = formatInTimeZone(now, TZ, 'EEEE, d MMMM yyyy');
   const timeStr = formatInTimeZone(now, TZ, 'HH:mm');
   const phrase = useMemo(() => getDailyPhrase(now), [dateStr]);
 
   return (
-    <div ref={boardRef} className="tv-board">
+    <div className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 lg:h-[100dvh] lg:overflow-hidden relative">
       <style>{`
-        @keyframes tv-enter { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes tv-enter { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes tv-slideup { 0% { opacity:0; transform:translateY(22px) } 100% { opacity:1; transform:translateY(0) } }
         @keyframes tv-glow { 0%,100% { opacity:.45 } 50% { opacity:1 } }
-        .tv-board { width:100%; min-height:100vh; position:relative; background:#fff; color:#0f1f3a;
-          padding: clamp(16px, 1.6vw, 32px); display:flex; flex-direction:column; gap: clamp(14px, 1.4vw, 28px);
-          font-family: system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; box-sizing:border-box; }
-        .tv-board * { box-sizing:border-box; }
-        .tv-bg { position:absolute; left:0; top:0; width:100%; height:44vh; max-height:760px; object-fit:cover; opacity:.55; z-index:0; pointer-events:none; }
-        .tv-scrim { position:absolute; left:0; top:0; width:100%; height:44vh; max-height:760px;
-          background:linear-gradient(180deg,rgba(255,255,255,.25),#fff 100%); z-index:0; pointer-events:none; }
-        .tv-board > *:not(.tv-bg):not(.tv-scrim) { position:relative; z-index:1; }
-        .tv-en { animation: tv-enter .7s cubic-bezier(.2,.75,.25,1) both; }
+        .tv-enter { animation: tv-enter .7s cubic-bezier(.2,.75,.25,1) both; }
+        .tv-slideup { animation: tv-slideup 1s cubic-bezier(.22,.7,.2,1) both; }
         .tv-glow { animation: tv-glow 4s ease-in-out infinite; }
 
-        .tv-hdr { display:flex; align-items:center; gap: clamp(16px, 1.8vw, 36px);
-          border-radius: clamp(20px, 1.6vw, 32px); padding: clamp(20px, 2.6vw, 52px) clamp(20px, 2.6vw, 52px);
-          background:linear-gradient(115deg,#173e9e 0%,#1d4fd1 68%,#2563eb 100%);
-          box-shadow:0 22px 46px rgba(37,99,235,.28); }
-        .tv-logo { width: clamp(72px, 7.5vw, 150px); height: clamp(72px, 7.5vw, 150px); flex:none;
-          background:rgba(255,255,255,.96); border-radius: clamp(14px, 1.3vw, 26px); padding: clamp(8px, .8vw, 14px);
-          display:flex; align-items:center; justify-content:center; box-shadow:0 8px 20px rgba(7,23,64,.25); }
-        .tv-logo img { max-width:100%; max-height:100%; object-fit:contain; }
-        .tv-hm { flex:1; display:flex; flex-direction:column; gap: clamp(6px, .5vw, 10px); min-width:0; }
-        .tv-date { color:#e8f0ff; font-size: clamp(16px, 1.5vw, 30px); font-weight:700; letter-spacing:.08em;
-          text-transform:uppercase; line-height:1.2; }
-        .tv-tr { display:flex; align-items:center; gap: clamp(16px, 2.2vw, 44px); flex-wrap:wrap; }
-        .tv-time { color:#fff; font-size: clamp(48px, 6.3vw, 128px); font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
-        .tv-ph { display:flex; align-items:center; gap: clamp(10px, .9vw, 18px); max-width: min(1000px, 52vw); }
-        .tv-ph i { width:6px; height: clamp(36px, 3.6vw, 72px); border-radius:6px; background:#93c5fd; flex:none; }
-        .tv-ph p { margin:0; color:#eff6ff; font-size: clamp(18px, 1.8vw, 36px); font-style:italic; line-height:1.3; }
-        .tv-sub { color:#cfe0ff; font-size: clamp(13px, 1.2vw, 24px); line-height:1.2; }
-        .tv-bar { width:14px; height: clamp(72px, 7.5vw, 150px); background:#93c5fd; border-radius:0 12px 12px 0; align-self:flex-end; }
-
-        .tv-cols { display:grid; grid-template-columns: repeat(auto-fit, minmax(clamp(260px, 22vw, 460px), 1fr));
-          gap: clamp(14px, 1.4vw, 28px); }
-        .tv-col { background:#eef3fb; border:2px solid #c5d6ee; border-radius: clamp(20px, 1.4vw, 28px); overflow:hidden;
-          box-shadow:0 14px 30px rgba(37,99,235,.12); display:flex; flex-direction:column; }
-        .tv-ch { background:#173e9e; color:#fff; padding: clamp(16px, 1.3vw, 26px) clamp(18px, 1.6vw, 32px);
-          display:flex; flex-direction:column; gap: clamp(6px, .5vw, 10px); }
-        .tv-cn { font-size: clamp(24px, 2.3vw, 46px); font-weight:800; line-height:1.1; }
-        .tv-cm { font-size: clamp(15px, 1.4vw, 28px); line-height:1.3; color:#dbe8ff; font-weight:600; }
-        .tv-cs { display:inline-block; align-self:flex-start; background:#fff; color:#173e9e; border-radius: clamp(10px, .7vw, 14px);
-          padding: clamp(4px, .4vw, 6px) clamp(10px, .9vw, 18px); font-size: clamp(18px, 1.7vw, 34px);
-          font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; }
-        .tv-cb { padding: clamp(16px, 1.2vw, 24px); display:flex; flex-direction:column; gap: clamp(12px, 1vw, 20px); }
-        .tv-nc { background:#fff; border:1px solid #c5d6ee; border-left:10px solid #2563eb;
-          border-radius: clamp(14px, 1vw, 20px); padding: clamp(14px, 1.1vw, 26px) clamp(16px, 1.3vw, 26px);
-          display:flex; flex-direction:column; gap: clamp(5px, .4vw, 8px);
-          box-shadow:0 6px 14px rgba(23,62,158,.08); transition:box-shadow .2s,background-color .2s; cursor:pointer; }
-        .tv-nc:hover { box-shadow:0 10px 22px rgba(37,99,235,.2); background:#f7faff; }
-        .tv-nc.tv-hi { border-left-color:#173e9e; }
-        .tv-nw { font-size: clamp(12px, 1.1vw, 22px); font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#2563eb; }
-        .tv-nt { font-size: clamp(18px, 1.7vw, 34px); font-weight:800; color:#0f1f3a; line-height:1.2; }
-        .tv-nb { font-size: clamp(15px, 1.4vw, 28px); line-height:1.45; color:#1e3a5f; margin:0;
-          white-space:pre-wrap; word-break:break-word; }
-        .tv-rest { display:flex; flex-direction:column; gap: clamp(8px, .6vw, 12px); }
-        .tv-msg { text-align:center; color:#1e3a5f; font-size: clamp(16px, 1.5vw, 30px); font-weight:600;
-          background:#eef3fb; border:2px dashed #c5d6ee; border-radius: clamp(14px, 1vw, 20px);
-          padding: clamp(14px, 1.1vw, 22px); }
-
-        .tv-off { background:#fff; border:2px solid #cdd9e8; border-radius: clamp(20px, 1.4vw, 28px);
-          box-shadow:0 12px 30px rgba(37,99,235,.12); overflow:hidden; }
-        .tv-oh { display:flex; align-items:center; gap: clamp(12px, 1vw, 20px); padding: clamp(12px, .9vw, 18px) clamp(20px, 1.6vw, 32px);
-          background:linear-gradient(90deg,#173e9e,#2563eb); }
-        .tv-ol { width: clamp(44px, 3.4vw, 68px); height: clamp(44px, 3.4vw, 68px); background:#fff;
-          border-radius: clamp(10px, .8vw, 16px); display:flex; align-items:center; justify-content:center; padding:6px; flex:none; }
-        .tv-ol img { max-width:100%; max-height:100%; object-fit:contain; }
-        .tv-ot { color:#fff; font-size: clamp(20px, 1.9vw, 38px); font-weight:800; line-height:1.1; }
-        .tv-os { color:#dbe8ff; font-size: clamp(13px, 1.2vw, 24px); line-height:1.3; }
-        .tv-off table { border-collapse:separate; border-spacing:0; width:100%; font-variant-numeric:tabular-nums; }
-        .tv-off th { padding: clamp(10px, .8vw, 16px) clamp(18px, 1.6vw, 32px); font-size: clamp(12px, 1.1vw, 22px);
-          font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#173e9e;
-          border-bottom:2px solid #c5d6ee; text-align:left; background:#eef3fb; }
-        .tv-off td { padding: clamp(12px, .9vw, 18px) clamp(18px, 1.6vw, 32px); vertical-align:top;
-          border-bottom:1px solid #e4ebf5; font-size: clamp(15px, 1.4vw, 28px); line-height:1.45; color:#1e3a5f; }
-        .tv-off tr:nth-child(odd) td { background:#f7faff; }
-        .tv-off td.tv-tt { font-weight:800; color:#0f1f3a; font-size: clamp(16px, 1.5vw, 30px); width:30%; }
-        .tv-off td p { margin:0; white-space:pre-wrap; word-break:break-word; }
+        .tv-table { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; width: 100%; }
+        .tv-table-scroll { scrollbar-width: thin; scrollbar-color: #b9cbe4 transparent; }
+        .tv-table-scroll::-webkit-scrollbar { width: 8px; }
+        .tv-table-scroll::-webkit-scrollbar-thumb { background: #b9cbe4; border-radius: 8px; }
+        .tv-th {
+          padding: clamp(10px, 1.4vw, 14px) clamp(12px, 1.4vw, 18px);
+          font-size: clamp(12px, 1.2vw, 14px);
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #173e9e;
+          border-bottom: 2px solid #c5d6ee;
+          text-align: left;
+          white-space: nowrap;
+        }
+        .tv-row { transition: background-color .2s ease; }
+        .tv-row:nth-child(odd)  { background-color: #f7faff; }
+        .tv-row:nth-child(even) { background-color: #ffffff; }
+        .tv-row:hover { background-color: #eaf2ff; }
+        .tv-cell {
+          padding: clamp(12px, 1.5vw, 16px) clamp(12px, 1.4vw, 18px);
+          vertical-align: top;
+          border-bottom: 1px solid #e4ebf5;
+          font-size: clamp(14px, 1.4vw, 16px);
+          line-height: 1.5;
+          color: #1e3a5f;
+        }
+        .tv-cell-title {
+          font-weight: 700;
+          font-size: clamp(15px, 1.5vw, 17px);
+          color: #0f1f3a;
+          line-height: 1.3;
+        }
+        .tv-cell-body { max-width: 0; }
+        .tv-msg {
+          margin: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+          font-size: clamp(14px, 1.4vw, 16px);
+          line-height: 1.55;
+          color: #1e3a5f;
+        }
+        .tv-empty {
+          padding: 32px;
+          text-align: center;
+          color: #94a3b8;
+          font-size: 15px;
+        }
+        .tv-phrase { text-shadow: 0 1px 2px rgba(7, 23, 64, 0.35); }
+        .tv-phrase-text { text-wrap: balance; }
       `}</style>
 
-      <img className="tv-bg" src={BG} alt="" />
-      <div className="tv-scrim" />
-
-      <header className="tv-hdr tv-en" style={{ animationDelay: '.15s' }}>
-        <div className="tv-logo"><img src={LOGO} alt="RedOak Cleaning" /></div>
-        <div className="tv-hm">
-          <div className="tv-date">{dateStr}</div>
-          <div className="tv-tr">
-            <div className="tv-time">{timeStr}</div>
-            <div className="tv-ph"><i /><p>"{phrase}"</p></div>
+      {/* Mast */}
+      <header className="tv-enter relative rounded-[20px] sm:rounded-[24px] lg:rounded-[28px] overflow-hidden flex items-stretch shadow-[0_18px_38px_rgba(37,99,235,0.22)]"
+        style={{ background: `linear-gradient(115deg, ${BRAND_DEEP} 0%, ${BRAND_DARK} 68%, ${BRAND} 100%)`, minHeight: 'clamp(96px, 16vh, 180px)' }}>
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(255,255,255,0.25), transparent 55%)' }} />
+        <div className="relative z-10 w-full px-4 sm:px-6 lg:px-10 py-4 sm:py-6 flex items-center gap-4 sm:gap-6">
+          <div className="hidden sm:flex flex-shrink-0 items-center justify-center bg-white/95 rounded-2xl p-2 sm:p-3 shadow-lg"
+            style={{ height: 'clamp(64px, 12vh, 120px)', width: 'clamp(64px, 12vh, 120px)' }}>
+            <img src={LOGO} alt="RedOak Cleaning" className="max-w-full max-h-full object-contain" />
           </div>
-          <div className="tv-sub">Tablero del día · RedOak Cleaning</div>
+          <div className="flex-1 flex flex-col justify-center min-w-0">
+            <div className="text-white/90 font-semibold tracking-wide uppercase truncate" style={{ fontSize: 'clamp(0.7rem, 1.6vw, 1.125rem)' }}>{dateStr}</div>
+            <div className="flex items-end gap-3 sm:gap-5 mt-1 flex-wrap">
+              <div className="text-white font-bold leading-none tabular-nums" style={{ fontSize: 'clamp(2.25rem, 9vw, 4.5rem)' }}>{timeStr}</div>
+              <div className="tv-phrase flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2 max-w-[min(60ch,52vw)]">
+                <span className="tv-phrase-bar flex-shrink-0 rounded-full" style={{ width: '4px', height: 'clamp(28px, 5vh, 52px)', background: '#93c5fd' }} />
+                <p className="tv-phrase-text italic text-blue-50 leading-snug" style={{ fontSize: 'clamp(0.8rem, 1.7vw, 1.15rem)' }}>"{phrase}"</p>
+              </div>
+            </div>
+            <div className="text-white/70 mt-1 sm:mt-2" style={{ fontSize: 'clamp(0.65rem, 1.4vw, 0.9rem)' }}>Tablero del día · RedOak Cleaning</div>
+          </div>
+          <div className="relative z-10 self-end hidden lg:flex">
+            <div className="tv-glow rounded-r-lg" style={{ height: 'clamp(64px, 12vh, 120px)', width: '10px', background: '#93c5fd' }} />
+          </div>
         </div>
-        <div className="tv-bar tv-glow" />
       </header>
 
-      {loading ? (
-        <div className="tv-rest tv-en"><div className="tv-msg">Cargando avisos…</div></div>
-      ) : teams.length === 0 ? (
-        <div className="tv-rest tv-en"><div className="tv-msg">No hay equipos asignados para hoy.</div></div>
-      ) : (
-        <div className="tv-cols">
-          {teams.map((team, i) => {
-            const tn = noticesForTeam(team);
-            const dep = teamDeparture(team);
-            return (
-              <section key={`${team.key}-${i}`} className="tv-col tv-en" style={{ animationDelay: `${0.3 + i * 0.12}s` }}>
-                <div className="tv-ch">
-                  <div className="tv-cn">{team.key}</div>
-                  <div className="tv-cm">{team.members.join(' · ')}</div>
-                  <div className="tv-cs">{dep || '—'}</div>
-                </div>
-                <div className="tv-cb">
-                  {tn.length === 0 ? (
-                    <div className="tv-msg">Sin recordatorios para este equipo.</div>
-                  ) : tn.map(n => (
-                    <div key={n.id} className={`tv-nc${n.priority === 'high' ? ' tv-hi' : ''}`}>
-                      <div className="tv-nw">{labelFor(n, team)}</div>
-                      {n.title && <div className="tv-nt">{n.title}</div>}
-                      <p className="tv-nb">{n.body}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      )}
-
-      <aside className="tv-off tv-en" style={{ animationDelay: '.9s' }}>
-        <div className="tv-oh">
-          <div className="tv-ol"><img src={LOGO} alt="" /></div>
-          <div>
-            <div className="tv-ot">Avisos de la oficina</div>
-            <div className="tv-os">Información permanente · Léela todos los días</div>
+      {/* Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-4 lg:gap-6 mt-4 lg:mt-5 lg:flex-1 lg:min-h-0">
+        {/* Main: cards — zona única con scroll interno */}
+        <main className="min-w-0 flex flex-col min-h-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 content-start lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
+            {loading ? (
+              <div className="col-span-2 text-center text-slate-400 py-10">Cargando avisos…</div>
+            ) : (specificNotices.length === 0 && allNotices.length === 0) ? (
+              <div className="col-span-2 text-center text-slate-400 py-10">No hay notas del día para limpiadores.</div>
+            ) : (
+              <>
+                {specificNotices.map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i} />)}
+                {allNotices.map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i + specificNotices.length} />)}
+              </>
+            )}
           </div>
-        </div>
-        <table>
-          <thead><tr><th>Título</th><th>Mensaje</th></tr></thead>
-          <tbody>
-            {officeNotices.length === 0 ? (
-              <tr><td className="tv-tt">Sin avisos de oficina.</td><td><p>Sin avisos de oficina.</p></td></tr>
-            ) : officeNotices.map(n => (
-              <tr key={n.id}>
-                <td className="tv-tt">{n.title || 'Aviso'}</td>
-                <td><p>{n.body}</p></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </aside>
+        </main>
+
+        {/* Rail: office — avisos permanentes en formato tabla */}
+        <aside className="flex flex-col border border-[#cdd9e8] rounded-[20px] sm:rounded-[24px] lg:rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0 max-h-[55vh] lg:max-h-none">
+          <div className="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 bg-gradient-to-r from-[#173e9e] to-[#2563eb]">
+            <div className="h-[44px] w-[44px] sm:h-[52px] sm:w-[52px] flex-shrink-0 flex items-center justify-center bg-white rounded-xl shadow-sm">
+              <img src={LOGO} alt="" className="max-w-full max-h-full object-contain p-1" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-bold text-white leading-tight tracking-wide" style={{ fontSize: 'clamp(1rem, 1.8vw, 1.25rem)' }}>Avisos de la oficina</div>
+              <div className="text-blue-100" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.8rem)' }}>Información permanente · Léela todos los días</div>
+            </div>
+          </div>
+
+          <div className="tv-table-scroll flex-1 overflow-y-auto">
+            <table className="tv-table">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#eef3fb]">
+                  <th className="tv-th text-left" style={{ width: '34%' }}>Título</th>
+                  <th className="tv-th text-left">Mensaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {officeNotices.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="tv-empty">Sin avisos de oficina.</td>
+                  </tr>
+                ) : (
+                  officeNotices.map((n, i) => (
+                    <tr key={n.id} className="tv-row tv-slideup" style={{ animationDelay: `${0.4 + i * 0.1}s` }}>
+                      <td className="tv-cell tv-cell-title">{n.title || 'Aviso'}</td>
+                      <td className="tv-cell tv-cell-body"><p className="tv-msg">{n.body}</p></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

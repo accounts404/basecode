@@ -62,11 +62,11 @@ export default function TableroTV() {
   // Modo pantalla completa: overlay que cubre TODO (menú lateral incluido)
   if (kiosk) {
     return (
-      <div className="fixed inset-0 z-[100000] bg-white overflow-y-auto">
+      <div className="fixed inset-0 z-[100000] bg-white overflow-hidden">
         <TableroTVView />
         <button
           onClick={exitKiosk}
-          className="fixed top-3 right-3 z-[100001] bg-[#0f1f3a] hover:bg-[#1e3a5f] text-white px-4 py-2.5 rounded-[14px] shadow-[0_6px_16px_rgba(23,62,158,0.25)] flex items-center gap-2.5 text-sm font-semibold transition-[background-color,box-shadow,opacity] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93c5fd] active:shadow-[0_2px_6px_rgba(23,62,158,0.3)]"
+          className="fixed top-3 right-3 z-[100001] bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm"
           style={{ opacity: 0.3 }}
           onMouseEnter={e => (e.currentTarget.style.opacity = 1)}
           onMouseLeave={e => (e.currentTarget.style.opacity = 0.3)}
@@ -84,7 +84,7 @@ export default function TableroTV() {
         {mode === 'tv' && (
           <button
             onClick={enterKiosk}
-            className="bg-[#0f1f3a] hover:bg-[#1e3a5f] text-white px-3 py-2 rounded-[14px] shadow-[0_6px_16px_rgba(23,62,158,0.25)] flex items-center gap-2.5 text-sm font-semibold transition-[background-color,box-shadow,opacity] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93c5fd] active:shadow-[0_2px_6px_rgba(23,62,158,0.3)]"
+            className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm"
             style={{ opacity: 0.25 }}
             onMouseEnter={e => (e.currentTarget.style.opacity = 1)}
             onMouseLeave={e => (e.currentTarget.style.opacity = 0.25)}
@@ -95,7 +95,7 @@ export default function TableroTV() {
         )}
         <button
           onClick={() => setMode(m => (m === 'tv' ? 'edit' : 'tv'))}
-          className="bg-[#2563eb] hover:bg-[#1d4fd1] text-white px-3 py-2 rounded-[14px] shadow-[0_6px_16px_rgba(23,62,158,0.25)] flex items-center gap-2.5 text-sm font-semibold transition-[background-color,box-shadow,opacity] duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#93c5fd] active:shadow-[0_2px_6px_rgba(23,62,158,0.3)]"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl shadow-lg flex items-center gap-2 text-sm"
           style={{ opacity: mode === 'tv' ? 0.25 : 1 }}
           onMouseEnter={e => (e.currentTarget.style.opacity = 1)}
           onMouseLeave={e => (e.currentTarget.style.opacity = mode === 'tv' ? 0.25 : 1)}

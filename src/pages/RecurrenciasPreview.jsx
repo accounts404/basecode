@@ -6,7 +6,6 @@ import { extendRecurringSchedules } from '@/functions/extendRecurringSchedules';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   CalendarClock, CheckCircle, Clock, Loader2, AlertTriangle, RefreshCw, History, Play, Shield, RotateCcw, ChevronDown, ChevronRight, Search, UserCheck, XCircle,
@@ -40,7 +39,6 @@ export default function RecurrenciasPreview() {
   const [applyingAll, setApplyingAll] = useState(false);
   const [expanded, setExpanded] = useState(null);
   const [result, setResult] = useState(null);
-  const [clientSearch, setClientSearch] = useState('');
 
   // Restore wrongly cancelled
   const [restoreOpen, setRestoreOpen] = useState(false);
@@ -174,11 +172,7 @@ export default function RecurrenciasPreview() {
   };
 
   const renderPreviewTable = (p) => {
-    const allItems = p.preview_items || [];
-    const search = clientSearch.trim().toLowerCase();
-    const items = search
-      ? allItems.filter((it) => (it.client_name || '').toLowerCase().includes(search))
-      : allItems;
+    const items = p.preview_items || [];
     const isExpanded = expanded === p.id;
     const pendingItems = items.filter((it) => (it.item_status || 'pending') === 'pending');
     const appliedItems = items.filter((it) => (it.item_status || 'pending') === 'applied');
@@ -232,11 +226,8 @@ export default function RecurrenciasPreview() {
           </div>
 
           {items.length === 0 ? (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-600 flex items-center gap-2">
-              <Search className="w-5 h-5" />
-              {search
-                ? `No hay series que coincidan con "${clientSearch.trim()}".`
-                : 'No hay extensiones pendientes este mes. Todas las series están al día.'}
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5" /> No hay extensiones pendientes este mes. Todas las series están al día.
             </div>
           ) : (
             <>
@@ -256,23 +247,6 @@ export default function RecurrenciasPreview() {
               </div>
 
               {isExpanded && (
-                <>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="relative flex-1 max-w-xs">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <Input
-                      value={clientSearch}
-                      onChange={(e) => setClientSearch(e.target.value)}
-                      placeholder="Buscar por cliente…"
-                      className="pl-9 h-9"
-                    />
-                  </div>
-                  {search && (
-                    <span className="text-xs text-slate-500">
-                      {items.length} de {allItems.length} series
-                    </span>
-                  )}
-                </div>
                 <div className="overflow-x-auto rounded-lg border border-slate-200">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-slate-600">
@@ -347,10 +321,9 @@ export default function RecurrenciasPreview() {
                     </tbody>
                   </table>
                 </div>
-                </>
               )}
 
-              {pendingItems.length > 0 && !search && (
+              {pendingItems.length > 0 && (
                 <div className="mt-5 flex items-center gap-3 flex-wrap">
                   <Button
                     onClick={handleApproveAll}
