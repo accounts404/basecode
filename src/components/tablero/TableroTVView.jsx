@@ -279,8 +279,7 @@ export default function TableroTVView() {
               teamGroups.map((g, gi) => (
                 <section key={g.key} className="tv-team-col tv-enter" style={{ animationDelay: `${gi * 0.08}s` }}>
                   <div className="tv-team-head">
-                    <div className="tv-team-name">{g.key}</div>
-                    <div className="tv-team-sub">{g.members.join(' · ')}</div>
+                    <div className="tv-team-name">{g.members.join(' · ')}</div>
                   </div>
                   <div className="tv-team-body">
                     {g.notes.map((n, ni) => (

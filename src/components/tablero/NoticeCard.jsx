@@ -48,7 +48,7 @@ export default function NoticeCard({ notice, index = 0 }) {
           <div className="font-semibold uppercase tracking-wider text-slate-500" style={{ fontSize: 'clamp(0.5rem, 1cqw, 0.65rem)' }}>{audience}</div>
           <div className="font-bold text-[#0f1f3a] leading-tight truncate" style={{ fontSize: 'clamp(0.7rem, 1.7cqw, 1rem)' }}>{name}</div>
           {notice.title && (
-            <div className="font-bold text-[#0f1f3a] truncate" style={{ fontSize: 'clamp(0.72rem, 1.9cqw, 1.15rem)' }}>{notice.title}</div>
+            <div className="font-extrabold text-[#173e9e] truncate" style={{ fontSize: 'clamp(0.8rem, 2.1cqw, 1.25rem)', letterSpacing: '0.01em' }}>{notice.title}</div>
           )}
         </div>
         {isHigh && (
