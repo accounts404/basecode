@@ -4,7 +4,6 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { getDailyPhrase } from './motivationalPhrases';
 
 const LOGO = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png";
-const BG = "https://media.base44.com/images/public/688d6a9b330ea09f97a21af4/109c6fa5d_generated_fbb237cc.jpg";
 const TZ = 'Australia/Melbourne';
 const REFRESH_MS = 30000;
 
@@ -32,78 +31,6 @@ export default function TableroTVView() {
   const [teams, setTeams] = useState([]);
   const [departures, setDepartures] = useState({});
   const cleanersRef = useRef([]);
-  const boardRef = useRef(null);
-
-  // Busca el contenedor scrollable más cercano al tablero (kiosk overlay o área de contenido).
-  const findScrollContainer = () => {
-    let el = boardRef.current && boardRef.current.parentElement;
-    while (el) {
-      const style = window.getComputedStyle(el);
-      const ov = (style.overflowY || '').toLowerCase();
-      const canScroll = (ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight + 1;
-      if (canScroll) return el;
-      el = el.parentElement;
-    }
-    return null;
-  };
-
-  // Auto-scroll pausado para TV: recorre toda la página lentamente para que las
-  // notas extensas sean completamente legibles, y reanuda tras interacción manual.
-  useEffect(() => {
-    const SCROLL_STEP = 1;
-    const TICK_MS = 60;
-    const PAUSE_MS = 3500;
-    const READING_STEPS = 22;
-    const READING_PAUSE_MS = 1800;
-
-    let container = findScrollContainer();
-    const containerValid = (el) => {
-      if (!el || !el.parentElement) return false;
-      const ov = (window.getComputedStyle(el).overflowY || '').toLowerCase();
-      return (ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight + 1;
-    };
-    const ensure = () => { if (containerValid(container)) return container; container = findScrollContainer(); return container; };
-    let paused = false;
-    let bottomPauseUntil = 0;
-    let topPauseUntil = 0;
-    let readingPauseUntil = 0;
-    let stepCount = 0;
-
-    const getMax = () => container
-      ? container.scrollHeight - container.clientHeight
-      : (document.documentElement.scrollHeight || 0) - window.innerHeight;
-    const getTop = () => container ? container.scrollTop : (window.scrollY || window.pageYOffset);
-    const setTop = (t) => { if (container) container.scrollTop = t; else window.scrollTo({ top: t, behavior: 'auto' }); };
-
-    const tick = () => {
-      if (paused) return;
-      const now = Date.now();
-      if (now < topPauseUntil) return;
-      ensure();
-      const max = getMax();
-      if (max <= 1) return;
-      const scrollTop = getTop();
-      if (scrollTop >= max - 1) {
-        if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
-        if (now < bottomPauseUntil) return;
-        setTop(0);
-        bottomPauseUntil = 0;
-        topPauseUntil = now + PAUSE_MS;
-        stepCount = 0;
-        return;
-      }
-      if (now < readingPauseUntil) return;
-      setTop(scrollTop + SCROLL_STEP);
-      stepCount += 1;
-      if (stepCount >= READING_STEPS) { stepCount = 0; readingPauseUntil = now + READING_PAUSE_MS; }
-    };
-
-    const id = setInterval(tick, TICK_MS);
-    let resumeTimer = null;
-    const onWheel = () => { paused = true; if (resumeTimer) clearTimeout(resumeTimer); resumeTimer = setTimeout(() => { paused = false; }, 4000); };
-    window.addEventListener('wheel', onWheel, { passive: true });
-    return () => { clearInterval(id); if (resumeTimer) clearTimeout(resumeTimer); window.removeEventListener('wheel', onWheel); };
-  }, [notices, teams]);
 
   const load = async () => {
     try {
@@ -195,7 +122,6 @@ export default function TableroTVView() {
     }
   };
 
-  // Hora de salida de cada equipo = primer servicio del día de cualquiera de sus miembros.
   const loadDepartures = async () => {
     try {
       const t = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
@@ -305,128 +231,133 @@ export default function TableroTVView() {
     return [...times].sort()[0];
   };
 
+  // Solo equipos con recordatorios para el día (oculta los vacíos).
+  const visible = useMemo(
+    () => teams.map(t => ({ team: t, notes: noticesForTeam(t) })).filter(x => x.notes.length > 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [teams, dayNotices, handleToBilling, nameMap]
+  );
+  const oddLast = visible.length % 2 === 1;
+
   const dateStr = formatInTimeZone(now, TZ, 'EEEE, d MMMM yyyy');
   const timeStr = formatInTimeZone(now, TZ, 'HH:mm');
   const phrase = useMemo(() => getDailyPhrase(now), [dateStr]);
 
   return (
-    <div ref={boardRef} className="tv-board">
+    <div className="tv-board">
       <style>{`
-        @keyframes tv-enter { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes tv-enter { from { opacity:0; transform:translateY(14px) } to { opacity:1; transform:translateY(0) } }
         @keyframes tv-glow { 0%,100% { opacity:.45 } 50% { opacity:1 } }
-        .tv-board { width:100%; min-height:100vh; position:relative; background:#fff; color:#0f1f3a;
-          padding: clamp(16px, 1.6vw, 32px); display:flex; flex-direction:column; gap: clamp(14px, 1.4vw, 28px);
+        .tv-board { width:100vw; height:100vh; overflow:hidden; background:#fff; color:#0f1f3a;
+          padding: clamp(10px, 1vw, 18px); display:flex; flex-direction:column; gap: clamp(8px, .8vw, 14px);
           font-family: system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; box-sizing:border-box; }
         .tv-board * { box-sizing:border-box; }
-        .tv-bg { position:absolute; left:0; top:0; width:100%; height:44vh; max-height:760px; object-fit:cover; opacity:.55; z-index:0; pointer-events:none; }
-        .tv-scrim { position:absolute; left:0; top:0; width:100%; height:44vh; max-height:760px;
-          background:linear-gradient(180deg,rgba(255,255,255,.25),#fff 100%); z-index:0; pointer-events:none; }
-        .tv-board > *:not(.tv-bg):not(.tv-scrim) { position:relative; z-index:1; }
-        .tv-en { animation: tv-enter .7s cubic-bezier(.2,.75,.25,1) both; }
+        .tv-en { animation: tv-enter .6s cubic-bezier(.2,.75,.25,1) both; }
         .tv-glow { animation: tv-glow 4s ease-in-out infinite; }
 
-        .tv-hdr { display:flex; align-items:center; gap: clamp(16px, 1.8vw, 36px);
-          border-radius: clamp(20px, 1.6vw, 32px); padding: clamp(20px, 2.6vw, 52px) clamp(20px, 2.6vw, 52px);
+        .tv-hdr { flex:none; display:flex; align-items:center; gap: clamp(12px, 1.2vw, 24px);
+          border-radius: clamp(14px, 1vw, 20px); padding: clamp(10px, .9vw, 16px) clamp(16px, 1.4vw, 28px);
           background:linear-gradient(115deg,#173e9e 0%,#1d4fd1 68%,#2563eb 100%);
-          box-shadow:0 22px 46px rgba(37,99,235,.28); }
-        .tv-logo { width: clamp(72px, 7.5vw, 150px); height: clamp(72px, 7.5vw, 150px); flex:none;
-          background:rgba(255,255,255,.96); border-radius: clamp(14px, 1.3vw, 26px); padding: clamp(8px, .8vw, 14px);
-          display:flex; align-items:center; justify-content:center; box-shadow:0 8px 20px rgba(7,23,64,.25); }
+          box-shadow:0 12px 30px rgba(37,99,235,.25); }
+        .tv-logo { width: clamp(48px, 4.2vw, 76px); height: clamp(48px, 4.2vw, 76px); flex:none;
+          background:rgba(255,255,255,.96); border-radius: clamp(10px, .8vw, 16px); padding: clamp(5px, .5vw, 9px);
+          display:flex; align-items:center; justify-content:center; box-shadow:0 6px 16px rgba(7,23,64,.25); }
         .tv-logo img { max-width:100%; max-height:100%; object-fit:contain; }
-        .tv-hm { flex:1; display:flex; flex-direction:column; gap: clamp(6px, .5vw, 10px); min-width:0; }
-        .tv-date { color:#e8f0ff; font-size: clamp(16px, 1.5vw, 30px); font-weight:700; letter-spacing:.08em;
-          text-transform:uppercase; line-height:1.2; }
-        .tv-tr { display:flex; align-items:center; gap: clamp(16px, 2.2vw, 44px); flex-wrap:wrap; }
-        .tv-time { color:#fff; font-size: clamp(48px, 6.3vw, 128px); font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
-        .tv-ph { display:flex; align-items:center; gap: clamp(10px, .9vw, 18px); max-width: min(1000px, 52vw); }
-        .tv-ph i { width:6px; height: clamp(36px, 3.6vw, 72px); border-radius:6px; background:#93c5fd; flex:none; }
-        .tv-ph p { margin:0; color:#eff6ff; font-size: clamp(18px, 1.8vw, 36px); font-style:italic; line-height:1.3; }
-        .tv-sub { color:#cfe0ff; font-size: clamp(13px, 1.2vw, 24px); line-height:1.2; }
-        .tv-bar { width:14px; height: clamp(72px, 7.5vw, 150px); background:#93c5fd; border-radius:0 12px 12px 0; align-self:flex-end; }
+        .tv-hm { flex:0 0 auto; display:flex; flex-direction:column; gap: clamp(3px, .3vw, 6px); min-width:0; }
+        .tv-date { color:#e8f0ff; font-size: clamp(12px, 1vw, 18px); font-weight:700; letter-spacing:.08em;
+          text-transform:uppercase; line-height:1.15; }
+        .tv-time { color:#fff; font-size: clamp(26px, 3vw, 52px); font-weight:800; line-height:1; font-variant-numeric:tabular-nums; }
+        .tv-ph { flex:1 1 0; display:flex; align-items:center; gap: clamp(10px, .9vw, 18px); min-width:0; justify-content:flex-end; }
+        .tv-ph i { width:6px; height: clamp(30px, 3vw, 54px); border-radius:6px; background:#93c5fd; flex:none; }
+        .tv-ph p { margin:0; color:#eff6ff; font-size: clamp(14px, 1.4vw, 26px); font-style:italic; line-height:1.3;
+          text-align:right; max-width: 60vw; }
+        .tv-bar { width:12px; height: clamp(48px, 4.2vw, 76px); background:#93c5fd; border-radius:0 10px 10px 0; align-self:center; flex:none; }
 
-        .tv-cols { display:grid; grid-template-columns: repeat(auto-fit, minmax(clamp(260px, 22vw, 460px), 1fr));
-          gap: clamp(14px, 1.4vw, 28px); }
-        .tv-col { background:#eef3fb; border:2px solid #c5d6ee; border-radius: clamp(20px, 1.4vw, 28px); overflow:hidden;
-          box-shadow:0 14px 30px rgba(37,99,235,.12); display:flex; flex-direction:column; }
-        .tv-ch { background:#173e9e; color:#fff; padding: clamp(16px, 1.3vw, 26px) clamp(18px, 1.6vw, 32px);
-          display:flex; flex-direction:column; gap: clamp(6px, .5vw, 10px); }
-        .tv-cn { font-size: clamp(24px, 2.3vw, 46px); font-weight:800; line-height:1.1; }
-        .tv-cm { font-size: clamp(15px, 1.4vw, 28px); line-height:1.3; color:#dbe8ff; font-weight:600; }
-        .tv-cs { display:inline-block; align-self:flex-start; background:#fff; color:#173e9e; border-radius: clamp(10px, .7vw, 14px);
-          padding: clamp(4px, .4vw, 6px) clamp(10px, .9vw, 18px); font-size: clamp(18px, 1.7vw, 34px);
-          font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; }
-        .tv-cb { padding: clamp(16px, 1.2vw, 24px); display:flex; flex-direction:column; gap: clamp(12px, 1vw, 20px); }
+        .tv-cols { flex:1 1 0; min-height:0; display:grid; grid-template-columns: 1fr 1fr;
+          grid-auto-rows: 1fr; gap: clamp(10px, .9vw, 16px); overflow:hidden; }
+        .tv-col { min-height:0; display:flex; flex-direction:column; overflow:hidden;
+          background:#eef3fb; border:2px solid #c5d6ee; border-radius: clamp(16px, 1.1vw, 22px);
+          box-shadow:0 12px 28px rgba(37,99,235,.12); }
+        .tv-ch { flex:none; background:#173e9e; color:#fff; padding: clamp(12px, 1vw, 20px) clamp(16px, 1.3vw, 26px);
+          display:flex; align-items:center; gap: clamp(12px, 1vw, 20px); flex-wrap:wrap; }
+        .tv-chl { flex:1 1 auto; display:flex; flex-direction:column; gap: clamp(3px, .3vw, 6px); min-width:0; }
+        .tv-cn { font-size: clamp(20px, 2vw, 38px); font-weight:800; line-height:1.1; }
+        .tv-cm { font-size: clamp(14px, 1.3vw, 24px); line-height:1.25; color:#dbe8ff; font-weight:600;
+          white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .tv-cs { display:inline-block; align-self:center; background:#fff; color:#173e9e; border-radius: clamp(10px, .7vw, 14px);
+          padding: clamp(4px, .4vw, 8px) clamp(10px, .9vw, 18px); font-size: clamp(18px, 1.8vw, 34px);
+          font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; flex:none; }
+        .tv-cb { flex:1 1 0; min-height:0; overflow-y:auto; padding: clamp(12px, 1vw, 20px);
+          display:flex; flex-direction:column; gap: clamp(10px, .9vw, 16px); }
+        .tv-cb::-webkit-scrollbar { width:8px; }
+        .tv-cb::-webkit-scrollbar-thumb { background:#c5d6ee; border-radius:8px; }
         .tv-nc { background:#fff; border:1px solid #c5d6ee; border-left:10px solid #2563eb;
-          border-radius: clamp(14px, 1vw, 20px); padding: clamp(14px, 1.1vw, 26px) clamp(16px, 1.3vw, 26px);
-          display:flex; flex-direction:column; gap: clamp(5px, .4vw, 8px);
-          box-shadow:0 6px 14px rgba(23,62,158,.08); transition:box-shadow .2s,background-color .2s; cursor:pointer; }
-        .tv-nc:hover { box-shadow:0 10px 22px rgba(37,99,235,.2); background:#f7faff; }
-        .tv-nc.tv-hi { border-left-color:#173e9e; }
-        .tv-nw { font-size: clamp(12px, 1.1vw, 22px); font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#2563eb; }
-        .tv-nt { font-size: clamp(18px, 1.7vw, 34px); font-weight:800; color:#0f1f3a; line-height:1.2; }
-        .tv-nb { font-size: clamp(15px, 1.4vw, 28px); line-height:1.45; color:#1e3a5f; margin:0;
+          border-radius: clamp(12px, .9vw, 18px); padding: clamp(12px, 1vw, 22px) clamp(14px, 1.2vw, 24px);
+          display:flex; flex-direction:column; gap: clamp(4px, .4vw, 8px);
+          box-shadow:0 6px 14px rgba(23,62,158,.08); }
+        .tv-nc.tv-hi { border-left-color:#173e9e; background:#f7faff; }
+        .tv-nw { font-size: clamp(12px, 1.1vw, 20px); font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#2563eb; }
+        .tv-nt { font-size: clamp(17px, 1.7vw, 30px); font-weight:800; color:#0f1f3a; line-height:1.2; }
+        .tv-nb { font-size: clamp(15px, 1.5vw, 26px); line-height:1.4; color:#1e3a5f; margin:0;
           white-space:pre-wrap; word-break:break-word; }
-        .tv-rest { display:flex; flex-direction:column; gap: clamp(8px, .6vw, 12px); }
-        .tv-msg { text-align:center; color:#1e3a5f; font-size: clamp(16px, 1.5vw, 30px); font-weight:600;
-          background:#eef3fb; border:2px dashed #c5d6ee; border-radius: clamp(14px, 1vw, 20px);
-          padding: clamp(14px, 1.1vw, 22px); }
+        .tv-empty { grid-column: 1 / -1; display:flex; align-items:center; justify-content:center;
+          color:#1e3a5f; font-size: clamp(18px, 1.6vw, 30px); font-weight:600;
+          background:#eef3fb; border:2px dashed #c5d6ee; border-radius: clamp(16px, 1.1vw, 22px); }
 
-        .tv-off { background:#fff; border:2px solid #cdd9e8; border-radius: clamp(20px, 1.4vw, 28px);
-          box-shadow:0 12px 30px rgba(37,99,235,.12); overflow:hidden; }
-        .tv-oh { display:flex; align-items:center; gap: clamp(12px, 1vw, 20px); padding: clamp(12px, .9vw, 18px) clamp(20px, 1.6vw, 32px);
-          background:linear-gradient(90deg,#173e9e,#2563eb); }
-        .tv-ol { width: clamp(44px, 3.4vw, 68px); height: clamp(44px, 3.4vw, 68px); background:#fff;
-          border-radius: clamp(10px, .8vw, 16px); display:flex; align-items:center; justify-content:center; padding:6px; flex:none; }
+        .tv-off { flex:none; max-height: clamp(110px, 15vh, 200px); min-height:0; display:flex; flex-direction:column;
+          background:#fff; border:2px solid #cdd9e8; border-radius: clamp(14px, 1vw, 20px); overflow:hidden;
+          box-shadow:0 10px 24px rgba(37,99,235,.1); }
+        .tv-oh { flex:none; display:flex; align-items:center; gap: clamp(10px, .9vw, 16px);
+          padding: clamp(8px, .7vw, 14px) clamp(16px, 1.3vw, 26px); background:linear-gradient(90deg,#173e9e,#2563eb); }
+        .tv-ol { width: clamp(34px, 2.6vw, 52px); height: clamp(34px, 2.6vw, 52px); background:#fff;
+          border-radius: clamp(8px, .6vw, 12px); display:flex; align-items:center; justify-content:center; padding:5px; flex:none; }
         .tv-ol img { max-width:100%; max-height:100%; object-fit:contain; }
-        .tv-ot { color:#fff; font-size: clamp(20px, 1.9vw, 38px); font-weight:800; line-height:1.1; }
-        .tv-os { color:#dbe8ff; font-size: clamp(13px, 1.2vw, 24px); line-height:1.3; }
-        .tv-off table { border-collapse:separate; border-spacing:0; width:100%; font-variant-numeric:tabular-nums; }
-        .tv-off th { padding: clamp(10px, .8vw, 16px) clamp(18px, 1.6vw, 32px); font-size: clamp(12px, 1.1vw, 22px);
-          font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#173e9e;
-          border-bottom:2px solid #c5d6ee; text-align:left; background:#eef3fb; }
-        .tv-off td { padding: clamp(12px, .9vw, 18px) clamp(18px, 1.6vw, 32px); vertical-align:top;
-          border-bottom:1px solid #e4ebf5; font-size: clamp(15px, 1.4vw, 28px); line-height:1.45; color:#1e3a5f; }
-        .tv-off tr:nth-child(odd) td { background:#f7faff; }
-        .tv-off td.tv-tt { font-weight:800; color:#0f1f3a; font-size: clamp(16px, 1.5vw, 30px); width:30%; }
-        .tv-off td p { margin:0; white-space:pre-wrap; word-break:break-word; }
+        .tv-ot { color:#fff; font-size: clamp(15px, 1.4vw, 26px); font-weight:800; line-height:1.1; }
+        .tv-obb { flex:1 1 0; min-height:0; overflow-y:auto; display:grid; grid-template-columns: 1fr 1fr;
+          gap: clamp(6px, .5vw, 10px); padding: clamp(8px, .7vw, 14px); align-content:start; }
+        .tv-obb::-webkit-scrollbar { width:8px; }
+        .tv-obb::-webkit-scrollbar-thumb { background:#cdd9e8; border-radius:8px; }
+        .tv-oi { background:#f7faff; border:1px solid #e4ebf5; border-radius: clamp(8px, .6vw, 12px);
+          padding: clamp(7px, .6vw, 12px) clamp(10px, .8vw, 16px); }
+        .tv-oi b { display:block; color:#0f1f3a; font-size: clamp(13px, 1.2vw, 22px); font-weight:800; margin-bottom:2px; }
+        .tv-oi p { margin:0; color:#1e3a5f; font-size: clamp(12px, 1.1vw, 20px); line-height:1.35;
+          white-space:pre-wrap; word-break:break-word; }
       `}</style>
 
-      <img className="tv-bg" src={BG} alt="" />
-      <div className="tv-scrim" />
-
-      <header className="tv-hdr tv-en" style={{ animationDelay: '.15s' }}>
+      <header className="tv-hdr tv-en" style={{ animationDelay: '.05s' }}>
         <div className="tv-logo"><img src={LOGO} alt="RedOak Cleaning" /></div>
         <div className="tv-hm">
           <div className="tv-date">{dateStr}</div>
-          <div className="tv-tr">
-            <div className="tv-time">{timeStr}</div>
-            <div className="tv-ph"><i /><p>"{phrase}"</p></div>
-          </div>
-          <div className="tv-sub">Tablero del día · RedOak Cleaning</div>
+          <div className="tv-time">{timeStr}</div>
         </div>
+        <div className="tv-ph"><i /><p>"{phrase}"</p></div>
         <div className="tv-bar tv-glow" />
       </header>
 
-      {loading ? (
-        <div className="tv-rest tv-en"><div className="tv-msg">Cargando avisos…</div></div>
-      ) : teams.length === 0 ? (
-        <div className="tv-rest tv-en"><div className="tv-msg">No hay equipos asignados para hoy.</div></div>
-      ) : (
-        <div className="tv-cols">
-          {teams.map((team, i) => {
-            const tn = noticesForTeam(team);
+      <div className="tv-cols">
+        {loading ? (
+          <div className="tv-empty">Cargando avisos…</div>
+        ) : visible.length === 0 ? (
+          <div className="tv-empty">No hay recordatorios de salida para hoy.</div>
+        ) : (
+          visible.map(({ team, notes }, i) => {
+            const isLastOdd = oddLast && i === visible.length - 1;
             const dep = teamDeparture(team);
             return (
-              <section key={`${team.key}-${i}`} className="tv-col tv-en" style={{ animationDelay: `${0.3 + i * 0.12}s` }}>
+              <section
+                key={`${team.key}-${i}`}
+                className="tv-col tv-en"
+                style={{ animationDelay: `${0.15 + i * 0.08}s`, gridColumn: isLastOdd ? '1 / -1' : undefined }}
+              >
                 <div className="tv-ch">
-                  <div className="tv-cn">{team.key}</div>
-                  <div className="tv-cm">{team.members.join(' · ')}</div>
+                  <div className="tv-chl">
+                    <div className="tv-cn">{team.key}</div>
+                    <div className="tv-cm">{team.members.join(' · ')}</div>
+                  </div>
                   <div className="tv-cs">{dep || '—'}</div>
                 </div>
                 <div className="tv-cb">
-                  {tn.length === 0 ? (
-                    <div className="tv-msg">Sin recordatorios para este equipo.</div>
-                  ) : tn.map(n => (
+                  {notes.map(n => (
                     <div key={n.id} className={`tv-nc${n.priority === 'high' ? ' tv-hi' : ''}`}>
                       <div className="tv-nw">{labelFor(n, team)}</div>
                       {n.title && <div className="tv-nt">{n.title}</div>}
@@ -436,32 +367,26 @@ export default function TableroTVView() {
                 </div>
               </section>
             );
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
-      <aside className="tv-off tv-en" style={{ animationDelay: '.9s' }}>
-        <div className="tv-oh">
-          <div className="tv-ol"><img src={LOGO} alt="" /></div>
-          <div>
+      {officeNotices.length > 0 && (
+        <aside className="tv-off tv-en" style={{ animationDelay: '.5s' }}>
+          <div className="tv-oh">
+            <div className="tv-ol"><img src={LOGO} alt="" /></div>
             <div className="tv-ot">Avisos de la oficina</div>
-            <div className="tv-os">Información permanente · Léela todos los días</div>
           </div>
-        </div>
-        <table>
-          <thead><tr><th>Título</th><th>Mensaje</th></tr></thead>
-          <tbody>
-            {officeNotices.length === 0 ? (
-              <tr><td className="tv-tt">Sin avisos de oficina.</td><td><p>Sin avisos de oficina.</p></td></tr>
-            ) : officeNotices.map(n => (
-              <tr key={n.id}>
-                <td className="tv-tt">{n.title || 'Aviso'}</td>
-                <td><p>{n.body}</p></td>
-              </tr>
+          <div className="tv-obb">
+            {officeNotices.map(n => (
+              <div key={n.id} className="tv-oi">
+                <b>{n.title || 'Aviso'}</b>
+                <p>{n.body}</p>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </aside>
+          </div>
+        </aside>
+      )}
     </div>
   );
 }
