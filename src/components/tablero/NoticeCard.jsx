@@ -40,9 +40,9 @@ export default function NoticeCard({ notice, index = 0 }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{audience}</div>
-          <div className="text-lg font-bold text-[#0f1f3a] leading-tight break-words">{name}</div>
+          <div className="text-lg sm:text-xl font-bold text-[#0f1f3a] leading-tight break-words">{name}</div>
           {notice.title && (
-            <div className="text-sm text-slate-500 break-words mt-0.5">{notice.title}</div>
+            <div className="text-base text-slate-500 break-words mt-0.5">{notice.title}</div>
           )}
         </div>
         {isHigh && (
@@ -56,8 +56,8 @@ export default function NoticeCard({ notice, index = 0 }) {
       </div>
 
       {/* Cuerpo del mensaje — se adapta al contenido (mucho o poco) */}
-      <div className="px-5 py-4">
-        <p className="text-[#1e3a5f] text-[17px] leading-relaxed whitespace-pre-wrap break-words">
+      <div className="px-5 py-5">
+        <p className="text-[#1e3a5f] text-lg sm:text-xl leading-relaxed whitespace-pre-wrap break-words">
           {notice.body}
         </p>
       </div>

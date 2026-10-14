@@ -46,7 +46,55 @@ export default function TableroTVView() {
     const READING_STEPS = 22;     // cada cuántos pasos hace una micro-pausa de lectura
     const READING_PAUSE_MS = 1800;
 
-    const setupAutoScroll = (el) => {
+    const setupWindowAutoScroll = () => {
+      let paused = false;
+      let bottomPauseUntil = 0;
+      let topPauseUntil = 0;
+      let readingPauseUntil = 0;
+      let stepCount = 0;
+
+      const tick = () => {
+        if (paused) return;
+        const now = Date.now();
+        if (now < topPauseUntil) return;
+        const max = (document.documentElement.scrollHeight || 0) - window.innerHeight;
+        if (max <= 1) return; // no hay nada que desplazar
+        const scrollTop = window.scrollY || window.pageYOffset;
+        if (scrollTop >= max - 1) {
+          if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
+          if (now < bottomPauseUntil) return;
+          window.scrollTo({ top: 0, behavior: 'auto' });
+          bottomPauseUntil = 0;
+          topPauseUntil = now + PAUSE_MS;
+          stepCount = 0;
+          return;
+        }
+        if (now < readingPauseUntil) return;
+        window.scrollTo({ top: scrollTop + SCROLL_STEP, behavior: 'auto' });
+        stepCount += 1;
+        if (stepCount >= READING_STEPS) {
+          stepCount = 0;
+          readingPauseUntil = now + READING_PAUSE_MS;
+        }
+      };
+
+      const id = setInterval(tick, TICK_MS);
+      let resumeTimer = null;
+      const onWheel = () => {
+        paused = true;
+        if (resumeTimer) clearTimeout(resumeTimer);
+        resumeTimer = setTimeout(() => { paused = false; }, 4000);
+      };
+      window.addEventListener('wheel', onWheel, { passive: true });
+      return () => {
+        clearInterval(id);
+        if (resumeTimer) clearTimeout(resumeTimer);
+        window.removeEventListener('wheel', onWheel);
+      };
+    };
+
+    // Auto-scroll de la tabla de oficina (contenedor propio)
+    const setupElAutoScroll = (el) => {
       if (!el) return null;
       let paused = false;
       let bottomPauseUntil = 0;
@@ -60,7 +108,7 @@ export default function TableroTVView() {
         if (now < topPauseUntil) return;
         const { scrollTop, scrollHeight, clientHeight } = el;
         const max = scrollHeight - clientHeight;
-        if (max <= 1) return; // no hay nada que desplazar
+        if (max <= 1) return;
         if (scrollTop >= max - 1) {
           if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
           if (now < bottomPauseUntil) return;
@@ -91,10 +139,12 @@ export default function TableroTVView() {
       };
     };
 
-    const cleanups = [mainScrollRef.current, officeScrollRef.current]
-      .map(setupAutoScroll)
-      .filter(Boolean);
-    return () => cleanups.forEach((c) => c && c());
+    const winCleanup = setupWindowAutoScroll();
+    const officeCleanup = setupElAutoScroll(officeScrollRef.current);
+    return () => {
+      if (winCleanup) winCleanup();
+      if (officeCleanup) officeCleanup();
+    };
   }, [notices, teams]);
 
   const load = async () => {
@@ -262,7 +312,7 @@ export default function TableroTVView() {
   const phrase = useMemo(() => getDailyPhrase(now), [dateStr]);
 
   return (
-    <div className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 lg:h-[100dvh] lg:overflow-hidden relative">
+    <div className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 relative">
       <style>{`
         @keyframes tv-enter { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
         @keyframes tv-slideup { 0% { opacity:0; transform:translateY(22px) } 100% { opacity:1; transform:translateY(0) } }
@@ -350,10 +400,10 @@ export default function TableroTVView() {
       </header>
 
       {/* Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-4 lg:gap-6 mt-4 lg:mt-5 lg:flex-1 lg:min-h-0">
-        {/* Main: cards — zona única con scroll interno */}
-        <main className="min-w-0 flex flex-col min-h-0">
-          <div ref={mainScrollRef} className="flex flex-col gap-4 lg:gap-5 lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] gap-4 lg:gap-6 mt-4 lg:mt-6">
+        {/* Main: cards — todas visibles, la página crece */}
+        <main className="min-w-0 flex flex-col">
+          <div ref={mainScrollRef} className="flex flex-col gap-4 lg:gap-5">
             {loading ? (
               <div className="col-span-2 text-center text-slate-400 py-10">Cargando avisos…</div>
             ) : (specificNotices.length === 0 && allNotices.length === 0) ? (
@@ -368,7 +418,7 @@ export default function TableroTVView() {
         </main>
 
         {/* Rail: office — avisos permanentes en formato tabla */}
-        <aside className="flex flex-col border border-[#cdd9e8] rounded-[20px] sm:rounded-[24px] lg:rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0 max-h-[55vh] lg:max-h-none">
+        <aside className="flex flex-col border border-[#cdd9e8] rounded-[20px] sm:rounded-[24px] lg:rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0 max-h-[55vh] lg:max-h-[calc(100dvh-3rem)] lg:sticky lg:top-6 lg:self-start">
           <div className="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 bg-gradient-to-r from-[#173e9e] to-[#2563eb]">
             <div className="h-[44px] w-[44px] sm:h-[52px] sm:w-[52px] flex-shrink-0 flex items-center justify-center bg-white rounded-xl shadow-sm">
               <img src={LOGO} alt="" className="max-w-full max-h-full object-contain p-1" />
