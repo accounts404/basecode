@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 
 const BRAND = '#2563eb';
 const BRAND_DEEP = '#173e9e';
@@ -19,6 +19,39 @@ export default function NoticeCard({ notice, index = 0 }) {
   const isHigh = notice.priority === 'high';
   const accent = isHigh ? DANGER : BRAND;
   const audience = AUDIENCE_LABEL[notice.target] || 'Aviso';
+
+  const bodyRef = useRef(null);
+  const textRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const fit = () => {
+      const box = bodyRef.current;
+      const p = textRef.current;
+      if (!box || !p) return;
+      const avail = box.clientHeight;
+      if (avail <= 0) return;
+      let fs = parseFloat(getComputedStyle(p).fontSize);
+      const min = 9, max = 26;
+      let guard = 0;
+      while (p.scrollHeight > avail && fs > min && guard < 300) {
+        fs -= 0.5;
+        p.style.fontSize = fs + 'px';
+        guard++;
+      }
+      guard = 0;
+      while (p.scrollHeight <= avail && fs < max && guard < 300) {
+        const next = fs + 1;
+        p.style.fontSize = next + 'px';
+        if (p.scrollHeight > avail) { p.style.fontSize = fs + 'px'; break; }
+        fs = next;
+        guard++;
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    if (bodyRef.current) ro.observe(bodyRef.current);
+    return () => ro.disconnect();
+  }, [notice.body, notice.title]);
 
   return (
     <article
@@ -63,8 +96,9 @@ export default function NoticeCard({ notice, index = 0 }) {
       </div>
 
       {/* Cuerpo: se ajusta al alto disponible; el texto se encoge con cqw/cqh */}
-      <div className="tv-notice-body flex-1 min-h-0 overflow-hidden px-3 py-2">
+      <div ref={bodyRef} className="tv-notice-body flex-1 min-h-0 overflow-hidden px-3 py-2">
         <p
+          ref={textRef}
           className="text-[#1e3a5f] whitespace-pre-wrap"
           style={{
             fontSize: 'clamp(0.72rem, min(3.1cqw, 5cqh), 1.35rem)',
