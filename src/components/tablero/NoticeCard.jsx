@@ -21,7 +21,7 @@ export default function NoticeCard({ notice, index = 0 }) {
 
   return (
     <article
-      className="tv-notice relative flex flex-col rounded-3xl bg-white border shadow-[0_10px_28px_rgba(15,31,58,0.10)] overflow-hidden tv-enter"
+      className="tv-notice relative flex flex-col rounded-3xl bg-white border shadow-[0_10px_28px_rgba(15,31,58,0.10)] overflow-hidden tv-enter mb-4 lg:mb-5 break-inside-avoid"
       style={{
         animationDelay: `${index * 0.08}s`,
         borderColor: isHigh ? '#fca5a5' : '#d8e1ee',
