@@ -38,6 +38,7 @@ export default function RecurrenciasPreview() {
   const [applyingItem, setApplyingItem] = useState(null);
   const [applyingAll, setApplyingAll] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [clientFilter, setClientFilter] = useState('');
   const [result, setResult] = useState(null);
 
   // Restore wrongly cancelled
@@ -181,6 +182,11 @@ export default function RecurrenciasPreview() {
     const pastChanges = summary.past_changes ?? 0;
     const futureChanges = summary.future_changes ?? summary.total_new_services ?? 0;
 
+    const filterTerm = clientFilter.trim().toLowerCase();
+    const filteredItems = filterTerm
+      ? items.filter((it) => (it.client_name || '').toLowerCase().includes(filterTerm))
+      : items;
+
     return (
       <Card className="border-slate-200">
         <CardHeader>
@@ -247,6 +253,33 @@ export default function RecurrenciasPreview() {
               </div>
 
               {isExpanded && (
+                <>
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={clientFilter}
+                      onChange={(e) => setClientFilter(e.target.value)}
+                      placeholder="Buscar cliente…"
+                      className="w-full h-9 rounded-md border border-slate-300 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {clientFilter && (
+                      <button
+                        onClick={() => setClientFilter('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        title="Limpiar"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {filterTerm && (
+                    <span className="text-xs text-slate-500">
+                      {filteredItems.length} de {items.length} series
+                    </span>
+                  )}
+                </div>
                 <div className="overflow-x-auto rounded-lg border border-slate-200">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 text-slate-600">
@@ -262,7 +295,11 @@ export default function RecurrenciasPreview() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {items.map((it, i) => {
+                      {filteredItems.length === 0 ? (
+                        <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-400 text-sm">
+                          No hay series que coincidan con "{clientFilter}".
+                        </td></tr>
+                      ) : filteredItems.map((it, i) => {
                         const itemStatus = it.item_status || 'pending';
                         const isApplied = itemStatus === 'applied';
                         return (
@@ -321,6 +358,7 @@ export default function RecurrenciasPreview() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
 
               {pendingItems.length > 0 && (
