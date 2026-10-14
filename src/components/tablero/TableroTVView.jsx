@@ -350,7 +350,7 @@ export default function TableroTVView() {
       </header>
 
       {/* Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] gap-4 lg:gap-6 mt-4 lg:mt-5 lg:flex-1 lg:min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] gap-4 lg:gap-6 mt-4 lg:mt-5 lg:flex-1 lg:min-h-0">
         {/* Main: cards — zona única con scroll interno */}
         <main className="min-w-0 flex flex-col min-h-0">
           <div ref={mainScrollRef} className="flex flex-col gap-4 lg:gap-5 lg:overflow-y-auto lg:flex-1 lg:pr-1 tv-table-scroll">
@@ -379,21 +379,29 @@ export default function TableroTVView() {
             </div>
           </div>
 
-          <div ref={officeScrollRef} className="tv-table-scroll flex-1 overflow-y-auto p-3 sm:p-4 flex flex-col gap-3">
-            {officeNotices.length === 0 ? (
-              <div className="tv-empty">Sin avisos de oficina.</div>
-            ) : (
-              officeNotices.map((n, i) => (
-                <article
-                  key={n.id}
-                  className="tv-slideup rounded-2xl border border-[#d8e1ee] bg-white p-4 shadow-sm"
-                  style={{ animationDelay: `${0.4 + i * 0.1}s` }}
-                >
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[#173e9e] mb-1">{n.title || 'Aviso'}</div>
-                  <p className="text-[#1e3a5f] text-[15px] leading-relaxed whitespace-pre-wrap break-words">{n.body}</p>
-                </article>
-              ))
-            )}
+          <div ref={officeScrollRef} className="tv-table-scroll flex-1 overflow-y-auto">
+            <table className="tv-table">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#eef3fb]">
+                  <th className="tv-th text-left" style={{ width: '34%' }}>Título</th>
+                  <th className="tv-th text-left">Mensaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {officeNotices.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="tv-empty">Sin avisos de oficina.</td>
+                  </tr>
+                ) : (
+                  officeNotices.map((n, i) => (
+                    <tr key={n.id} className="tv-row tv-slideup" style={{ animationDelay: `${0.4 + i * 0.1}s` }}>
+                      <td className="tv-cell tv-cell-title">{n.title || 'Aviso'}</td>
+                      <td className="tv-cell tv-cell-body"><p className="tv-msg">{n.body}</p></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </aside>
       </div>
