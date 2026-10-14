@@ -5,9 +5,13 @@ import NoticeCard from './NoticeCard';
 import { getDailyPhrase } from './motivationalPhrases';
 
 const LOGO = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png";
-const CORK = "https://media.base44.com/images/public/688d6a9b330ea09f97a21af4/694cc365c_generated_0b53f1e9.jpg";
 const TZ = 'Australia/Melbourne';
 const REFRESH_MS = 30000;
+
+// Colores de marca RedOak
+const BRAND = '#2563eb';
+const BRAND_DARK = '#1d4fd1';
+const BRAND_DEEP = '#173e9e';
 
 function isVigente(n) {
   if (!n.active) return false;
@@ -31,9 +35,13 @@ export default function TableroTVView() {
   const [teams, setTeams] = useState([]);
   const cleanersRef = useRef([]);
 
-  // Auto-scroll para TV: recorre la página lentamente, pausa al final y vuelve arriba.
+  // Auto-scroll para TV: mueve el contenido lentamente, pausa al final y vuelve arriba.
+  const mainScrollRef = useRef(null);
+  const officeScrollRef = useRef(null);
   const boardRef = useRef(null);
 
+  // Busca el contenedor scrollable más cercano al tablero (kiosk overlay o área de contenido).
+  // Si no hay ninguno, devuelve null para usar window.
   const findScrollContainer = () => {
     let el = boardRef.current && boardRef.current.parentElement;
     while (el) {
@@ -47,73 +55,130 @@ export default function TableroTVView() {
   };
 
   useEffect(() => {
-    const SCROLL_STEP = 1;
-    const TICK_MS = 60;
-    const PAUSE_MS = 3500;
-    const READING_STEPS = 22;
+    const SCROLL_STEP = 1;        // px por tick
+    const TICK_MS = 60;           // velocidad (ms entre pasos) ~16 px/s
+    const PAUSE_MS = 3500;        // pausa larga arriba y abajo
+    const READING_STEPS = 22;     // cada cuántos pasos hace una micro-pausa de lectura
     const READING_PAUSE_MS = 1800;
 
-    let container = findScrollContainer();
-    const containerValid = (el) => {
-      if (!el || !el.parentElement) return false;
-      const ov = (window.getComputedStyle(el).overflowY || '').toLowerCase();
-      return (ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight + 1;
-    };
-    const ensure = () => {
-      if (containerValid(container)) return container;
-      container = findScrollContainer();
-      return container;
-    };
-    let paused = false;
-    let bottomPauseUntil = 0;
-    let topPauseUntil = 0;
-    let readingPauseUntil = 0;
-    let stepCount = 0;
+    const setupWindowAutoScroll = () => {
+      // Contenedor real de scroll: el overlay kiosk (fixed, overflow-y-auto) o el área
+      // de contenido del layout; si no se encuentra, se usa window.
+      let container = findScrollContainer();
+      const containerValid = (el) => {
+        if (!el || !el.parentElement) return false;
+        const ov = (window.getComputedStyle(el).overflowY || '').toLowerCase();
+        return (ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight + 1;
+      };
+      const ensure = () => {
+        if (containerValid(container)) return container;
+        container = findScrollContainer();
+        return container;
+      };
+      let paused = false;
+      let bottomPauseUntil = 0;
+      let topPauseUntil = 0;
+      let readingPauseUntil = 0;
+      let stepCount = 0;
 
-    const getMax = () => container
-      ? container.scrollHeight - container.clientHeight
-      : (document.documentElement.scrollHeight || 0) - window.innerHeight;
-    const getTop = () => container ? container.scrollTop : (window.scrollY || window.pageYOffset);
-    const setTop = (t) => { if (container) container.scrollTop = t; else window.scrollTo({ top: t, behavior: 'auto' }); };
+      const getMax = () => container
+        ? container.scrollHeight - container.clientHeight
+        : (document.documentElement.scrollHeight || 0) - window.innerHeight;
+      const getTop = () => container ? container.scrollTop : (window.scrollY || window.pageYOffset);
+      const setTop = (t) => { if (container) container.scrollTop = t; else window.scrollTo({ top: t, behavior: 'auto' }); };
 
-    const tick = () => {
-      if (paused) return;
-      const now = Date.now();
-      if (now < topPauseUntil) return;
-      ensure();
-      const max = getMax();
-      if (max <= 1) return;
-      const scrollTop = getTop();
-      if (scrollTop >= max - 1) {
-        if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
-        if (now < bottomPauseUntil) return;
-        setTop(0);
-        bottomPauseUntil = 0;
-        topPauseUntil = now + PAUSE_MS;
-        stepCount = 0;
-        return;
-      }
-      if (now < readingPauseUntil) return;
-      setTop(scrollTop + SCROLL_STEP);
-      stepCount += 1;
-      if (stepCount >= READING_STEPS) {
-        stepCount = 0;
-        readingPauseUntil = now + READING_PAUSE_MS;
-      }
+      const tick = () => {
+        if (paused) return;
+        const now = Date.now();
+        if (now < topPauseUntil) return;
+        ensure();
+        const max = getMax();
+        if (max <= 1) return; // no hay nada que desplazar
+        const scrollTop = getTop();
+        if (scrollTop >= max - 1) {
+          if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
+          if (now < bottomPauseUntil) return;
+          setTop(0);
+          bottomPauseUntil = 0;
+          topPauseUntil = now + PAUSE_MS;
+          stepCount = 0;
+          return;
+        }
+        if (now < readingPauseUntil) return;
+        setTop(scrollTop + SCROLL_STEP);
+        stepCount += 1;
+        if (stepCount >= READING_STEPS) {
+          stepCount = 0;
+          readingPauseUntil = now + READING_PAUSE_MS;
+        }
+      };
+
+      const id = setInterval(tick, TICK_MS);
+      let resumeTimer = null;
+      const onWheel = () => {
+        paused = true;
+        if (resumeTimer) clearTimeout(resumeTimer);
+        resumeTimer = setTimeout(() => { paused = false; }, 4000);
+      };
+      window.addEventListener('wheel', onWheel, { passive: true });
+      return () => {
+        clearInterval(id);
+        if (resumeTimer) clearTimeout(resumeTimer);
+        window.removeEventListener('wheel', onWheel);
+      };
     };
 
-    const id = setInterval(tick, TICK_MS);
-    let resumeTimer = null;
-    const onWheel = () => {
-      paused = true;
-      if (resumeTimer) clearTimeout(resumeTimer);
-      resumeTimer = setTimeout(() => { paused = false; }, 4000);
+    // Auto-scroll de la tabla de oficina (contenedor propio)
+    const setupElAutoScroll = (el) => {
+      if (!el) return null;
+      let paused = false;
+      let bottomPauseUntil = 0;
+      let topPauseUntil = 0;
+      let readingPauseUntil = 0;
+      let stepCount = 0;
+
+      const tick = () => {
+        if (paused) return;
+        const now = Date.now();
+        if (now < topPauseUntil) return;
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        const max = scrollHeight - clientHeight;
+        if (max <= 1) return;
+        if (scrollTop >= max - 1) {
+          if (bottomPauseUntil === 0) bottomPauseUntil = now + PAUSE_MS;
+          if (now < bottomPauseUntil) return;
+          el.scrollTo({ top: 0, behavior: 'auto' });
+          bottomPauseUntil = 0;
+          topPauseUntil = now + PAUSE_MS;
+          stepCount = 0;
+          return;
+        }
+        if (now < readingPauseUntil) return;
+        el.scrollTo({ top: scrollTop + SCROLL_STEP, behavior: 'auto' });
+        stepCount += 1;
+        if (stepCount >= READING_STEPS) {
+          stepCount = 0;
+          readingPauseUntil = now + READING_PAUSE_MS;
+        }
+      };
+
+      const id = setInterval(tick, TICK_MS);
+      const onEnter = () => { paused = true; };
+      const onLeave = () => { paused = false; };
+      el.addEventListener('mouseenter', onEnter);
+      el.addEventListener('mouseleave', onLeave);
+      return () => {
+        clearInterval(id);
+        el.removeEventListener('mouseenter', onEnter);
+        el.removeEventListener('mouseleave', onLeave);
+      };
     };
-    window.addEventListener('wheel', onWheel, { passive: true });
+
+    const winCleanup = setupWindowAutoScroll();
+    const officeCleanup = setupElAutoScroll(officeScrollRef.current);
     return () => {
-      clearInterval(id);
-      if (resumeTimer) clearTimeout(resumeTimer);
-      window.removeEventListener('wheel', onWheel);
+      if (winCleanup) winCleanup();
+      if (officeCleanup) officeCleanup();
     };
   }, [notices, teams]);
 
@@ -145,6 +210,8 @@ export default function TableroTVView() {
       const pickName = (u) => {
         const fn = (u.full_name || '').trim();
         const dn = (u.display_name || '').trim();
+        // Usar el primero que parezca un nombre real (con espacio); si ninguno lo es,
+        // devolver lo que exista (mantiene handles solo como último recurso).
         if (isProperName(fn)) return fn;
         if (isProperName(dn)) return dn;
         return fn || dn;
@@ -157,6 +224,8 @@ export default function TableroTVView() {
     }
   };
 
+  // Carga el nombre de facturación real de cada limpiador (WorkEntry.cleaner_name),
+  // que es el nombre que se usa en horarios y facturas, no el handle de correo.
   const loadBillingNames = async () => {
     try {
       const page = await base44.entities.WorkEntry.filter(
@@ -184,6 +253,7 @@ export default function TableroTVView() {
       const list = (assignments || [])
         .filter(t => t.date && t.date >= today && t.status !== 'cancelled')
         .map(t => {
+          // Resolver nombres desde los IDs, con respaldo en team_members_names por índice
           const ids = t.team_member_ids || [];
           const rawNames = (t.team_members_names || []).map(m => m.trim());
           const resolveMember = (id, i) => {
@@ -233,6 +303,7 @@ export default function TableroTVView() {
 
   useEffect(() => {
     if (Object.keys(userById).length || Object.keys(billingNameMap).length) loadTeams();
+    // Construir mapa handle/nombre -> nombre de facturación para avisos individuales
     const map = {};
     (cleanersRef.current || []).forEach((u) => {
       const billing = (billingNameMap[u.id] || '').trim();
@@ -249,8 +320,11 @@ export default function TableroTVView() {
     const stored = n.target_name || '';
     if (n.target === 'team') {
       const s = stored.trim();
+      // Coincidencia exacta por key
       let team = teams.find(t => t.key === s);
+      // Coincidencia por prefijo (el valor guardado puede traer miembros anexos)
       if (!team) team = teams.find(t => s.startsWith(t.key) || t.key.startsWith(s));
+      // Coincidencia por nombre del primer miembro dentro del valor guardado
       if (!team) {
         team = teams.find(t =>
           (t.firstRaw && s.includes(t.firstRaw)) ||
@@ -268,154 +342,153 @@ export default function TableroTVView() {
   const specificNotices = useMemo(() => dayNotices.filter(n => n.target !== 'all'), [dayNotices]);
   const officeNotices = useMemo(() => notices.filter(n => n.type === 'office' && isVigente(n)), [notices]);
 
-  // Agrupar recordatorios por destinatario (chica/equipo) en columnas del mural.
-  const specificCols = useMemo(() => {
-    const groups = {};
-    specificNotices.forEach((n) => {
-      const name = resolveName(n) || 'Otros';
-      if (!groups[name]) groups[name] = { who: name, notes: [] };
-      groups[name].notes.push(n);
-    });
-    return Object.values(groups);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [specificNotices, teams, handleToBilling, nameMap]);
-
-  // "Para todos" queda al centro del mural.
-  const orderedCols = useMemo(() => {
-    const half = Math.ceil(specificCols.length / 2);
-    const left = specificCols.slice(0, half);
-    const right = specificCols.slice(half);
-    const middle = allNotices.length ? [{ who: 'Para todos', notes: allNotices, all: true }] : [];
-    return [...left, ...middle, ...right];
-  }, [specificCols, allNotices]);
-
   const dateStr = formatInTimeZone(now, TZ, 'EEEE, d MMMM yyyy');
   const timeStr = formatInTimeZone(now, TZ, 'HH:mm');
   const phrase = useMemo(() => getDailyPhrase(now), [dateStr]);
 
   return (
-    <div ref={boardRef} className="mm-board min-h-screen w-full">
+    <div ref={boardRef} className="tv-board bg-white text-[#0f1f3a] min-h-screen w-full flex flex-col p-3 sm:p-5 lg:p-6 relative">
       <style>{`
-        .mm-board { position:relative; background:#e7d8b5; color:#1f2937; font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; overflow:hidden; }
-        .mm-cork { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.55; pointer-events:none; z-index:0; }
-        .mm-in { position:relative; z-index:1; padding:clamp(20px,3vw,48px) clamp(24px,4vw,72px) clamp(36px,4vw,72px); display:flex; flex-direction:column; gap:clamp(28px,3vw,44px); }
+        @keyframes tv-enter { from { opacity:0; transform:translateY(18px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes tv-slideup { 0% { opacity:0; transform:translateY(22px) } 100% { opacity:1; transform:translateY(0) } }
+        @keyframes tv-glow { 0%,100% { opacity:.45 } 50% { opacity:1 } }
+        .tv-enter { animation: tv-enter .7s cubic-bezier(.2,.75,.25,1) both; }
+        .tv-slideup { animation: tv-slideup 1s cubic-bezier(.22,.7,.2,1) both; }
+        .tv-glow { animation: tv-glow 4s ease-in-out infinite; }
 
-        .mm-hd { display:flex; align-items:center; gap:clamp(20px,2vw,36px); background:#fffaf0; border-radius:28px; padding:clamp(20px,2vw,28px) clamp(24px,2.5vw,40px); box-shadow:0 14px 34px rgba(80,55,15,.28); border:1px solid #d9c593; animation:mm-drop .8s cubic-bezier(.2,.8,.25,1) both; }
-        .mm-logo { width:clamp(80px,6vw,120px); height:clamp(80px,6vw,120px); background:#fff; border-radius:22px; padding:10px; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.15); flex:none; }
-        .mm-logo img { max-width:100%; max-height:100%; object-fit:contain; }
-        .mm-hm { flex:1; display:flex; flex-direction:column; gap:6px; min-width:0; }
-        .mm-dt { font-size:clamp(18px,1.3vw,26px); font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#2563eb; }
-        .mm-tm { display:flex; align-items:flex-end; gap:clamp(20px,2vw,36px); flex-wrap:wrap; }
-        .mm-clk { font-size:clamp(64px,5.5vw,112px); font-weight:800; line-height:1; font-variant-numeric:tabular-nums; color:#1f2937; }
-        .mm-ph { display:flex; gap:16px; align-items:center; max-width:900px; margin-bottom:10px; }
-        .mm-ph i { width:6px; height:clamp(36px,2.8vw,56px); background:#2563eb; border-radius:4px; flex:none; display:block; }
-        .mm-ph p { margin:0; font-size:clamp(20px,1.5vw,30px); font-style:italic; line-height:1.3; color:#374151; }
-        .mm-sub { font-size:clamp(15px,1.1vw,22px); color:#6b7280; margin-top:4px; }
-
-        .mm-wall { display:grid; grid-template-columns:1fr; gap:28px; align-items:stretch; }
-        @media (min-width:900px){ .mm-wall { grid-template-columns:repeat(3,1fr); gap:40px; } }
-        .mm-col { display:flex; flex-direction:column; gap:clamp(22px,1.8vw,30px); background:rgba(255,250,235,.35); border:2px dashed rgba(120,90,40,.35); border-radius:26px; padding:clamp(20px,1.6vw,28px); }
-        .mm-who { font-family:"Segoe Script","Bradley Hand","Brush Script MT","Comic Sans MS",cursive; font-size:clamp(34px,2.7vw,54px); font-weight:700; color:#1f2937; line-height:1.1; padding:0 8px; }
-        .mm-col.mm-all { background:rgba(255,255,255,.55); border:3px solid #2563eb; box-shadow:0 18px 40px rgba(37,99,235,.28); transform:scale(1.03); }
-        .mm-col.mm-all .mm-n { padding:clamp(36px,2.6vw,48px) clamp(28px,2.2vw,40px) clamp(30px,2.2vw,40px); }
-        .mm-col.mm-all .mm-bd { font-size:clamp(22px,1.7vw,34px); }
-        .mm-col.mm-all .mm-nm { font-size:clamp(36px,2.8vw,56px); }
-
-        .mm-n { position:relative; border-radius:6px 6px 22px 6px; padding:clamp(30px,2.2vw,40px) clamp(24px,1.8vw,32px) clamp(26px,1.8vw,32px); box-shadow:0 12px 22px rgba(60,40,10,.28),0 2px 3px rgba(0,0,0,.15); animation:mm-stick .9s cubic-bezier(.3,1.6,.5,1) both; animation-fill-mode:both; transition:box-shadow .2s,filter .2s; cursor:pointer; }
-        .mm-n:hover { box-shadow:0 16px 28px rgba(60,40,10,.35); filter:saturate(1.1); }
-        .mm-n:focus-visible { outline:3px solid #2563eb; }
-        .mm-y { background:#fde68a; } .mm-r { background:#fbcfe8; } .mm-g { background:#bbf7d0; } .mm-b { background:#bfdbfe; }
-        .mm-pin { width:clamp(20px,1.4vw,28px); height:clamp(20px,1.4vw,28px); border-radius:50%; background:radial-gradient(circle at 35% 30%,#f87171,#b91c1c); box-shadow:0 3px 5px rgba(0,0,0,.35); position:absolute; top:-12px; left:50%; margin-left:calc(clamp(20px,1.4vw,28px) / -2); }
-        .mm-aud { font-size:clamp(12px,.8vw,16px); font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#4b5563; }
-        .mm-nm { font-family:"Segoe Script","Bradley Hand","Brush Script MT","Comic Sans MS",cursive; font-size:clamp(26px,2vw,40px); font-weight:700; margin:6px 0; line-height:1.15; color:#1f2937; }
-        .mm-tt { font-size:clamp(18px,1.2vw,24px); font-weight:600; color:#374151; margin-bottom:10px; }
-        .mm-bd { margin:0; font-size:clamp(18px,1.4vw,28px); line-height:1.5; white-space:pre-wrap; color:#1f2937; word-break:break-word; }
-        .mm-urg { position:absolute; top:18px; right:18px; background:#dc2626; color:#fff; font-size:clamp(12px,.75vw,15px); font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:6px 14px; border-radius:999px; }
-
-        .mm-off { position:relative; background:#fffaf0; border:1px solid #d9c593; border-radius:28px; padding:clamp(24px,2vw,36px) clamp(28px,2.4vw,44px); box-shadow:0 14px 34px rgba(80,55,15,.26); }
-        .mm-ph2 { height:clamp(160px,13vw,260px); width:100%; object-fit:cover; border-radius:18px; margin-bottom:26px; display:block; }
-        .mm-oh { display:flex; align-items:center; gap:22px; margin-bottom:26px; }
-        .mm-ol { width:clamp(56px,3.8vw,76px); height:clamp(56px,3.8vw,76px); background:#fff; border-radius:18px; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(0,0,0,.15); flex:none; }
-        .mm-ol img { max-width:90%; max-height:90%; object-fit:contain; }
-        .mm-ot { font-size:clamp(28px,2.2vw,44px); font-weight:800; color:#1d4fd1; }
-        .mm-os { font-size:clamp(15px,1.1vw,22px); color:#6b7280; }
-        .mm-tb { width:100%; border-collapse:separate; border-spacing:0 10px; }
-        .mm-tb th { text-align:left; font-size:clamp(13px,1vw,20px); font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#173e9e; padding:8px 22px; }
-        .mm-tb td { background:#fff; padding:20px 22px; font-size:clamp(18px,1.3vw,26px); line-height:1.5; vertical-align:top; border-top:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb; }
-        .mm-tb td:first-child { font-weight:700; width:30%; border-left:6px solid #2563eb; border-radius:12px 0 0 12px; color:#1f2937; }
-        .mm-tb td:last-child { border-radius:0 12px 12px 0; border-right:1px solid #e5e7eb; }
-        .mm-tb td p { margin:0; white-space:pre-wrap; word-break:break-word; }
-
-        .mm-st { display:flex; flex-direction:column; gap:6px; color:#6b7280; font-size:clamp(18px,1.4vw,22px); text-align:center; padding:48px 24px; background:rgba(255,250,235,.5); border-radius:24px; border:2px dashed rgba(120,90,40,.3); }
-
-        @keyframes mm-drop { from{opacity:0;transform:translateY(-30px)} to{opacity:1;transform:none} }
-        @keyframes mm-stick { 0%{opacity:0;transform:translateY(-40px) scale(1.15) rotate(4deg)} 60%{opacity:1;transform:translateY(6px) scale(.98)} 100%{opacity:1} }
-        @keyframes mm-sway { 0%,100%{transform:rotate(-.6deg)} 50%{transform:rotate(.6deg)} }
+        .tv-table { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; width: 100%; }
+        .tv-table-scroll { scrollbar-width: thin; scrollbar-color: #b9cbe4 transparent; }
+        .tv-table-scroll::-webkit-scrollbar { width: 8px; }
+        .tv-table-scroll::-webkit-scrollbar-thumb { background: #b9cbe4; border-radius: 8px; }
+        .tv-th {
+          padding: clamp(10px, 1.4vw, 14px) clamp(12px, 1.4vw, 18px);
+          font-size: clamp(12px, 1.2vw, 14px);
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #173e9e;
+          border-bottom: 2px solid #c5d6ee;
+          text-align: left;
+          white-space: nowrap;
+        }
+        .tv-row { transition: background-color .2s ease; }
+        .tv-row:nth-child(odd)  { background-color: #f7faff; }
+        .tv-row:nth-child(even) { background-color: #ffffff; }
+        .tv-row:hover { background-color: #eaf2ff; }
+        .tv-cell {
+          padding: clamp(12px, 1.5vw, 16px) clamp(12px, 1.4vw, 18px);
+          vertical-align: top;
+          border-bottom: 1px solid #e4ebf5;
+          font-size: clamp(14px, 1.4vw, 16px);
+          line-height: 1.5;
+          color: #1e3a5f;
+        }
+        .tv-cell-title {
+          font-weight: 700;
+          font-size: clamp(15px, 1.5vw, 17px);
+          color: #0f1f3a;
+          line-height: 1.3;
+        }
+        .tv-cell-body { max-width: 0; }
+        .tv-msg {
+          margin: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+          font-size: clamp(14px, 1.4vw, 16px);
+          line-height: 1.55;
+          color: #1e3a5f;
+        }
+        .tv-empty {
+          padding: 32px;
+          text-align: center;
+          color: #94a3b8;
+          font-size: 15px;
+        }
+        .tv-phrase { text-shadow: 0 1px 2px rgba(7, 23, 64, 0.35); }
+        .tv-phrase-text { text-wrap: balance; }
       `}</style>
 
-      <img className="mm-cork" src={CORK} alt="" />
-
-      <div className="mm-in">
-        <header className="mm-hd">
-          <div className="mm-logo"><img src={LOGO} alt="RedOak Cleaning" /></div>
-          <div className="mm-hm">
-            <div className="mm-dt">{dateStr}</div>
-            <div className="mm-tm">
-              <div className="mm-clk">{timeStr}</div>
-              <div className="mm-ph"><i /><p>"{phrase}"</p></div>
-            </div>
-            <div className="mm-sub">Tablero del día · RedOak Cleaning</div>
+      {/* Mast */}
+      <header className="tv-enter relative rounded-[20px] sm:rounded-[24px] lg:rounded-[28px] overflow-hidden flex items-stretch shadow-[0_18px_38px_rgba(37,99,235,0.22)]"
+        style={{ background: `linear-gradient(115deg, ${BRAND_DEEP} 0%, ${BRAND_DARK} 68%, ${BRAND} 100%)`, minHeight: 'clamp(96px, 16vh, 180px)' }}>
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(255,255,255,0.25), transparent 55%)' }} />
+        <div className="relative z-10 w-full px-4 sm:px-6 lg:px-10 py-4 sm:py-6 flex items-center gap-4 sm:gap-6">
+          <div className="hidden sm:flex flex-shrink-0 items-center justify-center bg-white/95 rounded-2xl p-2 sm:p-3 shadow-lg"
+            style={{ height: 'clamp(64px, 12vh, 120px)', width: 'clamp(64px, 12vh, 120px)' }}>
+            <img src={LOGO} alt="RedOak Cleaning" className="max-w-full max-h-full object-contain" />
           </div>
-        </header>
-
-        {loading ? (
-          <div className="mm-st">Cargando avisos…</div>
-        ) : orderedCols.length === 0 ? (
-          <div className="mm-st">No hay notas del día para limpiadores.</div>
-        ) : (
-          <section className="mm-wall">
-            {orderedCols.map((col) => (
-              <div key={col.who} className={`mm-col ${col.all ? 'mm-all' : ''}`}>
-                <div className="mm-who">{col.who}</div>
-                {col.notes.map((n, i) => (
-                  <NoticeCard
-                    key={n.id}
-                    notice={{ ...n, _displayName: col.all ? 'Para todos' : resolveName(n) }}
-                    index={i}
-                  />
-                ))}
+          <div className="flex-1 flex flex-col justify-center min-w-0">
+            <div className="text-white/90 font-semibold tracking-wide uppercase truncate" style={{ fontSize: 'clamp(0.7rem, 1.6vw, 1.125rem)' }}>{dateStr}</div>
+            <div className="flex items-end gap-3 sm:gap-5 mt-1 flex-wrap">
+              <div className="text-white font-bold leading-none tabular-nums" style={{ fontSize: 'clamp(2.25rem, 9vw, 4.5rem)' }}>{timeStr}</div>
+              <div className="tv-phrase flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2 max-w-[min(60ch,52vw)]">
+                <span className="tv-phrase-bar flex-shrink-0 rounded-full" style={{ width: '4px', height: 'clamp(28px, 5vh, 52px)', background: '#93c5fd' }} />
+                <p className="tv-phrase-text italic text-blue-50 leading-snug" style={{ fontSize: 'clamp(0.8rem, 1.7vw, 1.15rem)' }}>"{phrase}"</p>
               </div>
-            ))}
-          </section>
-        )}
+            </div>
+            <div className="text-white/70 mt-1 sm:mt-2" style={{ fontSize: 'clamp(0.65rem, 1.4vw, 0.9rem)' }}>Tablero del día · RedOak Cleaning</div>
+          </div>
+          <div className="relative z-10 self-end hidden lg:flex">
+            <div className="tv-glow rounded-r-lg" style={{ height: 'clamp(64px, 12vh, 120px)', width: '10px', background: '#93c5fd' }} />
+          </div>
+        </div>
+      </header>
 
-        <section className="mm-off">
-          <img className="mm-ph2" src={CORK} alt="" />
-          <div className="mm-oh">
-            <div className="mm-ol"><img src={LOGO} alt="" /></div>
-            <div>
-              <div className="mm-ot">Avisos de la oficina</div>
-              <div className="mm-os">Información permanente · Léela todos los días</div>
+      {/* Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] gap-4 lg:gap-6 mt-4 lg:mt-6">
+        {/* Main: cards — todas visibles, la página crece */}
+        <main className="min-w-0 flex flex-col">
+          <div ref={mainScrollRef} className="flex flex-col gap-4 lg:gap-5">
+            {loading ? (
+              <div className="col-span-2 text-center text-slate-400 py-10">Cargando avisos…</div>
+            ) : (specificNotices.length === 0 && allNotices.length === 0) ? (
+              <div className="col-span-2 text-center text-slate-400 py-10">No hay notas del día para limpiadores.</div>
+            ) : (
+              <>
+                {specificNotices.map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i} />)}
+                {allNotices.map((n, i) => <NoticeCard key={n.id} notice={{ ...n, _displayName: resolveName(n) }} index={i + specificNotices.length} />)}
+              </>
+            )}
+          </div>
+        </main>
+
+        {/* Rail: office — avisos permanentes en formato tabla */}
+        <aside className="flex flex-col border border-[#cdd9e8] rounded-[20px] sm:rounded-[24px] lg:rounded-[26px] bg-white shadow-[0_12px_30px_rgba(37,99,235,0.10)] overflow-hidden min-h-0 max-h-[55vh] lg:max-h-[calc(100dvh-3rem)] lg:sticky lg:top-6 lg:self-start">
+          <div className="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-4 bg-gradient-to-r from-[#173e9e] to-[#2563eb]">
+            <div className="h-[44px] w-[44px] sm:h-[52px] sm:w-[52px] flex-shrink-0 flex items-center justify-center bg-white rounded-xl shadow-sm">
+              <img src={LOGO} alt="" className="max-w-full max-h-full object-contain p-1" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-bold text-white leading-tight tracking-wide" style={{ fontSize: 'clamp(1rem, 1.8vw, 1.25rem)' }}>Avisos de la oficina</div>
+              <div className="text-blue-100" style={{ fontSize: 'clamp(0.65rem, 1.2vw, 0.8rem)' }}>Información permanente · Léela todos los días</div>
             </div>
           </div>
-          <table className="mm-tb">
-            <thead>
-              <tr><th>Título</th><th>Mensaje</th></tr>
-            </thead>
-            <tbody>
-              {officeNotices.length === 0 ? (
-                <tr><td>Aviso</td><td><p>Sin avisos de oficina.</p></td></tr>
-              ) : (
-                officeNotices.map((n) => (
-                  <tr key={n.id}>
-                    <td>{n.title || 'Aviso'}</td>
-                    <td><p>{n.body}</p></td>
+
+          <div ref={officeScrollRef} className="tv-table-scroll flex-1 overflow-y-auto">
+            <table className="tv-table">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#eef3fb]">
+                  <th className="tv-th text-left" style={{ width: '34%' }}>Título</th>
+                  <th className="tv-th text-left">Mensaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {officeNotices.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="tv-empty">Sin avisos de oficina.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </section>
+                ) : (
+                  officeNotices.map((n, i) => (
+                    <tr key={n.id} className="tv-row tv-slideup" style={{ animationDelay: `${0.4 + i * 0.1}s` }}>
+                      <td className="tv-cell tv-cell-title">{n.title || 'Aviso'}</td>
+                      <td className="tv-cell tv-cell-body"><p className="tv-msg">{n.body}</p></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </aside>
       </div>
     </div>
   );
