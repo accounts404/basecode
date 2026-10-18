@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatInTimeZone } from 'date-fns-tz';
 import NoticeCard from './NoticeCard';
+import OfficeNoticeCard from './OfficeNoticeCard';
 import { getDailyPhrase } from './motivationalPhrases';
 
 const LOGO = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/4c3ba79c6_RedOakLogo.png";
@@ -211,19 +212,7 @@ export default function TableroTVView() {
 
         /* Rail de oficina */
         .tv-rail { container-type: size; display: flex; flex-direction: column; border: 1px solid #cdd9e8; border-radius: clamp(14px, 1.4vw, 22px); background: #fff; box-shadow: 0 12px 30px rgba(37,99,235,0.10); overflow: hidden; min-height: 0; }
-        .tv-rail-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; }
-        .tv-table { border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; width: 100%; }
-        .tv-rail-scroll { scrollbar-width: thin; scrollbar-color: #b9cbe4 transparent; }
-        .tv-rail-scroll::-webkit-scrollbar { width: 6px; }
-        .tv-rail-scroll::-webkit-scrollbar-thumb { background: #b9cbe4; border-radius: 8px; }
-        .tv-th { padding: clamp(7px, 1vw, 11px) clamp(9px, 1vw, 14px); font-size: clamp(0.6rem, 1cqw, 0.78rem); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #173e9e; border-bottom: 2px solid #c5d6ee; text-align: left; white-space: nowrap; }
-        .tv-row { transition: background-color .2s ease; }
-        .tv-row:nth-child(odd) { background-color: #f7faff; }
-        .tv-row:nth-child(even) { background-color: #ffffff; }
-        .tv-cell { padding: clamp(8px, 1.1vw, 12px) clamp(9px, 1vw, 14px); vertical-align: top; border-bottom: 1px solid #e4ebf5; font-size: clamp(0.62rem, min(1.2cqw, 1.8cqh), 0.92rem); line-height: 1.4; color: #1e3a5f; }
-        .tv-cell-title { font-weight: 700; color: #0f1f3a; line-height: 1.25; }
-        .tv-cell-body { max-width: 0; }
-        .tv-msg { margin: 0; white-space: pre-wrap; word-break: break-word; }
+        .tv-rail-body { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: clamp(8px, 1vw, 12px); padding: clamp(8px, 1vw, 12px); overflow: hidden; }
         .tv-empty { padding: 24px; text-align: center; color: #94a3b8; font-size: 14px; }
       `}</style>
 
@@ -305,27 +294,14 @@ export default function TableroTVView() {
               <div className="text-blue-100" style={{ fontSize: 'clamp(0.58rem, 1vw, 0.75rem)' }}>Información permanente</div>
             </div>
           </div>
-          <div className="tv-rail-scroll">
-            <table className="tv-table">
-              <thead className="sticky top-0 z-10">
-                <tr className="bg-[#eef3fb]">
-                  <th className="tv-th text-left" style={{ width: '34%' }}>Título</th>
-                  <th className="tv-th text-left">Mensaje</th>
-                </tr>
-              </thead>
-              <tbody>
-                {officeNotices.length === 0 ? (
-                  <tr><td colSpan={2} className="tv-empty">Sin avisos de oficina.</td></tr>
-                ) : (
-                  officeNotices.map((n, i) => (
-                    <tr key={n.id} className="tv-row tv-slideup" style={{ animationDelay: `${0.4 + i * 0.08}s` }}>
-                      <td className="tv-cell tv-cell-title">{n.title || 'Aviso'}</td>
-                      <td className="tv-cell tv-cell-body"><p className="tv-msg">{n.body}</p></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="tv-rail-body">
+            {officeNotices.length === 0 ? (
+              <div className="tv-empty">Sin avisos de oficina.</div>
+            ) : (
+              officeNotices.map((n, i) => (
+                <OfficeNoticeCard key={n.id} notice={n} index={i} />
+              ))
+            )}
           </div>
         </aside>
       </div>
