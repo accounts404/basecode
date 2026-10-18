@@ -3,19 +3,16 @@ import React, { useRef, useLayoutEffect } from 'react';
 export default function OfficeNoticeCard({ notice, index = 0 }) {
   const boxRef = useRef(null);
   const titleRef = useRef(null);
-  const titleTextRef = useRef(null);
   const bodyRef = useRef(null);
 
   useLayoutEffect(() => {
     const fit = () => {
       const box = boxRef.current;
       const title = titleRef.current;
-      const titleText = titleTextRef.current;
       const body = bodyRef.current;
       if (!box || !body) return;
       const avail = box.clientHeight;
       if (avail <= 0) return;
-
       const titleH = title ? title.offsetHeight : 0;
       const bodyAvail = avail - titleH;
       let fs = parseFloat(getComputedStyle(body).fontSize);
@@ -62,9 +59,8 @@ export default function OfficeNoticeCard({ notice, index = 0 }) {
       `}</style>
       <div ref={titleRef} className="flex-shrink-0 px-3 py-2 border-b border-[#e3ebf7]">
         <div
-          ref={titleTextRef}
-          className="font-extrabold text-[#173e9e] leading-tight overflow-hidden"
-          style={{ fontSize: 'clamp(0.78rem, min(2.4cqw, 4.5cqh), 1.5rem)', letterSpacing: '0.01em', display: '-webkit-box', WebkitLineClamp: 2, lineClamp: 2, WebkitBoxOrient: 'vertical' }}
+          className="font-extrabold text-[#173e9e] leading-tight"
+          style={{ fontSize: 'clamp(0.78rem, 1.8cqw, 1.15rem)', letterSpacing: '0.01em' }}
         >
           {notice.title || 'Aviso'}
         </div>
