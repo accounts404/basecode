@@ -75,8 +75,6 @@ function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
-        {/* SIMULACRO DE CAÍDA: overlay blanco que cubre toda la app (visual only) */}
-        <div style={{ position: 'fixed', inset: 0, background: '#ffffff', zIndex: 2147483647, pointerEvents: 'all' }} />
         <Router>
           <NavigationTracker />
           <AuthenticatedApp />
