@@ -10,7 +10,6 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import ErrorBoundary from '@/components/ErrorBoundary';
 
 const Casuales = React.lazy(() => import('./pages/Casuales'));
 const AsistenteIA = React.lazy(() => import('./pages/AsistenteIA'));
@@ -54,22 +53,20 @@ const AuthenticatedApp = () => {
 
   return (
     <LayoutWrapper currentPageName={mainPageKey}>
-      <ErrorBoundary>
-        <Suspense fallback={PageLoader}>
-          <Routes>
-            <Route path="/" element={<MainPage />} />
-            {Object.entries(Pages).map(([path, Page]) => (
-              <Route key={path} path={`/${path}`} element={<Page />} />
-            ))}
-            <Route path="/Casuales" element={<Casuales />} />
-            <Route path="/AsistenteIA" element={<AsistenteIA />} />
-            <Route path="/Auditoria" element={<Auditoria />} />
-            <Route path="/RecurrenciasPreview" element={<RecurrenciasPreview />} />
-            <Route path="/TableroTV" element={<TableroTV />} />
-            <Route path="*" element={<PageNotFound />} />
-          </Routes>
-        </Suspense>
-      </ErrorBoundary>
+      <Suspense fallback={PageLoader}>
+        <Routes>
+          <Route path="/" element={<MainPage />} />
+          {Object.entries(Pages).map(([path, Page]) => (
+            <Route key={path} path={`/${path}`} element={<Page />} />
+          ))}
+          <Route path="/Casuales" element={<Casuales />} />
+          <Route path="/AsistenteIA" element={<AsistenteIA />} />
+          <Route path="/Auditoria" element={<Auditoria />} />
+          <Route path="/RecurrenciasPreview" element={<RecurrenciasPreview />} />
+          <Route path="/TableroTV" element={<TableroTV />} />
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </Suspense>
     </LayoutWrapper>
   );
 };
