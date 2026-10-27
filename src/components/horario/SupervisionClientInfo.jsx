@@ -55,9 +55,10 @@ export default function SupervisionClientInfo({ client, enrichment, loading }) {
   const [now, setNow] = useState(new Date());
   const cleaners = enrichment?.cleaners || [];
   const allClockedOut = cleaners.length > 0 && cleaners.every((c) => c.clock_out_time);
+  const anyStarted = cleaners.some((c) => c.clock_in_time);
 
   // Tick cada segundo solo si el servicio sigue activo (no todos finalizaron)
-  const hasLiveCountdown = !!enrichment?.end_time && !allClockedOut;
+  const hasLiveCountdown = anyStarted && !!enrichment?.end_time && !allClockedOut;
   useEffect(() => {
     if (!hasLiveCountdown) return;
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -110,12 +111,18 @@ export default function SupervisionClientInfo({ client, enrichment, loading }) {
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-slate-800 truncate">{c.name}</p>
                       <p className="text-[10px] text-slate-500">
-                        {fmtTime(c.start_time)} - {fmtTime(c.end_time)}
-                        {clockIn && <span className="ml-1">· entró {fmtTime(c.clock_in_time)}</span>}
+                        {clockIn ? (
+                          <>
+                            {fmtTime(c.start_time)} - {fmtTime(c.end_time)}
+                            <span className="ml-1">· entró {fmtTime(c.clock_in_time)}</span>
+                          </>
+                        ) : (
+                          <>Inicia {fmtTime(c.start_time)}</>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {remainingCleaner !== null && !clockOut && (
+                      {remainingCleaner !== null && !clockOut && clockIn && (
                         <span className="text-[10px] text-indigo-600 font-medium">falta {fmtElapsed(remainingCleaner)}</span>
                       )}
                       <Badge className={`text-[10px] ${statusColor}`}>{statusLabel}</Badge>
@@ -124,8 +131,8 @@ export default function SupervisionClientInfo({ client, enrichment, loading }) {
                 );
               })}
             </div>
-            {/* Tiempo restante general del servicio */}
-            {remaining !== null && total !== null && (
+            {/* Tiempo restante general del servicio (solo si algún limpiador ya empezó) */}
+            {anyStarted && remaining !== null && total !== null && (
               <div className={`flex items-center justify-between pt-1.5 border-t border-indigo-200 ${overtime ? "text-red-600" : "text-indigo-700"}`}>
                 <span className="text-xs flex items-center gap-1">
                   <Timer className="w-3.5 h-3.5" />
