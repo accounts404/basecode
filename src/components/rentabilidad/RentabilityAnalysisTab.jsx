@@ -260,12 +260,17 @@ export default function RentabilityAnalysisTab({
                 }
             });
 
-            const periodOperationalCost = Object.values(clientData)
+            const opClientCost = Object.values(clientData)
                 .filter(c => {
                     const client = clientMap.get(c.clientId);
                     return client?.client_type === 'operational_cost';
                 })
                 .reduce((sum, c) => sum + c.totalLaborCost, 0);
+            // Supervisión: costo operativo no atado a ningún cliente (pago del supervisor)
+            const supervisionCost = periodWorkEntries
+                .filter(e => e.is_supervision)
+                .reduce((sum, e) => sum + (e.total_amount || 0), 0);
+            const periodOperationalCost = opClientCost + supervisionCost;
 
             // CRÍTICO: Usar el valor correcto de gastos fijos
             const totalFixedCostsWithTraining = currentFixedCosts + trainingAmount + periodOperationalCost;
@@ -275,6 +280,7 @@ export default function RentabilityAnalysisTab({
             // Usar clientData aquí sub-contaría al excluir clientes sin servicios facturados.
             const totalPeriodHours = periodWorkEntries
                 .filter(e => {
+                    if (e.is_supervision) return false;
                     if (e.client_id === trainingClientId) return false;
                     const client = clientMap.get(e.client_id);
                     return client?.client_type !== 'operational_cost';
@@ -359,8 +365,12 @@ export default function RentabilityAnalysisTab({
             return client?.client_type === 'operational_cost' && 
                    isDateInRange(entry.work_date, selectedPeriod.start, selectedPeriod.end);
         });
-        
-        return operationalCostEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
+        // Supervisión: costo operativo no atado a ningún cliente
+        const supervisionEntries = allWorkEntries.filter(entry =>
+            entry.is_supervision && isDateInRange(entry.work_date, selectedPeriod.start, selectedPeriod.end)
+        );
+        return operationalCostEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0)
+             + supervisionEntries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
     }, [allWorkEntries, clients, selectedPeriod]);
 
     const monthlyOperationalCostsDetails = useMemo(() => {
@@ -385,6 +395,18 @@ export default function RentabilityAnalysisTab({
             costsByClient[entry.client_id].totalHours += entry.hours || 0;
             costsByClient[entry.client_id].totalLaborCost += entry.total_amount || 0;
         });
+        // Supervisión: agrupada como un único costo operativo no atado a cliente
+        const supervisionEntries = allWorkEntries.filter(entry =>
+            entry.is_supervision && isDateInRange(entry.work_date, selectedPeriod.start, selectedPeriod.end)
+        );
+        if (supervisionEntries.length > 0) {
+            costsByClient['__supervision__'] = {
+                clientId: '__supervision__',
+                clientName: 'Supervisión (costo operativo)',
+                totalHours: supervisionEntries.reduce((s, e) => s + (e.hours || 0), 0),
+                totalLaborCost: supervisionEntries.reduce((s, e) => s + (e.total_amount || 0), 0)
+            };
+        }
 
         return Object.values(costsByClient);
     }, [allWorkEntries, clients, selectedPeriod]);
