@@ -115,7 +115,9 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     const allPhotos = [];
     localSupervision.visits.forEach((v, vi) => {
       (v.photos || []).forEach((p, pi) => {
-        if (p.url && p.url.startsWith("private://")) {
+        // Cualquier URL que no sea http(s) es un file_uri privado (formato "mp/private/...")
+        // y necesita una URL firmada para poder visualizarse.
+        if (p.url && !/^https?:\/\//.test(p.url)) {
           allPhotos.push({ vi, pi, uri: p.url });
         }
       });
@@ -612,7 +614,7 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {visit.photos.map((p, pi) => {
                         const key = `${index}-${pi}`;
-                        const src = signedUrls[key] || (p.url && !p.url.startsWith("private://") ? p.url : null);
+                        const src = signedUrls[key] || (p.url && /^https?:\/\//.test(p.url) ? p.url : null);
                         return (
                           <div key={pi} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
                             {src ? (
