@@ -8,13 +8,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Shield, Clock, MapPin, CheckCircle, Circle, Play, SkipForward,
-  Camera, AlertCircle, FileText, KeySquare, ImageOff, Loader2, X, UserPlus, Trash2,
+  Camera, AlertCircle, FileText, ImageOff, Loader2, X, UserPlus, Trash2,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from "@/components/ui/command";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { UploadPrivateFile, CreateFileSignedUrl } from "@/integrations/Core";
+import SupervisionClientInfo from "./SupervisionClientInfo";
 
 const parseISOAsUTC = (iso) => {
   if (!iso) return null;
@@ -48,6 +49,8 @@ export default function SupervisionDetail({ supervision, currentUser, onClose, o
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const [visitMutating, setVisitMutating] = useState(false);
+  const [visitEnrichment, setVisitEnrichment] = useState({});
+  const [enrichmentLoading, setEnrichmentLoading] = useState(false);
 
   const isAdmin = currentUser?.role === "admin";
   const isSupervisor = currentUser?.id === localSupervision?.supervisor_id;
@@ -79,6 +82,31 @@ export default function SupervisionDetail({ supervision, currentUser, onClose, o
     };
     fetchClients();
   }, [localSupervision?.visits]);
+
+  // Enriquecer visitas con equipo, horario y tiempo restante (vía backend para resolver nombres de limpiadores)
+  useEffect(() => {
+    const fetchEnrichment = async () => {
+      const visits = localSupervision?.visits || [];
+      const supDate = localSupervision?.date || (localSupervision?.start_time ? localSupervision.start_time.slice(0, 10) : "");
+      if (!supDate || visits.length === 0) {
+        setVisitEnrichment({});
+        setEnrichmentLoading(false);
+        return;
+      }
+      setEnrichmentLoading(true);
+      try {
+        const clientIds = visits.map((v) => v.client_id).filter(Boolean);
+        const { data } = await base44.functions.invoke("getSupervisionVisitEnrichment", { date: supDate, client_ids: clientIds });
+        setVisitEnrichment(data?.visits || {});
+      } catch (e) {
+        console.warn("No se pudo enriquecer visitas:", e);
+        setVisitEnrichment({});
+      } finally {
+        setEnrichmentLoading(false);
+      }
+    };
+    fetchEnrichment();
+  }, [localSupervision?.visits, localSupervision?.date, localSupervision?.start_time]);
 
   // Generar signed URLs para fotos privadas
   const refreshSignedUrls = useCallback(async () => {
@@ -429,31 +457,12 @@ export default function SupervisionDetail({ supervision, currentUser, onClose, o
                   </div>
                 </div>
 
-                {/* Info operativa del cliente (visible para el supervisor) */}
-                {loadingClients ? (
-                  <p className="text-xs text-slate-400">Cargando información del cliente...</p>
-                ) : client ? (
-                  <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-xs">
-                    {client.address && (
-                      <div className="flex items-start gap-1.5 text-slate-700">
-                        <MapPin className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
-                        <span>{client.address}</span>
-                      </div>
-                    )}
-                    {client.has_access && client.access_identifier && (
-                      <div className="flex items-start gap-1.5 text-slate-700">
-                        <KeySquare className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-500" />
-                        <span><strong>Acceso:</strong> {client.access_identifier} {client.access_type ? `(${client.access_type})` : ""}</span>
-                      </div>
-                    )}
-                    {(client.default_notes || client.notes_public || client.service_notes) && (
-                      <div className="flex items-start gap-1.5 text-slate-700">
-                        <FileText className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
-                        <span className="whitespace-pre-wrap">{client.default_notes || client.notes_public || client.service_notes}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
+                {/* Información completa del cliente (acceso/llaves, mascotas, notas por área, fotos) + equipo y tiempo restante */}
+                <SupervisionClientInfo
+                  client={client}
+                  enrichment={visitEnrichment[visit.client_id]}
+                  loading={enrichmentLoading}
+                />
 
                 {/* Tiempos reales */}
                 {(visit.started_at || visit.completed_at) && (
