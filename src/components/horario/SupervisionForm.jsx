@@ -13,19 +13,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Check, ChevronsUpDown, Shield, Clock, MapPin, AlertCircle, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { getEffectiveRate } from "./supervisionHelpers";
 
 const pad = (n) => String(n).padStart(2, "0");
 const toLocalISO = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00.000`;
-
-const getEffectiveRate = (user, workDateStr) => {
-  if (user?.rate_history?.length > 0) {
-    const effective = user.rate_history
-      .filter((rh) => rh.effective_date <= workDateStr)
-      .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
-    if (effective) return effective.rate;
-  }
-  return user?.hourly_rate || 0;
-};
 
 export default function SupervisionForm({ users, currentUser, existingSupervision, onSave, onCancel }) {
   const [clients, setClients] = useState([]);
@@ -198,7 +189,8 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
         // Actualizar supervisión existente
         await base44.entities.Supervision.update(existingSupervision.id, supervisionData);
 
-        // Actualizar WorkEntry asociada si existe y no está facturada
+        // Solo actualizar la WorkEntry si YA existe (bloque previamente completado) y no está facturada.
+        // La WorkEntry se crea únicamente al marcar el bloque como "completado" (ver SupervisionDetail).
         if (existingSupervision.work_entry_id) {
           const we = await base44.entities.WorkEntry.get(existingSupervision.work_entry_id).catch(() => null);
           if (we && !we.invoiced) {
@@ -210,48 +202,12 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
               period,
             });
           }
-        } else {
-          // Crear WorkEntry si no existía
-          const we = await base44.entities.WorkEntry.create({
-            cleaner_id: supervisorId,
-            cleaner_name: supervisor?.invoice_name || supervisor?.full_name || "Supervisor",
-            client_id: supervisorId,
-            client_name: `Supervisión ${format(new Date(dateStr + "T12:00:00"), "d MMM yyyy", { locale: es })}`,
-            work_date: dateStr,
-            hours,
-            activity: "supervision",
-            hourly_rate: rate,
-            total_amount: parseFloat((hours * rate).toFixed(2)),
-            period,
-            invoiced: false,
-            is_supervision: true,
-            supervision_id: existingSupervision.id,
-          });
-          await base44.entities.Supervision.update(existingSupervision.id, { work_entry_id: we.id });
         }
         savedSupervision = { ...existingSupervision, ...supervisionData, id: existingSupervision.id };
       } else {
-        // Crear nueva supervisión
+        // Crear nueva supervisión (la WorkEntry se crea al completar el bloque, no aquí)
         const created = await base44.entities.Supervision.create(supervisionData);
-
-        // Crear WorkEntry pagable
-        const we = await base44.entities.WorkEntry.create({
-          cleaner_id: supervisorId,
-          cleaner_name: supervisor?.invoice_name || supervisor?.full_name || "Supervisor",
-          client_id: supervisorId,
-          client_name: `Supervisión ${format(new Date(dateStr + "T12:00:00"), "d MMM yyyy", { locale: es })}`,
-          work_date: dateStr,
-          hours,
-          activity: "supervision",
-          hourly_rate: rate,
-          total_amount: parseFloat((hours * rate).toFixed(2)),
-          period,
-          invoiced: false,
-          is_supervision: true,
-          supervision_id: created.id,
-        });
-        await base44.entities.Supervision.update(created.id, { work_entry_id: we.id });
-        savedSupervision = { ...supervisionData, id: created.id, work_entry_id: we.id };
+        savedSupervision = { ...supervisionData, id: created.id };
       }
 
       if (onSave) onSave(savedSupervision);

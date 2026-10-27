@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { UploadPrivateFile, CreateFileSignedUrl } from "@/integrations/Core";
 import SupervisionClientInfo from "./SupervisionClientInfo";
+import { computeSupervisionWorkEntryFields } from "./supervisionHelpers";
 
 const parseISOAsUTC = (iso) => {
   if (!iso) return null;
@@ -35,7 +36,7 @@ const visitStatusConfig = {
   skipped: { label: "Omitida", color: "bg-amber-100 text-amber-700", icon: SkipForward },
 };
 
-export default function SupervisionDetail({ supervision, currentUser, onClose, onUpdate, onEditBlock }) {
+export default function SupervisionDetail({ supervision, currentUser, users = [], onClose, onUpdate, onEditBlock }) {
   const [localSupervision, setLocalSupervision] = useState(supervision);
   const [clientInfos, setClientInfos] = useState({});
   const [loadingClients, setLoadingClients] = useState(true);
@@ -265,9 +266,46 @@ export default function SupervisionDetail({ supervision, currentUser, onClose, o
     setBlockStatusSaving(true);
     setError("");
     try {
-      await base44.entities.Supervision.update(localSupervision.id, { status: newStatus });
-      setLocalSupervision((prev) => ({ ...prev, status: newStatus }));
-      if (onUpdate) onUpdate({ ...localSupervision, status: newStatus });
+      const sup = localSupervision;
+      const extraUpdate = {};
+      let workEntryId = sup.work_entry_id;
+
+      if (newStatus === "completed") {
+        // Al completar el bloque: crear (o actualizar) la WorkEntry pagable del supervisor.
+        // Las horas/tarifa se calculan del bloque real, así los recortes de horario se reflejan al final.
+        const supervisorUser = users.find((u) => u.id === sup.supervisor_id);
+        const fields = computeSupervisionWorkEntryFields(sup, supervisorUser);
+        if (sup.work_entry_id) {
+          const we = await base44.entities.WorkEntry.get(sup.work_entry_id).catch(() => null);
+          if (we && !we.invoiced) {
+            await base44.entities.WorkEntry.update(we.id, {
+              hours: fields.hours,
+              total_amount: fields.total_amount,
+              hourly_rate: fields.hourly_rate,
+              work_date: fields.work_date,
+              period: fields.period,
+            });
+          }
+        } else {
+          const we = await base44.entities.WorkEntry.create({ ...fields, supervision_id: sup.id });
+          workEntryId = we.id;
+          extraUpdate.work_entry_id = we.id;
+        }
+      } else if (sup.work_entry_id) {
+        // Al salir de "completado" (reabrir/cancelar): eliminar la WorkEntry si no está facturada,
+        // para que el pago solo exista mientras el bloque esté realmente terminado.
+        const we = await base44.entities.WorkEntry.get(sup.work_entry_id).catch(() => null);
+        if (we && !we.invoiced) {
+          await base44.entities.WorkEntry.delete(we.id);
+          workEntryId = null;
+          extraUpdate.work_entry_id = null;
+        }
+      }
+
+      await base44.entities.Supervision.update(sup.id, { status: newStatus, ...extraUpdate });
+      const updated = { ...sup, status: newStatus, work_entry_id: workEntryId };
+      setLocalSupervision(updated);
+      if (onUpdate) onUpdate(updated);
     } catch (e) {
       setError(e.message || "Error al cambiar el estado del bloque.");
     } finally {

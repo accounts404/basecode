@@ -1890,6 +1890,7 @@ export default function HorarioPage() {
                         <SupervisionDetail
                             supervision={selectedSupervision}
                             currentUser={user}
+                            users={users}
                             onClose={() => setSelectedSupervision(null)}
                             onUpdate={handleSupervisionDetailUpdate}
                             onEditBlock={handleEditSupervisionBlock}
