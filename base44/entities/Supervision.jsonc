@@ -1,0 +1,164 @@
+{
+  "name": "Supervision",
+  "type": "object",
+  "properties": {
+    "supervisor_id": {
+      "type": "string",
+      "description": "ID del limpiador que act\u00faa como supervisor en este bloque"
+    },
+    "supervisor_name": {
+      "type": "string",
+      "description": "Nombre del supervisor para referencia r\u00e1pida"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha del bloque de supervisi\u00f3n (yyyy-MM-dd)"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora de inicio del bloque de supervisi\u00f3n"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora de fin del bloque de supervisi\u00f3n"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "in_progress",
+        "completed",
+        "cancelled"
+      ],
+      "default": "scheduled",
+      "description": "Estado del bloque de supervisi\u00f3n"
+    },
+    "visits": {
+      "type": "array",
+      "description": "Lista de clientes que el supervisor debe visitar/revisar",
+      "items": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "client_address": {
+            "type": "string"
+          },
+          "visit_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed",
+              "skipped"
+            ],
+            "default": "pending",
+            "description": "Estado de la visita individual"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Observaciones del supervisor sobre esta visita"
+          },
+          "incidents": {
+            "type": "string",
+            "description": "Incidencias detectadas durante la revisi\u00f3n"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "file_uri privado de la foto"
+                },
+                "comment": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "required": [
+          "client_id"
+        ]
+      }
+    },
+    "work_entry_id": {
+      "type": "string",
+      "description": "ID de la WorkEntry creada para el pago de este bloque de supervisi\u00f3n"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas generales del bloque de supervisi\u00f3n"
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "description": "ID del administrador que cre\u00f3 la supervisi\u00f3n"
+    },
+    "created_by_user_name": {
+      "type": "string",
+      "description": "Nombre del administrador que cre\u00f3 la supervisi\u00f3n"
+    }
+  },
+  "required": [
+    "supervisor_id",
+    "date",
+    "start_time",
+    "end_time"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.supervisor_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "$or": [
+        {
+          "data.supervisor_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -178,8 +178,8 @@ export default function ClientSummaryReportTab({ clients, usersMap, onRefresh })
                 group.baseAmount += netIncome;
             });
 
-            // Calcular horas de WorkEntries para este cliente en el mismo rango
-            const clientWorkEntries = localWorkEntries.filter(entry => entry.client_id === clientId);
+            // Calcular horas de WorkEntries para este cliente en el mismo rango (excluyendo supervisiones, que no se imputan a clientes)
+            const clientWorkEntries = localWorkEntries.filter(entry => entry.client_id === clientId && !entry.is_supervision);
             group.totalWorkEntryHours = clientWorkEntries.reduce((sum, entry) => sum + (entry.hours || 0), 0);
         });
 

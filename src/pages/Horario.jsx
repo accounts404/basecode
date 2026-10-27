@@ -33,7 +33,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Info,
-    AlertTriangle
+    AlertTriangle,
+    Shield
 } from "lucide-react";
 import {
     format,
@@ -81,6 +82,9 @@ import { modificarRecurrencia } from "@/functions/modificarRecurrencia";
 import { isEqual } from 'lodash';
 import { useToast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
+import { Supervision } from "@/entities/Supervision";
+import SupervisionForm from "../components/horario/SupervisionForm";
+import SupervisionDetail from "../components/horario/SupervisionDetail";
 
 // Parsear ISO local (sin conversión de timezone)
 const parseISOAsUTC = (isoString) => {
@@ -148,6 +152,11 @@ export default function HorarioPage() {
     const [showTaskForm, setShowTaskForm] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
     const [dailyTeamAssignments, setDailyTeamAssignments] = useState([]);
+
+    const [supervisions, setSupervisions] = useState([]);
+    const [showSupervisionForm, setShowSupervisionForm] = useState(false);
+    const [editingSupervision, setEditingSupervision] = useState(null);
+    const [selectedSupervision, setSelectedSupervision] = useState(null);
 
     const [error, setError] = useState('');
 
@@ -466,6 +475,14 @@ export default function HorarioPage() {
             // Guardar en caché con TTL de 2 minutos para limpiadores
             cacheManager.set(cacheKey, currentCleanerSchedules, CACHE_TTL.SHORT);
 
+            // Cargar supervisiones del limpiador (supervisor) en el rango
+            try {
+                const sups = await loadSupervisionsForDateRange(forDate);
+                setSupervisions(sups);
+            } catch (e) {
+                console.warn("[Horario] Error cargando supervisiones del limpiador:", e);
+            }
+
             await loadVehicleAndTeamForDate(forDate);
             await loadRequiredKeysForDate(currentCleanerSchedules, forDate);
 
@@ -493,6 +510,37 @@ export default function HorarioPage() {
             skip += BATCH_SIZE;
         }
         return allRecords;
+    };
+
+    // Carga de Supervisiones filtrada por rango (mismo rango que schedules)
+    const loadSupervisionsForDateRange = async (centerDate) => {
+        const d = centerDate || new Date();
+        const from = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+        const to = new Date(d.getFullYear(), d.getMonth() + 2, 0, 23, 59, 59);
+        const pad = (n) => String(n).padStart(2, "0");
+        const startStr = `${from.getFullYear()}-${pad(from.getMonth() + 1)}-${pad(from.getDate())}T00:00:00.000`;
+        const endStr = `${to.getFullYear()}-${pad(to.getMonth() + 1)}-${pad(to.getDate())}T23:59:59.999`;
+        try {
+            const filter = { start_time: { $gte: startStr, $lte: endStr } };
+            if (user && user.role !== "admin") {
+                filter.supervisor_id = user.id;
+            }
+            const BATCH = 500;
+            let all = [];
+            let skip = 0;
+            while (true) {
+                const batch = await Supervision.filter(filter, "-created_date", BATCH, skip);
+                const arr = Array.isArray(batch) ? batch : [];
+                all = all.concat(arr);
+                if (arr.length < BATCH) break;
+                skip += BATCH;
+                if (all.length > 2000) break;
+            }
+            return all;
+        } catch (e) {
+            console.error("[Horario] Error cargando supervisiones:", e);
+            return [];
+        }
     };
 
     // Carga de Schedules filtrada por rango (±1 mes desde la fecha activa) con paginación completa
@@ -541,17 +589,19 @@ export default function HorarioPage() {
                   // CRÍTICO: Obtener TODOS los registros con paginación automática
                   logger.info('Horario', 'Iniciando carga paginada de datos...');
 
-                  const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments] = await Promise.all([
+                  const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments, cachedSupervisions] = await Promise.all([
                       loadAllRecords('User', '-created_date'),
                       loadSchedulesForDateRange(new Date()),
                       loadAllRecords('Task', '-created_date'),
-                      loadAllRecords('DailyTeamAssignment', '-date')
+                      loadAllRecords('DailyTeamAssignment', '-date'),
+                      loadSupervisionsForDateRange(new Date())
                   ]);
 
                   setUsers(cachedUsers);
                   setSchedules(cachedSchedules);
                   setTasks(cachedTasks);
                   setDailyTeamAssignments(cachedAssignments);
+                  setSupervisions(cachedSupervisions);
                   setLoading(false);
                   setInitialLoadComplete(true);
 
@@ -559,7 +609,8 @@ export default function HorarioPage() {
                       users: cachedUsers?.length || 0, 
                       schedules: cachedSchedules?.length || 0,
                       tasks: cachedTasks?.length || 0,
-                      assignments: cachedAssignments?.length || 0
+                      assignments: cachedAssignments?.length || 0,
+                      supervisions: cachedSupervisions?.length || 0
                   });
             } else {
                 logger.debug('Horario', 'Limpiador detectado, cargando desde caché local');
@@ -605,8 +656,9 @@ export default function HorarioPage() {
     useEffect(() => {
         if (!user || !initialLoadComplete) return;
         if (user.role === 'admin') {
-            // Recargar schedules si el admin navega fuera del rango cargado
+            // Recargar schedules y supervisiones si el admin navega fuera del rango cargado
             loadSchedulesForDateRange(date).then(setSchedules).catch(console.error);
+            loadSupervisionsForDateRange(date).then(setSupervisions).catch(console.error);
         } else if (!loadingRef.current && !navigationInProgressRef.current && !clockInProcessingRef.current) {
             console.log('[Horario] 📅 Fecha cambiada, actualizando datos...');
             loadCleanerSpecificData(date, false);
@@ -652,14 +704,16 @@ export default function HorarioPage() {
         if (!user) return;
         try {
             if (user.role === 'admin') {
-                const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                const [allSchedules, allTasks, allAssignments, allSupervisions] = await Promise.all([
                     loadSchedulesForDateRange(currentDateRef.current),
                     loadAllRecords('Task', '-created_date'),
-                    loadAllRecords('DailyTeamAssignment', '-date')
+                    loadAllRecords('DailyTeamAssignment', '-date'),
+                    loadSupervisionsForDateRange(currentDateRef.current)
                 ]);
                 setSchedules(allSchedules);
                 setTasks(allTasks);
                 setDailyTeamAssignments(allAssignments);
+                setSupervisions(allSupervisions);
             } else {
                 await loadCleanerSpecificData(date, true);
             }
@@ -679,15 +733,17 @@ export default function HorarioPage() {
                   // CRÍTICO: Obtener TODOS los registros con paginación automática
                   logger.info('Horario', 'Iniciando refresh con paginación...');
 
-                  const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                  const [allSchedules, allTasks, allAssignments, allSupervisions] = await Promise.all([
                       loadSchedulesForDateRange(date),
                       loadAllRecords('Task', '-created_date'),
-                      loadAllRecords('DailyTeamAssignment', '-date')
+                      loadAllRecords('DailyTeamAssignment', '-date'),
+                      loadSupervisionsForDateRange(date)
                   ]);
 
                   setSchedules(allSchedules);
                   setTasks(allTasks);
                   setDailyTeamAssignments(allAssignments);
+                  setSupervisions(allSupervisions);
 
                   // Actualizar caché
                   cacheManager.set(CACHE_KEYS.SCHEDULES('all'), allSchedules, CACHE_TTL.SHORT);
@@ -696,7 +752,8 @@ export default function HorarioPage() {
                   logger.info('Horario', 'Datos admin actualizados', { 
                       schedules: allSchedules.length, 
                       tasks: allTasks.length,
-                      assignments: allAssignments.length
+                      assignments: allAssignments.length,
+                      supervisions: allSupervisions.length
                   });
             } else {
                 await loadCleanerSpecificData(date, false);
@@ -849,8 +906,44 @@ export default function HorarioPage() {
     };
 
     const handleSelectEvent = (event) => {
+        if (event && event._isSupervision) {
+            setSelectedSupervision(event._supervision);
+            setShowForm(false);
+            return;
+        }
         setSelectedEvent(event);
         setShowForm(true);
+    };
+
+    const handleOpenSupervisionForm = () => {
+        setEditingSupervision(null);
+        setShowSupervisionForm(true);
+    };
+
+    const handleSaveSupervision = async (saved, isDelete = false) => {
+        setShowSupervisionForm(false);
+        setEditingSupervision(null);
+        // Recargar supervisiones
+        try {
+            const sups = await loadSupervisionsForDateRange(currentDateRef.current);
+            setSupervisions(sups);
+        } catch (e) {
+            console.error("[Horario] Error recargando supervisiones:", e);
+        }
+    };
+
+    const handleSupervisionDetailUpdate = (updated) => {
+        setSelectedSupervision(updated);
+        // Actualizar lista local sin recarga completa
+        setSupervisions((prev) =>
+            (prev || []).map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
+        );
+    };
+
+    const handleEditSupervisionBlock = (sup) => {
+        setSelectedSupervision(null);
+        setEditingSupervision(sup);
+        setShowSupervisionForm(true);
     };
 
     const handleCreateAtTime = (dateTime) => {
@@ -1150,6 +1243,33 @@ export default function HorarioPage() {
         });
     }, [schedules, isCleanerView, user?.id]);
 
+    // Mapear supervisiones a eventos tipo Schedule para mostrarlas en todas las vistas
+    const mappedSupervisions = useMemo(() => {
+        if (!Array.isArray(supervisions)) return [];
+        return supervisions
+            .filter((s) => s.status !== "cancelled")
+            .map((s) => {
+                const completed = (s.visits || []).filter((v) => v.visit_status === "completed").length;
+                return {
+                    id: `sup_${s.id}`,
+                    _isSupervision: true,
+                    _supervision: s,
+                    client_name: `Supervisión (${(s.visits || []).length} clientes)`,
+                    client_address: `${completed}/${(s.visits || []).length} completadas`,
+                    cleaner_ids: [s.supervisor_id],
+                    start_time: s.start_time,
+                    end_time: s.end_time,
+                    color: "#7c3aed",
+                    status: s.status,
+                };
+            });
+    }, [supervisions]);
+
+    const displayEvents = useMemo(() => {
+        const arr = Array.isArray(filteredSchedules) ? filteredSchedules : [];
+        return [...arr, ...mappedSupervisions];
+    }, [filteredSchedules, mappedSupervisions]);
+
     const unassignedCleanersForDate = useMemo(() => {
         if (!user || user.role !== 'admin' || view !== 'day') return [];
 
@@ -1297,14 +1417,16 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    const [allSchedules, allTasks, allAssignments] = await Promise.all([
+                    const [allSchedules, allTasks, allAssignments, allSupervisions] = await Promise.all([
                         loadSchedulesForDateRange(currentDateRef.current),
                         loadAllRecords('Task', '-created_date'),
-                        loadAllRecords('DailyTeamAssignment', '-date')
+                        loadAllRecords('DailyTeamAssignment', '-date'),
+                        loadSupervisionsForDateRange(currentDateRef.current)
                     ]);
                     setSchedules(allSchedules);
                     setTasks(allTasks);
                     setDailyTeamAssignments(allAssignments);
+                    setSupervisions(allSupervisions);
                 } else {
                     await loadCleanerSpecificData(currentDateRef.current, true);
                 }
@@ -1381,6 +1503,15 @@ export default function HorarioPage() {
                                 >
                                     <Plus className="w-3.5 h-3.5" />
                                     <span className="hidden sm:inline text-xs font-semibold">Tarea</span>
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleOpenSupervisionForm}
+                                    className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 flex items-center gap-1.5"
+                                >
+                                    <Shield className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline text-xs font-semibold">Supervisión</span>
                                 </Button>
                                 <Button
                                     onClick={() => { setSelectedEvent(null); setShowForm(true); }}
@@ -1619,7 +1750,7 @@ export default function HorarioPage() {
                         }>
                             {view === 'teams' ? (
                                 <HorarioEquiposView
-                                    schedules={filteredSchedules}
+                                    schedules={displayEvents}
                                     date={date}
                                     users={users}
                                     dailyTeamAssignments={dailyTeamAssignments}
@@ -1627,14 +1758,14 @@ export default function HorarioPage() {
                                 />
                             ) : view === 'color' ? (
                                 <HorarioColorView
-                                    events={filteredSchedules}
+                                    events={displayEvents}
                                     date={date}
                                     users={users}
                                     onSelectEvent={handleSelectEvent}
                                 />
                             ) : view === 'routes' ? (
                                 <HorarioRutasView
-                                    schedules={filteredSchedules}
+                                    schedules={displayEvents}
                                     date={date}
                                     users={users}
                                     dailyTeamAssignments={dailyTeamAssignments}
@@ -1642,7 +1773,7 @@ export default function HorarioPage() {
                             ) : (
                                 <HorarioCalendario
                                     ref={calendarRef}
-                                    events={filteredSchedules}
+                                    events={displayEvents}
                                     date={date}
                                     view={view}
                                     onNavigate={setDate}
@@ -1723,6 +1854,46 @@ export default function HorarioPage() {
                                 onDelete={selectedTask?.id ? handleDeleteTask : null}
                             />
                         </Suspense>
+                    </DialogContent>
+                </Dialog>
+            )}
+
+            {user?.role === 'admin' && (
+                <Dialog open={showSupervisionForm} onOpenChange={setShowSupervisionForm}>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-purple-700">
+                                <Shield className="w-5 h-5" />
+                                {editingSupervision?.id ? 'Editar Supervisión' : 'Nueva Supervisión'}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <SupervisionForm
+                            users={users}
+                            currentUser={user}
+                            existingSupervision={editingSupervision}
+                            onSave={handleSaveSupervision}
+                            onCancel={() => setShowSupervisionForm(false)}
+                        />
+                    </DialogContent>
+                </Dialog>
+            )}
+
+            {selectedSupervision && (
+                <Dialog open={!!selectedSupervision} onOpenChange={(open) => { if (!open) setSelectedSupervision(null); }}>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-purple-700">
+                                <Shield className="w-5 h-5" />
+                                Detalle de Supervisión
+                            </DialogTitle>
+                        </DialogHeader>
+                        <SupervisionDetail
+                            supervision={selectedSupervision}
+                            currentUser={user}
+                            onClose={() => setSelectedSupervision(null)}
+                            onUpdate={handleSupervisionDetailUpdate}
+                            onEditBlock={handleEditSupervisionBlock}
+                        />
                     </DialogContent>
                 </Dialog>
             )}

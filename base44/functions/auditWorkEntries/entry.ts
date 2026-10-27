@@ -105,12 +105,12 @@ Deno.serve(async (req) => {
             }
 
             // Verificar horas muy bajas
-            if (entry.hours < 0.5 && entry.activity !== 'gasolina' && entry.activity !== 'otros') {
+            if (entry.hours < 0.5 && entry.activity !== 'gasolina' && entry.activity !== 'otros' && entry.activity !== 'supervision') {
                 issues.push(`Horas inusualmente bajas: ${entry.hours}h`);
             }
 
             // Verificar si la tarifa es cero o muy baja
-            if (entry.hourly_rate < 10 && entry.activity !== 'gasolina' && entry.activity !== 'otros') {
+            if (entry.hourly_rate < 10 && entry.activity !== 'gasolina' && entry.activity !== 'otros' && entry.activity !== 'supervision') {
                 issues.push(`Tarifa sospechosamente baja: $${entry.hourly_rate}/h`);
             }
 

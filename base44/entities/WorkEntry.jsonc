@@ -38,6 +38,7 @@
         "entrenamiento",
         "gasolina",
         "inspecciones",
+        "supervision",
         "otros"
       ],
       "description": "Tipo de actividad"
@@ -66,6 +67,15 @@
     "schedule_id": {
       "type": "string",
       "description": "ID del Schedule (horario) del cual se origin\u00f3 esta entrada, si aplica."
+    },
+    "is_supervision": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indica que esta entrada corresponde a un bloque de supervisi\u00f3n. Se excluye de la facturaci\u00f3n a clientes y de conciliaciones de servicios."
+    },
+    "supervision_id": {
+      "type": "string",
+      "description": "ID de la Supervision que origin\u00f3 esta entrada, si aplica."
     },
     "is_leader_bonus": {
       "type": "boolean",
