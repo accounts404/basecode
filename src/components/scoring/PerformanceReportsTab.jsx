@@ -382,24 +382,27 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
 
   const loadAll = async () => {
     setLoading(true);
-    try {
-      const [perf, punct, feed, veh, cls, sups, schs] = await Promise.all([
-        base44.entities.PerformanceReview.list("-review_date", 2000),
-        base44.entities.PunctualityRecord.list("-date", 2000),
-        base44.entities.ClientFeedback.list("-feedback_date", 2000),
-        base44.entities.VehicleChecklistRecord.list("-date", 2000),
-        base44.entities.Client.filter({ active: true }),
-        base44.entities.Supervision.list("-date", 2000),
-        base44.entities.Schedule.list("-start_time", 2000),
-      ]);
-      setAllPerformance(perf || []);
-      setAllPunctuality(punct || []);
-      setAllFeedback(feed || []);
-      setAllVehicle(veh || []);
-      setAllClients((cls || []).sort((a, b) => a.name.localeCompare(b.name)));
-      setAllSupervisions(sups || []);
-      setAllSchedules(schs || []);
-    } catch (e) { console.error(e); }
+    // allSettled: si Supervision/Schedule fallan (límite de lectura), las demás pestañas siguen funcionando
+    const results = await Promise.allSettled([
+      base44.entities.PerformanceReview.list("-review_date", 2000),
+      base44.entities.PunctualityRecord.list("-date", 2000),
+      base44.entities.ClientFeedback.list("-feedback_date", 2000),
+      base44.entities.VehicleChecklistRecord.list("-date", 2000),
+      base44.entities.Client.filter({ active: true }),
+      base44.entities.Supervision.list("-date", 2000),
+      base44.entities.Schedule.list("-start_time", 2000),
+    ]);
+    const val = (i, fallback = []) => results[i].status === "fulfilled" ? (results[i].value || fallback) : fallback;
+    setAllPerformance(val(0));
+    setAllPunctuality(val(1));
+    setAllFeedback(val(2));
+    setAllVehicle(val(3));
+    setAllClients(val(4).sort((a, b) => a.name.localeCompare(b.name)));
+    setAllSupervisions(val(5));
+    setAllSchedules(val(6));
+    if (results.some((r) => r.status === "rejected")) {
+      console.warn("Algunas entidades no se cargaron (posible límite de lectura):", results.filter((r) => r.status === "rejected").map((r) => r.reason?.message));
+    }
     setLoading(false);
   };
 
