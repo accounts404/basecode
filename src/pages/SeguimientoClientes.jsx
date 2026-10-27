@@ -53,7 +53,8 @@ const DAY_FILTER_OPTIONS = [
 
 export default function SeguimientoClientesPage() {
   const [clients, setClients] = useState([]);
-  const [logs, setLogs] = useState([]);
+  const [rawLogs, setRawLogs] = useState([]);
+  const [supervisions, setSupervisions] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,10 +92,47 @@ export default function SeguimientoClientesPage() {
       base44.entities.User.list(),
     ]);
     setClients(Array.isArray(clientsData) ? clientsData : []);
-    setLogs(Array.isArray(logsData) ? logsData : []);
+    setRawLogs(Array.isArray(logsData) ? logsData : []);
     setAdminUsers(Array.isArray(usersData) ? usersData.filter(u => u.role === 'admin') : []);
+    // Cargar supervisiones para mostrar las visitas como seguimiento (fallos no rompen la página)
+    try {
+      const supData = await base44.entities.Supervision.list('-date', 5000);
+      setSupervisions(Array.isArray(supData) ? supData : []);
+    } catch (e) {
+      console.warn('No se cargaron supervisiones:', e);
+      setSupervisions([]);
+    }
     setLoading(false);
   };
+
+  // Convertir visitas de supervisión en entradas de seguimiento tipo "visita"
+  const supervisionEntries = useMemo(() => {
+    const entries = [];
+    (supervisions || []).forEach(sup => {
+      const date = sup.date || (sup.start_time ? sup.start_time.slice(0, 10) : '');
+      (sup.visits || []).forEach((visit, i) => {
+        if (visit.visit_status === 'pending') return; // solo visitas realizadas cuentan como contacto
+        entries.push({
+          id: `supervision-${sup.id}-${i}`,
+          client_id: visit.client_id,
+          client_name: visit.client_name,
+          interaction_type: 'visit',
+          interaction_date: date,
+          logged_by: sup.supervisor_name || 'Supervisor',
+          comments: [visit.notes, visit.incidents ? `⚠️ Incidencia: ${visit.incidents}` : null].filter(Boolean).join('\n') || null,
+          replied: true,
+        });
+      });
+    });
+    return entries;
+  }, [supervisions]);
+
+  // Lista unificada de seguimiento: contactos manuales + visitas de supervisión
+  const logs = useMemo(() => {
+    return [...rawLogs, ...supervisionEntries].sort((a, b) =>
+      (b.interaction_date || '').localeCompare(a.interaction_date || '')
+    );
+  }, [rawLogs, supervisionEntries]);
 
   const activeClients = useMemo(() => {
     if (filterType === 'disabled') return clients.filter(c => c.active === false);

@@ -947,20 +947,19 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
             </CardContent>
           </Card>
         </TabsContent>
+        {/* ── SUPERVISIONES ── */}
+        <TabsContent value="supervision">
+          <SupervisionReportsTab
+            supervisions={allSupervisions}
+            schedules={allSchedules}
+            limpiadores={limpiadores}
+            selectedCleanerId={selectedCleanerId}
+            selectedClientId={selectedClientId}
+            filterDateFrom={filterDateFrom}
+            filterDateTo={filterDateTo}
+          />
+        </TabsContent>
       </Tabs>
-
-      {/* ── SUPERVISIONES ── */}
-      <TabsContent value="supervision">
-        <SupervisionReportsTab
-          supervisions={allSupervisions}
-          schedules={allSchedules}
-          limpiadores={limpiadores}
-          selectedCleanerId={selectedCleanerId}
-          selectedClientId={selectedClientId}
-          filterDateFrom={filterDateFrom}
-          filterDateTo={filterDateTo}
-        />
-      </TabsContent>
 
       {/* Detail Dialogs */}
       <ReviewDetailDialog review={openReview} open={!!openReview} onClose={() => setOpenReview(null)} />

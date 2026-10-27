@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Schedule } from '@/entities/Schedule';
 import { WorkEntry } from '@/entities/WorkEntry';
 import { ServiceReport } from '@/entities/ServiceReport';
+import { Supervision } from '@/entities/Supervision';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,8 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  Search
+  Search,
+  Shield
 } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, addMonths, subMonths, isAfter, isBefore, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -42,7 +43,21 @@ const EventTypeIcons = {
   price_change: { icon: TrendingUp, color: 'text-yellow-600', bgColor: 'bg-yellow-100' },
   windows_service: { icon: Wind, color: 'text-cyan-600', bgColor: 'bg-cyan-100' },
   steam_service: { icon: Zap, color: 'text-indigo-600', bgColor: 'bg-indigo-100' },
-  service_report: { icon: AlertTriangle, color: 'text-red-600', bgColor: 'bg-red-100' }
+  service_report: { icon: AlertTriangle, color: 'text-red-600', bgColor: 'bg-red-100' },
+  supervision_visit: { icon: Shield, color: 'text-purple-600', bgColor: 'bg-purple-100' }
+};
+
+const visitStatusLabel = (status) => ({
+  pending: 'Pendiente',
+  in_progress: 'En curso',
+  completed: 'Completada',
+  skipped: 'Omitida',
+}[status] || 'Pendiente');
+
+const getSupervisionDescription = (sup, visit) => {
+  const parts = [`Supervisor: ${sup.supervisor_name || '—'}`];
+  if (visit.visit_status && visit.visit_status !== 'pending') parts.push(visitStatusLabel(visit.visit_status));
+  return parts.join(' · ');
 };
 
 // Helper functions moved outside component to avoid dependency issues
@@ -165,6 +180,34 @@ export default function ClientHistory({ clientId }) {
           category: 'report'
         });
       });
+
+      // Procesar visitas de supervisión (solo las de este cliente)
+      try {
+        const supervisions = await Supervision.list('-date', 2000);
+        supervisions.forEach(sup => {
+          const supDate = sup.date || (sup.start_time ? sup.start_time.slice(0, 10) : '');
+          (sup.visits || []).forEach(visit => {
+            if (visit.client_id !== clientId) return;
+            events.push({
+              id: `supervision-${sup.id}-${visit.client_id}`,
+              type: 'supervision_visit',
+              date: supDate,
+              title: 'Supervisión',
+              description: getSupervisionDescription(sup, visit),
+              data: {
+                ...visit,
+                supervisor_name: sup.supervisor_name,
+                supervision_date: supDate,
+                notes_public: visit.notes || null,
+                report_notes: visit.incidents || null,
+              },
+              category: 'supervision'
+            });
+          });
+        });
+      } catch (e) {
+        console.warn('No se cargaron supervisiones en el historial:', e);
+      }
 
       // Ordenar eventos por fecha (más reciente primero)
       events.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -403,6 +446,7 @@ export default function ClientHistory({ clientId }) {
               <SelectItem value="service">Servicios</SelectItem>
               <SelectItem value="work">Trabajos</SelectItem>
               <SelectItem value="report">Reportes</SelectItem>
+              <SelectItem value="supervision">Supervisiones</SelectItem>
             </SelectContent>
           </Select>
         </div>
