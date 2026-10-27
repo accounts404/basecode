@@ -48,6 +48,8 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
   );
   const [notes, setNotes] = useState(existingSupervision?.notes || "");
   const [clientSearch, setClientSearch] = useState("");
+  const [dayClientIds, setDayClientIds] = useState(new Set());
+  const [loadingDayClients, setLoadingDayClients] = useState(false);
 
   const cleaners = useMemo(
     () => users.filter((u) => u.role !== "admin" && u.active !== false),
@@ -78,15 +80,51 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
     fetchClients();
   }, []);
 
-  const filteredClients = useMemo(() => {
+  // Cargar clientes con servicios programados para la fecha seleccionada
+  useEffect(() => {
+    if (!dateStr) return;
+    let cancelled = false;
+    const fetchDayClients = async () => {
+      setLoadingDayClients(true);
+      try {
+        const dayStart = `${dateStr}T00:00:00.000`;
+        const dayEnd = `${dateStr}T23:59:59.999`;
+        const filter = { start_time: { $gte: dayStart, $lte: dayEnd }, status: { $ne: "cancelled" } };
+        const BATCH = 500;
+        let all = [];
+        let skip = 0;
+        while (true) {
+          const batch = await base44.entities.Schedule.filter(filter, "-start_time", BATCH, skip);
+          const arr = Array.isArray(batch) ? batch : (batch?.items || []);
+          all = all.concat(arr);
+          if (arr.length < BATCH) break;
+          skip += BATCH;
+        }
+        if (!cancelled) {
+          const ids = new Set();
+          all.forEach((s) => { if (s.client_id) ids.add(s.client_id); });
+          setDayClientIds(ids);
+        }
+      } catch (e) {
+        console.error("Error cargando clientes del día:", e);
+      } finally {
+        if (!cancelled) setLoadingDayClients(false);
+      }
+    };
+    fetchDayClients();
+    return () => { cancelled = true; };
+  }, [dateStr]);
+
+  const { dayClients, otherClients } = useMemo(() => {
     const q = clientSearch.toLowerCase().trim();
-    if (!q) return clients;
-    return clients.filter(
-      (c) =>
-        (c.name || "").toLowerCase().includes(q) ||
-        (c.address || "").toLowerCase().includes(q)
-    );
-  }, [clients, clientSearch]);
+    const matches = (c) =>
+      !q ||
+      (c.name || "").toLowerCase().includes(q) ||
+      (c.address || "").toLowerCase().includes(q);
+    const day = clients.filter((c) => dayClientIds.has(c.id) && matches(c));
+    const other = clients.filter((c) => !dayClientIds.has(c.id) && matches(c));
+    return { dayClients: day, otherClients: other };
+  }, [clients, clientSearch, dayClientIds]);
 
   const handleToggleClient = (clientId) => {
     setSelectedClientIds((prev) =>
@@ -352,28 +390,56 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
               <CommandList className="max-h-[300px]">
                 {loadingClients ? (
                   <CommandEmpty>Cargando clientes...</CommandEmpty>
-                ) : filteredClients.length === 0 ? (
+                ) : dayClients.length === 0 && otherClients.length === 0 ? (
                   <CommandEmpty>No se encontraron clientes.</CommandEmpty>
                 ) : (
-                  <CommandGroup>
-                    {filteredClients.map((c) => (
-                      <CommandItem
-                        key={c.id}
-                        onSelect={() => handleToggleClient(c.id)}
-                        className="flex items-center gap-2"
-                      >
-                        <Checkbox checked={selectedClientIds.includes(c.id)} />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{c.name}</p>
-                          {c.address && (
-                          <p className="text-xs text-slate-500 truncate flex items-center gap-1">
-                            <MapPin className="w-3 h-3" /> {c.address}
-                          </p>
-                          )}
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
+                  <>
+                    {loadingDayClients && (
+                      <div className="px-3 py-2 text-xs text-slate-400">Cargando clientes del día...</div>
+                    )}
+                    {dayClients.length > 0 && (
+                      <CommandGroup heading={`Clientes del día (${dayClients.length})`}>
+                        {dayClients.map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            onSelect={() => handleToggleClient(c.id)}
+                            className="flex items-center gap-2"
+                          >
+                            <Checkbox checked={selectedClientIds.includes(c.id)} />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{c.name}</p>
+                              {c.address && (
+                                <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" /> {c.address}
+                                </p>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                    {otherClients.length > 0 && (
+                      <CommandGroup heading="Todos los clientes">
+                        {otherClients.map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            onSelect={() => handleToggleClient(c.id)}
+                            className="flex items-center gap-2"
+                          >
+                            <Checkbox checked={selectedClientIds.includes(c.id)} />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{c.name}</p>
+                              {c.address && (
+                                <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" /> {c.address}
+                                </p>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </>
                 )}
               </CommandList>
             </Command>

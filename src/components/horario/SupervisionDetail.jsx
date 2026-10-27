@@ -8,8 +8,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Shield, Clock, MapPin, CheckCircle, Circle, Play, SkipForward,
-  Camera, AlertCircle, FileText, KeySquare, ImageOff, Loader2, X,
+  Camera, AlertCircle, FileText, KeySquare, ImageOff, Loader2, X, UserPlus, Trash2,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from "@/components/ui/command";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { UploadPrivateFile, CreateFileSignedUrl } from "@/integrations/Core";
@@ -41,6 +43,11 @@ export default function SupervisionDetail({ supervision, currentUser, onClose, o
   const [signedUrls, setSignedUrls] = useState({});
   const [error, setError] = useState("");
   const [blockStatusSaving, setBlockStatusSaving] = useState(false);
+  const [allClients, setAllClients] = useState([]);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const [visitMutating, setVisitMutating] = useState(false);
 
   const isAdmin = currentUser?.role === "admin";
   const isSupervisor = currentUser?.id === localSupervision?.supervisor_id;
@@ -240,6 +247,80 @@ export default function SupervisionDetail({ supervision, currentUser, onClose, o
     }
   };
 
+  const loadAllClients = async () => {
+    if (clientsLoaded) return;
+    setVisitMutating(true);
+    try {
+      const BATCH = 500;
+      let all = [];
+      let skip = 0;
+      while (true) {
+        const batch = await base44.entities.Client.list("-created_date", BATCH, skip);
+        const arr = Array.isArray(batch) ? batch : (batch?.items || []);
+        all = all.concat(arr);
+        if (arr.length < BATCH) break;
+        skip += BATCH;
+      }
+      setAllClients(all.filter((c) => c.active !== false));
+      setClientsLoaded(true);
+    } catch (e) {
+      console.error("Error cargando clientes:", e);
+    } finally {
+      setVisitMutating(false);
+    }
+  };
+
+  const filteredAllClients = useMemo(() => {
+    const q = clientSearch.toLowerCase().trim();
+    if (!q) return allClients;
+    return allClients.filter(
+      (c) =>
+        (c.name || "").toLowerCase().includes(q) ||
+        (c.address || "").toLowerCase().includes(q)
+    );
+  }, [allClients, clientSearch]);
+
+  const handleAddClient = async (clientId) => {
+    const exists = (localSupervision?.visits || []).some((v) => v.client_id === clientId);
+    if (exists) return;
+    const c = allClients.find((cl) => cl.id === clientId);
+    const newVisit = {
+      client_id: clientId,
+      client_name: c?.name || "Cliente",
+      client_address: c?.address || "",
+      visit_status: "pending",
+      started_at: null,
+      completed_at: null,
+      notes: "",
+      incidents: "",
+      photos: [],
+    };
+    const newVisits = [...(localSupervision?.visits || []), newVisit];
+    setVisitMutating(true);
+    try {
+      await persistVisits(newVisits);
+      setClientInfos((prev) => ({ ...prev, [clientId]: c }));
+      setClientSearch("");
+    } catch (e) {
+      setError(e.message || "Error al agregar cliente.");
+    } finally {
+      setVisitMutating(false);
+    }
+  };
+
+  const handleRemoveVisit = async (index) => {
+    if (!window.confirm("¿Quitar este cliente de la supervisión?")) return;
+    const newVisits = (localSupervision?.visits || []).filter((_, i) => i !== index);
+    setVisitMutating(true);
+    try {
+      await persistVisits(newVisits);
+    } catch (e) {
+      setError(e.message || "Error al quitar cliente.");
+    } finally {
+      setVisitMutating(false);
+    }
+  };
+
   const completedCount = (localSupervision?.visits || []).filter((v) => v.visit_status === "completed").length;
   const totalCount = (localSupervision?.visits || []).length;
   const supervisorName = localSupervision?.supervisor_name || "Supervisor";
@@ -333,7 +414,19 @@ export default function SupervisionDetail({ supervision, currentUser, onClose, o
                       </p>
                     )}
                   </div>
-                  <Badge className={cfg.color}>{cfg.label}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={cfg.color}>{cfg.label}</Badge>
+                    {canEdit && (
+                      <button
+                        onClick={() => handleRemoveVisit(index)}
+                        disabled={visitMutating}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors disabled:opacity-40"
+                        title="Quitar cliente de la supervisión"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Info operativa del cliente (visible para el supervisor) */}
@@ -505,6 +598,57 @@ export default function SupervisionDetail({ supervision, currentUser, onClose, o
           );
         })}
       </div>
+
+      {canEdit && (
+        <div className="pt-1">
+          <Popover open={addClientOpen} onOpenChange={(o) => { setAddClientOpen(o); if (o) loadAllClients(); }}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="border-purple-200 text-purple-700 hover:bg-purple-50" disabled={visitMutating}>
+                <UserPlus className="w-4 h-4 mr-1" /> Agregar cliente
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[400px] p-0" align="start">
+              <Command shouldFilter={false}>
+                <CommandInput
+                  placeholder="Buscar cliente por nombre o dirección..."
+                  value={clientSearch}
+                  onValueChange={setClientSearch}
+                />
+                <CommandList className="max-h-[300px]">
+                  {!clientsLoaded ? (
+                    <CommandEmpty>Cargando clientes...</CommandEmpty>
+                  ) : filteredAllClients.length === 0 ? (
+                    <CommandEmpty>No se encontraron clientes.</CommandEmpty>
+                  ) : (
+                    <CommandGroup>
+                      {filteredAllClients.map((c) => {
+                        const already = (localSupervision?.visits || []).some((v) => v.client_id === c.id);
+                        return (
+                          <CommandItem
+                            key={c.id}
+                            onSelect={() => { if (!already) handleAddClient(c.id); }}
+                            className="flex items-center gap-2"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className={`font-medium truncate ${already ? "text-slate-400 line-through" : ""}`}>{c.name}</p>
+                              {c.address && (
+                                <p className="text-xs text-slate-500 truncate flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" /> {c.address}
+                                </p>
+                              )}
+                            </div>
+                            {already && <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
 
       <div className="flex justify-between pt-2">
         <div>
