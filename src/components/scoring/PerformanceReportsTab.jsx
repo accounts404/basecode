@@ -13,12 +13,13 @@ import { cn } from "@/lib/utils";
 import {
   BarChart2, TrendingUp, User, Home, Calendar, Filter, X, Star, AlertCircle,
   CheckCircle2, Clock, Car, MessageSquare, ClipboardList, ChevronDown, ChevronRight,
-  ArrowLeft, ExternalLink, ThumbsDown, ThumbsUp, Minus, Eye, Check
+  ArrowLeft, ExternalLink, ThumbsDown, ThumbsUp, Minus, Eye, Check, Shield
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
 import SimplePagination from "@/components/ui/simple-pagination";
+import SupervisionReportsTab from "@/components/scoring/SupervisionReportsTab";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -354,6 +355,8 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
   const [allFeedback, setAllFeedback] = useState([]);
   const [allVehicle, setAllVehicle] = useState([]);
   const [allClients, setAllClients] = useState([]);
+  const [allSupervisions, setAllSupervisions] = useState([]);
+  const [allSchedules, setAllSchedules] = useState([]);
 
   const [selectedCleanerId, setSelectedCleanerId] = useState("all");
   const [selectedClientId, setSelectedClientId] = useState("all");
@@ -380,18 +383,22 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [perf, punct, feed, veh, cls] = await Promise.all([
+      const [perf, punct, feed, veh, cls, sups, schs] = await Promise.all([
         base44.entities.PerformanceReview.list("-review_date", 2000),
         base44.entities.PunctualityRecord.list("-date", 2000),
         base44.entities.ClientFeedback.list("-feedback_date", 2000),
         base44.entities.VehicleChecklistRecord.list("-date", 2000),
         base44.entities.Client.filter({ active: true }),
+        base44.entities.Supervision.list("-date", 2000),
+        base44.entities.Schedule.list("-start_time", 2000),
       ]);
       setAllPerformance(perf || []);
       setAllPunctuality(punct || []);
       setAllFeedback(feed || []);
       setAllVehicle(veh || []);
       setAllClients((cls || []).sort((a, b) => a.name.localeCompare(b.name)));
+      setAllSupervisions(sups || []);
+      setAllSchedules(schs || []);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -445,6 +452,12 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
   const absences = filteredPunct.filter(r => r.absence).length;
   const complaints = filteredFeedback.filter(r => r.feedback_type === "complaint").length;
   const compliments = filteredFeedback.filter(r => r.feedback_type === "compliment").length;
+  const supervisionVisitCount = (allSupervisions || []).reduce((sum, s) => {
+    const d = s.date || (s.start_time ? s.start_time.slice(0, 10) : "");
+    if (filterDateFrom && d < filterDateFrom) return sum;
+    if (filterDateTo && d > filterDateTo) return sum;
+    return sum + (s.visits || []).filter(v => selectedClientId === "all" || v.client_id === selectedClientId).length;
+  }, 0);
 
   // ── trend chart data ──────────────────────────────────────────────────────
 
@@ -582,7 +595,7 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
       </Card>
 
       {/* KPI overview row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
         <Card className="border-0 shadow-sm bg-blue-50 col-span-1">
           <CardContent className="p-3 text-center">
             <ClipboardList className="w-5 h-5 text-blue-500 mx-auto mb-1" />
@@ -632,6 +645,13 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
             <p className="text-xs text-green-600">Felicitaciones</p>
           </CardContent>
         </Card>
+        <Card className="border-0 shadow-sm bg-purple-50 col-span-1">
+          <CardContent className="p-3 text-center">
+            <Shield className="w-5 h-5 text-purple-500 mx-auto mb-1" />
+            <p className="text-xl font-bold text-purple-800">{supervisionVisitCount}</p>
+            <p className="text-xs text-purple-600">Visitas superv.</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Trend chart (only when cleaner or client selected) */}
@@ -658,7 +678,7 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
 
       {/* Main tabs */}
       <Tabs value={activeSection} onValueChange={setActiveSection}>
-        <TabsList className="grid w-full grid-cols-4 h-10">
+        <TabsList className="grid w-full grid-cols-5 h-10">
           <TabsTrigger value="performance" className="flex items-center gap-1 text-xs">
             <ClipboardList className="w-3.5 h-3.5" />
             <span>Performance</span>
@@ -678,6 +698,11 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Feedback</span>
             <Badge variant="secondary" className="ml-1 text-xs px-1.5">{filteredFeedback.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="supervision" className="flex items-center gap-1 text-xs">
+            <Shield className="w-3.5 h-3.5" />
+            <span>Supervisiones</span>
+            <Badge variant="secondary" className="ml-1 text-xs px-1.5">{supervisionVisitCount}</Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -920,6 +945,19 @@ export default function PerformanceReportsTab({ limpiadores, monthPeriod }) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ── SUPERVISIONES ── */}
+      <TabsContent value="supervision">
+        <SupervisionReportsTab
+          supervisions={allSupervisions}
+          schedules={allSchedules}
+          limpiadores={limpiadores}
+          selectedCleanerId={selectedCleanerId}
+          selectedClientId={selectedClientId}
+          filterDateFrom={filterDateFrom}
+          filterDateTo={filterDateTo}
+        />
+      </TabsContent>
 
       {/* Detail Dialogs */}
       <ReviewDetailDialog review={openReview} open={!!openReview} onClose={() => setOpenReview(null)} />
