@@ -12,11 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Plus, ClipboardList, TrendingUp, User, Home, ChevronDown, ChevronUp, CalendarDays, Search, X, Camera, Trash2, CheckCircle2, AlertCircle, BarChart2, Settings, Pencil, Eye, ChevronRight } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import SimplePagination from "@/components/ui/simple-pagination";
 import ChecklistConfigModal, { loadChecklistConfig } from "@/components/scoring/ChecklistConfigModal";
 import PerformanceReportsTab from "@/components/scoring/PerformanceReportsTab";
+import SupervisionDataPanel from "@/components/scoring/SupervisionDataPanel";
 
 const AREAS = [
   { key: "bathrooms",          name: "Baños",                      max: 25, color: "blue" },
@@ -278,6 +279,10 @@ function ReviewDetailDialog({ review, open, onClose }) {
               <p className="text-sm text-amber-800">{review.general_notes}</p>
             </div>
           )}
+
+          {review.supervision_data && (
+            <SupervisionDataPanel data={review.supervision_data} />
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -303,6 +308,20 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
   const [deletingId, setDeletingId] = useState(null);
   const [historyPage, setHistoryPage] = useState(1);
   const HISTORY_PAGE_SIZE = 10;
+  const [supervisions, setSupervisions] = useState([]);
+  const [selectedSupervisionId, setSelectedSupervisionId] = useState("");
+
+  // Carga supervisiones recientes (últimos ~6 meses) para poder vincularlas a la evaluación
+  const loadSupervisions = async () => {
+    try {
+      const since = format(subDays(new Date(), 180), "yyyy-MM-dd");
+      const data = await base44.entities.Supervision.filter({ date: { $gte: since } });
+      setSupervisions(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("Error cargando supervisiones:", e);
+      setSupervisions([]);
+    }
+  };
 
   useEffect(() => { loadData(); }, [monthPeriod]);
 
@@ -326,8 +345,10 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setSelectedClientId("");
     setClientSearch("");
     setShowClientDropdown(false);
+    setSelectedSupervisionId("");
     setAreaStates(initAreaStates()); // always reads latest config from localStorage
     setGeneralNotes("");
+    loadSupervisions();
     setShowDialog(true);
   };
 
@@ -340,6 +361,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setClientSearch(review.client_name || "");
     setShowClientDropdown(false);
     setGeneralNotes(review.general_notes || "");
+    setSelectedSupervisionId(review.supervision_id || "");
     // Restore area states from saved review
     const cfg = loadChecklistConfig();
     const restored = initAreaStates(cfg).map(state => {
@@ -356,6 +378,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
       };
     });
     setAreaStates(restored);
+    loadSupervisions();
     setShowDialog(true);
   };
 
@@ -375,6 +398,33 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setSelectedClientId(client.id);
     setClientSearch(client.name);
     setShowClientDropdown(false);
+    setSelectedSupervisionId("");
+  };
+
+  // Supervisiones que incluyen una visita para el cliente seleccionado
+  const clientSupervisions = supervisions
+    .filter(s => (s.visits || []).some(v => v.client_id === selectedClientId))
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  const linkedSupervision = supervisions.find(s => s.id === selectedSupervisionId) || null;
+  const linkedVisit = linkedSupervision
+    ? (linkedSupervision.visits || []).find(v => v.client_id === selectedClientId) || null
+    : null;
+
+  const buildSupervisionSnapshot = () => {
+    if (!linkedSupervision || !linkedVisit) return null;
+    return {
+      supervisor_name: linkedSupervision.supervisor_name || "",
+      date: linkedSupervision.date || "",
+      supervision_status: linkedSupervision.status || "",
+      visit_status: linkedVisit.visit_status || "pending",
+      started_at: linkedVisit.started_at || null,
+      completed_at: linkedVisit.completed_at || null,
+      notes: linkedVisit.notes || "",
+      incidents: linkedVisit.incidents || "",
+      photo_count: (linkedVisit.photos || []).length,
+      photos: (linkedVisit.photos || []).map(p => ({ url: p.url, comment: p.comment || "" })),
+    };
   };
 
   const toggleAreaIncluded = (areaKey) => {
@@ -481,6 +531,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
     setSaving(true);
     try {
       const client = clients.find(c => c.id === selectedClientId);
+      const supervisionSnapshot = buildSupervisionSnapshot();
 
       // Build area_scores for saving
       const areaScoresForSave = areaStates.map(state => {
@@ -507,6 +558,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           area_scores: areaScoresForSave,
           overall_score: overallScore,
           general_notes: generalNotes,
+          supervision_id: selectedSupervisionId || null,
+          supervision_data: supervisionSnapshot,
         });
       } else {
         await base44.entities.PerformanceReview.create({
@@ -521,6 +574,8 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
           area_scores: areaScoresForSave,
           overall_score: overallScore,
           general_notes: generalNotes,
+          supervision_id: selectedSupervisionId || null,
+          supervision_data: supervisionSnapshot,
         });
 
         // Notificación al limpiador por nueva evaluación
@@ -751,6 +806,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                             {format(parseISO(r.review_date), "d MMM yyyy", { locale: es })}
                             {r.client_name ? ` · 🏠 ${r.client_name}` : ""}
                             {" · "}{r.reviewed_by_admin_name}
+                            {r.supervision_id && <span className="text-indigo-600 font-medium"> · 📋 Supervisión</span>}
                           </p>
                           {r.general_notes && (
                             <p className="text-xs text-slate-400 italic mt-0.5">"{r.general_notes}"</p>
@@ -856,7 +912,7 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                     className="pl-9 pr-8"
                   />
                   {clientSearch && (
-                    <button onClick={() => { setClientSearch(""); setSelectedClientId(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <button onClick={() => { setClientSearch(""); setSelectedClientId(""); setSelectedSupervisionId(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                       <X className="w-4 h-4" />
                     </button>
                   )}
@@ -872,6 +928,38 @@ export default function PerformanceTab({ monthPeriod, limpiadores, monthlyScores
                 </div>
               </div>
             </div>
+
+            {/* Supervisión vinculada */}
+            {selectedClientId && clientSupervisions.length > 0 && (
+              <div>
+                <Label className="font-semibold flex items-center gap-1 mb-1">
+                  <ClipboardList className="w-4 h-4" /> Supervisión de este cliente (opcional)
+                </Label>
+                <Select
+                  value={selectedSupervisionId || "none"}
+                  onValueChange={(id) => setSelectedSupervisionId(id === "none" ? "" : id)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Vincular una supervisión realizada a este cliente..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Sin supervisión —</SelectItem>
+                    {clientSupervisions.map(s => {
+                      const visit = (s.visits || []).find(v => v.client_id === selectedClientId);
+                      const label = `${format(parseISO(s.date), "d MMM yyyy", { locale: es })} · ${s.supervisor_name || "Supervisor"} · visita ${visit?.visit_status || "pendiente"}`;
+                      return (
+                        <SelectItem key={s.id} value={s.id}>{label}</SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                {linkedSupervision && linkedVisit && (
+                  <div className="mt-2">
+                    <SupervisionDataPanel data={buildSupervisionSnapshot()} compact />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Áreas de evaluación */}
             <div>

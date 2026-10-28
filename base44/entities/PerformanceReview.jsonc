@@ -129,6 +129,60 @@
     "score_adjustment_id": {
       "type": "string",
       "description": "ID del ScoreAdjustment creado"
+    },
+    "supervision_id": {
+      "type": "string",
+      "description": "ID de la Supervision vinculada a esta evaluaci\u00f3n (si aplica)"
+    },
+    "supervision_data": {
+      "type": "object",
+      "description": "Snapshot de los datos de la visita de supervisi\u00f3n vinculada (notas, incidencias, estado, fotos) para conservar las observaciones en el historial de la evaluaci\u00f3n",
+      "properties": {
+        "supervisor_name": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "supervision_status": {
+          "type": "string"
+        },
+        "visit_status": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "incidents": {
+          "type": "string"
+        },
+        "photo_count": {
+          "type": "number"
+        },
+        "photos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "comment": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "required": [
