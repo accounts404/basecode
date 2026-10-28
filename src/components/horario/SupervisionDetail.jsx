@@ -441,7 +441,7 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
             {localSupervision.notes}
           </div>
         )}
-        {isAdmin && localSupervision?.status !== "cancelled" && (
+        {isAdmin && (
           <div className="mt-3 flex gap-2">
             {localSupervision?.status !== "completed" && (
               <Button size="sm" variant="outline" onClick={() => handleBlockStatusChange("completed")} disabled={blockStatusSaving} className="border-green-300 text-green-700 hover:bg-green-50">
@@ -453,9 +453,11 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
                 Reabrir bloque
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={() => handleBlockStatusChange("cancelled")} disabled={blockStatusSaving} className="border-red-200 text-red-600 hover:bg-red-50">
-              Cancelar bloque
-            </Button>
+            {localSupervision?.status !== "cancelled" && (
+              <Button size="sm" variant="outline" onClick={() => handleBlockStatusChange("cancelled")} disabled={blockStatusSaving} className="border-red-200 text-red-600 hover:bg-red-50">
+                Cancelar bloque
+              </Button>
+            )}
           </div>
         )}
       </div>
