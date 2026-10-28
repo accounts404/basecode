@@ -287,6 +287,12 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
               work_date: fields.work_date,
               period: fields.period,
             });
+          } else if (!we) {
+            // La WorkEntry referenciada fue eliminada (referencia huérfana):
+            // crear una nueva y actualizar la referencia en la supervisión.
+            const newWe = await base44.entities.WorkEntry.create({ ...fields, supervision_id: sup.id });
+            workEntryId = newWe.id;
+            extraUpdate.work_entry_id = newWe.id;
           }
         } else {
           const we = await base44.entities.WorkEntry.create({ ...fields, supervision_id: sup.id });
