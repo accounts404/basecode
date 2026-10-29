@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,6 +57,17 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
   const isSupervisor = currentUser?.id === localSupervision?.supervisor_id;
   const canEdit = isAdmin || isSupervisor;
 
+  // Firmas estables derivadas: cambian solo cuando cambian los client_ids o las fotos,
+  // NO en cada tecla al editar notas/incidencias. Evita re-ejecutar efectos pesados por keystroke.
+  const clientIdsKey = (localSupervision?.visits || [])
+    .map((v) => v.client_id)
+    .filter(Boolean)
+    .sort()
+    .join(",");
+  const photoSignature = (localSupervision?.visits || [])
+    .flatMap((v, vi) => (v.photos || []).map((p, pi) => `${vi}-${pi}:${p.url}`))
+    .join("|");
+
   // Cargar info operativa de los clientes de las visitas
   useEffect(() => {
     const fetchClients = async () => {
@@ -82,7 +93,7 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
       }
     };
     fetchClients();
-  }, [localSupervision?.visits]);
+  }, [clientIdsKey]);
 
   // Enriquecer visitas con equipo, horario y tiempo restante (vía backend para resolver nombres de limpiadores)
   useEffect(() => {
@@ -107,41 +118,51 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
       }
     };
     fetchEnrichment();
-  }, [localSupervision?.visits, localSupervision?.date, localSupervision?.start_time]);
+  }, [clientIdsKey, localSupervision?.date, localSupervision?.start_time]);
 
-  // Generar signed URLs para fotos privadas
-  const refreshSignedUrls = useCallback(async () => {
+  // Generar signed URLs para fotos privadas (solo cuando cambia el set de fotos, no en cada tecla)
+  useEffect(() => {
     if (!localSupervision?.visits) return;
     const allPhotos = [];
     localSupervision.visits.forEach((v, vi) => {
       (v.photos || []).forEach((p, pi) => {
-        // Cualquier URL que no sea http(s) es un file_uri privado (formato "mp/private/...")
-        // y necesita una URL firmada para poder visualizarse.
         if (p.url && !/^https?:\/\//.test(p.url)) {
           allPhotos.push({ vi, pi, uri: p.url });
         }
       });
     });
     if (allPhotos.length === 0) return;
-    const next = { ...signedUrls };
-    await Promise.all(
-      allPhotos.map(async ({ vi, pi, uri }) => {
-        const key = `${vi}-${pi}`;
-        if (next[key]) return;
-        try {
-          const res = await CreateFileSignedUrl({ file_uri: uri, expires_in: 3600 });
-          next[key] = res.signed_url;
-        } catch (e) {
-          console.warn("No se pudo firmar la URL de la foto:", e);
-        }
-      })
-    );
-    setSignedUrls(next);
-  }, [localSupervision, signedUrls]);
-
-  useEffect(() => {
-    refreshSignedUrls();
-  }, [refreshSignedUrls]);
+    let cancelled = false;
+    (async () => {
+      const fetched = {};
+      await Promise.all(
+        allPhotos.map(async ({ vi, pi, uri }) => {
+          const key = `${vi}-${pi}`;
+          try {
+            const res = await CreateFileSignedUrl({ file_uri: uri, expires_in: 3600 });
+            fetched[key] = res.signed_url;
+          } catch (e) {
+            console.warn("No se pudo firmar la URL de la foto:", e);
+          }
+        })
+      );
+      if (cancelled || Object.keys(fetched).length === 0) return;
+      setSignedUrls((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        Object.entries(fetched).forEach(([k, url]) => {
+          if (!next[k]) {
+            next[k] = url;
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [photoSignature]);
 
   const persistVisits = async (newVisits, extraFields = {}) => {
     const update = { visits: newVisits, ...extraFields };
@@ -199,10 +220,13 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     }
   };
 
-  const handleNotesChange = async (index, field, value) => {
-    // Actualización local inmediata, persistencia con debounce ligero
-    const newVisits = updateVisit(index, { [field]: value });
-    setLocalSupervision((prev) => ({ ...prev, visits: newVisits }));
+  const handleNotesChange = (index, field, value) => {
+    // Update funcional: lee del estado previo para no perder caracteres al escribir rápido.
+    setLocalSupervision((prev) => {
+      const newVisits = [...(prev.visits || [])];
+      newVisits[index] = { ...newVisits[index], [field]: value };
+      return { ...prev, visits: newVisits };
+    });
   };
 
   const handleBlurNotes = async (index, field) => {
@@ -233,12 +257,14 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     }
   };
 
-  const handlePhotoComment = async (vi, pi, comment) => {
-    const newVisits = [...(localSupervision.visits || [])];
-    const photos = [...(newVisits[vi].photos || [])];
-    photos[pi] = { ...photos[pi], comment };
-    newVisits[vi] = { ...newVisits[vi], photos };
-    setLocalSupervision((prev) => ({ ...prev, visits: newVisits }));
+  const handlePhotoComment = (vi, pi, comment) => {
+    setLocalSupervision((prev) => {
+      const newVisits = [...(prev.visits || [])];
+      const photos = [...(newVisits[vi].photos || [])];
+      photos[pi] = { ...photos[pi], comment };
+      newVisits[vi] = { ...newVisits[vi], photos };
+      return { ...prev, visits: newVisits };
+    });
   };
 
   const handlePhotoCommentBlur = async (vi) => {
