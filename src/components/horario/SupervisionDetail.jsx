@@ -235,7 +235,8 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     return log.filter((l) => l.action === "removed" && !restored.has(l.id)).reverse();
   }, [localSupervision?.visits_log]);
 
-  const canRemoveVisits = canEdit && localSupervision?.status !== "completed" && !workEntryInvoiced;
+  // Quitar o restaurar clientes de un bloque es exclusivo del administrador
+  const canRemoveVisits = isAdmin && localSupervision?.status !== "completed" && !workEntryInvoiced;
 
   const visitByIndex = (index) => (localSupervision.visits || [])[index];
 
@@ -487,6 +488,10 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
   const handleRemoveVisit = async (index) => {
     const visit = visitByIndex(index);
     if (!visit?.client_id) return;
+    if (!isAdmin) {
+      setError("Solo un administrador puede quitar clientes de un bloque de supervisión.");
+      return;
+    }
     if (!canRemoveVisits) {
       setError("Este bloque ya está completado o facturado: no se pueden quitar visitas.");
       return;
@@ -776,7 +781,7 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
         })}
       </div>
 
-      {canEdit && !canRemoveVisits && (
+      {isAdmin && !canRemoveVisits && (
         <p className="text-xs text-slate-500 flex items-center gap-1">
           <Lock className="w-3 h-3" />
           {workEntryInvoiced
@@ -785,7 +790,7 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
         </p>
       )}
 
-      {canEdit && removedVisits.length > 0 && (
+      {isAdmin && removedVisits.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
           <p className="text-xs font-semibold text-amber-800 flex items-center gap-1">
             <RotateCcw className="w-3.5 h-3.5" /> Clientes quitados de este bloque ({removedVisits.length})

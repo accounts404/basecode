@@ -41,6 +41,15 @@ export default async function (req) {
       return Response.json({ error: 'No tienes permiso sobre este bloque' }, { status: 403 });
     }
 
+    // Quitar o restaurar clientes de un bloque es exclusivo del administrador:
+    // el limpiador/supervisor solo puede trabajar las visitas asignadas.
+    if ((action === 'remove_visit' || action === 'restore_visit') && !isAdmin) {
+      return Response.json(
+        { error: 'Solo un administrador puede quitar clientes de un bloque de supervisión' },
+        { status: 403 }
+      );
+    }
+
     const visits = Array.isArray(supervision.visits) ? [...supervision.visits] : [];
     const log = Array.isArray(supervision.visits_log) ? [...supervision.visits_log] : [];
     const index = client_id ? visits.findIndex((v) => v && v.client_id === client_id) : -1;
