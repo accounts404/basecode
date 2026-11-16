@@ -102,6 +102,54 @@
         ]
       }
     },
+    "visits_log": {
+      "type": "array",
+      "description": "Registro de solo-agregar con los cambios hechos a las visitas del bloque (qui\u00e9n, cu\u00e1ndo y qu\u00e9). Permite saber qui\u00e9n quit\u00f3 una visita y restaurarla.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ID \u00fanico del evento"
+          },
+          "action": {
+            "type": "string",
+            "description": "started, completed, skipped, reopened, added, removed, restored"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "by_id": {
+            "type": "string",
+            "description": "ID del usuario que hizo el cambio"
+          },
+          "by_name": {
+            "type": "string",
+            "description": "Nombre del usuario que hizo el cambio"
+          },
+          "visit_snapshot": {
+            "type": "object",
+            "description": "Copia completa de la visita eliminada, para poder restaurarla"
+          },
+          "log_id": {
+            "type": "string",
+            "description": "ID del evento de eliminaci\u00f3n que se restaur\u00f3"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "at"
+        ]
+      }
+    },
     "work_entry_id": {
       "type": "string",
       "description": "ID de la WorkEntry creada para el pago de este bloque de supervisi\u00f3n"

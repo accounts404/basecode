@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Shield, Clock, MapPin, CheckCircle, Circle, Play, SkipForward,
   Camera, AlertCircle, FileText, ImageOff, Loader2, X, UserPlus, Trash2,
+  RotateCcw, Lock,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from "@/components/ui/command";
@@ -164,25 +165,87 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     };
   }, [photoSignature]);
 
-  const persistVisits = async (newVisits, extraFields = {}) => {
-    const update = { visits: newVisits, ...extraFields };
-    await base44.entities.Supervision.update(localSupervision.id, update);
-    setLocalSupervision((prev) => ({ ...prev, visits: newVisits, ...extraFields }));
+  // Marca las visitas con texto sin guardar, para no pisarlo al sincronizar
+  const dirtyNotesRef = useRef(new Set());
+  const [workEntryInvoiced, setWorkEntryInvoiced] = useState(false);
+
+  // Fusiona lo que llega del servidor conservando el texto que se está escribiendo
+  const mergeRemote = (prev, remote) => {
+    if (!prev) return remote;
+    const visits = (remote.visits || []).map((rv) => {
+      const pv = (prev.visits || []).find((v) => v.client_id === rv.client_id);
+      if (pv && dirtyNotesRef.current.has(rv.client_id)) {
+        return { ...rv, notes: pv.notes ?? "", incidents: pv.incidents ?? "" };
+      }
+      return rv;
+    });
+    return { ...prev, ...remote, visits };
   };
 
-  const updateVisit = (index, changes) => {
-    const newVisits = [...(localSupervision.visits || [])];
-    newVisits[index] = { ...newVisits[index], ...changes };
-    return newVisits;
+  // Sincronización en vivo: si otra persona cambia el bloque, esta pantalla se actualiza sola.
+  useEffect(() => {
+    const supId = localSupervision?.id;
+    if (!supId) return;
+    const unsubscribe = base44.entities.Supervision.subscribe((event) => {
+      const remote = event?.data;
+      if (!remote || remote.id !== supId || event.type === "delete") return;
+      setLocalSupervision((prev) => mergeRemote(prev, remote));
+    });
+    return unsubscribe;
+  }, [localSupervision?.id]);
+
+  // Si el pago del bloque ya está facturado, las visitas quedan bloqueadas
+  useEffect(() => {
+    let cancelled = false;
+    const weId = localSupervision?.work_entry_id;
+    if (!weId) {
+      setWorkEntryInvoiced(false);
+      return;
+    }
+    base44.entities.WorkEntry.get(weId)
+      .then((we) => { if (!cancelled) setWorkEntryInvoiced(!!we?.invoiced); })
+      .catch(() => { if (!cancelled) setWorkEntryInvoiced(false); });
+    return () => { cancelled = true; };
+  }, [localSupervision?.work_entry_id]);
+
+  // Guarda UN solo cambio en el servidor: nunca manda la lista completa de visitas.
+  const callVisitAction = async (action, extra = {}) => {
+    try {
+      const { data } = await base44.functions.invoke("updateSupervisionVisit", {
+        supervision_id: localSupervision.id,
+        action,
+        ...extra,
+      });
+      if (data?.supervision) {
+        if (extra.client_id) dirtyNotesRef.current.delete(extra.client_id);
+        setLocalSupervision((prev) => mergeRemote(prev, data.supervision));
+        if (onUpdate) onUpdate(data.supervision);
+      }
+      return data?.supervision;
+    } catch (e) {
+      const msg = e?.response?.data?.error || e?.message || "No se pudo guardar el cambio.";
+      throw new Error(msg);
+    }
   };
+
+  // Visitas quitadas que todavía se pueden restaurar
+  const removedVisits = useMemo(() => {
+    const log = localSupervision?.visits_log || [];
+    const restored = new Set(log.filter((l) => l.action === "restored").map((l) => l.log_id));
+    return log.filter((l) => l.action === "removed" && !restored.has(l.id)).reverse();
+  }, [localSupervision?.visits_log]);
+
+  const canRemoveVisits = canEdit && localSupervision?.status !== "completed" && !workEntryInvoiced;
+
+  const visitByIndex = (index) => (localSupervision.visits || [])[index];
 
   const handleStartVisit = async (index) => {
+    const visit = visitByIndex(index);
+    if (!visit?.client_id) return;
     setSavingVisitId(index);
     setError("");
     try {
-      const now = new Date().toISOString();
-      const newVisits = updateVisit(index, { visit_status: "in_progress", started_at: now });
-      await persistVisits(newVisits);
+      await callVisitAction(visit.visit_status === "skipped" ? "reopen_visit" : "start_visit", { client_id: visit.client_id });
     } catch (e) {
       setError(e.message || "Error al iniciar la visita.");
     } finally {
@@ -191,15 +254,12 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
   };
 
   const handleCompleteVisit = async (index) => {
+    const visit = visitByIndex(index);
+    if (!visit?.client_id) return;
     setSavingVisitId(index);
     setError("");
     try {
-      const now = new Date().toISOString();
-      const newVisits = updateVisit(index, {
-        visit_status: "completed",
-        completed_at: now,
-      });
-      await persistVisits(newVisits);
+      await callVisitAction("complete_visit", { client_id: visit.client_id });
     } catch (e) {
       setError(e.message || "Error al completar la visita.");
     } finally {
@@ -208,11 +268,12 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
   };
 
   const handleSkipVisit = async (index) => {
+    const visit = visitByIndex(index);
+    if (!visit?.client_id) return;
     setSavingVisitId(index);
     setError("");
     try {
-      const newVisits = updateVisit(index, { visit_status: "skipped" });
-      await persistVisits(newVisits);
+      await callVisitAction("skip_visit", { client_id: visit.client_id });
     } catch (e) {
       setError(e.message || "Error al omitir la visita.");
     } finally {
@@ -221,6 +282,8 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
   };
 
   const handleNotesChange = (index, field, value) => {
+    const visit = visitByIndex(index);
+    if (visit?.client_id) dirtyNotesRef.current.add(visit.client_id);
     // Update funcional: lee del estado previo para no perder caracteres al escribir rápido.
     setLocalSupervision((prev) => {
       const newVisits = [...(prev.visits || [])];
@@ -229,10 +292,16 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     });
   };
 
-  const handleBlurNotes = async (index, field) => {
+  const handleBlurNotes = async (index) => {
+    const visit = visitByIndex(index);
+    if (!visit?.client_id) return;
     setSavingVisitId(`notes-${index}`);
     try {
-      await base44.entities.Supervision.update(localSupervision.id, { visits: localSupervision.visits });
+      await callVisitAction("save_visit_text", {
+        client_id: visit.client_id,
+        notes: visit.notes || "",
+        incidents: visit.incidents || "",
+      });
     } catch (e) {
       setError("No se guardaron las notas: " + (e.message || ""));
     } finally {
@@ -240,16 +309,18 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     }
   };
 
-  const handlePhotoUpload = async (index, file) => {
-    if (!file) return;
+  const handlePhotoUpload = async (index, files) => {
+    const list = Array.from(files || []).filter(Boolean);
+    const visit = visitByIndex(index);
+    if (!list.length || !visit?.client_id) return;
     setPhotoUploadingVisitId(index);
     setError("");
     try {
-      const { file_uri } = await UploadPrivateFile({ file });
-      const newVisits = [...(localSupervision.visits || [])];
-      const photos = [...(newVisits[index].photos || []), { url: file_uri, comment: "" }];
-      newVisits[index] = { ...newVisits[index], photos };
-      await persistVisits(newVisits);
+      // Una por una: cada foto se agrega sobre lo que ya está guardado, sin pisarse.
+      for (const file of list) {
+        const { file_uri } = await UploadPrivateFile({ file });
+        await callVisitAction("add_photo", { client_id: visit.client_id, photo_url: file_uri });
+      }
     } catch (e) {
       setError(e.message || "Error al subir la foto.");
     } finally {
@@ -267,10 +338,17 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     });
   };
 
-  const handlePhotoCommentBlur = async (vi) => {
+  const handlePhotoCommentBlur = async (vi, photoUrl) => {
+    const visit = visitByIndex(vi);
+    const photo = (visit?.photos || []).find((p) => p.url === photoUrl);
+    if (!visit?.client_id || !photo) return;
     setSavingVisitId(`photo-${vi}`);
     try {
-      await base44.entities.Supervision.update(localSupervision.id, { visits: localSupervision.visits });
+      await callVisitAction("photo_comment", {
+        client_id: visit.client_id,
+        photo_url: photoUrl,
+        comment: photo.comment || "",
+      });
     } catch (e) {
       setError("No se guardó el comentario: " + (e.message || ""));
     } finally {
@@ -279,15 +357,20 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
   };
 
   const handleRemovePhoto = async (vi, pi) => {
-    const newVisits = [...(localSupervision.visits || [])];
-    const photos = (newVisits[vi].photos || []).filter((_, i) => i !== pi);
-    newVisits[vi] = { ...newVisits[vi], photos };
-    await persistVisits(newVisits);
-    setSignedUrls((prev) => {
-      const next = { ...prev };
-      delete next[`${vi}-${pi}`];
-      return next;
-    });
+    const visit = visitByIndex(vi);
+    const photoUrl = visit?.photos?.[pi]?.url;
+    if (!visit?.client_id || !photoUrl) return;
+    setError("");
+    try {
+      await callVisitAction("remove_photo", { client_id: visit.client_id, photo_url: photoUrl });
+      setSignedUrls((prev) => {
+        const next = { ...prev };
+        delete next[`${vi}-${pi}`];
+        return next;
+      });
+    } catch (e) {
+      setError(e.message || "Error al eliminar la foto.");
+    }
   };
 
   const handleBlockStatusChange = async (newStatus) => {
@@ -384,21 +467,14 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     const exists = (localSupervision?.visits || []).some((v) => v.client_id === clientId);
     if (exists) return;
     const c = allClients.find((cl) => cl.id === clientId);
-    const newVisit = {
-      client_id: clientId,
-      client_name: c?.name || "Cliente",
-      client_address: c?.address || "",
-      visit_status: "pending",
-      started_at: null,
-      completed_at: null,
-      notes: "",
-      incidents: "",
-      photos: [],
-    };
-    const newVisits = [...(localSupervision?.visits || []), newVisit];
     setVisitMutating(true);
+    setError("");
     try {
-      await persistVisits(newVisits);
+      await callVisitAction("add_visit", {
+        client_id: clientId,
+        client_name: c?.name || "Cliente",
+        client_address: c?.address || "",
+      });
       setClientInfos((prev) => ({ ...prev, [clientId]: c }));
       setClientSearch("");
     } catch (e) {
@@ -409,13 +485,31 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
   };
 
   const handleRemoveVisit = async (index) => {
-    if (!window.confirm("¿Quitar este cliente de la supervisión?")) return;
-    const newVisits = (localSupervision?.visits || []).filter((_, i) => i !== index);
+    const visit = visitByIndex(index);
+    if (!visit?.client_id) return;
+    if (!canRemoveVisits) {
+      setError("Este bloque ya está completado o facturado: no se pueden quitar visitas.");
+      return;
+    }
+    if (!window.confirm("¿Quitar este cliente de la supervisión? Podrás restaurarlo después.")) return;
     setVisitMutating(true);
+    setError("");
     try {
-      await persistVisits(newVisits);
+      await callVisitAction("remove_visit", { client_id: visit.client_id });
     } catch (e) {
       setError(e.message || "Error al quitar cliente.");
+    } finally {
+      setVisitMutating(false);
+    }
+  };
+
+  const handleRestoreVisit = async (logEntryId) => {
+    setVisitMutating(true);
+    setError("");
+    try {
+      await callVisitAction("restore_visit", { log_id: logEntryId });
+    } catch (e) {
+      setError(e.message || "Error al restaurar la visita.");
     } finally {
       setVisitMutating(false);
     }
@@ -518,7 +612,7 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className={cfg.color}>{cfg.label}</Badge>
-                    {canEdit && (
+                    {canRemoveVisits && (
                       <button
                         onClick={() => handleRemoveVisit(index)}
                         disabled={visitMutating}
@@ -626,7 +720,7 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
                         accept="image/*"
                         multiple
                         onChange={(e) => {
-                          Array.from(e.target.files || []).forEach((f) => handlePhotoUpload(index, f));
+                          handlePhotoUpload(index, e.target.files);
                           e.target.value = "";
                         }}
                         className="hidden"
@@ -681,6 +775,44 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
           );
         })}
       </div>
+
+      {canEdit && !canRemoveVisits && (
+        <p className="text-xs text-slate-500 flex items-center gap-1">
+          <Lock className="w-3 h-3" />
+          {workEntryInvoiced
+            ? "El pago de este bloque está facturado: las visitas ya no se pueden quitar."
+            : "Bloque completado: las visitas ya no se pueden quitar."}
+        </p>
+      )}
+
+      {canEdit && removedVisits.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+          <p className="text-xs font-semibold text-amber-800 flex items-center gap-1">
+            <RotateCcw className="w-3.5 h-3.5" /> Clientes quitados de este bloque ({removedVisits.length})
+          </p>
+          {removedVisits.map((entry) => (
+            <div key={entry.id} className="flex items-center justify-between gap-2 bg-white rounded-lg border border-amber-200 px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-800 truncate">
+                  {entry.client_name || entry.visit_snapshot?.client_name || "Cliente"}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Quitado el {entry.at ? format(new Date(entry.at), "d MMM yyyy HH:mm", { locale: es }) : "—"} por {entry.by_name || "—"}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleRestoreVisit(entry.id)}
+                disabled={visitMutating}
+                className="border-amber-300 text-amber-800 hover:bg-amber-100"
+              >
+                Restaurar
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {canEdit && (
         <div className="pt-1">

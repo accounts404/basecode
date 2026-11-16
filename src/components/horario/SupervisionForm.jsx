@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,12 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
   const [clientSearch, setClientSearch] = useState("");
   const [dayClientIds, setDayClientIds] = useState(new Set());
   const [loadingDayClients, setLoadingDayClients] = useState(false);
+
+  // Clientes que el bloque ya tenía al abrir el formulario: solo esos se pueden quitar
+  const initialClientIdsRef = useRef(
+    existingSupervision?.visits?.map((v) => v.client_id).filter(Boolean) || []
+  );
+  const removalLocked = existingSupervision?.status === "completed";
 
   const cleaners = useMemo(
     () => users.filter((u) => u.role !== "admin" && u.active !== false),
@@ -118,6 +124,8 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
   }, [clients, clientSearch, dayClientIds]);
 
   const handleToggleClient = (clientId) => {
+    // Un bloque completado no permite quitar clientes que ya tenía
+    if (removalLocked && initialClientIdsRef.current.includes(clientId)) return;
     setSelectedClientIds((prev) =>
       prev.includes(clientId) ? prev.filter((id) => id !== clientId) : [...prev, clientId]
     );
@@ -155,10 +163,25 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
       const day = parseInt(dateStr.slice(8, 10), 10);
       const period = `${dateStr.slice(0, 7)}-${day <= 15 ? "1st" : "2nd"}`;
 
-      const visits = selectedClientIds.map((cid) => {
+      // Relee el bloque antes de armar el guardado, para no borrar lo que otra persona
+      // agregó o completó mientras este formulario estaba abierto.
+      const freshSupervision = existingSupervision?.id
+        ? await base44.entities.Supervision.get(existingSupervision.id).catch(() => existingSupervision)
+        : existingSupervision;
+      const freshVisits = freshSupervision?.visits || [];
+      const initialIds = initialClientIdsRef.current;
+      const finalIds = Array.from(
+        new Set([
+          ...selectedClientIds,
+          ...freshVisits.map((v) => v.client_id).filter((id) => id && !initialIds.includes(id)),
+        ])
+      );
+
+      const visits = finalIds.map((cid) => {
         const c = clients.find((cl) => cl.id === cid);
-        const existing = existingSupervision?.visits?.find((v) => v.client_id === cid);
+        const existing = freshVisits.find((v) => v.client_id === cid);
         return {
+          ...(existing || {}),
           client_id: cid,
           client_name: c?.name || existing?.client_name || "Cliente",
           client_address: c?.address || existing?.client_address || "",
@@ -177,7 +200,7 @@ export default function SupervisionForm({ users, currentUser, existingSupervisio
         date: dateStr,
         start_time: startISO,
         end_time: endISO,
-        status: existingSupervision?.status || "scheduled",
+        status: freshSupervision?.status || existingSupervision?.status || "scheduled",
         visits,
         notes,
         created_by_user_id: currentUser?.id,
