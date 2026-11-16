@@ -182,7 +182,9 @@ export default async function (req) {
     const updated = await base44.entities.Supervision.update(supervision.id, { visits, visits_log: log });
 
     // Rastro en el registro de auditoría para los cambios de estructura del bloque
-    if (['added', 'removed', 'restored'].includes(action)) {
+    const auditKinds = { add_visit: 'added', remove_visit: 'removed', restore_visit: 'restored' };
+    if (auditKinds[action]) {
+      const kind = auditKinds[action];
       const labels = {
         added: 'Cliente agregado al bloque',
         removed: 'Cliente quitado del bloque',
@@ -200,8 +202,8 @@ export default async function (req) {
         changes_detail: [
           {
             field: 'visita',
-            before: action === 'added' ? '(no estaba)' : '(en el bloque)',
-            after: `${labels[action]}: ${client_name || (log[log.length - 1] || {}).client_name || client_id || ''}`,
+            before: kind === 'added' ? '(no estaba)' : '(en el bloque)',
+            after: `${labels[kind]}: ${client_name || (log[log.length - 1] || {}).client_name || client_id || ''}`,
           },
         ],
         timestamp: at,
