@@ -1076,24 +1076,6 @@ export default function HorarioPage() {
                 serviceData.color = getColorFromMostExperiencedCleaner(serviceData.cleaner_ids);
             }
 
-            // Bloqueo de horarios cuando el servicio ya fue pagado en un reporte del limpiador
-            if (!isNewService) {
-                const toTime = (value) => (value ? new Date(value).getTime() : null);
-                const timesSignature = (data) => [
-                    toTime(data?.start_time),
-                    toTime(data?.end_time),
-                    ...(Array.isArray(data?.cleaner_schedules) ? data.cleaner_schedules : [])
-                        .map(cs => `${cs.cleaner_id}|${toTime(cs.start_time)}|${toTime(cs.end_time)}`)
-                        .sort()
-                ].join('~');
-
-                if (timesSignature(serviceData) !== timesSignature(selectedEvent) && await scheduleHasInvoicedEntries(selectedEvent.id)) {
-                    setError('Este servicio ya fue incluido en el reporte de pago del limpiador: no se pueden cambiar los horarios ni las horas. Elimina el reporte si necesitas corregirlo.');
-                    setShowForm(false);
-                    return;
-                }
-            }
-
             let savedServiceId = null;
             let savedServiceObj = null;
 
@@ -1183,22 +1165,8 @@ export default function HorarioPage() {
         }
     };
 
-    // ¿El servicio ya tiene entradas de trabajo incluidas en un reporte de pago del limpiador?
-    // En ese caso los horarios quedan bloqueados: primero hay que eliminar el reporte.
-    const scheduleHasInvoicedEntries = async (scheduleId) => {
-        if (!scheduleId) return false;
-        const page = await WorkEntry.filter({ schedule_id: scheduleId, invoiced: true }, { limit: 1 });
-        return (page?.items?.length || 0) > 0;
-    };
-
     const handleResizeEvent = async (eventId, newStartTime, newEndTime) => {
         if (isCleanerView || user?.role !== 'admin') return;
-
-        if (await scheduleHasInvoicedEntries(eventId)) {
-            setError('Este servicio ya fue incluido en el reporte de pago del limpiador: no se pueden cambiar las horas. Elimina el reporte si necesitas corregirlo.');
-            silentRefresh();
-            return;
-        }
 
         const toLocalISO = (d) => {
             const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
@@ -1223,12 +1191,6 @@ export default function HorarioPage() {
 
     const handleMoveEvent = async (eventId, newStartTime, newEndTime) => {
         if (isCleanerView || user?.role !== 'admin') return;
-
-        if (await scheduleHasInvoicedEntries(eventId)) {
-            setError('Este servicio ya fue incluido en el reporte de pago del limpiador: no se pueden cambiar los horarios. Elimina el reporte si necesitas corregirlo.');
-            silentRefresh();
-            return;
-        }
 
         const toLocalISO = (d) => {
             const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');

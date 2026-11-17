@@ -67,10 +67,6 @@ export default function TrabajoEntradasPage() {
   const [cleaners, setCleaners] = useState([]);
   const [allClients, setAllClients] = useState([]);
   const [paidEntryIds, setPaidEntryIds] = useState(new Set()); // IDs de WorkEntries en facturas PAGADAS
-
-  // Una entrada incluida en un reporte de pago (pagado o pendiente) queda bloqueada:
-  // para corregirla hay que eliminar el reporte primero.
-  const isEntryLocked = (entry) => !!entry && (entry.invoiced === true || isEntryLocked(entry));
   const [loading, setLoading] = useState(true);
   const [selectedCleaner, setSelectedCleaner] = useState("all");
   const [groupByCleaner, setGroupByCleaner] = useState(true);
@@ -404,8 +400,8 @@ export default function TrabajoEntradasPage() {
   const handleEditEntry = async () => {
     if (!editEntry) return;
     
-    if (isEntryLocked(editEntry)) {
-      setNotification({ type: "error", message: "❌ Esta entrada ya fue incluida en un reporte de pago y no puede modificarse. Elimina el reporte si necesitas corregirla." });
+    if (paidEntryIds.has(editEntry.id)) {
+      setNotification({ type: "error", message: "❌ Esta entrada pertenece a una factura PAGADA y no puede ser modificada." });
       setEditEntry(null);
       return;
     }
@@ -433,7 +429,12 @@ export default function TrabajoEntradasPage() {
       const optimisticallyUpdatedEntry = { ...editEntry, ...updatedData };
       setWorkEntries(prev => prev.map(entry => entry.id === editEntry.id ? optimisticallyUpdatedEntry : entry));
       
-      setNotification({ type: "success", message: "Entrada actualizada exitosamente." });
+      let invoiceMessage = "";
+      if (editEntry.invoiced) {
+        invoiceMessage = await updateRelatedInvoice(editEntry.id, optimisticallyUpdatedEntry);
+      }
+      
+      setNotification({ type: "success", message: `Entrada actualizada exitosamente. ${invoiceMessage}` });
       setEditEntry(null);
       setUpdating(false); // Liberamos la pantalla del usuario aquí mismo
 
@@ -458,8 +459,8 @@ export default function TrabajoEntradasPage() {
   const handleDeleteEntry = async () => {
     if (!deleteEntry) return;
     
-    if (isEntryLocked(deleteEntry)) {
-      setNotification({ type: "error", message: "❌ Esta entrada ya fue incluida en un reporte de pago y no puede eliminarse. Elimina el reporte si necesitas corregirla." });
+    if (paidEntryIds.has(deleteEntry.id)) {
+      setNotification({ type: "error", message: "❌ Esta entrada pertenece a una factura PAGADA y no puede ser eliminada." });
       setDeleteEntry(null);
       return;
     }
@@ -467,11 +468,17 @@ export default function TrabajoEntradasPage() {
     setDeleting(true);
     try {
       const entryIdToDelete = deleteEntry.id;
+      const wasInvoiced = deleteEntry.invoiced;
 
       // 1. ACTUALIZACIÓN OPTIMISTA: Quitamos la fila de la pantalla al instante
       setWorkEntries(prev => prev.filter(entry => entry.id !== entryIdToDelete));
-
-      setNotification({ type: "success", message: "Entrada eliminada exitosamente." });
+      
+      let invoiceMessage = "";
+      if (wasInvoiced) {
+        invoiceMessage = await updateRelatedInvoice(entryIdToDelete, null);
+      }
+      
+      setNotification({ type: "success", message: `Entrada eliminada exitosamente. ${invoiceMessage || ''}` });
       setDeleteEntry(null);
       setDeleting(false); // Liberamos la pantalla
 
@@ -1112,10 +1119,10 @@ export default function TrabajoEntradasPage() {
                                   )}
                                 </TableCell>
                                 <TableCell>
-                                  {isEntryLocked(entry) ? (
-                                    <div className="flex items-center gap-1 text-slate-400" title="Entrada incluida en un reporte de pago — bloqueada">
+                                  {paidEntryIds.has(entry.id) ? (
+                                    <div className="flex items-center gap-1 text-slate-400" title="Entrada en factura pagada — protegida">
                                       <Lock className="h-4 w-4" />
-                                      <span className="text-xs">Bloqueada</span>
+                                      <span className="text-xs">Pagada</span>
                                     </div>
                                   ) : (
                                     <div className="flex gap-1">
@@ -1184,8 +1191,8 @@ export default function TrabajoEntradasPage() {
                             </div>
                             <div className="flex justify-between items-center">
                               <div>
-                                {isEntryLocked(entry) ? (
-                                  <Badge className="bg-slate-100 text-slate-600 flex items-center gap-1"><Lock className="w-3 h-3" />Bloqueada</Badge>
+                                {paidEntryIds.has(entry.id) ? (
+                                  <Badge className="bg-slate-100 text-slate-600 flex items-center gap-1"><Lock className="w-3 h-3" />Pagada</Badge>
                                 ) : entry.invoiced ? (
                                   <Badge className="bg-green-100 text-green-800">Facturado</Badge>
                                 ) : (
@@ -1193,7 +1200,7 @@ export default function TrabajoEntradasPage() {
                                 )}
                               </div>
                               <div className="flex gap-2">
-                                {isEntryLocked(entry) ? (
+                                {paidEntryIds.has(entry.id) ? (
                                   <Lock className="h-4 w-4 text-slate-300 mt-1" />
                                 ) : (
                                   <>
@@ -1321,10 +1328,10 @@ export default function TrabajoEntradasPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {isEntryLocked(entry) ? (
-                            <div className="flex items-center gap-1 text-slate-400" title="Entrada incluida en un reporte de pago — bloqueada">
+                          {paidEntryIds.has(entry.id) ? (
+                            <div className="flex items-center gap-1 text-slate-400" title="Entrada en factura pagada — protegida">
                               <Lock className="h-4 w-4" />
-                              <span className="text-xs">Bloqueada</span>
+                              <span className="text-xs">Pagada</span>
                             </div>
                           ) : (
                             <div className="flex gap-1">
@@ -1396,8 +1403,8 @@ export default function TrabajoEntradasPage() {
                     </div>
                     <div className="flex justify-between items-center">
                       <div>
-                        {isEntryLocked(entry) ? (
-                          <Badge className="bg-slate-100 text-slate-600 flex items-center gap-1"><Lock className="w-3 h-3" />Bloqueada</Badge>
+                        {paidEntryIds.has(entry.id) ? (
+                          <Badge className="bg-slate-100 text-slate-600 flex items-center gap-1"><Lock className="w-3 h-3" />Pagada</Badge>
                         ) : entry.invoiced ? (
                           <Badge className="bg-green-100 text-green-800">Facturado</Badge>
                         ) : (
@@ -1405,7 +1412,7 @@ export default function TrabajoEntradasPage() {
                         )}
                       </div>
                       <div className="flex gap-2">
-                        {isEntryLocked(entry) ? (
+                        {paidEntryIds.has(entry.id) ? (
                           <Lock className="h-4 w-4 text-slate-300 mt-1" />
                         ) : (
                           <>
@@ -1538,14 +1545,21 @@ export default function TrabajoEntradasPage() {
                 />
               </div>
 
-              {editEntry && isEntryLocked(editEntry) ? (
+              {editEntry && paidEntryIds.has(editEntry.id) ? (
                 <Alert variant="destructive">
                   <Lock className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Bloqueada:</strong> Esta entrada ya fue incluida en un reporte de pago y no puede modificarse. Para corregirla, elimina el reporte del limpiador y vuelve a generarlo.
+                    <strong>Protegida:</strong> Esta entrada pertenece a una factura PAGADA y no puede ser modificada.
                   </AlertDescription>
                 </Alert>
-              ) : null}
+              ) : editEntry?.invoiced && (
+                <Alert className="bg-amber-50 border-amber-200">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800">
+                    <strong>Atención:</strong> Esta entrada está facturada. Al guardarla, la factura correspondiente se actualizará automáticamente.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditEntry(null)}>
@@ -1553,7 +1567,7 @@ export default function TrabajoEntradasPage() {
               </Button>
               <Button 
                 onClick={handleEditEntry}
-                disabled={updating || (editEntry && isEntryLocked(editEntry))}
+                disabled={updating || (editEntry && paidEntryIds.has(editEntry.id))}
               >
                 {updating ? (
                   <>
@@ -1586,11 +1600,11 @@ export default function TrabajoEntradasPage() {
                 <p><strong>Fecha:</strong> {format(new Date(deleteEntry.work_date + 'T12:00:00'), "d MMM yyyy", { locale: es })}</p>
                 <p><strong>Horas:</strong> {deleteEntry.hours}h</p>
                 <p><strong>Total:</strong> ${deleteEntry.total_amount?.toFixed(2)}</p>
-                {isEntryLocked(deleteEntry) && (
-                  <Alert variant="destructive" className="mt-3">
-                    <Lock className="h-4 w-4" />
+                {deleteEntry.invoiced && (
+                  <Alert className="mt-3">
+                    <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Esta entrada ya fue incluida en un reporte de pago y no puede eliminarse. Para corregirla, elimina el reporte del limpiador y vuelve a generarlo.
+                      Esta entrada está facturada. Al eliminarla, la factura correspondiente se actualizará automáticamente. La regeneración del PDF se debe realizar manualmente para evitar timeouts.
                     </AlertDescription>
                   </Alert>
                 )}
