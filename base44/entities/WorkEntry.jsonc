@@ -123,5 +123,17 @@
     "hours",
     "activity",
     "hourly_rate"
-  ]
+  ],
+  "rls": {
+    "update": {
+      "data.invoiced": {
+        "$ne": true
+      }
+    },
+    "delete": {
+      "data.invoiced": {
+        "$ne": true
+      }
+    }
+  }
 }

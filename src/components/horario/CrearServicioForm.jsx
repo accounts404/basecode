@@ -833,7 +833,7 @@ export default function CrearServicioForm({
                         const existingEntries = await WorkEntry.filter({ schedule_id: schedule.id });
                         await Promise.all(
                             existingEntries
-                                .filter(we => bonusCleanerIds.includes(we.cleaner_id))
+                                .filter(we => !we.invoiced && bonusCleanerIds.includes(we.cleaner_id))
                                 .map(we => WorkEntry.update(we.id, { is_leader_bonus: true }))
                         );
                         // También limpiar el flag en entradas que ya no tienen bonus
@@ -842,7 +842,7 @@ export default function CrearServicioForm({
                             .map(cs => cs.cleaner_id);
                         await Promise.all(
                             existingEntries
-                                .filter(we => nonBonusCleanerIds.includes(we.cleaner_id) && we.is_leader_bonus)
+                                .filter(we => !we.invoiced && nonBonusCleanerIds.includes(we.cleaner_id) && we.is_leader_bonus)
                                 .map(we => WorkEntry.update(we.id, { is_leader_bonus: false }))
                         );
                     } catch (bonusError) {

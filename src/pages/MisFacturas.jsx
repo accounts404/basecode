@@ -16,6 +16,7 @@ import InvoiceGenerator from "../components/invoices/InvoiceGenerator";
 import InvoiceEditor from "../components/invoices/InvoiceEditor";
 import PeriodSelector from "../components/reports/PeriodSelector";
 import { downloadInvoicePDF } from "../components/invoices/PDFGenerator";
+import { base44 } from "@/api/base44Client";
 
 export default function MisFacturasPage() {
   const [user, setUser] = useState(null);
@@ -133,22 +134,8 @@ export default function MisFacturasPage() {
     setError("");
     try {
       if (invoice.work_entries && invoice.work_entries.length > 0) {
-        // Filter work entries that were part of this invoice
-        const entriesToUpdate = workEntries.filter(we => invoice.work_entries.includes(we.id));
-
-        await Promise.all(
-          entriesToUpdate.map(entry => {
-            const { id, created_date, updated_date, created_by, ...updateData } = entry; // Destructure to exclude read-only fields
-
-            if (!updateData.cleaner_name && user) {
-              updateData.cleaner_name = user.invoice_name || user.full_name;
-            }
-            
-            updateData.invoiced = false; // Mark work entry as uninvoiced
-
-            return WorkEntry.update(entry.id, updateData);
-          })
-        );
+        // Las entradas facturadas están bloqueadas: se liberan desde el servidor al eliminar el reporte
+        await base44.functions.invoke('reopenInvoiceWorkEntries', { invoice_id: invoice.id });
       }
 
       await Invoice.delete(invoice.id);

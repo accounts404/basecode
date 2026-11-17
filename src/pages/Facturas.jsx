@@ -20,7 +20,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 import PeriodSelector from "../components/reports/PeriodSelector";
-import { downloadInvoicePDF } from "../components/invoices/PDFGenerator";
+import { downloadInvoicePDF, generateInvoicePDF } from "../components/invoices/PDFGenerator";
+import { base44 } from "@/api/base44Client";
 import { sendPaymentConfirmation } from "../functions/sendPaymentConfirmation";
 import { sendManualReminder } from "../functions/sendManualReminder";
 import { sendPaymentReminders } from "../functions/sendPaymentReminders";
@@ -35,6 +36,7 @@ export default function FacturasPage() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [regeneratingId, setRegeneratingId] = useState(null);
   const [selectedPeriod, setSelectedPeriod] = useState(null);
   const [error, setError] = useState("");
   const [paymentDate, setPaymentDate] = useState(new Date());
@@ -277,32 +279,71 @@ export default function FacturasPage() {
     }
   };
 
+  // Regenera el PDF del reporte con los valores reales de las entradas de trabajo.
+  // Solo administradores (esta página es de administración) y queda registrado en la auditoría.
+  const handleRegenerateInvoice = async (invoice) => {
+    setRegeneratingId(invoice.id);
+    setError("");
+    try {
+      const entries = workEntries.filter(we => (invoice.work_entries || []).includes(we.id));
+
+      if (entries.length === 0) {
+        throw new Error("El reporte no tiene entradas de trabajo asociadas.");
+      }
+
+      const previousTotal = invoice.total_amount || 0;
+      const newTotal = entries.reduce((sum, entry) => sum + (entry.total_amount || 0), 0);
+      const cleaner = users.find(u => u.id === invoice.cleaner_id) || { full_name: invoice.cleaner_name };
+
+      const pdfBlob = await generateInvoicePDF(
+        cleaner,
+        invoice.invoice_number,
+        entries,
+        newTotal,
+        invoice.period_end || format(new Date(), 'yyyy-MM-dd')
+      );
+      const pdfFile = new File([pdfBlob], `invoice-${invoice.invoice_number}.pdf`, { type: 'application/pdf' });
+      const { file_url } = await base44.integrations.Core.UploadPublicFile({ file: pdfFile });
+
+      await Invoice.update(invoice.id, { total_amount: newTotal, pdf_url: file_url });
+
+      try {
+        await base44.functions.invoke('recordAuditLog', {
+          entity_type: 'Invoice',
+          entity_id: invoice.id,
+          entity_name: `${invoice.invoice_number} - ${invoice.cleaner_name}`,
+          action: 'update',
+          changed_fields: ['total_amount', 'pdf_url'],
+          old_data: { total_amount: previousTotal, pdf_url: invoice.pdf_url || '' },
+          data: { total_amount: newTotal, pdf_url: file_url }
+        });
+      } catch (auditError) {
+        console.error("No se pudo registrar la auditoría del reporte regenerado:", auditError);
+      }
+
+      const currentPeriod = selectedPeriod;
+      await loadData();
+      setSelectedPeriod(currentPeriod);
+      setNotification({
+        type: "success",
+        message: `Reporte ${invoice.invoice_number} regenerado: $${newTotal.toFixed(2)} AUD con los valores actuales.`
+      });
+    } catch (err) {
+      console.error("Error regenerating invoice:", err);
+      setError(err.message || "Error al regenerar el reporte.");
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
   const handleDeleteInvoice = async (invoice) => {
     setDeleteLoading(true);
     setError("");
     const currentPeriod = selectedPeriod; // Guardar período actual
     try {
       if (invoice.work_entries && invoice.work_entries.length > 0) {
-        // Find the full work entry objects from the state
-        const entriesToUpdate = workEntries.filter(we => invoice.work_entries.includes(we.id));
-
-        await Promise.all(
-          entriesToUpdate.map(entry => {
-            // Destructure to remove read-only fields and get data for update
-            const { id, created_date, updated_date, created_by, ...updateData } = entry;
-
-            // FIX: Ensure cleaner_name is present for the update, patching if necessary.
-            // cleaner_name is derived from the cleaner user, prefer invoice_name then full_name
-            if (!updateData.cleaner_name) {
-              const cleaner = users.find(u => u.id === entry.cleaner_id);
-              updateData.cleaner_name = cleaner ? (cleaner.invoice_name || cleaner.full_name) : `Limpiador ID ${entry.cleaner_id}`;
-            }
-            
-            updateData.invoiced = false;
-            
-            return WorkEntry.update(entry.id, updateData);
-          })
-        );
+        // Las entradas facturadas están bloqueadas: se liberan desde el servidor al eliminar el reporte
+        await base44.functions.invoke('reopenInvoiceWorkEntries', { invoice_id: invoice.id });
       }
       await Invoice.delete(invoice.id);
       setInvoiceToDelete(null);
@@ -1014,6 +1055,18 @@ RedOak Cleaning Solutions`;
                                 >
                                   <Download className={`h-4 w-4 mr-2 ${downloadLoading === invoice.id ? 'animate-spin' : ''}`} />
                                   Descargar
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRegenerateInvoice(invoice)}
+                                  disabled={regeneratingId === invoice.id}
+                                  className="flex-1 lg:w-full hover:bg-blue-50 hover:border-blue-300"
+                                  title="Recalcula el total con las entradas actuales y vuelve a generar el PDF"
+                                >
+                                  <RefreshCw className={`h-4 w-4 mr-2 ${regeneratingId === invoice.id ? 'animate-spin' : ''}`} />
+                                  Regenerar PDF
                                 </Button>
                                 
                                 <Button
