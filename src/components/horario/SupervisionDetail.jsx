@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { UploadPrivateFile, CreateFileSignedUrl } from "@/integrations/Core";
 import SupervisionClientInfo from "./SupervisionClientInfo";
+import ClientSupervisionHistory from "./ClientSupervisionHistory";
 import { computeSupervisionWorkEntryFields } from "./supervisionHelpers";
 
 const parseISOAsUTC = (iso) => {
@@ -53,6 +54,8 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
   const [visitMutating, setVisitMutating] = useState(false);
   const [visitEnrichment, setVisitEnrichment] = useState({});
   const [enrichmentLoading, setEnrichmentLoading] = useState(false);
+  const [supervisionHistory, setSupervisionHistory] = useState({});
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const isAdmin = currentUser?.role === "admin";
   const isSupervisor = currentUser?.id === localSupervision?.supervisor_id;
@@ -120,6 +123,31 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
     };
     fetchEnrichment();
   }, [clientIdsKey, localSupervision?.date, localSupervision?.start_time]);
+
+  // Historial de revisiones anteriores por cliente (solo lectura, no modifica nada)
+  useEffect(() => {
+    const supId = localSupervision?.id;
+    const clientIds = (localSupervision?.visits || []).map((v) => v.client_id).filter(Boolean);
+    if (!supId || clientIds.length === 0) {
+      setSupervisionHistory({});
+      return;
+    }
+    let cancelled = false;
+    setHistoryLoading(true);
+    base44.functions
+      .invoke("getClientSupervisionHistory", { supervision_id: supId, client_ids: clientIds, limit: 3 })
+      .then(({ data }) => {
+        if (!cancelled) setSupervisionHistory(data?.history || {});
+      })
+      .catch((e) => {
+        console.warn("No se pudo cargar el historial de revisiones:", e);
+        if (!cancelled) setSupervisionHistory({});
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [localSupervision?.id, clientIdsKey]);
 
   // Generar signed URLs para fotos privadas (solo cuando cambia el set de fotos, no en cada tecla)
   useEffect(() => {
@@ -635,6 +663,12 @@ export default function SupervisionDetail({ supervision, currentUser, users = []
                   client={client}
                   enrichment={visitEnrichment[visit.client_id]}
                   loading={enrichmentLoading}
+                />
+
+                {/* Historial de revisiones anteriores (solo lectura) */}
+                <ClientSupervisionHistory
+                  history={supervisionHistory[visit.client_id]}
+                  loading={historyLoading}
                 />
 
                 {/* Tiempos reales */}
