@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { History, Camera, ImageOff, AlertTriangle, FileText, User, Loader2 } from "lucide-react";
+import { History, Camera, ImageOff, AlertTriangle, FileText, User, Loader2, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CreateFileSignedUrl } from "@/integrations/Core";
@@ -26,22 +25,24 @@ const fmtDate = (date) => {
 // Historial de revisiones anteriores de un cliente. Solo lectura: no edita nada.
 export default function ClientSupervisionHistory({ history, loading }) {
   const reviews = Array.isArray(history) ? history : [];
-  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [signed, setSigned] = useState({});
+  const [failed, setFailed] = useState({});
   const [preview, setPreview] = useState(null);
 
   const photoSignature = reviews
     .flatMap((r, ri) => (r.photos || []).map((p, pi) => `${ri}-${pi}:${p.url}`))
     .join("|");
 
-  // Firmar las fotos privadas solo al abrir el historial
+  // Firmar las fotos privadas en cuanto llegan las revisiones
   useEffect(() => {
-    if (!open) return;
     const pending = [];
     reviews.forEach((r, ri) => {
       (r.photos || []).forEach((p, pi) => {
         const key = `${ri}-${pi}`;
-        if (p.url && !/^https?:\/\//.test(p.url) && !signed[key]) pending.push({ key, uri: p.url });
+        if (p.url && !/^https?:\/\//.test(p.url) && !signed[key] && !failed[key]) {
+          pending.push({ key, uri: p.url });
+        }
       });
     });
     if (pending.length === 0) return;
@@ -49,23 +50,24 @@ export default function ClientSupervisionHistory({ history, loading }) {
     let cancelled = false;
     (async () => {
       const fetched = {};
+      const errors = {};
       await Promise.all(
         pending.map(async ({ key, uri }) => {
           try {
             const res = await CreateFileSignedUrl({ file_uri: uri, expires_in: 3600 });
             if (res?.signed_url) fetched[key] = res.signed_url;
+            else errors[key] = true;
           } catch (e) {
             console.warn("No se pudo firmar la foto del historial:", e);
+            errors[key] = true;
           }
         })
       );
-      if (!cancelled && Object.keys(fetched).length > 0) {
-        setSigned((prev) => ({ ...prev, ...fetched }));
-      }
+      if (cancelled) return;
+      if (Object.keys(fetched).length > 0) setSigned((prev) => ({ ...prev, ...fetched }));
+      if (Object.keys(errors).length > 0) setFailed((prev) => ({ ...prev, ...errors }));
     })();
-
-    return () => { cancelled = true; };
-  }, [open, photoSignature, signed]);
+  }, [photoSignature, signed, failed]);
 
   const photoSrc = (ri, pi, url) => {
     const key = `${ri}-${pi}`;
@@ -75,15 +77,12 @@ export default function ClientSupervisionHistory({ history, loading }) {
 
   return (
     <>
-      <Accordion
-        type="single"
-        collapsible
-        className="w-full"
-        value={open ? "history" : ""}
-        onValueChange={(v) => setOpen(v === "history")}
-      >
-        <AccordionItem value="history" className="border rounded-lg px-2">
-          <AccordionTrigger className="text-xs font-semibold text-slate-700 hover:no-underline py-2">
+      <div className="w-full border rounded-lg px-2">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 py-2 text-xs font-semibold text-slate-700"
+        >
             <span className="flex items-center gap-1.5">
               <History className="w-3.5 h-3.5 text-purple-500" /> Revisiones anteriores
               {loading ? (
@@ -94,8 +93,10 @@ export default function ClientSupervisionHistory({ history, loading }) {
                 <span className="text-[10px] font-normal text-slate-400">ninguna</span>
               )}
             </span>
-          </AccordionTrigger>
-          <AccordionContent className="space-y-2 pb-2">
+          <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </button>
+        {expanded && (
+          <div className="space-y-2 pb-2">
             {!loading && reviews.length === 0 && (
               <p className="text-xs text-slate-500 italic">
                 Sin revisiones anteriores registradas para este cliente.
@@ -142,7 +143,7 @@ export default function ClientSupervisionHistory({ history, loading }) {
                       <div className="grid grid-cols-3 gap-1.5">
                         {(review.photos || []).map((photo, pi) => {
                           const src = photoSrc(ri, pi, photo.url);
-                          const opening = !src && !!photo.url && !/^https?:\/\//.test(photo.url);
+                          const opening = !src && !!photo.url && !/^https?:\/\//.test(photo.url) && !failed[`${ri}-${pi}`];
                           return (
                             <button
                               key={pi}
@@ -174,9 +175,9 @@ export default function ClientSupervisionHistory({ history, loading }) {
                 </div>
               );
             })}
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+          </div>
+        )}
+      </div>
 
       <Dialog open={!!preview} onOpenChange={(o) => { if (!o) setPreview(null); }}>
         <DialogContent className="max-w-3xl p-2">
