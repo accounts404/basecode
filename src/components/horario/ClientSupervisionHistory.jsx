@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { History, Camera, ImageOff, AlertTriangle, FileText, User } from "lucide-react";
+import { History, Camera, ImageOff, AlertTriangle, FileText, User, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CreateFileSignedUrl } from "@/integrations/Core";
@@ -142,6 +142,7 @@ export default function ClientSupervisionHistory({ history, loading }) {
                       <div className="grid grid-cols-3 gap-1.5">
                         {(review.photos || []).map((photo, pi) => {
                           const src = photoSrc(ri, pi, photo.url);
+                          const opening = !src && !!photo.url && !/^https?:\/\//.test(photo.url);
                           return (
                             <button
                               key={pi}
@@ -158,7 +159,7 @@ export default function ClientSupervisionHistory({ history, loading }) {
                                 />
                               ) : (
                                 <div className="w-full h-16 flex items-center justify-center text-slate-400">
-                                  <ImageOff className="w-4 h-4" />
+                                  {opening ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageOff className="w-4 h-4" />}
                                 </div>
                               )}
                               {photo.comment && (
