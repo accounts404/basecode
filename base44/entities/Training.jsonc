@@ -1,0 +1,180 @@
+{
+  "name": "Training",
+  "type": "object",
+  "properties": {
+    "trainer_id": {
+      "type": "string",
+      "description": "ID del limpiador con experiencia que entrena"
+    },
+    "trainer_name": {
+      "type": "string",
+      "description": "Nombre del entrenador para referencia r\u00e1pida"
+    },
+    "trainee_id": {
+      "type": "string",
+      "description": "ID del limpiador nuevo (aprendiz) que recibe el entrenamiento"
+    },
+    "trainee_name": {
+      "type": "string",
+      "description": "Nombre del aprendiz para referencia r\u00e1pida"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "Fecha del bloque de entrenamiento (yyyy-MM-dd)"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora de inicio del bloque"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Fecha y hora de fin del bloque"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "in_progress",
+        "completed",
+        "cancelled"
+      ],
+      "default": "scheduled",
+      "description": "Estado del bloque de entrenamiento"
+    },
+    "visits": {
+      "type": "array",
+      "description": "Casas que el entrenador recorre con el aprendiz",
+      "items": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "client_name": {
+            "type": "string"
+          },
+          "client_address": {
+            "type": "string"
+          },
+          "visit_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed",
+              "skipped"
+            ],
+            "default": "pending",
+            "description": "Estado de la visita individual"
+          },
+          "training_instructions": {
+            "type": "string",
+            "description": "Qu\u00e9 debe ense\u00f1arle el entrenador al aprendiz en esta casa (lo escribe el administrador)"
+          },
+          "trainer_notes": {
+            "type": "string",
+            "description": "C\u00f3mo le fue al entrenador con el aprendiz en esta casa"
+          },
+          "areas_covered": {
+            "type": "array",
+            "description": "\u00c1reas que se ense\u00f1aron en esta casa",
+            "items": {
+              "type": "string"
+            }
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "file_uri privado de la foto"
+                },
+                "comment": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          }
+        },
+        "required": [
+          "client_id"
+        ]
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notas generales del bloque de entrenamiento"
+    },
+    "work_entry_id": {
+      "type": "string",
+      "description": "ID de la WorkEntry creada para el pago del entrenador"
+    },
+    "created_by_user_id": {
+      "type": "string",
+      "description": "ID del administrador que cre\u00f3 el entrenamiento"
+    },
+    "created_by_user_name": {
+      "type": "string",
+      "description": "Nombre del administrador que cre\u00f3 el entrenamiento"
+    }
+  },
+  "required": [
+    "trainer_id",
+    "trainee_id",
+    "date",
+    "start_time",
+    "end_time"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.trainer_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "$or": [
+        {
+          "data.trainer_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

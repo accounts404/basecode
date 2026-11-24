@@ -34,7 +34,8 @@ import {
     ChevronRight,
     Info,
     AlertTriangle,
-    Shield
+    Shield,
+    GraduationCap
 } from "lucide-react";
 import {
     format,
@@ -85,6 +86,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Supervision } from "@/entities/Supervision";
 import SupervisionForm from "../components/horario/SupervisionForm";
 import SupervisionDetail from "../components/horario/SupervisionDetail";
+import TrainingForm from "../components/horario/TrainingForm";
+import TrainingDetail from "../components/horario/TrainingDetail";
 
 // Parsear ISO local (sin conversión de timezone)
 const parseISOAsUTC = (isoString) => {
@@ -157,6 +160,10 @@ export default function HorarioPage() {
     const [showSupervisionForm, setShowSupervisionForm] = useState(false);
     const [editingSupervision, setEditingSupervision] = useState(null);
     const [selectedSupervision, setSelectedSupervision] = useState(null);
+    const [trainings, setTrainings] = useState([]);
+    const [showTrainingForm, setShowTrainingForm] = useState(false);
+    const [editingTraining, setEditingTraining] = useState(null);
+    const [selectedTraining, setSelectedTraining] = useState(null);
 
     const [error, setError] = useState('');
 
@@ -483,6 +490,14 @@ export default function HorarioPage() {
                 console.warn("[Horario] Error cargando supervisiones del limpiador:", e);
             }
 
+            // Cargar entrenamientos donde el limpiador es el entrenador
+            try {
+                const trns = await loadTrainingsForDateRange(forDate);
+                setTrainings(trns);
+            } catch (e) {
+                console.warn("[Horario] Error cargando entrenamientos del limpiador:", e);
+            }
+
             await loadVehicleAndTeamForDate(forDate);
             await loadRequiredKeysForDate(currentCleanerSchedules, forDate);
 
@@ -543,6 +558,37 @@ export default function HorarioPage() {
         }
     };
 
+    // Carga de Entrenamientos filtrada por rango (mismo criterio que supervisiones)
+    const loadTrainingsForDateRange = async (centerDate) => {
+        const d = centerDate || new Date();
+        const from = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+        const to = new Date(d.getFullYear(), d.getMonth() + 2, 0, 23, 59, 59);
+        const pad = (n) => String(n).padStart(2, "0");
+        const startStr = `${from.getFullYear()}-${pad(from.getMonth() + 1)}-${pad(from.getDate())}T00:00:00.000`;
+        const endStr = `${to.getFullYear()}-${pad(to.getMonth() + 1)}-${pad(to.getDate())}T23:59:59.999`;
+        try {
+            const filter = { start_time: { $gte: startStr, $lte: endStr } };
+            if (user && user.role !== "admin") {
+                filter.trainer_id = user.id;
+            }
+            const BATCH = 500;
+            let all = [];
+            let skip = 0;
+            while (true) {
+                const batch = await base44.entities.Training.filter(filter, "-created_date", BATCH, skip);
+                const arr = Array.isArray(batch) ? batch : (batch?.items || []);
+                all = all.concat(arr);
+                if (arr.length < BATCH) break;
+                skip += BATCH;
+                if (all.length > 2000) break;
+            }
+            return all;
+        } catch (e) {
+            console.error("[Horario] Error cargando entrenamientos:", e);
+            return [];
+        }
+    };
+
     // Carga de Schedules filtrada por rango (±1 mes desde la fecha activa) con paginación completa
     const loadSchedulesForDateRange = async (centerDate) => {
         const d = centerDate || new Date();
@@ -589,12 +635,13 @@ export default function HorarioPage() {
                   // CRÍTICO: Obtener TODOS los registros con paginación automática
                   logger.info('Horario', 'Iniciando carga paginada de datos...');
 
-                  const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments, cachedSupervisions] = await Promise.all([
+                  const [cachedUsers, cachedSchedules, cachedTasks, cachedAssignments, cachedSupervisions, cachedTrainings] = await Promise.all([
                       loadAllRecords('User', '-created_date'),
                       loadSchedulesForDateRange(new Date()),
                       loadAllRecords('Task', '-created_date'),
                       loadAllRecords('DailyTeamAssignment', '-date'),
-                      loadSupervisionsForDateRange(new Date())
+                      loadSupervisionsForDateRange(new Date()),
+                      loadTrainingsForDateRange(new Date())
                   ]);
 
                   setUsers(cachedUsers);
@@ -602,6 +649,7 @@ export default function HorarioPage() {
                   setTasks(cachedTasks);
                   setDailyTeamAssignments(cachedAssignments);
                   setSupervisions(cachedSupervisions);
+                  setTrainings(cachedTrainings);
                   setLoading(false);
                   setInitialLoadComplete(true);
 
@@ -704,16 +752,18 @@ export default function HorarioPage() {
         if (!user) return;
         try {
             if (user.role === 'admin') {
-                const [allSchedules, allTasks, allAssignments, allSupervisions] = await Promise.all([
+                const [allSchedules, allTasks, allAssignments, allSupervisions, allTrainings] = await Promise.all([
                     loadSchedulesForDateRange(currentDateRef.current),
                     loadAllRecords('Task', '-created_date'),
                     loadAllRecords('DailyTeamAssignment', '-date'),
-                    loadSupervisionsForDateRange(currentDateRef.current)
+                    loadSupervisionsForDateRange(currentDateRef.current),
+                    loadTrainingsForDateRange(currentDateRef.current)
                 ]);
                 setSchedules(allSchedules);
                 setTasks(allTasks);
                 setDailyTeamAssignments(allAssignments);
                 setSupervisions(allSupervisions);
+                setTrainings(allTrainings);
             } else {
                 await loadCleanerSpecificData(date, true);
             }
@@ -733,17 +783,19 @@ export default function HorarioPage() {
                   // CRÍTICO: Obtener TODOS los registros con paginación automática
                   logger.info('Horario', 'Iniciando refresh con paginación...');
 
-                  const [allSchedules, allTasks, allAssignments, allSupervisions] = await Promise.all([
+                  const [allSchedules, allTasks, allAssignments, allSupervisions, allTrainings] = await Promise.all([
                       loadSchedulesForDateRange(date),
                       loadAllRecords('Task', '-created_date'),
                       loadAllRecords('DailyTeamAssignment', '-date'),
-                      loadSupervisionsForDateRange(date)
+                      loadSupervisionsForDateRange(date),
+                      loadTrainingsForDateRange(date)
                   ]);
 
                   setSchedules(allSchedules);
                   setTasks(allTasks);
                   setDailyTeamAssignments(allAssignments);
                   setSupervisions(allSupervisions);
+                  setTrainings(allTrainings);
 
                   // Actualizar caché
                   cacheManager.set(CACHE_KEYS.SCHEDULES('all'), allSchedules, CACHE_TTL.SHORT);
@@ -911,6 +963,11 @@ export default function HorarioPage() {
             setShowForm(false);
             return;
         }
+        if (event && event._isTraining) {
+            setSelectedTraining(event._training);
+            setShowForm(false);
+            return;
+        }
         setSelectedEvent(event);
         setShowForm(true);
     };
@@ -944,6 +1001,33 @@ export default function HorarioPage() {
         setSelectedSupervision(null);
         setEditingSupervision(sup);
         setShowSupervisionForm(true);
+    };
+
+    const handleOpenTrainingForm = () => {
+        setEditingTraining(null);
+        setShowTrainingForm(true);
+    };
+
+    const handleSaveTraining = async (saved, isDelete = false) => {
+        setShowTrainingForm(false);
+        setEditingTraining(null);
+        try {
+            const trns = await loadTrainingsForDateRange(currentDateRef.current);
+            setTrainings(trns);
+        } catch (e) {
+            console.error("[Horario] Error recargando entrenamientos:", e);
+        }
+    };
+
+    const handleTrainingDetailUpdate = (updated) => {
+        setSelectedTraining(updated);
+        setTrainings((prev) => (prev || []).map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+    };
+
+    const handleEditTrainingBlock = (training) => {
+        setSelectedTraining(null);
+        setEditingTraining(training);
+        setShowTrainingForm(true);
     };
 
     const handleCreateAtTime = (dateTime) => {
@@ -1265,10 +1349,32 @@ export default function HorarioPage() {
             });
     }, [supervisions]);
 
+    // Mapear entrenamientos a eventos para mostrarlos en todas las vistas
+    const mappedTrainings = useMemo(() => {
+        if (!Array.isArray(trainings)) return [];
+        return trainings
+            .filter((t) => t.status !== "cancelled")
+            .map((t) => {
+                const completed = (t.visits || []).filter((v) => v.visit_status === "completed").length;
+                return {
+                    id: `trn_${t.id}`,
+                    _isTraining: true,
+                    _training: t,
+                    client_name: `Entrenamiento (${t.trainee_name || "aprendiz"})`,
+                    client_address: `${completed}/${(t.visits || []).length} casas`,
+                    cleaner_ids: [t.trainer_id],
+                    start_time: t.start_time,
+                    end_time: t.end_time,
+                    color: "#0d9488",
+                    status: t.status,
+                };
+            });
+    }, [trainings]);
+
     const displayEvents = useMemo(() => {
         const arr = Array.isArray(filteredSchedules) ? filteredSchedules : [];
-        return [...arr, ...mappedSupervisions];
-    }, [filteredSchedules, mappedSupervisions]);
+        return [...arr, ...mappedSupervisions, ...mappedTrainings];
+    }, [filteredSchedules, mappedSupervisions, mappedTrainings]);
 
     const unassignedCleanersForDate = useMemo(() => {
         if (!user || user.role !== 'admin' || view !== 'day') return [];
@@ -1417,16 +1523,18 @@ export default function HorarioPage() {
 
             try {
                 if (user?.role === 'admin') {
-                    const [allSchedules, allTasks, allAssignments, allSupervisions] = await Promise.all([
+                    const [allSchedules, allTasks, allAssignments, allSupervisions, allTrainings] = await Promise.all([
                         loadSchedulesForDateRange(currentDateRef.current),
                         loadAllRecords('Task', '-created_date'),
                         loadAllRecords('DailyTeamAssignment', '-date'),
-                        loadSupervisionsForDateRange(currentDateRef.current)
+                        loadSupervisionsForDateRange(currentDateRef.current),
+                        loadTrainingsForDateRange(currentDateRef.current)
                     ]);
                     setSchedules(allSchedules);
                     setTasks(allTasks);
                     setDailyTeamAssignments(allAssignments);
                     setSupervisions(allSupervisions);
+                    setTrainings(allTrainings);
                 } else {
                     await loadCleanerSpecificData(currentDateRef.current, true);
                 }
@@ -1512,6 +1620,15 @@ export default function HorarioPage() {
                                 >
                                     <Shield className="w-3.5 h-3.5" />
                                     <span className="hidden sm:inline text-xs font-semibold">Supervisión</span>
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleOpenTrainingForm}
+                                    className="bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100 flex items-center gap-1.5"
+                                >
+                                    <GraduationCap className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline text-xs font-semibold">Entrenamiento</span>
                                 </Button>
                                 <Button
                                     onClick={() => { setSelectedEvent(null); setShowForm(true); }}
@@ -1894,6 +2011,47 @@ export default function HorarioPage() {
                             onClose={() => setSelectedSupervision(null)}
                             onUpdate={handleSupervisionDetailUpdate}
                             onEditBlock={handleEditSupervisionBlock}
+                        />
+                    </DialogContent>
+                </Dialog>
+            )}
+
+            {user?.role === 'admin' && (
+                <Dialog open={showTrainingForm} onOpenChange={setShowTrainingForm}>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-teal-700">
+                                <GraduationCap className="w-5 h-5" />
+                                {editingTraining?.id ? 'Editar Entrenamiento' : 'Nuevo Entrenamiento'}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <TrainingForm
+                            users={users}
+                            currentUser={user}
+                            existingTraining={editingTraining}
+                            onSave={handleSaveTraining}
+                            onCancel={() => setShowTrainingForm(false)}
+                        />
+                    </DialogContent>
+                </Dialog>
+            )}
+
+            {selectedTraining && (
+                <Dialog open={!!selectedTraining} onOpenChange={(open) => { if (!open) setSelectedTraining(null); }}>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-teal-700">
+                                <GraduationCap className="w-5 h-5" />
+                                Detalle de Entrenamiento
+                            </DialogTitle>
+                        </DialogHeader>
+                        <TrainingDetail
+                            training={selectedTraining}
+                            currentUser={user}
+                            users={users}
+                            onClose={() => setSelectedTraining(null)}
+                            onUpdate={handleTrainingDetailUpdate}
+                            onEditBlock={handleEditTrainingBlock}
                         />
                     </DialogContent>
                 </Dialog>
