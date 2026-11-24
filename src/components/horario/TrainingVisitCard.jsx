@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,20 +56,21 @@ export default function TrainingVisitCard({
   const photos = visit.photos || [];
   const photoSignature = photos.map((p) => p.url).join("|");
 
-  // Firmar las fotos privadas para poder mostrarlas
+  // Firmar las fotos privadas para poder mostrarlas (indexadas por file_uri,
+  // así al borrar una foto no se muestra la imagen de otra)
   useEffect(() => {
     const pending = photos
-      .map((p, pi) => ({ key: `${pi}`, uri: p.url }))
-      .filter(({ key, uri }) => uri && !/^https?:\/\//.test(uri) && !signed[key]);
+      .map((p) => p.url)
+      .filter((uri) => uri && !/^https?:\/\//.test(uri) && !signed[uri]);
     if (pending.length === 0) return;
     let cancelled = false;
     (async () => {
       const fetched = {};
       await Promise.all(
-        pending.map(async ({ key, uri }) => {
+        pending.map(async (uri) => {
           try {
             const res = await CreateFileSignedUrl({ file_uri: uri, expires_in: 3600 });
-            if (res?.signed_url) fetched[key] = res.signed_url;
+            if (res?.signed_url) fetched[uri] = res.signed_url;
           } catch (e) {
             console.warn("No se pudo firmar la foto:", e);
           }
@@ -82,16 +83,23 @@ export default function TrainingVisitCard({
     return () => { cancelled = true; };
   }, [photoSignature]);
 
-  const run = async (action, extra = {}) => {
-    setSaving(true);
-    setError("");
-    try {
-      await onAction(action, { client_id: visit.client_id, ...extra });
-    } catch (e) {
-      setError(e.message || "No se pudo guardar el cambio.");
-    } finally {
-      setSaving(false);
-    }
+  // Cola: los cambios de esta tarjeta se envían uno tras otro para que el
+  // guardado de notas (al salir del campo) no pise el cambio de estado
+  const queueRef = useRef(Promise.resolve());
+  const run = (action, extra = {}) => {
+    const task = queueRef.current.then(async () => {
+      setSaving(true);
+      setError("");
+      try {
+        await onAction(action, { client_id: visit.client_id, ...extra });
+      } catch (e) {
+        setError(e.message || "No se pudo guardar el cambio.");
+      } finally {
+        setSaving(false);
+      }
+    });
+    queueRef.current = task;
+    return task;
   };
 
   const handleAreasToggle = (key) => {
@@ -291,7 +299,7 @@ export default function TrainingVisitCard({
         {photos.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {photos.map((p, pi) => {
-              const src = signed[`${pi}`] || (p.url && /^https?:\/\//.test(p.url) ? p.url : null);
+              const src = signed[p.url] || (p.url && /^https?:\/\//.test(p.url) ? p.url : null);
               return (
                 <div key={pi} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
                   {src ? (

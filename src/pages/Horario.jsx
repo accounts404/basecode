@@ -1251,6 +1251,8 @@ export default function HorarioPage() {
 
     const handleResizeEvent = async (eventId, newStartTime, newEndTime) => {
         if (isCleanerView || user?.role !== 'admin') return;
+        // Supervisiones y entrenamientos no son servicios: no se arrastran ni redimensionan
+        if (typeof eventId === 'string' && (eventId.startsWith('sup_') || eventId.startsWith('trn_'))) return;
 
         const toLocalISO = (d) => {
             const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');
@@ -1275,6 +1277,8 @@ export default function HorarioPage() {
 
     const handleMoveEvent = async (eventId, newStartTime, newEndTime) => {
         if (isCleanerView || user?.role !== 'admin') return;
+        // Supervisiones y entrenamientos no son servicios: no se arrastran ni redimensionan
+        if (typeof eventId === 'string' && (eventId.startsWith('sup_') || eventId.startsWith('trn_'))) return;
 
         const toLocalISO = (d) => {
             const y = d.getUTCFullYear(), mo = String(d.getUTCMonth()+1).padStart(2,'0'), dy = String(d.getUTCDate()).padStart(2,'0');

@@ -33,7 +33,8 @@ export const computeTrainingWorkEntryFields = (training, trainerUser) => {
     client_name: `Entrenamiento ${training.trainee_name || ""} · ${prettyDate}`,
     work_date: dateStr,
     hours,
-    activity: "training",
+    // "entrenamiento" es el valor que ya usan los reportes de costos de entrenamiento
+    activity: "entrenamiento",
     hourly_rate: rate,
     total_amount: parseFloat((hours * rate).toFixed(2)),
     period,
