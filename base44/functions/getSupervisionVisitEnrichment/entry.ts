@@ -1,5 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 
+// Caché de nombres por limpiador: evita releer los mismos usuarios cada vez que se abre un bloque
+const NAME_CACHE = new Map<string, { name: string; at: number }>();
+const NAME_TTL_MS = 10 * 60 * 1000;
+
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -21,17 +25,35 @@ export default async function(req) {
       .filter((s) => s.status !== 'cancelled');
 
     // Resolver nombres de todos los limpiadores involucrados
-    const allCleanerIds = new Set();
+    // IMPORTANTE: una sola lectura por lote + caché en memoria. Antes se hacía un User.get por
+    // limpiador y eso agotaba el límite de lecturas (450/60s) y rompía la vista del limpiador.
+    const allCleanerIds = new Set<string>();
     schedules.forEach((s) => (s.cleaner_ids || []).forEach((id) => allCleanerIds.add(id)));
-    const cleanerNames = {};
-    await Promise.all([...allCleanerIds].map(async (id) => {
+    const cleanerNames: Record<string, string> = {};
+    const nowMs = Date.now();
+    const missing: string[] = [];
+    allCleanerIds.forEach((id) => {
+      const hit = NAME_CACHE.get(id);
+      if (hit && nowMs - hit.at < NAME_TTL_MS) cleanerNames[id] = hit.name;
+      else missing.push(id);
+    });
+    if (missing.length > 0) {
       try {
-        const u = await base44.asServiceRole.entities.User.get(id);
-        cleanerNames[id] = u.invoice_name || u.display_name || u.full_name || 'Limpiador';
-      } catch {
-        cleanerNames[id] = 'Limpiador';
+        const res = await base44.asServiceRole.entities.User.filter({ id: { $in: missing } });
+        const arr = Array.isArray(res) ? res : (res?.items || []);
+        const found = new Set<string>();
+        arr.forEach((u) => {
+          const name = u.invoice_name || u.display_name || u.full_name || 'Limpiador';
+          cleanerNames[u.id] = name;
+          NAME_CACHE.set(u.id, { name, at: nowMs });
+          found.add(u.id);
+        });
+        missing.forEach((id) => { if (!found.has(id)) cleanerNames[id] = 'Limpiador'; });
+      } catch (e) {
+        console.warn('[getSupervisionVisitEnrichment] No se pudieron leer los nombres:', e?.message);
+        missing.forEach((id) => { cleanerNames[id] = 'Limpiador'; });
       }
-    }));
+    }
 
     const visits = {};
     for (const clientId of client_ids) {

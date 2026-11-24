@@ -84,7 +84,11 @@ export default function SupervisionClientInfo({ client, enrichment, loading }) {
         {loading ? (
           <p className="text-xs text-slate-400">Cargando equipo y horario...</p>
         ) : cleaners.length === 0 ? (
-          <p className="text-xs text-slate-500 italic">No hay servicio asignado para este cliente el día de la supervisión.</p>
+          <p className="text-xs text-slate-500 italic">
+            {enrichment === null
+              ? "No hay servicio asignado para este cliente el día de la supervisión."
+              : "No se pudo cargar el equipo del servicio. Cierra y vuelve a abrir el bloque."}
+          </p>
         ) : (
           <>
             <div className="space-y-1.5">
